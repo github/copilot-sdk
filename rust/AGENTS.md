@@ -2,9 +2,10 @@
 
 # Rust SDK
 
-This directory contains the independent `github-copilot-sdk` crate. Paths and
-Cargo commands below are relative to this directory, and this crate's own
-lockfile and toolchain apply. The runtime CLI consumes the same sources through
+This directory contains the independent `github-copilot-sdk` crate. In
+standalone SDK workflows, paths and Cargo commands below are relative to this
+directory, and this crate's own lockfile and toolchain apply. When nested at
+`src/sdk/rust`, the runtime CLI consumes the same checked-out sources through
 the Bazel integration described under Development. The runtime's N-API
 architecture does not otherwise govern this crate.
 
@@ -45,7 +46,8 @@ architecture does not otherwise govern this crate.
 
 Do not edit `src/generated/` by hand. The generator is
 `../scripts/codegen/rust.ts`. From `<SDK_ROOT>`, regenerate with the SDK facade
-to select checked-out runtime schemas:
+so the runtime layout selects checked-out schemas and the standalone layout
+selects its pinned release schemas:
 
 ```bash
 npm run generate:rust
@@ -71,14 +73,14 @@ transport without SDK-managed acquisition because the CLI supplies its loaded
 Use this crate's `rust-toolchain.toml`, `Cargo.toml`, and rustfmt configuration,
 not the runtime workspace's. See [README.md#development](README.md#development)
 for Node and replay-harness prerequisites. Cargo restores Rust dependencies.
-The following direct Cargo commands exercise consumer-facing
-published/bundled acquisition semantics:
+The following direct Cargo commands are standalone SDK repository commands and
+use its published/bundled acquisition semantics:
 
 ```bash
 cargo check --all-features
 cargo test --features test-support
 cargo clippy --all-targets --all-features -- -D warnings
-cargo fmt --all -- --config-path .rustfmt.toml --check
+cargo +nightly-2026-04-14 fmt --all -- --config-path .rustfmt.nightly.toml --check
 ```
 
 For changes to the CLI's SDK consumer path, run the repository's Bazel tests
@@ -95,8 +97,8 @@ same-checkout compilation from this directory, use:
 cargo check --no-default-features --features local-runtime
 ```
 
-Run with `COPILOT_SKIP_CLI_DOWNLOAD` unset. Direct runtime tests need prepared
-`COPILOT_CLI_PATH`; in-process MCP Apps E2Es also need startup `COPILOT_MCP_APPS=true`.
+Run it with `COPILOT_SKIP_CLI_DOWNLOAD` unset. Tests that start the runtime must
+also set `COPILOT_CLI_PATH` to the prepared same-checkout wrapper.
 
 Keep unit tests in external test-only modules: `foo.rs` declares
 `#[cfg(test)] mod tests;`, and its tests live in `foo/tests.rs`. Crate roots
@@ -109,5 +111,5 @@ use the `test-support` feature because the library is compiled without
 Default features bundle the CLI; disabling them changes what must be provided
 externally. For transport-specific E2E settings, bundled-runtime checks, and
 the full platform matrix, follow the runtime repository's Rust SDK workflow
-(`.github/workflows/ci.yml`). A local unit test
+(`.github/workflows/sdk-rust.yml`). A local unit test
 run does not replace those checks.

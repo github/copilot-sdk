@@ -357,7 +357,7 @@ async fn failed_start_releases_callback_without_synthetic_exit() {
         .await;
 }
 
-#[tokio::test(start_paused = true)]
+#[tokio::test]
 async fn cancelled_start_disposes_after_late_success() {
     let (client, mut peer) = fixture();
     let (options, mut exits) = callback_options();
@@ -379,7 +379,7 @@ async fn cancelled_start_disposes_after_late_success() {
     peer.respond(&disposal, json!({})).await;
 }
 
-#[tokio::test(start_paused = true)]
+#[tokio::test]
 async fn cancelled_start_does_not_dispose_after_late_failure() {
     let (client, mut peer) = fixture();
     let pending = start(&client, local_options());
@@ -699,7 +699,7 @@ async fn handle_and_dispatcher_do_not_keep_client_alive() {
     assert!(host.dispose().await.is_err());
 }
 
-#[tokio::test(start_paused = true)]
+#[tokio::test]
 async fn dropping_handle_does_not_dispose_or_unregister_callback() {
     let (client, mut peer) = fixture();
     let (options, mut exits) = callback_options();

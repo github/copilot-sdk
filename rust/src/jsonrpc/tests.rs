@@ -130,19 +130,6 @@ fn deserialize_rejects_non_object() {
 
 #[test]
 fn frame_decoder_preserves_message_classification_payloads_and_errors() {
-    let raw_count = Arc::new(AtomicUsize::new(0));
-    let pending = RwLock::new(HashMap::from([1, 2].map(|id| {
-        let (sender, _) = oneshot::channel();
-        (
-            id,
-            PendingRequest {
-                sender: Some(sender),
-                mode: ResponseMode::Raw {
-                    _request: RawRequest::new(raw_count.clone()),
-                },
-            },
-        )
-    })));
     for body in [
         r#"{"jsonrpc":"2.0","id":1,"result":{}}"#,
         r#"{"jsonrpc":"2.0","id":1,"result":null}"#,
@@ -156,9 +143,6 @@ fn frame_decoder_preserves_message_classification_payloads_and_errors() {
         r#"{"jsonrpc":"2.0","id":2,"met\u0068od":"request","params":{}}"#,
         r#"{"jsonrpc":"2.0","id":1,"result":{},"extra":{"nested":[1,2]}}"#,
         r#"{"jsonrpc":"2.0","id":1,"id":2,"result":{}}"#,
-        r#"{"result":{"nested":{"key":1,"key":2}},"id":1,"jsonrpc":"2.0"}"#,
-        r#"{"jsonrpc":"2.0","id":1,"result":{"ignored":1e1000}}"#,
-        r#"{"jsonrpc":"2.0","id":1,"result":{"ignored":"\ud83d"}}"#,
         r#"{"jsonrpc":"2.0","method":false,"method":"notify","params":{}}"#,
         r#"{"jsonrpc":"2.0","method":"notify","params":{},"params":[1,2]}"#,
         r#"{"jsonrpc":"1.0","id":1,"result":{}}"#,
@@ -187,79 +171,6 @@ fn frame_decoder_preserves_message_classification_payloads_and_errors() {
             .map(|message| serde_json::to_value(message).unwrap())
             .map_err(|error| error.to_string());
         assert_eq!(actual, expected, "{body}");
-        let mut bytes = body.as_bytes().to_vec();
-        let typed = match JsonRpcClient::try_raw_message(&mut bytes, &pending) {
-            Some(IncomingMessage::RawResponse(response)) => {
-                response.into_response().map(JsonRpcMessage::Response)
-            }
-            Some(IncomingMessage::Message(message)) => Ok(message),
-            Some(IncomingMessage::InvalidResponse { .. }) => unreachable!(),
-            None => JsonRpcMessage::from_slice(body.as_bytes()).map_err(Error::from),
-        }
-        .map(|message| serde_json::to_value(message).unwrap())
-        .map_err(|error| error.to_string());
-        assert_eq!(typed, expected, "typed: {body}");
-    }
-}
-
-#[test]
-fn typed_results_keep_value_normalization_and_frame_depth() {
-    #[derive(Debug, Deserialize, PartialEq)]
-    #[serde(untagged)]
-    enum ResultType {
-        Number { value: u64 },
-        Other(Value),
-    }
-
-    let raw_count = Arc::new(AtomicUsize::new(0));
-    let (sender, _) = oneshot::channel();
-    let pending = RwLock::new(HashMap::from([(
-        1,
-        PendingRequest {
-            sender: Some(sender),
-            mode: ResponseMode::Raw {
-                _request: RawRequest::new(raw_count),
-            },
-        },
-    )]));
-    for (result, is_raw) in [
-        (r#"{"value":2}"#.to_string(), true),
-        (r#"{"value":1,"value":2}"#.to_string(), false),
-        (
-            format!(r#"{{"ignored":{}0{}}}"#, "[".repeat(125), "]".repeat(125)),
-            true,
-        ),
-        (
-            format!(r#"{{"ignored":{}0{}}}"#, "[".repeat(126), "]".repeat(126)),
-            false,
-        ),
-    ] {
-        let body = format!(r#"{{"jsonrpc":"2.0","id":1,"result":{result}}}"#);
-        let expected = JsonRpcMessage::from_slice(body.as_bytes()).map(|message| {
-            let JsonRpcMessage::Response(response) = message else {
-                panic!("expected response");
-            };
-            serde_json::from_value::<ResultType>(response.result.unwrap()).unwrap()
-        });
-        let fast = JsonRpcClient::try_raw_message(&mut body.as_bytes().to_vec(), &pending);
-        assert_eq!(
-            matches!(fast, Some(IncomingMessage::RawResponse(_))),
-            is_raw,
-            "{body}"
-        );
-        let actual = match fast {
-            Some(IncomingMessage::RawResponse(response)) => response.deserialize::<ResultType>(),
-            None => JsonRpcMessage::from_slice(body.as_bytes())
-                .map_err(Error::from)
-                .and_then(|message| {
-                    let JsonRpcMessage::Response(response) = message else {
-                        panic!("expected response");
-                    };
-                    Response::from(response).deserialize()
-                }),
-            _ => panic!("expected response"),
-        };
-        assert_eq!(actual.ok(), expected.ok(), "{body}");
     }
 }
 
@@ -469,7 +380,7 @@ async fn request_after_the_read_loop_ended_leaves_no_pending_entry() {
     for eager in [false, true] {
         let (client_write, _server_read) = tokio::io::duplex(4096);
         let (server_write, client_read) = tokio::io::duplex(4096);
-        let (notification_tx, _) = mpsc::unbounded_channel();
+        let (notification_tx, _) = broadcast::channel(16);
         let (request_tx, _request_rx) = mpsc::unbounded_channel();
         let client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
         let closed = client.connection_closed_token();
@@ -502,12 +413,44 @@ async fn request_after_the_read_loop_ended_leaves_no_pending_entry() {
 }
 
 #[tokio::test]
+async fn notification_receivers_share_one_parsed_notification() {
+    let (client_write, _server_read) = tokio::io::duplex(4096);
+    let (mut server_write, client_read) = tokio::io::duplex(4096);
+    let (notification_tx, mut first) = broadcast::channel(16);
+    let mut second = notification_tx.subscribe();
+    let (request_tx, _request_rx) = mpsc::unbounded_channel();
+    let _client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
+
+    let body = br#"{"jsonrpc":"2.0","method":"session.event","params":{"sessionId":"s1","event":{"data":{"deltaContent":"hi"}}}}"#;
+    server_write
+        .write_all(format!("Content-Length: {}\r\n\r\n", body.len()).as_bytes())
+        .await
+        .unwrap();
+    server_write.write_all(body).await.unwrap();
+
+    let deadline = std::time::Duration::from_secs(5);
+    let first = tokio::time::timeout(deadline, first.recv())
+        .await
+        .expect("first receiver got no notification")
+        .unwrap();
+    let second = tokio::time::timeout(deadline, second.recv())
+        .await
+        .expect("second receiver got no notification")
+        .unwrap();
+    // Each receiver gets the same parsed notification, not a deep copy of it.
+    assert!(Arc::ptr_eq(&first, &second));
+    assert_eq!(first.method, "session.event");
+    assert_eq!(
+        first.params.as_ref().unwrap()["event"]["data"]["deltaContent"],
+        "hi"
+    );
+}
+
+#[tokio::test]
 async fn a_frame_body_is_reserved_as_it_arrives_not_as_declared() {
     let (client_write, _server_read) = tokio::io::duplex(4096);
-    // Completing this write requires the read loop to consume body bytes after
-    // parsing the header, rather than merely buffering the whole partial frame.
-    let (mut server_write, client_read) = tokio::io::duplex(1);
-    let (notification_tx, _) = mpsc::unbounded_channel();
+    let (mut server_write, client_read) = tokio::io::duplex(4096);
+    let (notification_tx, _) = broadcast::channel(16);
     let (request_tx, _request_rx) = mpsc::unbounded_channel();
     let client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
     let closed = client.connection_closed_token();
@@ -518,6 +461,7 @@ async fn a_frame_body_is_reserved_as_it_arrives_not_as_declared() {
         .write_all(b"Content-Length: 1125899906842624\r\n\r\n{\"jsonrpc\":\"2.0\"")
         .await
         .unwrap();
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     assert!(
         !closed.is_cancelled(),
         "the connection ended while the peer was still sending the frame"
@@ -534,7 +478,7 @@ async fn a_frame_body_is_reserved_as_it_arrives_not_as_declared() {
 async fn a_frame_body_larger_than_the_first_reserve_arrives_whole() {
     let (client_write, _server_read) = tokio::io::duplex(4096);
     let (mut server_write, client_read) = tokio::io::duplex(4096);
-    let (notification_tx, mut notifications) = mpsc::unbounded_channel();
+    let (notification_tx, mut notifications) = broadcast::channel(16);
     let (request_tx, _request_rx) = mpsc::unbounded_channel();
     let _client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
 

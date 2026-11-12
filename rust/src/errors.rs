@@ -176,9 +176,6 @@ pub enum SessionErrorKind {
     /// Check `session.capabilities().ui.elicitation` before calling UI methods.
     ElicitationNotSupported,
 
-    /// The runtime did not acknowledge explicit retained-request Auto recovery enrollment.
-    AutoModeRecoveryNotSupported,
-
     /// The client was started with [`crate::ClientOptions::session_fs`] but this
     /// session was created without a [`crate::session_fs::SessionFsProvider`]. Set one via
     /// [`crate::SessionConfig::with_session_fs_provider`] (or
@@ -199,9 +196,6 @@ pub enum SessionErrorKind {
 
     /// The CLI could not detach the session.
     DetachFailed,
-
-    /// The CLI could not delete the persisted session.
-    DeleteFailed,
 }
 
 impl fmt::Display for SessionErrorKind {
@@ -221,9 +215,6 @@ impl fmt::Display for SessionErrorKind {
                 "elicitation not supported by host \
                  \u{2014} check session.capabilities().ui.elicitation first"
             ),
-            SessionErrorKind::AutoModeRecoveryNotSupported => {
-                write!(f, "the runtime does not support auto_mode_recovery")
-            }
             SessionErrorKind::SessionFsProviderRequired => write!(
                 f,
                 "session was created on a client with session_fs configured \
@@ -240,7 +231,6 @@ impl fmt::Display for SessionErrorKind {
                 "CLI returned session ID {returned} after SDK registered {requested}"
             ),
             SessionErrorKind::DetachFailed => write!(f, "failed to detach session"),
-            SessionErrorKind::DeleteFailed => write!(f, "failed to delete session"),
         }
     }
 }
@@ -397,17 +387,7 @@ impl Error {
         }
     }
 
-    pub(crate) fn into_agent_error(mut self) -> Self {
-        let kind = match &mut self.repr {
-            Repr::Simple(kind)
-            | Repr::SimpleMessage(kind, ..)
-            | Repr::Custom(Custom { kind, .. }) => kind,
-        };
-        *kind = ErrorKind::Session(SessionErrorKind::AgentError);
-        self
-    }
-
-    /// Returns the non-null JSON-RPC error data, including terminal session error details.
+    /// Returns the non-null JSON-RPC error data for an [`ErrorKind::Rpc`] error, if any.
     ///
     /// The value may be an object, array, or scalar. Missing and `null` data
     /// return `None`. Data is not included in this error's `Display` or `Debug`

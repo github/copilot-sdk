@@ -17,7 +17,7 @@ import javax.annotation.processing.Generated;
  *
  * @since 1.0.0
  */
-@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.EXISTING_PROPERTY, property = "resource", visible = true)
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "resource", visible = true)
 @JsonSubTypes({
     @JsonSubTypes.Type(value = InstallationReviewMcp.class, name = "mcp"),
     @JsonSubTypes.Type(value = InstallationReviewSkill.class, name = "skill"),

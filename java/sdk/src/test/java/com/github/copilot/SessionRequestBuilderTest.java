@@ -18,10 +18,6 @@ import com.github.copilot.generated.rpc.DiagnosticLogLevel;
 import com.github.copilot.generated.rpc.DiagnosticSourcesConfiguration;
 import com.github.copilot.generated.rpc.DiagnosticsConfiguration;
 import com.github.copilot.generated.rpc.McpDiagnosticSourceConfiguration;
-import com.github.copilot.generated.rpc.PermissionMode;
-import com.github.copilot.generated.rpc.ProtocolExternalToolDefinition;
-import com.github.copilot.generated.rpc.SessionPermissionsSetModeResult;
-import com.github.copilot.generated.rpc.SessionOpenOptions;
 import com.github.copilot.generated.rpc.SandboxConfig;
 import com.github.copilot.generated.rpc.SessionLimitsConfig;
 import com.github.copilot.generated.rpc.AutopilotOptions;
@@ -32,7 +28,6 @@ import com.github.copilot.rpc.CloudSessionRepository;
 import com.github.copilot.rpc.CopilotClientMode;
 import com.github.copilot.rpc.CopilotExpAssignmentResponse;
 import com.github.copilot.rpc.CreateSessionRequest;
-import com.github.copilot.rpc.CreateSessionResponse;
 import com.github.copilot.rpc.DefaultAgentConfig;
 import com.github.copilot.rpc.ElicitationHandler;
 import com.github.copilot.rpc.ElicitationResult;
@@ -58,48 +53,6 @@ import com.github.copilot.rpc.UserInputResponse;
  * configureSession that are not reached by E2E tests.
  */
 public class SessionRequestBuilderTest {
-
-    @Test
-    @SuppressWarnings("deprecation")
-    void externalToolDefinitionPreservesPositionalConstructor() throws Exception {
-        var definition = new ProtocolExternalToolDefinition("lookup", "Description", null, null, null, true, null, true,
-                Map.of("custom", "kept"), null);
-        assertNull(definition.hasHandler());
-        var mapper = JsonRpcClient.getObjectMapper();
-        assertEquals(mapper.readTree(
-                "{\"name\":\"lookup\",\"description\":\"Description\",\"skipPermission\":true,\"isTerminal\":true,\"metadata\":{\"custom\":\"kept\"}}"),
-                mapper.readTree(mapper.writeValueAsBytes(definition)));
-    }
-
-    @Test
-    void sessionOpenOptionsBuilderPreservesParallelToolChoiceOnTheWire() throws Exception {
-        var mapper = JsonRpcClient.getObjectMapper();
-        for (Boolean choice : new Boolean[]{null, false, true}) {
-            var options = SessionOpenOptions.builder().allowMultipleToolCalls(choice).build();
-            var wire = mapper.readTree(mapper.writeValueAsBytes(options));
-            if (choice == null) {
-                assertFalse(wire.has("allowMultipleToolCalls"), wire.toString());
-            } else {
-                assertEquals(choice.booleanValue(), wire.path("allowMultipleToolCalls").asBoolean(), wire.toString());
-                assertTrue(wire.has("allowMultipleToolCalls"), wire.toString());
-            }
-            assertEquals(choice, mapper.treeToValue(wire, SessionOpenOptions.class).allowMultipleToolCalls());
-        }
-    }
-
-    @Test
-    void toolFilterPrecedenceIsOmittedInAllModes() throws Exception {
-        var mapper = JsonRpcClient.getObjectMapper();
-        for (var mode : new CopilotClientMode[]{CopilotClientMode.COPILOT_CLI, CopilotClientMode.EMPTY}) {
-            for (var request : new Object[]{SessionRequestBuilder.buildCreateRequest(new SessionConfig(), "s1", mode),
-                    SessionRequestBuilder.buildResumeRequest("s1", new ResumeSessionConfig(), mode),
-                    SessionRequestBuilder.buildCreateRequest(null, "s1", mode),
-                    SessionRequestBuilder.buildResumeRequest("s1", null, mode)}) {
-                var json = mapper.readTree(mapper.writeValueAsBytes(request));
-                assertFalse(json.has("toolFilterPrecedence"), mode + " must use the runtime default");
-            }
-        }
-    }
 
     @Test
     void transcriptRecoveryOverridesAndResponseInAllModes() throws Exception {
@@ -333,8 +286,8 @@ public class SessionRequestBuilderTest {
     }
 
     private static DiagnosticsConfiguration diagnostics(DiagnosticLogLevel level) {
-        return DiagnosticsConfiguration.builder().sources(DiagnosticSourcesConfiguration.builder()
-                .mcp(McpDiagnosticSourceConfiguration.builder().level(level).build()).build()).build();
+        return new DiagnosticsConfiguration(
+                new DiagnosticSourcesConfiguration(new McpDiagnosticSourceConfiguration(level)));
     }
 
     @Test
@@ -475,9 +428,7 @@ public class SessionRequestBuilderTest {
     void testBuildRequestsForwardSandboxConfig() throws Exception {
         var mapper = JsonRpcClient.getObjectMapper();
         for (boolean enabled : new boolean[]{true, false}) {
-            var sandbox = SandboxConfig.builder().enabled(enabled).userPolicy(null).addCurrentWorkingDirectory(false)
-                    .sandboxMcpServers(true).sandboxLspServers(null).allowBypass(null).managedMcpRoutingLocked(null)
-                    .managedLspRoutingLocked(null).auth(null).credentials(null).allowDevToolAccess(null).build();
+            var sandbox = new SandboxConfig(enabled, null, false, true, null, null, null, null, null, null, null);
             var create = SessionRequestBuilder.buildCreateRequest(new SessionConfig().setSandboxConfig(sandbox));
             var resume = SessionRequestBuilder.buildResumeRequest("sid-sandbox",
                     new ResumeSessionConfig().setSandboxConfig(sandbox));
@@ -545,8 +496,8 @@ public class SessionRequestBuilderTest {
 
     @Test
     void testBuildCreateRequestForwardsSessionPolicyOptions() {
-        var sessionLimits = SessionLimitsConfig.builder().maxAiCredits(30.0).build();
-        var autopilot = AutopilotOptions.builder().continuationEnabled(false).maxContinues(0L).build();
+        var sessionLimits = new SessionLimitsConfig(30.0);
+        var autopilot = new AutopilotOptions(false, 0L);
         var config = new SessionConfig().setExcludedBuiltInAgents(List.of("explore")).setEnableCitations(true)
                 .setEnableFileChangeTracking(true).setSessionLimits(sessionLimits).setAutopilot(autopilot);
 
@@ -679,25 +630,16 @@ public class SessionRequestBuilderTest {
     }
 
     @Test
-    void testBuildSessionRequestsWithTools() throws Exception {
+    void testBuildResumeRequestWithTools() {
         var tool = ToolDefinition.create("my_tool", "A tool", Map.of("type", "object"),
                 inv -> CompletableFuture.completedFuture("result"));
-        var deferred = ToolDefinition.create("approval", "A deferred tool", Map.of("type", "object"), null);
-        var tools = List.of(tool, deferred);
-        var mapper = JsonRpcClient.getObjectMapper();
-        for (var mode : new CopilotClientMode[]{CopilotClientMode.COPILOT_CLI, CopilotClientMode.EMPTY}) {
-            for (var request : new Object[]{
-                    SessionRequestBuilder.buildCreateRequest(new SessionConfig().setTools(tools), "sid-1", mode),
-                    SessionRequestBuilder.buildResumeRequest("sid-2", new ResumeSessionConfig().setTools(tools),
-                            mode)}) {
-                var json = mapper.readTree(mapper.writeValueAsBytes(request));
-                assertEquals(2, json.path("tools").size());
-                assertEquals("my_tool", json.at("/tools/0/name").textValue());
-                assertEquals(mapper.getNodeFactory().booleanNode(true), json.at("/tools/0/hasHandler"));
-                assertEquals(mapper.getNodeFactory().booleanNode(false), json.at("/tools/1/hasHandler"));
-                assertFalse(json.at("/tools/0").has("handler"));
-            }
-        }
+        var config = new ResumeSessionConfig().setTools(List.of(tool));
+
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-2", config);
+
+        assertNotNull(request.getTools());
+        assertEquals(1, request.getTools().size());
+        assertEquals("my_tool", request.getTools().get(0).name());
     }
 
     @Test
@@ -827,8 +769,8 @@ public class SessionRequestBuilderTest {
 
     @Test
     void testBuildResumeRequestForwardsSessionPolicyOptions() {
-        var sessionLimits = SessionLimitsConfig.builder().maxAiCredits(30.0).build();
-        var autopilot = AutopilotOptions.builder().continuationEnabled(null).maxContinues(2L).build();
+        var sessionLimits = new SessionLimitsConfig(30.0);
+        var autopilot = new AutopilotOptions(null, 2L);
         var config = new ResumeSessionConfig().setExcludedBuiltInAgents(List.of("explore")).setEnableCitations(true)
                 .setEnableFileChangeTracking(true).setSessionLimits(sessionLimits).setAutopilot(autopilot);
 
@@ -1436,38 +1378,6 @@ public class SessionRequestBuilderTest {
     }
 
     @Test
-    void testBuiltInAgentAllowlistPreservesOmissionEmptySubsetAndClone() throws Exception {
-        var mapper = JsonRpcClient.getObjectMapper();
-        for (var mode : CopilotClientMode.values()) {
-            for (List<String> agents : java.util.Arrays.asList(null, List.<String>of(), List.of("explore"))) {
-                var original = agents == null ? null : new ArrayList<>(agents);
-                var create = new SessionConfig().setIncludedBuiltInAgents(original);
-                var resume = new ResumeSessionConfig().setIncludedBuiltInAgents(original);
-                if (original != null) {
-                    original.add("task");
-                }
-                var createClone = create.clone();
-                var resumeClone = resume.clone();
-                create.setIncludedBuiltInAgents(List.of("task"));
-                resume.setIncludedBuiltInAgents(List.of("task"));
-                var createJson = mapper.valueToTree(SessionRequestBuilder.buildCreateRequest(createClone, "s1", mode));
-                var resumeJson = mapper.valueToTree(SessionRequestBuilder.buildResumeRequest("s1", resumeClone, mode));
-                for (var payload : List.of(createJson, resumeJson)) {
-                    if (agents == null) {
-                        assertFalse(payload.has("includedBuiltinAgents"), payload.toString());
-                    } else {
-                        assertEquals(mapper.valueToTree(agents), payload.get("includedBuiltinAgents"));
-                    }
-                }
-            }
-            var createNull = mapper.valueToTree(SessionRequestBuilder.buildCreateRequest(null, "s1", mode));
-            var resumeNull = mapper.valueToTree(SessionRequestBuilder.buildResumeRequest("s1", null, mode));
-            assertFalse(createNull.has("includedBuiltinAgents"));
-            assertFalse(resumeNull.has("includedBuiltinAgents"));
-        }
-    }
-
-    @Test
     void testBuildRequestsOmitExpAssignmentsWhenUnset() throws Exception {
         var mapper = JsonRpcClient.getObjectMapper();
 
@@ -1543,41 +1453,6 @@ public class SessionRequestBuilderTest {
         assertFalse(
                 mapper.writeValueAsString(SessionRequestBuilder.buildCreateRequest(new SessionConfig(), "session-2"))
                         .contains("\"githubMcpToolConfig\""));
-    }
-
-    @Test
-    @AllowCopilotExperimental
-    void permissionModeIsMappedAndSerializedForCreateAndResume() throws Exception {
-        var mapper = JsonRpcClient.getObjectMapper();
-        for (var mode : PermissionMode.values()) {
-            var createRequest = SessionRequestBuilder.buildCreateRequest(new SessionConfig().setPermissionMode(mode),
-                    "session-1");
-            var resumeRequest = SessionRequestBuilder.buildResumeRequest("session-1",
-                    new ResumeSessionConfig().setPermissionMode(mode));
-
-            assertEquals(mode, createRequest.getPermissionMode());
-            assertEquals(mode, resumeRequest.getPermissionMode());
-            var expected = "\"permissionMode\":\"" + mode.getValue() + "\"";
-            assertTrue(mapper.writeValueAsString(createRequest).contains(expected));
-            assertTrue(mapper.writeValueAsString(resumeRequest).contains(expected));
-        }
-        assertFalse(
-                mapper.writeValueAsString(SessionRequestBuilder.buildCreateRequest(new SessionConfig(), "session-2"))
-                        .contains("permissionMode"));
-        assertFalse(mapper
-                .writeValueAsString(SessionRequestBuilder.buildResumeRequest("session-2", new ResumeSessionConfig()))
-                .contains("permissionMode"));
-
-        var outcome = "{\"sessionId\":\"s1\",\"permissionModeResult\":{\"success\":false,\"mode\":\"manual\"}}";
-        for (var result : new SessionPermissionsSetModeResult[]{
-                mapper.readValue(outcome, CreateSessionResponse.class).permissionModeResult(),
-                mapper.readValue(outcome, ResumeSessionResponse.class).permissionModeResult()}) {
-            assertNotNull(result);
-            assertFalse(result.success());
-            assertEquals(PermissionMode.MANUAL, result.mode());
-        }
-        assertNull(mapper.readValue("{\"sessionId\":\"s1\"}", CreateSessionResponse.class).permissionModeResult());
-        assertNull(new ResumeSessionResponse("s1", null, null, null, null).permissionModeResult());
     }
 
     @AllowCopilotExperimental

@@ -3,7 +3,6 @@ package rpc
 import (
 	"encoding/json"
 	"io"
-	"reflect"
 	"testing"
 
 	"github.com/github/copilot-sdk/go/internal/jsonrpc2"
@@ -194,103 +193,6 @@ func TestMCPServerConfigJSONUnion(t *testing.T) {
 	}
 	if _, ok := decodedRaw.(*RawMCPServerConfigData); !ok {
 		t.Fatalf("unmarshal raw config = %T, want *RawMCPServerConfigData", decodedRaw)
-	}
-}
-
-func TestMCPStartServerConfigRoundTrip(t *testing.T) {
-	httpType := MCPServerConfigHTTPTypeHTTP
-	sseType := MCPServerConfigHTTPTypeSSE
-	for _, config := range []MCPStartServerConfig{
-		&MCPServerConfigStdio{Command: "node", Args: []string{"server.js"}},
-		&MCPServerConfigHTTP{URL: "https://example.com/mcp"},
-		&MCPServerConfigHTTP{URL: "https://example.com/mcp", Type: &httpType},
-		&MCPServerConfigHTTP{URL: "https://example.com/sse", Type: &sseType},
-		&MCPServerConfigLocal{
-			Type:       MCPServerConfigLocalTypeLocalHTTP,
-			SocketPath: "/tmp/editor.sock",
-			Ide:        MCPIdeConfig{IdeName: "editor", WorkspaceFolder: "/workspace"},
-		},
-		&RawMCPStartServerConfigData{Raw: json.RawMessage(`{"type":"future"}`)},
-		&RawMCPStartServerConfigData{Raw: json.RawMessage(`{"type":"websocket","url":"wss://example.com/mcp","extra":"preserved"}`)},
-		&RawMCPStartServerConfigData{Raw: json.RawMessage(`{"type":"process","command":"future","extra":"preserved"}`)},
-	} {
-		t.Run(reflect.TypeOf(config).String(), func(t *testing.T) {
-			request := MCPStartServerRequest{ServerName: "ide", Config: config}
-			data, err := json.Marshal(request)
-			if err != nil {
-				t.Fatal(err)
-			}
-			var decoded MCPStartServerRequest
-			if err := json.Unmarshal(data, &decoded); err != nil {
-				t.Fatal(err)
-			}
-			if !reflect.DeepEqual(decoded.Config, config) {
-				t.Fatalf("decoded config = %#v (%T), want %#v (%T)", decoded.Config, decoded.Config, config, config)
-			}
-		})
-	}
-}
-
-func TestMCPStartServerAcceptsListedConfig(t *testing.T) {
-	for _, config := range []string{
-		`{"command":"node","args":["server.js"]}`,
-		`{"url":"https://example.com/mcp"}`,
-		`{"type":"future","custom":"preserved"}`,
-		`{"type":"websocket","url":"wss://example.com/mcp","extra":"preserved"}`,
-		`{"type":"process","command":"future","extra":"preserved"}`,
-	} {
-		t.Run(config, func(t *testing.T) {
-			var listed MCPConfigList
-			if err := json.Unmarshal([]byte(`{"servers":{"configured":`+config+`}}`), &listed); err != nil {
-				t.Fatal(err)
-			}
-			request := MCPStartServerRequest{
-				ServerName: "configured",
-				Config:     listed.Servers["configured"],
-			}
-			data, err := json.Marshal(request)
-			if err != nil {
-				t.Fatal(err)
-			}
-			var payload struct {
-				Config json.RawMessage `json:"config"`
-			}
-			if err := json.Unmarshal(data, &payload); err != nil {
-				t.Fatal(err)
-			}
-			var got, want any
-			if err := json.Unmarshal(payload.Config, &got); err != nil {
-				t.Fatal(err)
-			}
-			if err := json.Unmarshal([]byte(config), &want); err != nil {
-				t.Fatal(err)
-			}
-			if !reflect.DeepEqual(got, want) {
-				t.Fatalf("start config = %s, want %s", payload.Config, config)
-			}
-		})
-	}
-}
-
-func TestMCPToolResultPreservesNestedNumbers(t *testing.T) {
-	var result MCPToolResult
-	if err := json.Unmarshal([]byte(`{
-		"structuredContent": {
-			"id": 9007199254740993,
-			"items": [{"id": -9007199254740993}, 1.234567890123456789]
-		}
-	}`), &result); err != nil {
-		t.Fatalf("unmarshal MCP tool result: %v", err)
-	}
-	want := map[string]any{
-		"id": json.Number("9007199254740993"),
-		"items": []any{
-			map[string]any{"id": json.Number("-9007199254740993")},
-			json.Number("1.234567890123456789"),
-		},
-	}
-	if got := result["structuredContent"]; !reflect.DeepEqual(got, want) {
-		t.Fatalf("structured content = %#v, want %#v", got, want)
 	}
 }
 

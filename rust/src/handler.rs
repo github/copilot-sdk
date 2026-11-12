@@ -2,9 +2,8 @@
 //!
 //! Each callback the CLI may dispatch (permission requests, elicitation
 //! prompts, user-input questions, exit-plan-mode prompts,
-//! auto-mode-switch prompts, shell password prompts) has its own focused
-//! trait. Recovery-aware Auto handlers also implement
-//! `handle_auto_mode_recovery`, leaving legacy `handle` unchanged.
+//! auto-mode-switch prompts) has its own focused trait with a single
+//! `handle` method.
 //!
 //! Handlers are **optional**: install only the ones the application cares
 //! about. The SDK derives the corresponding wire flag on
@@ -18,7 +17,6 @@
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use tokio_util::sync::CancellationToken;
 
 use crate::generated::api_types::{
     McpOauthPendingRequestResponse, McpOauthPendingRequestResponseCancelled,
@@ -31,8 +29,8 @@ use crate::session_events::{
     McpOauthRequestReason, McpOauthRequiredStaticClientConfig, McpOauthWWWAuthenticateParams,
 };
 use crate::types::{
-    AutoModeRecoveryContext, ElicitationRequest, ElicitationResult, ExitPlanModeData,
-    PermissionRequestData, RequestId, SessionId,
+    ElicitationRequest, ElicitationResult, ExitPlanModeData, PermissionRequestData, RequestId,
+    SessionId,
 };
 
 /// Decision returned by a [`PermissionHandler`].
@@ -181,56 +179,18 @@ impl Default for ExitPlanModeResult {
     }
 }
 
-/// A prompt answer paired with who answered and how.
-///
-/// When `decision_context` says a person answered interactively
-/// (`source: HumanResponse`, `response_capability: Some(Interactive)`), the
-/// runtime counts the answer as the person's own authority for Assisted
-/// Permissions, but only from the session's owning connection; an answer from
-/// any other connection still settles, without that authority. The runtime
-/// decides which answers carry authority, so label a person's refusals too.
-/// Leave automated answers unlabeled.
-///
-/// Return one from a handler's `handle_attributed` method, such as
-/// [`UserInputHandler::handle_attributed`].
-#[derive(Debug, Clone)]
-pub struct AttributedResult<T> {
-    /// The answer.
-    pub result: T,
-    /// Who answered and how, if known.
-    pub decision_context: Option<PermissionDecisionContext>,
-}
-
-impl<T> AttributedResult<T> {
-    /// Label `result` with who answered and how.
-    pub fn new(result: T, decision_context: PermissionDecisionContext) -> Self {
-        Self {
-            result,
-            decision_context: Some(decision_context),
-        }
-    }
-
-    /// An answer without a label.
-    pub fn unattributed(result: T) -> Self {
-        Self {
-            result,
-            decision_context: None,
-        }
-    }
-}
-
 /// Response to an auto-mode-switch request.
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AutoModeSwitchResponse {
-    /// Approve this one Auto-switch or recovery offer.
+    /// Approve the auto-mode switch for this rate-limit cycle only.
     Yes,
-    /// Approve and remember consent. Currently saves the session-local rate-limit
-    /// preference; recovery requires `allow_always` to be true.
+    /// Approve and remember -- auto-accept future auto-mode switches in
+    /// this session without prompting.
     YesAlways,
     /// Decline the auto-mode switch. The session stays on the current
-    /// model and surfaces the original failure.
+    /// model and surfaces the rate-limit error.
     No,
 }
 
@@ -265,18 +225,6 @@ pub trait ElicitationHandler: Send + Sync + 'static {
         request_id: RequestId,
         request: ElicitationRequest,
     ) -> ElicitationResult;
-
-    /// Respond and say who answered. Override it to label a person's answer
-    /// (see [`AttributedResult`]); the SDK calls this method, and the default
-    /// returns [`handle`](Self::handle)'s answer without a label.
-    async fn handle_attributed(
-        &self,
-        session_id: SessionId,
-        request_id: RequestId,
-        request: ElicitationRequest,
-    ) -> AttributedResult<ElicitationResult> {
-        AttributedResult::unattributed(self.handle(session_id, request_id, request).await)
-    }
 }
 
 /// MCP OAuth request that the SDK host can satisfy with a host-acquired token.
@@ -415,22 +363,6 @@ pub trait UserInputHandler: Send + Sync + 'static {
         choices: Option<Vec<String>>,
         allow_freeform: Option<bool>,
     ) -> Option<UserInputResponse>;
-
-    /// Answer and say who answered. Override it to label a person's answer
-    /// (see [`AttributedResult`]); the SDK calls this method, and the default
-    /// returns [`handle`](Self::handle)'s answer without a label.
-    async fn handle_attributed(
-        &self,
-        session_id: SessionId,
-        request_id: Option<RequestId>,
-        question: String,
-        choices: Option<Vec<String>>,
-        allow_freeform: Option<bool>,
-    ) -> Option<AttributedResult<UserInputResponse>> {
-        self.handle(session_id, request_id, question, choices, allow_freeform)
-            .await
-            .map(AttributedResult::unattributed)
-    }
 }
 
 /// Handler for `exit_plan_mode.requested` events. When unset,
@@ -448,21 +380,9 @@ pub trait ExitPlanModeHandler: Send + Sync + 'static {
         request_id: Option<RequestId>,
         data: ExitPlanModeData,
     ) -> ExitPlanModeResult;
-
-    /// Decide and say who decided. Override it to label a person's review
-    /// (see [`AttributedResult`]); the SDK calls this method, and the default
-    /// returns [`handle`](Self::handle)'s result without a label.
-    async fn handle_attributed(
-        &self,
-        session_id: SessionId,
-        request_id: Option<RequestId>,
-        data: ExitPlanModeData,
-    ) -> AttributedResult<ExitPlanModeResult> {
-        AttributedResult::unattributed(self.handle(session_id, request_id, data).await)
-    }
 }
 
-/// Handler for `autoModeSwitch.request` callbacks. When unset,
+/// Handler for `auto_mode_switch.requested` events. When unset,
 /// `requestAutoModeSwitch: false` goes on the wire.
 #[async_trait]
 pub trait AutoModeSwitchHandler: Send + Sync + 'static {
@@ -475,100 +395,6 @@ pub trait AutoModeSwitchHandler: Send + Sync + 'static {
         error_code: Option<String>,
         retry_after_seconds: Option<f64>,
     ) -> AutoModeSwitchResponse;
-
-    /// Decide whether to recover the retained active request using Auto.
-    /// Only called after explicit `auto_mode_recovery` enrollment. The default
-    /// declines; existing legacy handlers never silently consent to recovery.
-    /// Return `YesAlways` only when `auto_mode_recovery.allow_always` is true.
-    async fn handle_auto_mode_recovery(
-        &self,
-        _session_id: SessionId,
-        _error_code: Option<String>,
-        _retry_after_seconds: Option<f64>,
-        _auto_mode_recovery: AutoModeRecoveryContext,
-    ) -> AutoModeSwitchResponse {
-        AutoModeSwitchResponse::No
-    }
-}
-
-/// What a [`ShellAuthenticationRequest`] asks for.
-#[non_exhaustive]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum ShellAuthenticationInputKind {
-    /// A password or passphrase. Mask the input.
-    Secret,
-    /// A visible answer, such as a user name.
-    Text,
-    /// A yes/no question, such as an ssh host-key check. Accept with `"yes"`,
-    /// or cancel to decline.
-    Confirm,
-}
-
-/// A password or other answer that a shell command run by the agent asks
-/// for, for example `sudo -A`, `ssh`, or `git` over HTTPS. The answer goes
-/// only to the program that asked: it is not shown to the model and is not
-/// recorded in session events.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ShellAuthenticationRequest {
-    /// Identifies the request. A cancellation for it carries the same ID.
-    pub request_id: RequestId,
-    /// The program that asked: `sudo`, `ssh`, or `git`.
-    pub program: String,
-    /// The prompt text the program supplied.
-    pub prompt: String,
-    /// Whether to mask the input, show it, or ask yes/no.
-    pub input_kind: ShellAuthenticationInputKind,
-    /// The shell command that triggered the prompt.
-    pub command: String,
-    /// The command's working directory.
-    pub cwd: String,
-}
-
-/// Answer to a [`ShellAuthenticationRequest`].
-///
-/// `Debug` output never includes an accepted answer.
-#[derive(Clone, PartialEq, Eq)]
-pub enum ShellAuthenticationResponse {
-    /// Give this answer to the program that asked. Answer a
-    /// [`ShellAuthenticationInputKind::Confirm`] request with `"yes"`.
-    Accept(String),
-    /// Decline. The program fails as if its prompt were dismissed.
-    Cancel,
-}
-
-impl std::fmt::Debug for ShellAuthenticationResponse {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Accept(_) => f.write_str("Accept(<redacted>)"),
-            Self::Cancel => f.write_str("Cancel"),
-        }
-    }
-}
-
-/// Handler for passwords and other answers that shell commands run by the
-/// agent ask for.
-///
-/// When unset, the SDK doesn't send `requestShellAuthentication` on the wire, the
-/// runtime never asks this client, and such commands fail as they would
-/// without a terminal.
-///
-/// `cancellation` is cancelled when the answer is no longer needed, for
-/// example because the command ended, the prompt timed out, or the session or
-/// connection closed. The SDK then drops the handler future and answers
-/// [`ShellAuthenticationResponse::Cancel`], so any separately spawned UI must observe
-/// the token and close its prompt. A panic in the handler also cancels, but the
-/// process's panic hook still reports it, by default by printing its message to
-/// stderr, so never put the answer in a panic message.
-#[async_trait]
-pub trait ShellAuthenticationHandler: Send + Sync + 'static {
-    /// Ask the user for the answer.
-    async fn handle(
-        &self,
-        session_id: SessionId,
-        request: ShellAuthenticationRequest,
-        cancellation: CancellationToken,
-    ) -> ShellAuthenticationResponse;
 }
 
 /// A [`PermissionHandler`] that approves ordinary requests when managed settings are disabled.

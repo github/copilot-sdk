@@ -32,11 +32,8 @@ class ExtensionLaunchProviderTest {
         var observed = new CompletableFuture<ExtensionLaunchProviderResolveRequest>();
         ExtensionLaunchProvider provider = request -> {
             observed.complete(request);
-            return CompletableFuture
-                    .completedFuture(ExtensionLaunchProviderResolveResult
-                            .builder().launch(ExtensionLaunchProfile.builder().executable("java")
-                                    .args(List.of("extension-host")).env(Map.of("EXTENSION_SOURCE", "java")).build())
-                            .build());
+            return CompletableFuture.completedFuture(new ExtensionLaunchProviderResolveResult(
+                    new ExtensionLaunchProfile("java", List.of("extension-host"), Map.of("EXTENSION_SOURCE", "java"))));
         };
 
         try (var server = new FakeRuntimeServer();
@@ -61,7 +58,7 @@ class ExtensionLaunchProviderTest {
     @Test
     void clonePreservesProvider() {
         ExtensionLaunchProvider provider = request -> CompletableFuture
-                .completedFuture(ExtensionLaunchProviderResolveResult.builder().launch(null).build());
+                .completedFuture(new ExtensionLaunchProviderResolveResult(null));
         var clone = new CopilotClientOptions().setExtensionLaunchProvider(provider).clone();
 
         assertSame(provider, clone.getExtensionLaunchProvider());

@@ -653,18 +653,6 @@ namespace System.Threading.Tasks
                 delayCts.Cancel();
                 await task.ConfigureAwait(false);
             }
-
-            public ConfiguredTaskAwaitableWithOptions ConfigureAwait(ConfigureAwaitOptions options)
-            {
-                if ((options & ~(ConfigureAwaitOptions.ContinueOnCapturedContext |
-                                 ConfigureAwaitOptions.SuppressThrowing |
-                                 ConfigureAwaitOptions.ForceYielding)) != 0)
-                {
-                    throw new ArgumentOutOfRangeException(nameof(options));
-                }
-
-                return new(task, options);
-            }
         }
 
         extension<T>(Task<T> task)

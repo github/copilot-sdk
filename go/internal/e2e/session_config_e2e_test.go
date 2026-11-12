@@ -53,19 +53,22 @@ func sendAndGetNextExchange(t *testing.T, ctx *testharness.TestContext, session 
 	return exchanges[len(existing)]
 }
 
-func assertSessionLimitsApplied(t *testing.T, session *copilot.Session, maxAiCredits float64) {
+func assertSessionLimitsStatus(t *testing.T, exchange testharness.ParsedHttpExchange, expectedRemaining string) {
 	t.Helper()
 
-	snapshot, err := session.RPC.Metadata.Snapshot(t.Context())
-	if err != nil {
-		t.Fatalf("Metadata.Snapshot failed: %v", err)
+	for _, message := range exchange.Request.Messages {
+		if message.Role != "user" || !strings.Contains(message.Content, "<session_limits_status>") {
+			continue
+		}
+		if !strings.Contains(message.Content, "Remaining session limits: "+expectedRemaining+".") {
+			t.Fatalf("Expected session limits status to include remaining %q, got %q", expectedRemaining, message.Content)
+		}
+		if !strings.Contains(message.Content, "Be frugal; avoid optional exploration and unnecessary tool calls.") {
+			t.Fatalf("Expected frugality instruction in session limits status, got %q", message.Content)
+		}
+		return
 	}
-	if snapshot.SessionLimits == nil || snapshot.SessionLimits.MaxAiCredits == nil {
-		t.Fatalf("Expected active session limits, got %+v", snapshot.SessionLimits)
-	}
-	if got := *snapshot.SessionLimits.MaxAiCredits; got != maxAiCredits {
-		t.Fatalf("Expected max AI credits %v, got %v", maxAiCredits, got)
-	}
+	t.Fatal("Expected session limits status message")
 }
 
 func getTaskAgentTypes(t *testing.T, exchange testharness.ParsedHttpExchange) []string {
@@ -157,7 +160,6 @@ func float64Ref(value float64) *float64 {
 }
 
 func TestSessionConfigE2E(t *testing.T) {
-	t.Parallel()
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })
@@ -289,7 +291,6 @@ func TestSessionConfigE2E(t *testing.T) {
 }
 
 func TestSessionConfigNewOptionsE2E(t *testing.T) {
-	t.Parallel()
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })
@@ -310,8 +311,8 @@ func TestSessionConfigNewOptionsE2E(t *testing.T) {
 		}
 		defer session.Disconnect()
 
-		sendAndGetNextExchange(t, ctx, session, "Acknowledge the current session limits.")
-		assertSessionLimitsApplied(t, session, 30)
+		exchange := sendAndGetNextExchange(t, ctx, session, "Acknowledge the current session limits.")
+		assertSessionLimitsStatus(t, exchange, "30 AI credits")
 	})
 
 	t.Run("should apply session limits on resume", func(t *testing.T) {
@@ -334,8 +335,8 @@ func TestSessionConfigNewOptionsE2E(t *testing.T) {
 		}
 		defer session2.Disconnect()
 
-		sendAndGetNextExchange(t, ctx, session2, "Acknowledge the current session limits.")
-		assertSessionLimitsApplied(t, session2, 30)
+		exchange := sendAndGetNextExchange(t, ctx, session2, "Acknowledge the current session limits.")
+		assertSessionLimitsStatus(t, exchange, "30 AI credits")
 	})
 
 	t.Run("should apply excluded built in agents on create", func(t *testing.T) {
@@ -407,7 +408,6 @@ func TestSessionConfigNewOptionsE2E(t *testing.T) {
 }
 
 func TestSessionConfigNewOptionsCopilotRequestE2E(t *testing.T) {
-	t.Parallel()
 	testharness.SkipIfInProcess(t, "an LLM inference provider is process-global in-process")
 	t.Run("should enable citations for Anthropic file attachments on create", func(t *testing.T) {
 		ctx := testharness.NewTestContext(t)
@@ -519,7 +519,6 @@ func TestSessionConfigNewOptionsCopilotRequestE2E(t *testing.T) {
 //	Should_Apply_SystemMessage_On_Session_Resume
 //	Should_Apply_AvailableTools_On_Session_Resume
 func TestSessionConfigExtrasE2E(t *testing.T) {
-	t.Parallel()
 	const providerHeaderName = "x-copilot-sdk-provider-header"
 	const clientName = "go-public-surface-client"
 

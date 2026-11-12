@@ -4,7 +4,7 @@
 use github_copilot_sdk::test_support::{JsonRpcClient, JsonRpcNotification, JsonRpcRequest};
 use github_copilot_sdk::{ErrorKind, ProtocolErrorKind};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, duplex};
-use tokio::sync::mpsc;
+use tokio::sync::{broadcast, mpsc};
 
 /// Write a Content-Length framed JSON-RPC message to a writer.
 async fn write_framed(writer: &mut (impl AsyncWrite + Unpin), body: &[u8]) {
@@ -42,7 +42,7 @@ async fn request_response_round_trip() {
     let (client_write, mut server_read) = duplex(4096);
     let (mut server_write, client_read) = duplex(4096);
 
-    let (notification_tx, _) = mpsc::unbounded_channel();
+    let (notification_tx, _) = broadcast::channel(16);
     let (_request_tx, _request_rx) = mpsc::unbounded_channel();
     let request_tx = _request_tx;
 
@@ -115,7 +115,7 @@ async fn unreadable_error_fails_request_and_keeps_reading() {
     {
         let (client_write, mut server_read) = duplex(4096);
         let (mut server_write, client_read) = duplex(4096);
-        let (notification_tx, _) = mpsc::unbounded_channel();
+        let (notification_tx, _) = broadcast::channel(16);
         let (request_tx, _request_rx) = mpsc::unbounded_channel();
         let client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
 
@@ -161,7 +161,7 @@ async fn notification_broadcasting() {
     let (_client_write, _discard) = duplex(4096);
     let (mut server_write, client_read) = duplex(4096);
 
-    let (notification_tx, mut notification_rx) = mpsc::unbounded_channel();
+    let (notification_tx, mut notification_rx) = broadcast::channel(16);
     let (request_tx, _request_rx) = mpsc::unbounded_channel();
 
     let _client = JsonRpcClient::new(_client_write, client_read, notification_tx, request_tx);
@@ -178,7 +178,7 @@ async fn notification_broadcasting() {
     )
     .await;
 
-    let received: JsonRpcNotification =
+    let received: std::sync::Arc<JsonRpcNotification> =
         tokio::time::timeout(std::time::Duration::from_secs(2), notification_rx.recv())
             .await
             .expect("timed out waiting for notification")
@@ -193,7 +193,7 @@ async fn server_request_forwarding() {
     let (_client_write, _discard) = duplex(4096);
     let (mut server_write, client_read) = duplex(4096);
 
-    let (notification_tx, _) = mpsc::unbounded_channel();
+    let (notification_tx, _) = broadcast::channel(16);
     let (request_tx, mut request_rx) = mpsc::unbounded_channel();
 
     let _client = JsonRpcClient::new(_client_write, client_read, notification_tx, request_tx);
@@ -222,7 +222,7 @@ async fn error_response_round_trip() {
     let (client_write, mut server_read) = duplex(4096);
     let (mut server_write, client_read) = duplex(4096);
 
-    let (notification_tx, _) = mpsc::unbounded_channel();
+    let (notification_tx, _) = broadcast::channel(16);
     let (request_tx, _) = mpsc::unbounded_channel();
 
     let client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
@@ -277,9 +277,11 @@ async fn error_response_round_trip() {
 /// Cancel-safety regression: dropping a `write()` future after the actor has
 /// committed to writing must NOT produce a partial frame on the wire.
 ///
-/// Strategy: read a prefix to acknowledge that writing has begun, then
-/// cancel the caller while the rest of the frame cannot fit in the wire.
-/// Drain the wire and verify both frames land on it intact.
+/// Strategy: spawn a reader task that waits before draining the wire, so
+/// the actor's `write_all` blocks waiting for room. Race the caller's
+/// future against a sleep; when the sleep wins, the caller's future is
+/// dropped while suspended on `ack_rx.await`. Release the reader and
+/// verify both frames land on the wire intact.
 ///
 /// Closes RFD-400 finding #1: `JsonRpcClient::write` was holding a Tokio
 /// mutex across `write_all` + `flush`, so caller cancellation mid-frame
@@ -290,40 +292,21 @@ async fn error_response_round_trip() {
 async fn write_actor_completes_on_caller_cancel() {
     use std::sync::Arc;
 
+    use tokio::sync::Notify;
+
     let (client_write, mut server_read) = duplex(8);
     let (_server_write, client_read) = duplex(8);
 
-    let (notification_tx, _) = mpsc::unbounded_channel();
+    let (notification_tx, _) = broadcast::channel(16);
     let (request_tx, _) = mpsc::unbounded_channel();
     let client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
 
-    let frame_a = JsonRpcRequest {
-        jsonrpc: "2.0".to_string(),
-        id: 100,
-        method: "first.write".to_string(),
-        params: None,
-    };
-    let frame_b = JsonRpcRequest {
-        jsonrpc: "2.0".to_string(),
-        id: 101,
-        method: "second.write".to_string(),
-        params: None,
-    };
-
-    let mut prefix = [0; 8];
-    {
-        let writing = client.write(&frame_a);
-        tokio::pin!(writing);
-        tokio::select! {
-            _ = &mut writing => panic!("write completed before the wire was drained"),
-            result = server_read.read_exact(&mut prefix) => { result.unwrap(); }
-        }
-        // The entire frame cannot fit in the eight-byte wire even after this
-        // prefix is read, so cancellation is inside a committed, incomplete write.
-    }
-
+    // Reader task that waits for `start` before draining; this gives us
+    // a window where the actor's write_all is suspended waiting for room.
+    let start = Arc::new(Notify::new());
+    let start_clone = start.clone();
     let reader_task = tokio::spawn(async move {
-        let mut server_read = std::io::Cursor::new(prefix).chain(server_read);
+        start_clone.notified().await;
         let mut frames = Vec::new();
         for _ in 0..2 {
             let mut header = String::new();
@@ -353,13 +336,41 @@ async fn write_actor_completes_on_caller_cancel() {
         frames
     });
 
-    // The actor must finish the cancelled caller's frame before this next one.
+    let frame_a = JsonRpcRequest {
+        jsonrpc: "2.0".to_string(),
+        id: 100,
+        method: "first.write".to_string(),
+        params: None,
+    };
+    let frame_b = JsonRpcRequest {
+        jsonrpc: "2.0".to_string(),
+        id: 101,
+        method: "second.write".to_string(),
+        params: None,
+    };
+
+    // First write: race the future against a sleep. With the reader
+    // gated, the actor's write_all blocks at the 8-byte buffer boundary,
+    // so the future stays suspended on `ack_rx.await`. The sleep wins
+    // after 50ms, dropping the caller's future. The actor still owns the
+    // write and must complete it once the reader drains.
+    tokio::select! {
+        _ = client.write(&frame_a) => panic!("write completed too quickly to test cancellation"),
+        _ = tokio::time::sleep(std::time::Duration::from_millis(50)) => {}
+    }
+
+    // Enqueue the second write before releasing the reader. Both frames
+    // are now in the actor's queue; the actor will drain them in order
+    // once the reader starts pulling bytes.
     let second_handle = tokio::spawn({
         let frame_b = frame_b.clone();
-        let client_arc = Arc::new(client);
+        let client_arc = std::sync::Arc::new(client);
         let client_clone = client_arc.clone();
         async move { client_clone.write(&frame_b).await }
     });
+
+    // Release the reader so both frames can flow through the actor.
+    start.notify_one();
 
     let frames = reader_task.await.unwrap();
     second_handle.await.unwrap().unwrap();
@@ -369,174 +380,6 @@ async fn write_actor_completes_on_caller_cancel() {
     assert_eq!(frames[0].id, 100);
     assert_eq!(frames[1].method, "second.write");
     assert_eq!(frames[1].id, 101);
-}
-
-#[tokio::test]
-async fn write_failure_stops_writer_and_preserves_pending_response() {
-    use std::error::Error as _;
-    use std::future::Future;
-    use std::io;
-    use std::pin::Pin;
-    use std::sync::Arc;
-    use std::sync::atomic::{AtomicUsize, Ordering};
-    use std::task::{Context, Poll};
-    use tokio::sync::oneshot;
-
-    struct FailingWriter {
-        inner: tokio::io::DuplexStream,
-        first_frame_flushed: bool,
-        partial_written: bool,
-        failed: bool,
-        partial_tx: Option<oneshot::Sender<()>>,
-        release_rx: oneshot::Receiver<()>,
-        dropped_tx: Option<oneshot::Sender<()>>,
-        writes_after_failure: Arc<AtomicUsize>,
-    }
-
-    impl AsyncWrite for FailingWriter {
-        fn poll_write(
-            mut self: Pin<&mut Self>,
-            cx: &mut Context<'_>,
-            buf: &[u8],
-        ) -> Poll<io::Result<usize>> {
-            if self.failed {
-                self.writes_after_failure.fetch_add(1, Ordering::SeqCst);
-                return Poll::Ready(Err(io::Error::other("write attempted after failure")));
-            }
-            if !self.first_frame_flushed {
-                return Pin::new(&mut self.inner).poll_write(cx, buf);
-            }
-            if !self.partial_written {
-                let result = Pin::new(&mut self.inner).poll_write(cx, &buf[..1]);
-                if matches!(result, Poll::Ready(Ok(1))) {
-                    self.partial_written = true;
-                    self.partial_tx.take().unwrap().send(()).unwrap();
-                }
-                return result;
-            }
-            match Pin::new(&mut self.release_rx).poll(cx) {
-                Poll::Pending => Poll::Pending,
-                Poll::Ready(result) => {
-                    result.unwrap();
-                    self.failed = true;
-                    Poll::Ready(Err(io::Error::new(
-                        io::ErrorKind::ConnectionReset,
-                        "injected partial-frame failure",
-                    )))
-                }
-            }
-        }
-
-        fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-            let result = Pin::new(&mut self.inner).poll_flush(cx);
-            if matches!(result, Poll::Ready(Ok(()))) {
-                self.first_frame_flushed = true;
-            }
-            result
-        }
-
-        fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-            Pin::new(&mut self.inner).poll_shutdown(cx)
-        }
-    }
-
-    impl Drop for FailingWriter {
-        fn drop(&mut self) {
-            let _ = self.dropped_tx.take().unwrap().send(());
-        }
-    }
-
-    let (client_write, mut server_read) = duplex(4096);
-    let (mut server_write, client_read) = duplex(4096);
-    let (partial_tx, partial_rx) = oneshot::channel();
-    let (release_tx, release_rx) = oneshot::channel();
-    let (dropped_tx, dropped_rx) = oneshot::channel();
-    let writes_after_failure = Arc::new(AtomicUsize::new(0));
-    let writer = FailingWriter {
-        inner: client_write,
-        first_frame_flushed: false,
-        partial_written: false,
-        failed: false,
-        partial_tx: Some(partial_tx),
-        release_rx,
-        dropped_tx: Some(dropped_tx),
-        writes_after_failure: writes_after_failure.clone(),
-    };
-    let (notification_tx, _) = mpsc::unbounded_channel();
-    let (request_tx, _request_rx) = mpsc::unbounded_channel();
-    let client = JsonRpcClient::new(writer, client_read, notification_tx, request_tx);
-
-    tokio::time::timeout(std::time::Duration::from_secs(5), async {
-        let first = client.send_request("test.first", None);
-        tokio::pin!(first);
-        assert!(futures_util::poll!(&mut first).is_pending());
-        let request: JsonRpcRequest =
-            serde_json::from_slice(&read_framed(&mut server_read).await).unwrap();
-        assert_eq!(request.method, "test.first");
-
-        let second = client.send_request("test.second", None);
-        tokio::pin!(second);
-        assert!(futures_util::poll!(&mut second).is_pending());
-        partial_rx.await.expect("second frame partially written");
-
-        // Polling enqueues the third frame while the writer is held at the failure.
-        let third = client.send_request("test.third", None);
-        tokio::pin!(third);
-        assert!(futures_util::poll!(&mut third).is_pending());
-        release_tx.send(()).unwrap();
-
-        let error = second.await.expect_err("partial-frame write must fail");
-        assert_eq!(error.kind(), &ErrorKind::Io);
-        let source = error.source().unwrap().downcast_ref::<io::Error>().unwrap();
-        assert_eq!(source.kind(), io::ErrorKind::ConnectionReset);
-        assert_eq!(source.to_string(), "injected partial-frame failure");
-
-        let queued = third.await.expect_err("queued frame must not be written");
-        assert_eq!(queued.kind(), &ErrorKind::Io);
-        assert_eq!(
-            queued
-                .source()
-                .unwrap()
-                .downcast_ref::<io::Error>()
-                .unwrap()
-                .kind(),
-            io::ErrorKind::BrokenPipe
-        );
-        dropped_rx.await.expect("failed writer must be dropped");
-        assert_eq!(writes_after_failure.load(Ordering::SeqCst), 0);
-
-        let late = client.send_request("test.late", None).await.unwrap_err();
-        assert_eq!(
-            late.source()
-                .unwrap()
-                .downcast_ref::<io::Error>()
-                .unwrap()
-                .kind(),
-            io::ErrorKind::BrokenPipe
-        );
-
-        // Writer failure must not cancel the reader or discard already-sent replies.
-        let response = serde_json::json!({
-            "jsonrpc": "2.0",
-            "id": request.id,
-            "result": { "drained": true }
-        });
-        write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
-        let response = first.await.expect("pending response must still be drained");
-        assert_eq!(
-            response.result,
-            Some(serde_json::json!({ "drained": true }))
-        );
-
-        let mut remaining = Vec::new();
-        server_read.read_to_end(&mut remaining).await.unwrap();
-        assert_eq!(
-            remaining, b"C",
-            "only the second frame's prefix was written"
-        );
-    })
-    .await
-    .expect("writer failure and pending response must settle");
 }
 
 /// Cancel-safety regression: cancelling a `send_request` future before the
@@ -555,7 +398,7 @@ async fn send_request_cancellation_does_not_leak_pending() {
     let (client_write, mut server_read) = duplex(4096);
     let (mut server_write, client_read) = duplex(4096);
 
-    let (notification_tx, _) = mpsc::unbounded_channel();
+    let (notification_tx, _) = broadcast::channel(16);
     let (request_tx, _) = mpsc::unbounded_channel();
     let client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
     let client = std::sync::Arc::new(client);
@@ -634,7 +477,7 @@ async fn send_request_cancellation_does_not_leak_pending() {
 async fn lone_surrogate_frame_is_recovered_without_closing_connection() {
     let (client_write, mut server_read) = duplex(4096);
     let (mut server_write, client_read) = duplex(4096);
-    let (notification_tx, _) = mpsc::unbounded_channel();
+    let (notification_tx, _) = broadcast::channel(16);
     let (request_tx, _) = mpsc::unbounded_channel();
     let client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
 
@@ -675,7 +518,7 @@ async fn lone_surrogate_frame_is_recovered_without_closing_connection() {
 async fn unrepairable_frame_remains_fatal() {
     let (client_write, mut server_read) = duplex(4096);
     let (mut server_write, client_read) = duplex(4096);
-    let (notification_tx, _) = mpsc::unbounded_channel();
+    let (notification_tx, _) = broadcast::channel(16);
     let (request_tx, _) = mpsc::unbounded_channel();
     let client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
 
@@ -710,7 +553,7 @@ async fn unrepairable_frame_remains_fatal() {
 async fn null_id_error_fails_the_pending_request_and_keeps_the_connection() {
     let (client_write, mut server_read) = duplex(4096);
     let (mut server_write, client_read) = duplex(4096);
-    let (notification_tx, _) = mpsc::unbounded_channel();
+    let (notification_tx, _) = broadcast::channel(16);
     let (request_tx, _) = mpsc::unbounded_channel();
     let client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
 
@@ -769,7 +612,7 @@ async fn null_id_error_fails_the_pending_request_and_keeps_the_connection() {
 async fn null_id_error_fails_every_pending_request() {
     let (client_write, mut server_read) = duplex(4096);
     let (mut server_write, client_read) = duplex(4096);
-    let (notification_tx, _) = mpsc::unbounded_channel();
+    let (notification_tx, _) = broadcast::channel(16);
     let (request_tx, _) = mpsc::unbounded_channel();
     let client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
 
@@ -831,7 +674,7 @@ async fn null_id_error_fails_every_pending_request() {
 async fn null_id_error_with_nothing_pending_keeps_the_connection() {
     let (client_write, mut server_read) = duplex(4096);
     let (mut server_write, client_read) = duplex(4096);
-    let (notification_tx, mut notifications) = mpsc::unbounded_channel();
+    let (notification_tx, mut notifications) = broadcast::channel(16);
     let (request_tx, _) = mpsc::unbounded_channel();
     let client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
 
@@ -847,7 +690,7 @@ async fn null_id_error_with_nothing_pending_keeps_the_connection() {
         br#"{"jsonrpc":"2.0","method":"session.event","params":{}}"#,
     )
     .await;
-    let notification: JsonRpcNotification =
+    let notification: std::sync::Arc<JsonRpcNotification> =
         tokio::time::timeout(std::time::Duration::from_secs(5), notifications.recv())
             .await
             .expect("the notification after the error arrives")
@@ -882,7 +725,7 @@ async fn null_id_error_with_nothing_pending_keeps_the_connection() {
 async fn valid_pairs_and_escaped_backslashes_are_untouched() {
     let (client_write, mut server_read) = duplex(4096);
     let (mut server_write, client_read) = duplex(4096);
-    let (notification_tx, _) = mpsc::unbounded_channel();
+    let (notification_tx, _) = broadcast::channel(16);
     let (request_tx, _) = mpsc::unbounded_channel();
     let client = JsonRpcClient::new(client_write, client_read, notification_tx, request_tx);
 
@@ -917,7 +760,7 @@ async fn valid_pairs_and_escaped_backslashes_are_untouched() {
 async fn request_after_the_peer_closed_fails_at_once() {
     let (client_write, mut server_read) = duplex(4096);
     let (server_write, client_read) = duplex(4096);
-    let (notification_tx, _) = mpsc::unbounded_channel();
+    let (notification_tx, _) = broadcast::channel(16);
     let (request_tx, _request_rx) = mpsc::unbounded_channel();
     let client = std::sync::Arc::new(JsonRpcClient::new(
         client_write,
@@ -973,7 +816,7 @@ async fn request_after_the_peer_closed_fails_at_once() {
 async fn send_and_wait_after_the_peer_closed_writes_no_cancel_frame() {
     let (client_write, mut server_read) = duplex(4096);
     let (server_write, client_read) = duplex(4096);
-    let (notification_tx, _) = mpsc::unbounded_channel();
+    let (notification_tx, _) = broadcast::channel(16);
     let (request_tx, _request_rx) = mpsc::unbounded_channel();
     let client = std::sync::Arc::new(JsonRpcClient::new(
         client_write,

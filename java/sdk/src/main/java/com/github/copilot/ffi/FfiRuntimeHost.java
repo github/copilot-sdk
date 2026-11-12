@@ -15,7 +15,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
@@ -132,13 +131,19 @@ public final class FfiRuntimeHost implements AutoCloseable {
             throw new IllegalStateException("copilot_runtime_host_start failed (library '" + lib + "').");
         }
 
-        // Hold operationLock while opening the connection to serialize with close().
+        // Hold operationLock while publishing handles to serialize with close().
         // Recheck disposed in case close() ran while hostStart was blocking.
         operationLock.lock();
         try {
             if (disposed.get()) {
+                try {
+                    nativeBinding.hostShutdown(hostHandle);
+                } catch (Throwable ignored) {
+                    // Best effort
+                }
                 throw new IllegalStateException("FfiRuntimeHost was closed during startup.");
             }
+            serverId.set(hostHandle);
 
             OutboundCallback callback = createOutboundCallback();
             callbackRef = callback;
@@ -290,25 +295,11 @@ public final class FfiRuntimeHost implements AutoCloseable {
         ExecutorService executor = Executors
                 .newSingleThreadExecutor(runnable -> readerThreadFactory.create(runnable, "copilot-ffi-host-start"));
         try {
-            Future<Integer> future = executor.submit(() -> {
-                int hostHandle = nativeBinding.hostStart(argvJson, argvJson.length, envJson,
-                        envJson == null ? 0 : envJson.length);
-                // The worker must own the result even if the waiting caller was interrupted.
-                operationLock.lock();
-                try {
-                    serverId.set(hostHandle);
-                    if (disposed.get()) {
-                        tryFinalizeCleanup();
-                    }
-                } finally {
-                    operationLock.unlock();
-                }
-                return hostHandle;
-            });
+            Future<Integer> future = executor.submit(() -> nativeBinding.hostStart(argvJson, argvJson.length, envJson,
+                    envJson == null ? 0 : envJson.length));
             return future.get();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            close();
             throw new IllegalStateException("Interrupted while starting in-process runtime host.", e);
         } catch (ExecutionException e) {
             Throwable cause = e.getCause();
@@ -380,14 +371,7 @@ public final class FfiRuntimeHost implements AutoCloseable {
     }
 
     private static byte[] buildEnvJson(CopilotClientOptions options) {
-        Map<String, String> env = "win32".equals(PlatformDetector.detectOs())
-                ? new TreeMap<>(String.CASE_INSENSITIVE_ORDER)
-                : new LinkedHashMap<>();
-        env.putAll(System.getenv());
-        env.remove("NODE_DEBUG");
-        if (options.getInternalTestOptions() != null) {
-            env.putAll(options.getInternalTestOptions().toEnvironment());
-        }
+        Map<String, String> env = new LinkedHashMap<>();
 
         String token = options.getGitHubToken();
         if (token != null && !token.isEmpty()) {
@@ -396,15 +380,14 @@ public final class FfiRuntimeHost implements AutoCloseable {
         String copilotHome = options.getCopilotHome();
         if (copilotHome != null && !copilotHome.isEmpty()) {
             env.put("COPILOT_HOME", copilotHome);
-            env.put("COPILOT_CACHE_HOME", java.nio.file.Path.of(copilotHome, "cache").toString());
         }
         if (options.getMode() == CopilotClientMode.EMPTY) {
             env.put("COPILOT_DISABLE_KEYTAR", "1");
         }
-        if (options.getTelemetry() != null) {
-            env.putAll(options.getTelemetry().toEnvironment());
-        }
 
+        if (env.isEmpty()) {
+            return null;
+        }
         return jsonBytes(env);
     }
 

@@ -16,8 +16,8 @@ import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -26,7 +26,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
 
 import com.github.copilot.ffi.NativeRuntimeLoader;
 import com.github.copilot.rpc.CopilotClientMode;
@@ -250,24 +249,7 @@ final class CliServerManager {
     }
 
     static List<ProcessHandle> captureDescendants(Process process) {
-        return deepestFirst(process.descendants());
-    }
-
-    /**
-     * Both snapshots of a process tree, deepest first by current ancestry, so a
-     * process that started after {@code retained} was captured still ends before
-     * its parent.
-     */
-    static List<ProcessHandle> mergeDescendants(List<ProcessHandle> retained, List<ProcessHandle> captured) {
-        if (retained.isEmpty()) {
-            return captured;
-        }
-        return deepestFirst(Stream.concat(retained.stream(), captured.stream()).distinct());
-    }
-
-    private static List<ProcessHandle> deepestFirst(Stream<ProcessHandle> processes) {
-        return processes.map(process -> Map.entry(process, processDepth(process)))
-                .sorted(Map.Entry.<ProcessHandle, Integer>comparingByValue().reversed()).map(Map.Entry::getKey)
+        return process.descendants().sorted(Comparator.comparingInt(CliServerManager::processDepth).reversed())
                 .toList();
     }
 
@@ -457,9 +439,6 @@ final class CliServerManager {
             pb.environment().putAll(options.getEnvironment());
         }
         pb.environment().remove("NODE_DEBUG");
-        if (options.getInternalTestOptions() != null) {
-            pb.environment().putAll(options.getInternalTestOptions().toEnvironment());
-        }
         if (options.getMode() != CopilotClientMode.EMPTY) {
             pb.environment().put("COPILOT_RUNTIME_PROCESS_FILE_LOGGING", "1");
         }
@@ -481,7 +460,29 @@ final class CliServerManager {
 
         // Set telemetry environment variables if configured
         if (options.getTelemetry() != null) {
-            pb.environment().putAll(options.getTelemetry().toEnvironment());
+            var telemetry = options.getTelemetry();
+            pb.environment().put("COPILOT_OTEL_ENABLED", "true");
+            if (telemetry.getOtlpEndpoint() != null) {
+                pb.environment().put("OTEL_EXPORTER_OTLP_ENDPOINT", telemetry.getOtlpEndpoint());
+            }
+            if (telemetry.getOtlpProtocol() != null) {
+                pb.environment().put("OTEL_EXPORTER_OTLP_PROTOCOL", telemetry.getOtlpProtocol());
+            }
+            if (telemetry.getFilePath() != null) {
+                pb.environment().put("COPILOT_OTEL_FILE_EXPORTER_PATH", telemetry.getFilePath());
+            }
+            if (telemetry.getExporterType() != null) {
+                pb.environment().put("COPILOT_OTEL_EXPORTER_TYPE", telemetry.getExporterType());
+            }
+            if (telemetry.getSourceName() != null) {
+                pb.environment().put("COPILOT_OTEL_SOURCE_NAME", telemetry.getSourceName());
+            }
+            if (telemetry.getCaptureContent().isPresent()) {
+                pb.environment().put("OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT",
+                        telemetry.getCaptureContent().get() ? "SPAN_ONLY" : "NO_CONTENT");
+                pb.environment().put("OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT",
+                        telemetry.getCaptureContent().get() ? "true" : "false");
+            }
         }
     }
 
@@ -507,11 +508,6 @@ final class CliServerManager {
     }
 
     static URI parseCliUrl(String url) {
-        if (url.regionMatches(true, 0, "https://", 0, 8)) {
-            throw new IllegalArgumentException(
-                    "HTTPS runtime connections are not supported: this transport uses plaintext TCP, not TLS");
-        }
-
         // If it's just a port number, treat as localhost
         try {
             int port = Integer.parseInt(url);
@@ -520,8 +516,8 @@ final class CliServerManager {
             // Not a port number, continue
         }
 
-        // Preserve legacy normalization for scheme-less TCP addresses.
-        if (!url.regionMatches(true, 0, "http://", 0, 7)) {
+        // Add scheme if missing
+        if (!url.toLowerCase().startsWith("http://") && !url.toLowerCase().startsWith("https://")) {
             url = "https://" + url;
         }
 

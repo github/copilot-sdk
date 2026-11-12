@@ -4,8 +4,6 @@
 
 package com.github.copilot;
 
-import org.junit.jupiter.api.Tag;
-
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.IOException;
@@ -33,7 +31,6 @@ import com.github.copilot.rpc.SessionConfig;
  * disabled via configuration. Snapshots are stored in test/snapshots/skills/.
  * </p>
  */
-@Tag("e2e")
 public class SkillsTest {
 
     private static E2ETestContext ctx;
@@ -110,7 +107,7 @@ public class SkillsTest {
 
         Path skillsDir = createSkillDir();
 
-        SessionConfig config = ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+        SessionConfig config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
                 .setSkillDirectories(List.of(skillsDir.toString()));
 
         try (CopilotClient client = ctx.createClient()) {
@@ -142,7 +139,7 @@ public class SkillsTest {
 
         Path skillsDir = createSkillDir();
 
-        SessionConfig config = ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+        SessionConfig config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
                 .setSkillDirectories(List.of(skillsDir.toString())).setDisabledSkills(List.of("test-skill"));
 
         try (CopilotClient client = ctx.createClient()) {
@@ -177,7 +174,7 @@ public class SkillsTest {
         var agent = new CustomAgentConfig().setName("skill-agent").setDescription("An agent with access to test-skill")
                 .setPrompt("You are a helpful test agent.").setSkills(List.of("test-skill"));
 
-        SessionConfig config = ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+        SessionConfig config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
                 .setSkillDirectories(List.of(skillsDirPath.toString())).setCustomAgents(List.of(agent))
                 .setAgent("skill-agent");
 
@@ -214,7 +211,7 @@ public class SkillsTest {
         var agent = new CustomAgentConfig().setName("no-skill-agent").setDescription("An agent without skills access")
                 .setPrompt("You are a helpful test agent.");
 
-        SessionConfig config = ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+        SessionConfig config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
                 .setSkillDirectories(List.of(skillsDirPath.toString())).setCustomAgents(List.of(agent))
                 .setAgent("no-skill-agent");
 

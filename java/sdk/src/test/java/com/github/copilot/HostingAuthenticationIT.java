@@ -7,7 +7,6 @@ import com.github.copilot.generated.rpc.HostLocalServerOptions;
 import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.ProviderConfig;
-import com.github.copilot.rpc.RuntimeConnection;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.HashMap;
@@ -41,14 +40,13 @@ class HostingAuthenticationIT {
                 "CAPI_HMAC_KEY", "COPILOT_SDK_AUTH_TOKEN")) {
             environment.put(key, "");
         }
-        // Clearing ambient credential aliases requires an isolated child environment.
-        return context.createClient(new CopilotClientOptions().setConnection(RuntimeConnection.forStdio())
-                .setEnvironment(environment).setGitHubToken("").setUseLoggedInUser(false));
+        return context.createClient(
+                new CopilotClientOptions().setEnvironment(environment).setGitHubToken("").setUseLoggedInUser(false));
     }
 
     private static AhpHostOptions options(AhpHostAuthentication policy) {
-        return new AhpHostOptions().setAuthentication(policy).setLocalServer(HostLocalServerOptions.builder()
-                .hostname(null).port(null).token("independent-websocket-secret").requireConnectionToken(null).build());
+        return new AhpHostOptions().setAuthentication(policy)
+                .setLocalServer(new HostLocalServerOptions(null, null, "independent-websocket-secret", null));
     }
 
     private static AhpHostAuthentication custom(
@@ -104,7 +102,7 @@ class HostingAuthenticationIT {
                                             created.complete(session);
                                             return session;
                                         });
-                            }).setWorkspace(context.getWorkDir().toString())))) {
+                            })))) {
                 String connection = connect(ahp, host, mode, "custom".equals(mode) ? "admission-only-key" : null);
                 assertThrows(IOException.class, () -> ahp.request(Map.of("op", "connect", "url", host.getUrl(), "token",
                         "wrong-websocket-secret", "authentication", mode)));
@@ -135,7 +133,7 @@ class HostingAuthenticationIT {
                                     resumed.complete(session);
                                     return session;
                                 });
-                    }).setWorkspace(context.getWorkDir().toString())))) {
+                    })))) {
                 String connection = connect(ahp, host, mode, "custom".equals(mode) ? "admission-only-key" : null);
                 ahp.request(Map.of("op", "attach", "clientId", connection, "sessionId", sessionId));
                 assertEquals(originalId, await(resumed).getSessionId());

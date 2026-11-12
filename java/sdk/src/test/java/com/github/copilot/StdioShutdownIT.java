@@ -16,11 +16,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -167,23 +165,11 @@ class StdioShutdownIT {
         }
     }
 
-    @Test
-    void forceStopEndsAStalledStartupAndTerminatesLauncherAndChild() throws Exception {
-        try (var fixture = new Fixture("connect-stall", true, false, true, true)) {
-            var starting = fixture.client.start();
-            fixture.awaitStarted();
-            fixture.client.forceStop().get(30, TimeUnit.SECONDS);
-            assertThrows(ExecutionException.class, () -> starting.get(5, TimeUnit.SECONDS));
-            fixture.assertExited();
-        }
-    }
-
     private static final class Fixture implements AutoCloseable {
         private final Path directory;
         private final Path marker;
         private final Path pid;
         private final Path launcherPid;
-        private final Path descendantPid;
         private final Path servicePid;
         private final Path servicePort;
         private final CopilotClient client;
@@ -197,25 +183,14 @@ class StdioShutdownIT {
         }
 
         private Fixture(String mode, boolean useLauncher, boolean detachedService) throws Exception {
-            this(mode, useLauncher, detachedService, true, false);
+            this(mode, useLauncher, detachedService, true);
         }
 
         private Fixture(String mode, boolean useLauncher, boolean detachedService, boolean useStdio) throws Exception {
-            this(mode, useLauncher, detachedService, useStdio, false);
-        }
-
-        /**
-         * @param descendant
-         *            whether the runtime starts a long-lived child of its own, which
-         *            outlives it
-         */
-        private Fixture(String mode, boolean useLauncher, boolean detachedService, boolean useStdio, boolean descendant)
-                throws Exception {
             directory = Files.createDirectories(Path.of("target", "shutdown-" + UUID.randomUUID()).toAbsolutePath());
             marker = directory.resolve("cleanup.jsonl");
             pid = directory.resolve("pid");
             launcherPid = useLauncher ? directory.resolve("launcher-pid") : null;
-            descendantPid = descendant ? directory.resolve("pid.descendant") : null;
             servicePid = detachedService ? directory.resolve("service-pid") : null;
             servicePort = detachedService ? directory.resolve("service-port") : null;
             Path script = Path.of("..", "..", "test", "harness", "stdio-shutdown-runtime.cjs").toAbsolutePath();
@@ -282,9 +257,6 @@ class StdioShutdownIT {
             if (!useStdio) {
                 args.add("--fixture-tcp");
             }
-            if (descendant) {
-                args.add("--fixture-descendant");
-            }
             client = new CopilotClient(new CopilotClientOptions().setAutoStart(false).setCliPath(nodePath)
                     .setCliArgs(args.toArray(String[]::new)).setUseStdio(useStdio));
         }
@@ -314,22 +286,6 @@ class StdioShutdownIT {
             if (launcherPid != null) {
                 assertExited(launcherPid);
             }
-            if (descendantPid != null) {
-                assertExited(descendantPid);
-            }
-        }
-
-        /**
-         * Waits until the runtime, and its launcher and child when used, have started.
-         */
-        private void awaitStarted() throws Exception {
-            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(15);
-            for (var started : Stream.of(pid, launcherPid, descendantPid).filter(Objects::nonNull).toList()) {
-                while (!Files.isRegularFile(started) || Files.size(started) == 0) {
-                    assertTrue(System.nanoTime() < deadline, "The runtime must start");
-                    Thread.sleep(20);
-                }
-            }
         }
 
         private static void assertExited(Path pid) throws Exception {
@@ -344,9 +300,6 @@ class StdioShutdownIT {
             var ownedPids = new ArrayList<Path>();
             if (servicePid != null) {
                 ownedPids.add(servicePid);
-            }
-            if (descendantPid != null) {
-                ownedPids.add(descendantPid);
             }
             ownedPids.add(pid);
             if (launcherPid != null) {

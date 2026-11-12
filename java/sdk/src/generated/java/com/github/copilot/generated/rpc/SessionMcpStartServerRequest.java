@@ -25,14 +25,12 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public final class SessionMcpStartServerRequest {
-    @com.fasterxml.jackson.annotation.JsonIgnore
-    private final java.util.Set<String> $explicitNulls = new java.util.LinkedHashSet<>();
 
     /** Name of the MCP server to start */
     @JsonProperty("serverName")
     private final String serverName;
 
-    /** MCP server configuration (stdio, remote HTTP/SSE, or session-only local IDE endpoint). Local IDE endpoints never write persistent configuration. Omit to start with the already-registered configuration. */
+    /** MCP server configuration (stdio process or remote HTTP/SSE). Omit to start the server with its already-registered configuration (config-free start-by-name). */
     @JsonProperty("config")
     private Object config;
 
@@ -61,7 +59,7 @@ public final class SessionMcpStartServerRequest {
     /**
      * Returns the {@code config} property.
      *
-     * @return MCP server configuration (stdio, remote HTTP/SSE, or session-only local IDE endpoint). Local IDE endpoints never write persistent configuration. Omit to start with the already-registered configuration.
+     * @return MCP server configuration (stdio process or remote HTTP/SSE). Omit to start the server with its already-registered configuration (config-free start-by-name).
      */
     public Object getConfig() {
         return config;
@@ -79,13 +77,11 @@ public final class SessionMcpStartServerRequest {
     /**
      * Sets the {@code config} property.
      *
-     * @param value MCP server configuration (stdio, remote HTTP/SSE, or session-only local IDE endpoint). Local IDE endpoints never write persistent configuration. Omit to start with the already-registered configuration.
+     * @param value MCP server configuration (stdio process or remote HTTP/SSE). Omit to start the server with its already-registered configuration (config-free start-by-name).
      * @return this request
      */
     public SessionMcpStartServerRequest setConfig(Object value) {
         this.config = value;
-        if (value == null) $explicitNulls.add("config");
-        else $explicitNulls.remove("config");
         return this;
     }
 
@@ -98,13 +94,5 @@ public final class SessionMcpStartServerRequest {
     public SessionMcpStartServerRequest setExpectedInstallationId(String value) {
         this.expectedInstallationId = value;
         return this;
-    }
-
-    @com.fasterxml.jackson.annotation.JsonAnyGetter
-    @JsonInclude(value = JsonInclude.Include.ALWAYS, content = JsonInclude.Include.ALWAYS)
-    public java.util.Map<String, Object> $nullableProperties() {
-        java.util.Map<String, Object> values = new java.util.LinkedHashMap<>();
-        if ($explicitNulls.contains("config") && config == null) values.put("config", null);
-        return values;
     }
 }

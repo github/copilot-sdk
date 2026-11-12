@@ -234,11 +234,7 @@ public final class PermissionRequestResult {
 
     /**
      * Sets provenance describing how and where this decision was made, so the
-     * runtime can attribute {@code auto_approval_decision} telemetry. When it says
-     * a person decided ({@code source} {@code human_response}), the runtime records
-     * the decision as the person's own, but only from the session's authenticated
-     * owning connection; from any other caller the decision applies without that
-     * authority.
+     * runtime can attribute {@code auto_approval_decision} telemetry.
      * <p>
      * Calling this method more than once replaces any previously set context. The
      * context is never serialized inside the result; the SDK forwards it as a

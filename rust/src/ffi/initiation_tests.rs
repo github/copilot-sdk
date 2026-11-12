@@ -121,7 +121,6 @@ impl Peer {
         });
         peers().lock().insert(id, native.clone());
         let shared = Arc::new(FfiShared {
-            auth_owner: Mutex::new(None),
             host_shutdown: shutdown,
             owns_host: true,
             connection_write: write,

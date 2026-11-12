@@ -1,5 +1,3 @@
-import asyncio
-
 import pytest
 
 from copilot.rpc import PermissionDecisionApproveOnce, PermissionDecisionUserNotAvailable
@@ -12,7 +10,6 @@ from copilot.session_events import (
     PermissionRequestCustomTool,
     PermissionRequestedData,
     PermissionRequestRead,
-    SessionEvent,
 )
 
 
@@ -183,43 +180,3 @@ async def test_permission_callback_receives_derived_prompt_context() -> None:
     assert assessment.recommendation is AssistedApprovalCompletedRecommendation.REQUIRE_APPROVAL
     assert assessment.rationale == "The command modifies protected files."
     assert captured["managed_settings_enabled"] is True
-
-
-@pytest.mark.parametrize("program_tool_call_id", [None, "program-parent"])
-async def test_broadcast_permission_callback_preserves_program_ownership(
-    program_tool_call_id: str | None,
-) -> None:
-    data = {
-        "requestId": "permission-1",
-        "permissionRequest": {
-            "kind": "read",
-            "path": "/workspace/file.txt",
-            "intention": "Read content",
-        },
-    }
-    if program_tool_call_id is not None:
-        data["programToolCallId"] = program_tool_call_id
-    captured = {}
-    invoked = asyncio.Event()
-    session = CopilotSession("session-1", client=None)
-
-    def handler(_request, invocation):
-        captured.update(invocation)
-        invoked.set()
-        return PermissionNoResult()
-
-    session._register_permission_handler(handler)
-    session._dispatch_event(
-        SessionEvent.from_dict(
-            {
-                "id": "00000000-0000-0000-0000-000000000001",
-                "timestamp": "2026-01-01T00:00:00Z",
-                "type": "permission.requested",
-                "data": data,
-            }
-        )
-    )
-    await asyncio.wait_for(invoked.wait(), timeout=1)
-
-    assert captured.get("program_tool_call_id") == program_tool_call_id
-    assert ("program_tool_call_id" in captured) == (program_tool_call_id is not None)

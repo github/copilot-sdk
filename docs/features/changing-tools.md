@@ -16,25 +16,29 @@ Tools are defined exactly as they are for creating a session, and a tool without
 <!-- docs-validate: strict -->
 <!-- docs-validate: hidden -->
 ```typescript
-import type { CopilotSession } from "@github/copilot-sdk";
-
-declare function findIssues(query: string): Promise<string>;
-declare const session: CopilotSession;
-
-import { defineTool } from "@github/copilot-sdk";
+import { CopilotClient, approveAll, defineTool } from "@github/copilot-sdk";
 import { z } from "zod";
 
-const searchIssues = defineTool("search_issues", {
-    description: "Search the issues shown on the current page",
-    parameters: z.object({ query: z.string().describe("Search text") }),
-    handler: async ({ query }) => findIssues(query),
-});
+declare function findIssues(query: string): Promise<string>;
 
-// Supply only the tools the current page provides.
-await session.setTools([searchIssues]);
+async function main() {
+    const client = new CopilotClient();
+    const session = await client.createSession({ onPermissionRequest: approveAll });
 
-// Remove all of this client's tools.
-await session.setTools([]);
+    const searchIssues = defineTool("search_issues", {
+        description: "Search the issues shown on the current page",
+        parameters: z.object({ query: z.string().describe("Search text") }),
+        handler: async ({ query }) => findIssues(query),
+    });
+
+    // Supply only the tools the current page provides.
+    await session.setTools([searchIssues]);
+
+    // Remove all of this client's tools.
+    await session.setTools([]);
+}
+
+main();
 ```
 <!-- /docs-validate: hidden -->
 
@@ -61,9 +65,10 @@ await session.setTools([]);
 
 <!-- docs-validate: hidden -->
 ```python
+from pydantic import BaseModel, Field
+
 from copilot import CopilotClient
 from copilot.session import PermissionHandler
-from pydantic import BaseModel, Field
 from copilot.tools import define_tool
 
 
@@ -316,35 +321,7 @@ session.setTools(List.of()).get();
 <details>
 <summary><strong>Rust</strong></summary>
 
-<!-- docs-validate: hidden -->
-```rust
-use serde::Deserialize;
-
-async fn find_issues(query: &str) -> String {
-    query.to_owned()
-}
-
-#[derive(Deserialize, JsonSchema)]
-struct SearchIssuesParams {
-    /// Search text
-    query: String,
-}
-
-let search_issues = define_tool(
-    "search_issues",
-    "Search the issues shown on the current page",
-    |_inv, params: SearchIssuesParams| async move {
-        Ok(ToolResult::Text(find_issues(&params.query).await))
-    },
-);
-
-// Supply only the tools the current page provides.
-session.set_tools(vec![search_issues]).await?;
-
-// Remove all of this client's tools.
-session.set_tools(Vec::new()).await?;
-```
-<!-- /docs-validate: hidden -->
+<!-- docs-validate: skip -->
 
 ```rust
 #[derive(Deserialize, JsonSchema)]

@@ -19,7 +19,6 @@ Environment variables:
 
 from __future__ import annotations
 
-import errno
 import hashlib
 import io
 import os
@@ -29,8 +28,6 @@ import sys
 import tarfile
 import tempfile
 import time
-from collections.abc import Generator
-from contextlib import contextmanager
 from http.client import IncompleteRead
 from pathlib import Path, PurePosixPath
 from urllib.error import HTTPError, URLError
@@ -119,12 +116,8 @@ def get_cached_cli_path(version: str | None = None) -> str | None:
         pair_dir / _HOSTLESS_ASSETS_MARKER,
     )
 
-    try:
-        if all(path.is_file() and path.stat().st_size > 0 for path in required):
-            return str(binary_path)
-    except FileNotFoundError:
-        # A concurrent repair can remove the bundle during this probe; treat it as a miss.
-        pass
+    if all(path.is_file() and path.stat().st_size > 0 for path in required):
+        return str(binary_path)
     return None
 
 
@@ -186,74 +179,7 @@ def _runtime_bundle_is_complete(pair_dir: Path, wrapper_name: str) -> bool:
         pair_dir / "runtime.node",
         pair_dir / _HOSTLESS_ASSETS_MARKER,
     )
-    try:
-        return all(path.is_file() and path.stat().st_size > 0 for path in required)
-    except FileNotFoundError:
-        # A concurrent repair can remove an incomplete bundle during this probe.
-        return False
-
-
-@contextmanager
-def _runtime_bundle_lock(pair_dir: Path) -> Generator[None, None, None]:
-    """Serialize installers that share ``pair_dir``, when the cache allows it.
-
-    The lock is advisory. Where it cannot be taken (a missing, unreadable or
-    read-only parent, an existing lock this user cannot write, or a filesystem
-    such as NFS that rejects the lock), installers proceed unlocked, as they
-    did before the lock existed.
-    """
-    if sys.platform != "win32":
-        import fcntl
-
-        # The parent survives bundle replacement and needs no writable lock file,
-        # even when another user populated the cache with a restrictive umask.
-        try:
-            lock_fd = os.open(pair_dir.parent, os.O_RDONLY)
-        except OSError:
-            yield
-            return
-        locked = False
-        try:
-            try:
-                fcntl.flock(lock_fd, fcntl.LOCK_EX)
-                locked = True
-            except OSError:
-                pass
-            yield
-        finally:
-            if locked:
-                fcntl.flock(lock_fd, fcntl.LOCK_UN)
-            os.close(lock_fd)
-        return
-
-    import msvcrt
-
-    # Keep the Windows lock outside the replaceable tree, and never unlink its inode.
-    lock_path = pair_dir.parent / f".runtime-bundle.{pair_dir.name}.lock"
-    try:
-        # Unbuffered writes keep initialization contention inside the retry loop.
-        lock = lock_path.open("a+b", buffering=0)
-    except OSError:
-        yield
-        return
-    with lock:
-        # LK_LOCK gives up after ten attempts; repairs can take longer.
-        while True:
-            try:
-                if lock.seek(0, os.SEEK_END) == 0:
-                    lock.write(b"\0")
-                lock.seek(0)
-                msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
-                break
-            except OSError as exc:
-                if exc.errno != errno.EACCES:
-                    raise
-                time.sleep(1)
-        try:
-            yield
-        finally:
-            lock.seek(0)
-            msvcrt.locking(lock.fileno(), msvcrt.LK_UNLCK, 1)
+    return all(path.is_file() and path.stat().st_size > 0 for path in required)
 
 
 def download_cli(version: str | None = None, *, force: bool = False) -> str:
@@ -286,29 +212,24 @@ def download_cli(version: str | None = None, *, force: bool = False) -> str:
 
     wrapper_path = Path(ensure_runtime_wrapper(ver, force=force))
     binary_path = wrapper_path.with_name(binary_name)
-    with _runtime_bundle_lock(wrapper_path.parent):
+    fd, temp_name = tempfile.mkstemp(dir=wrapper_path.parent, prefix=".cli-")
+    try:
+        with os.fdopen(fd, "wb") as destination:
+            destination.write(wrapper_path.read_bytes())
+        staged = Path(temp_name)
+        if sys.platform != "win32":
+            staged.chmod(staged.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+        os.replace(staged, binary_path)
+    except OSError:
+        try:
+            os.unlink(temp_name)
+        except OSError:
+            pass
         if not force:
             cached = get_cached_cli_path(ver)
             if cached is not None:
                 return cached
-        fd, temp_name = tempfile.mkstemp(dir=wrapper_path.parent, prefix=".cli-")
-        try:
-            with os.fdopen(fd, "wb") as destination:
-                destination.write(wrapper_path.read_bytes())
-            staged = Path(temp_name)
-            if sys.platform != "win32":
-                staged.chmod(staged.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-            os.replace(staged, binary_path)
-        except OSError:
-            try:
-                os.unlink(temp_name)
-            except OSError:
-                pass
-            if not force:
-                cached = get_cached_cli_path(ver)
-                if cached is not None:
-                    return cached
-            raise
+        raise
 
     return str(binary_path)
 
@@ -410,23 +331,20 @@ def ensure_runtime_wrapper(version: str | None = None, force: bool = False) -> s
     runtime_path = pair_dir / "runtime.node"
     assets_marker = pair_dir / _HOSTLESS_ASSETS_MARKER
 
+    wrapper_exists = wrapper_path.is_file() and wrapper_path.stat().st_size > 0
+    runtime_exists = runtime_path.is_file() and runtime_path.stat().st_size > 0
     if _runtime_bundle_is_complete(pair_dir, wrapper_name) and not force:
         return str(wrapper_path)
-    with _runtime_bundle_lock(pair_dir):
-        if _runtime_bundle_is_complete(pair_dir, wrapper_name) and not force:
-            return str(wrapper_path)
-        wrapper_exists = wrapper_path.is_file() and wrapper_path.stat().st_size > 0
-        runtime_exists = runtime_path.is_file() and runtime_path.stat().st_size > 0
-        if not force and wrapper_exists != runtime_exists:
-            raise RuntimeError(
-                f"Incomplete Copilot runtime bundle in {pair_dir}: "
-                f"{wrapper_name} and runtime.node are required."
-            )
-        if _should_skip_download():
-            raise RuntimeError(
-                f"Copilot runtime bundle is not cached in {pair_dir} "
-                "and automatic downloads are disabled."
-            )
+    if not force and wrapper_exists != runtime_exists:
+        raise RuntimeError(
+            f"Incomplete Copilot runtime bundle in {pair_dir}: "
+            f"{wrapper_name} and runtime.node are required."
+        )
+    if _should_skip_download():
+        raise RuntimeError(
+            f"Copilot runtime bundle is not cached in {pair_dir} "
+            "and automatic downloads are disabled."
+        )
 
     data = _fetch_verified_release_package(ver, runtime_platform)
     import shutil
@@ -449,17 +367,20 @@ def ensure_runtime_wrapper(version: str | None = None, force: bool = False) -> s
                 staged_wrapper.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH
             )
         (staging_dir / assets_marker.name).write_text("1\n", encoding="ascii")
-        with _runtime_bundle_lock(pair_dir):
-            if _runtime_bundle_is_complete(pair_dir, wrapper_name) and not force:
+        try:
+            if pair_dir.exists() and (force or not assets_marker.is_file()):
+                shutil.rmtree(pair_dir, ignore_errors=True)
+            staging_dir.replace(pair_dir)
+        except OSError:
+            if (
+                wrapper_path.is_file()
+                and wrapper_path.stat().st_size > 0
+                and runtime_path.is_file()
+                and runtime_path.stat().st_size > 0
+                and assets_marker.is_file()
+            ):
                 return str(wrapper_path)
-            try:
-                if pair_dir.exists():
-                    shutil.rmtree(pair_dir)
-                staging_dir.replace(pair_dir)
-            except OSError:
-                if _runtime_bundle_is_complete(pair_dir, wrapper_name):
-                    return str(wrapper_path)
-                raise
+            raise
     finally:
         if staging_dir.exists():
             shutil.rmtree(staging_dir, ignore_errors=True)

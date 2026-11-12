@@ -8,7 +8,6 @@
 package com.github.copilot.generated.rpc;
 
 import com.github.copilot.CopilotExperimental;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
@@ -26,8 +25,6 @@ public final class SessionMcpApi {
     private final RpcCaller caller;
     private final String sessionId;
 
-    /** API methods for the {@code mcp.ide} sub-namespace. */
-    public final SessionMcpIdeApi ide;
     /** API methods for the {@code mcp.oauth} sub-namespace. */
     public final SessionMcpOauthApi oauth;
     /** API methods for the {@code mcp.headers} sub-namespace. */
@@ -43,32 +40,11 @@ public final class SessionMcpApi {
     SessionMcpApi(RpcCaller caller, String sessionId) {
         this.caller = caller;
         this.sessionId = sessionId;
-        this.ide = new SessionMcpIdeApi(caller, sessionId);
         this.oauth = new SessionMcpOauthApi(caller, sessionId);
         this.headers = new SessionMcpHeadersApi(caller, sessionId);
         this.apps = new SessionMcpAppsApi(caller, sessionId);
         this.resources = new SessionMcpResourcesApi(caller, sessionId);
         this.prompts = new SessionMcpPromptsApi(caller, sessionId);
-    }
-
-    /**
-     * Calls a session MCP tool with the existing server admission and tool permission checks. IDE calls require local host authority, including programmatic tools not exposed to the model. Returns null only when the IDE is disconnected. IDE open_diff waits for user action; other IDE calls use a 60-second timeout.
-     * <p>
-     * Note: the {@code sessionId} field in the params record is overridden
-     * by the session-scoped wrapper; any value provided is ignored.
-     *
-     * @return a future that completes with the {@code Map<String, Object>} value,
-     *     or {@code null} when the result is absent. Callers must handle the
-     *     {@code null} completion value.
-     *
-     * @apiNote This method is experimental and may change in a future version.
-     * @since 1.0.0
-     */
-    @CopilotExperimental
-    public CompletableFuture<Map<String, Object>> callTool(SessionMcpCallToolParams params) {
-        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
-        _p.put("sessionId", this.sessionId);
-        return caller.invoke("session.mcp.callTool", _p, RpcMapper.INSTANCE.getTypeFactory().constructMapType(Map.class, String.class, Object.class));
     }
 
     /**
@@ -301,7 +277,7 @@ public final class SessionMcpApi {
     }
 
     /**
-     * Starts an individual MCP server on the live session. Omit `config` for a config-free start-by-name of an already-configured server (reuses the server's already-registered configuration); supply `config` to start from a caller-supplied configuration. Session-scoped and ephemeral: the server is added to this session's running set only and is reaped when the session ends. Does NOT modify persistent user configuration (`mcp.config.*`), so it does not affect future sessions. The server surfaces through `session.mcp.list` and the `session.mcp_servers_loaded` / `session.mcp_server_status_changed` events like any other server. A local configuration connects the existing IDE endpoint under serverName `ide`. Runtime host admission controls the CLI policy exemption; request fields cannot grant it.
+     * Starts an individual MCP server on the live session. Omit `config` for a config-free start-by-name of an already-configured server (reuses the server's already-registered configuration); supply `config` to start from a caller-supplied configuration. Session-scoped and ephemeral: the server is added to this session's running set only and is reaped when the session ends. Does NOT modify persistent user configuration (`mcp.config.*`), so it does not affect future sessions. The server surfaces through `session.mcp.list` and the `session.mcp_servers_loaded` / `session.mcp_server_status_changed` events like any other server.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -317,7 +293,7 @@ public final class SessionMcpApi {
     }
 
     /**
-     * Starts an individual MCP server on the live session. Omit `config` for a config-free start-by-name of an already-configured server (reuses the server's already-registered configuration); supply `config` to start from a caller-supplied configuration. Session-scoped and ephemeral: the server is added to this session's running set only and is reaped when the session ends. Does NOT modify persistent user configuration (`mcp.config.*`), so it does not affect future sessions. The server surfaces through `session.mcp.list` and the `session.mcp_servers_loaded` / `session.mcp_server_status_changed` events like any other server. A local configuration connects the existing IDE endpoint under serverName `ide`. Runtime host admission controls the CLI policy exemption; request fields cannot grant it.
+     * Starts an individual MCP server on the live session. Omit `config` for a config-free start-by-name of an already-configured server (reuses the server's already-registered configuration); supply `config` to start from a caller-supplied configuration. Session-scoped and ephemeral: the server is added to this session's running set only and is reaped when the session ends. Does NOT modify persistent user configuration (`mcp.config.*`), so it does not affect future sessions. The server surfaces through `session.mcp.list` and the `session.mcp_servers_loaded` / `session.mcp_server_status_changed` events like any other server.
      * <p>
      * Accepts the extensible request, including inputs added after the params record.
      *
@@ -363,7 +339,7 @@ public final class SessionMcpApi {
     }
 
     /**
-     * Stops one MCP server on the session's host. Omit transport for a generic stop by name. Set transport to local-http with serverName ide for endpoint-only cleanup. This cancels pending IDE initialization and removes the local IDE session, retained tools, identity, and selection. It preserves any ordinary server named ide.
+     * Stops an individual MCP server on the session's host.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
@@ -379,7 +355,7 @@ public final class SessionMcpApi {
     }
 
     /**
-     * Stops one MCP server on the session's host. Omit transport for a generic stop by name. Set transport to local-http with serverName ide for endpoint-only cleanup. This cancels pending IDE initialization and removes the local IDE session, retained tools, identity, and selection. It preserves any ordinary server named ide.
+     * Stops an individual MCP server on the session's host.
      * <p>
      * Accepts the extensible request, including inputs added after the params record.
      *
@@ -439,17 +415,6 @@ public final class SessionMcpApi {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.mcp.isServerRunning", _p, SessionMcpIsServerRunningResult.class);
-    }
-
-    /**
-     * Reports how many context tokens each MCP server's tool definitions cost, per server and per tool, for the session's current tool set. Costs are counted with the session's selected model, or with the runtime's default context model when no model has been selected.
-     *
-     * @apiNote This method is experimental and may change in a future version.
-     * @since 1.0.0
-     */
-    @CopilotExperimental
-    public CompletableFuture<SessionMcpGetToolTokenBreakdownResult> getToolTokenBreakdown() {
-        return caller.invoke("session.mcp.getToolTokenBreakdown", java.util.Map.of("sessionId", this.sessionId), SessionMcpGetToolTokenBreakdownResult.class);
     }
 
 }

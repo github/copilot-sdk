@@ -454,22 +454,13 @@ public sealed partial class CopilotClient
         }
     }
 
-    private void CaptureAhpSession<T>(CopilotSession session, T request, JsonTypeInfo<T> typeInfo, AppliedSessionOptions? appliedOptions)
+    private void CaptureAhpSession<T>(CopilotSession session, T request, JsonTypeInfo<T> typeInfo)
     {
         AhpHandoff[] entries;
         lock (_ahpGate)
             entries = _ahpHandoffs.Values.Where(entry => entry.SessionId == session.SessionId && entry.Configs is not null).ToArray();
         if (entries.Length == 0) return;
-        var config = JsonSerializer.SerializeToNode(request, typeInfo)!.AsObject();
-        // These settings are sent by the post-create options patch, never in
-        // the create or resume request, so record the values that patch applied.
-        if (appliedOptions?.SkipCustomInstructions is { } skipCustomInstructions)
-            config["skipCustomInstructions"] = skipCustomInstructions;
-        if (appliedOptions?.CoauthorEnabled is { } coauthorEnabled)
-            config["coauthorEnabled"] = coauthorEnabled;
-        if (appliedOptions?.ManageScheduleEnabled is { } manageScheduleEnabled)
-            config["manageScheduleEnabled"] = manageScheduleEnabled;
-        var snapshot = JsonSerializer.SerializeToElement(config, TypesJsonContext.Default.JsonObject);
+        var snapshot = JsonSerializer.SerializeToElement(request, typeInfo);
         lock (_ahpGate)
             foreach (var entry in entries)
                 if (!entry.Released && entry.Configs is { } configs) configs[session] = snapshot;

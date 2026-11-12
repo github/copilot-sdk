@@ -3,7 +3,6 @@ package e2e
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -20,7 +19,6 @@ import (
 )
 
 func TestSessionE2E(t *testing.T) {
-	t.Parallel()
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })
@@ -54,21 +52,6 @@ func TestSessionE2E(t *testing.T) {
 
 		if !startOk || startData.SelectedModel == nil || *startData.SelectedModel != "claude-sonnet-5" {
 			t.Errorf("Expected selectedModel to be 'claude-sonnet-5', got %v", startData)
-		}
-
-		rawEvents, err := session.GetRawEvents(t.Context())
-		if err != nil {
-			t.Fatalf("Failed to get raw events: %v", err)
-		}
-		if len(rawEvents) == 0 {
-			t.Fatal("Expected initial raw session events")
-		}
-		var rawStart map[string]json.RawMessage
-		if err := json.Unmarshal(rawEvents[0], &rawStart); err != nil {
-			t.Fatalf("Failed to decode raw session.start: %v", err)
-		}
-		if string(rawStart["type"]) != `"session.start"` || string(rawStart["parentId"]) != "null" {
-			t.Fatalf("Raw session.start must preserve parentId:null, got %s", rawEvents[0])
 		}
 
 		if err := session.Disconnect(); err != nil {
@@ -1132,7 +1115,6 @@ func getSystemMessage(exchange testharness.ParsedHttpExchange) string {
 }
 
 func TestSetModelWithReasoningEffortE2E(t *testing.T) {
-	t.Parallel()
 	t.Run("should set model with reasoningeffort", runSetModelWithReasoningEffortE2E)
 }
 
@@ -1182,7 +1164,6 @@ func runSetModelWithReasoningEffortE2E(t *testing.T) {
 }
 
 func TestSessionBlobAttachmentE2E(t *testing.T) {
-	t.Parallel()
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })
@@ -1246,7 +1227,6 @@ func contains(slice []string, item string) bool {
 }
 
 func TestSessionLogE2E(t *testing.T) {
-	t.Parallel()
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })
@@ -1366,7 +1346,6 @@ func getEventMessage(evt copilot.SessionEvent) string {
 // Each subtest exercises a different Attachment shape end-to-end through SendAndWait
 // and verifies the resulting user.message event captured by GetEvents.
 func TestSessionAttachmentsE2E(t *testing.T) {
-	t.Parallel()
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })
@@ -1594,7 +1573,6 @@ func lastUserAttachment(t *testing.T, session *copilot.Session) copilot.Attachme
 
 // TestSessionMessageOptions mirrors C# Should_Send_With_Mode_Property and Should_Send_With_Custom_RequestHeaders.
 func TestSessionMessageOptionsE2E(t *testing.T) {
-	t.Parallel()
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })
@@ -1694,7 +1672,6 @@ func exchangeHasHeader(exchange testharness.ParsedHttpExchange, name, expectedVa
 
 // TestSessionSetModelOnExisting mirrors C# Should_Set_Model_On_Existing_Session as a snapshot-replay subtest.
 func TestSessionSetModelOnExistingE2E(t *testing.T) {
-	t.Parallel()
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })

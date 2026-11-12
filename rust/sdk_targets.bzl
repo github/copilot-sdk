@@ -20,7 +20,7 @@ _LOCAL_RUNTIME_DEPS = [
     "@vendor__tokio-stream-0.1.19//:tokio_stream",
     "@vendor__tokio-util-0.7.20//:tokio_util",
     "@vendor__tracing-0.1.44//:tracing",
-    "@vendor//uuid",
+    "@vendor__uuid-1.29.0//:uuid",
 ] + select({
     "@rules_rust//rust/platform:aarch64-pc-windows-msvc": [
         "@vendor__windows-sys-0.61.2//:windows_sys",
@@ -52,13 +52,6 @@ def sdk_targets(name = "platform_dirs_srcs"):
         visibility = ["//visibility:public"],
     )
 
-    # The src/ahp-host inventory test reads the generated wire surface.
-    native.filegroup(
-        name = "generated_srcs",
-        srcs = native.glob(["src/generated/**/*.rs"]),
-        visibility = ["//src/ahp-host:__subpackages__"],
-    )
-
     sdk_features = [
         "bundled-cli",
         "bundled-in-process",
@@ -75,7 +68,6 @@ def sdk_targets(name = "platform_dirs_srcs"):
         srcs = [
             "build.rs",
             "src/cache_paths.rs",
-            "src/cache_paths/unix.rs",
         ] + native.glob(["build/**/*.rs", "src/platform_dirs/**/*.rs"]),
         aliases = aliases(build = True),
         build_script_env = {
@@ -98,8 +90,8 @@ def sdk_targets(name = "platform_dirs_srcs"):
             "//conditions:default": crate_deps(["sha2"]),
         }),
         link_deps = select({
-            "@rules_rust//rust/platform:aarch64-unknown-linux-gnu": ["@sdk_vendor__openssl-sys-0.9.118//:openssl_sys"],
-            "@rules_rust//rust/platform:x86_64-unknown-linux-gnu": ["@sdk_vendor__openssl-sys-0.9.118//:openssl_sys"],
+            "@rules_rust//rust/platform:aarch64-unknown-linux-gnu": ["@sdk_vendor__openssl-sys-0.9.117//:openssl_sys"],
+            "@rules_rust//rust/platform:x86_64-unknown-linux-gnu": ["@sdk_vendor__openssl-sys-0.9.117//:openssl_sys"],
             "//conditions:default": [],
         }),
     )
@@ -124,11 +116,7 @@ def sdk_targets(name = "platform_dirs_srcs"):
             "in-process",
             "local-runtime",
             "runtime",
-        ] + select({
-            # Test-support client methods for the src/ahp-host crates' tests.
-            "//bazel:dependency_test_features_enabled": ["test-support"],
-            "//conditions:default": [],
-        }),
+        ],
         crate_name = "github_copilot_sdk",
         crate_root = "src/lib.rs",
         proc_macro_deps = ["@vendor__async-trait-0.1.92//:async_trait"],
@@ -156,12 +144,9 @@ def sdk_targets(name = "platform_dirs_srcs"):
         )
 
     rust_test(
-        name = "sdk_network_test",
-        srcs = [
-            "tests/network_test.rs",
-            "tests/support/fake_runtime.rs",
-        ],
-        crate_root = "tests/network_test.rs",
+        name = "sdk_kerberos_auth_test",
+        srcs = ["tests/kerberos_auth_test.rs"],
+        crate_root = "tests/kerberos_auth_test.rs",
         edition = "2024",
         deps = [
             ":github-copilot-sdk-local-runtime",

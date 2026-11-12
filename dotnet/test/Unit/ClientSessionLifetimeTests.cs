@@ -12,7 +12,6 @@ using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using GitHub.Copilot.Rpc;
 using GitHub.Copilot.Test.Harness;
 using Microsoft.Extensions.AI;
@@ -24,115 +23,6 @@ namespace GitHub.Copilot.Test.Unit;
 public sealed partial class ClientSessionLifetimeTests
 {
     private sealed record RpcRequestRecord(string Method, JsonElement Params);
-
-    [Theory]
-    [InlineData("stop")]
-    [InlineData("force")]
-    [InlineData("dispose")]
-    public async Task Shutdown_Cancels_Pending_Startup(string shutdown)
-    {
-        await using var server = await FakeCopilotServer.StartAsync();
-        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        server.BeforeResponseAsync = async (request, token) =>
-        {
-            if (request.Method != "connect") return;
-            entered.TrySetResult();
-            await release.Task.WaitAsync(token);
-        };
-        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
-        var starting = client.StartAsync();
-        Task? stopping = null;
-        try
-        {
-            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
-            stopping = shutdown switch
-            {
-                "stop" => client.StopAsync(),
-                "force" => client.ForceStopAsync(),
-                _ => client.DisposeAsync().AsTask()
-            };
-            await stopping.WaitAsync(TimeSpan.FromSeconds(5));
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => starting);
-        }
-        finally
-        {
-            release.TrySetResult();
-            if (stopping is not null) await stopping.WaitAsync(TimeSpan.FromSeconds(5));
-        }
-    }
-
-    [Fact]
-    public async Task RawHistory_PreservesKnownEventJson_InAnalyticsRequests()
-    {
-        await using var server = await FakeCopilotServer.StartAsync();
-        server.ResponseFactory = _ => new Dictionary<string, object?>();
-        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
-        await using var session = await client.CreateSessionAsync(new SessionConfig());
-        await server.SendSessionEventAsync(session.SessionId, "user.message", new Dictionary<string, object?>
-        {
-            ["content"] = "Hello",
-            ["future"] = new Dictionary<string, object?> { ["detail"] = new object?[] { null, "kept" } }
-        });
-
-        var events = await session.GetRawEventsAsync();
-        var original = Assert.Single(events);
-        Assert.Equal(JsonValueKind.Null, original.GetProperty("parentId").ValueKind);
-        Assert.Equal(JsonValueKind.Null, original.GetProperty("data").GetProperty("future").GetProperty("detail")[0].ValueKind);
-        await client.Rpc.TaskAnalytics.ClassifyTrajectoryAsync(events, validateOnly: true);
-
-        var request = Assert.Single(server.Requests, r => r.Method == "taskAnalytics.classifyTrajectory");
-        Assert.True(JsonNode.DeepEquals(JsonNode.Parse(original.GetRawText()), JsonNode.Parse(request.Params.GetProperty("events")[0].GetRawText())));
-    }
-
-    [Theory]
-    [InlineData(false, false)]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    [InlineData(true, true)]
-    public async Task SessionRequests_Preserve_Depth_For_Custom_JsonValues(bool resume, bool toolMetadata)
-    {
-        await using var server = await FakeCopilotServer.StartAsync();
-        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
-        await using var original = await client.CreateSessionAsync(new SessionConfig());
-        await original.DisposeAsync();
-        server.ClearRequests();
-
-        JsonNode groups = JsonValue.Create<object>(42)!;
-        var levels = toolMetadata ? 59 : 61;
-        for (var i = 0; i < levels; i++)
-        {
-            groups = new JsonObject { ["nested"] = groups };
-        }
-        var assignments = toolMetadata ? null : new CopilotExpAssignmentResponse { ParameterGroups = groups };
-        AIFunction[]? tools = toolMetadata
-            ? [CopilotTool.DefineTool((Func<string>)(() => "unused"),
-                new CopilotToolOptions { Metadata = new Dictionary<string, JsonNode?> { ["depth"] = groups } })]
-            : null;
-        await using var session = resume
-            ? await client.ResumeSessionAsync(original.SessionId, new ResumeSessionConfig
-            {
-                ExpAssignments = assignments,
-                Tools = tools,
-                OnPermissionRequest = PermissionHandler.ApproveAll
-            })
-            : await client.CreateSessionAsync(new SessionConfig
-            {
-                ExpAssignments = assignments,
-                Tools = tools,
-                OnPermissionRequest = PermissionHandler.ApproveAll
-            });
-
-        var request = Assert.Single(server.Requests, r => r.Method == (resume ? "session.resume" : "session.create"));
-        var value = toolMetadata
-            ? request.Params.GetProperty("tools")[0].GetProperty("metadata").GetProperty("depth")
-            : request.Params.GetProperty("expAssignments").GetProperty("ParameterGroups");
-        for (var i = 0; i < levels; i++)
-        {
-            value = value.GetProperty("nested");
-        }
-        Assert.Equal(42, value.GetInt32());
-    }
 
     [Theory]
     [InlineData(false)]
@@ -204,42 +94,6 @@ public sealed partial class ClientSessionLifetimeTests
         {
             await client.StartAsync();
             Assert.Single(server.Requests, r => r.Method == "ping");
-        }
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Start_After_Failed_Start_Connects_Again(bool autoStart)
-    {
-        var timeout = TimeSpan.FromSeconds(10);
-        var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        await using var client = new CopilotClient(new CopilotClientOptions
-        {
-            Connection = RuntimeConnection.ForUri($"http://127.0.0.1:{((IPEndPoint)listener.LocalEndpoint).Port}")
-        });
-
-        // The runtime drops the first connection, which fails the first startup.
-        var dropFirst = DropNextConnectionAsync();
-        await Assert.ThrowsAnyAsync<Exception>(() => client.StartAsync().WaitAsync(timeout));
-        await dropFirst.WaitAsync(timeout);
-        await using var server = FakeCopilotServer.ServeNextConnection(listener);
-
-        if (autoStart)
-        {
-            await using var session = await client.CreateSessionAsync(new SessionConfig()).WaitAsync(timeout);
-        }
-        else
-        {
-            await client.StartAsync().WaitAsync(timeout);
-        }
-
-        Assert.Contains(server.Requests, r => r.Method == "connect");
-
-        async Task DropNextConnectionAsync()
-        {
-            using var connection = await listener.AcceptTcpClientAsync();
         }
     }
 
@@ -1013,46 +867,6 @@ public sealed partial class ClientSessionLifetimeTests
     }
 
     [Fact]
-    public async Task StopAsync_Shuts_Down_Runtime_When_Session_Detach_Never_Answers()
-    {
-        await using var server = await FakeCopilotServer.StartAsync();
-        server.IgnoreDetach();
-        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
-        await client.StartAsync();
-        _ = await client.CreateSessionAsync(new SessionConfig
-        {
-            OnPermissionRequest = PermissionHandler.ApproveAll
-        });
-        using var process = StartExitedProcess();
-        await ReplaceConnectionResourcesAsync(client, process);
-
-        var error = await Assert.ThrowsAsync<IOException>(() => client.StopAsync().WaitAsync(TimeSpan.FromSeconds(30)));
-
-        Assert.Contains("session.detach did not complete within the 10s shutdown timeout", error.Message);
-        Assert.Equal(1, server.RuntimeShutdownCount);
-    }
-
-    [Fact]
-    public async Task StopAsync_Unregisters_Session_When_Detach_Is_Blocked_On_Write_Lock()
-    {
-        await using var server = await FakeCopilotServer.StartAsync();
-        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
-        var session = await client.CreateSessionAsync(new SessionConfig
-        {
-            OnPermissionRequest = PermissionHandler.ApproveAll
-        });
-        var rpc = typeof(CopilotSession).GetProperty("JsonRpc", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(session)!;
-        var writeLock = (SemaphoreSlim)rpc.GetType().GetField("_writeLock", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(rpc)!;
-        // Model a stalled transport writer.
-        await writeLock.WaitAsync();
-
-        var error = await Assert.ThrowsAsync<IOException>(() => client.StopAsync().WaitAsync(TimeSpan.FromSeconds(30)));
-
-        Assert.Contains("session.detach did not complete within the 10s shutdown timeout", error.Message);
-        AssertSessionCount(client, sessions: 0);
-    }
-
-    [Fact]
     public async Task ResumeSessionAsync_Throws_When_Same_Client_Already_Tracks_Session()
     {
         await using var server = await FakeCopilotServer.StartAsync();
@@ -1498,7 +1312,7 @@ public sealed partial class ClientSessionLifetimeTests
         await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
         var terminalTool = CopilotTool.DefineTool(
             (Func<string>)(() => "done"),
-            new CopilotToolOptions { IsTerminal = true, Idempotent = true });
+            new CopilotToolOptions { IsTerminal = true });
         var plainTool = CopilotTool.DefineTool((Func<string>)(() => "continue"));
 
         await using var created = await client.CreateSessionAsync(new SessionConfig
@@ -1511,8 +1325,6 @@ public sealed partial class ClientSessionLifetimeTests
         var createTools = createRequest.Params.GetProperty("tools");
         Assert.True(createTools[0].GetProperty("isTerminal").GetBoolean());
         Assert.False(createTools[1].TryGetProperty("isTerminal", out _));
-        Assert.True(createTools[0].GetProperty("idempotent").GetBoolean());
-        Assert.False(createTools[1].TryGetProperty("idempotent", out _));
 
         server.ClearRequests();
 
@@ -1524,7 +1336,6 @@ public sealed partial class ClientSessionLifetimeTests
 
         var resumeRequest = Assert.Single(server.Requests, request => request.Method == "session.resume");
         Assert.True(resumeRequest.Params.GetProperty("tools")[0].GetProperty("isTerminal").GetBoolean());
-        Assert.True(resumeRequest.Params.GetProperty("tools")[0].GetProperty("idempotent").GetBoolean());
     }
 
     [Theory]
@@ -1649,41 +1460,6 @@ public sealed partial class ClientSessionLifetimeTests
         Assert.False(invoked);
         Assert.Contains("received non-object arguments", request.Params.GetProperty("error").GetString());
         Assert.False(request.Params.TryGetProperty("result", out _));
-    }
-
-    [Theory]
-    [InlineData("", "InvalidOperationException")]
-    [InlineData("disk full", "disk full")]
-    public async Task ExternalTool_Handler_Exception_Is_Answered_With_NonEmpty_Error(string message, string expectedError)
-    {
-        await using var server = await FakeCopilotServer.StartAsync();
-        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
-        await using var session = await client.CreateSessionAsync(new SessionConfig
-        {
-            Tools = [new ThrowingFunction(new InvalidOperationException(message))],
-        });
-
-        await server.SendSessionEventAsync(session.SessionId, "external_tool.requested", new()
-        {
-            ["requestId"] = "throwing-request",
-            ["sessionId"] = session.SessionId,
-            ["toolCallId"] = "throwing-call",
-            ["toolName"] = "record_note",
-            ["arguments"] = new Dictionary<string, object?>(),
-        });
-
-        var request = await WaitForRequestAsync(server, "session.tools.handlePendingToolCall");
-        Assert.Equal(expectedError, request.Params.GetProperty("error").GetString());
-        Assert.False(request.Params.TryGetProperty("result", out _));
-    }
-
-    /// <summary>Throws the given exception from every invocation.</summary>
-    private sealed class ThrowingFunction(Exception exception) : AIFunction
-    {
-        public override string Name => "record_note";
-
-        protected override ValueTask<object?> InvokeCoreAsync(AIFunctionArguments arguments, CancellationToken cancellationToken) =>
-            throw exception;
     }
 
     [Fact]
@@ -1988,7 +1764,7 @@ public sealed partial class ClientSessionLifetimeTests
     }
 
     [Fact]
-    public async Task CreateSessionAsync_Deletes_Server_Assigned_Session_When_McpAuth_Interest_Fails()
+    public async Task CreateSessionAsync_Preserves_Server_Assigned_Session_When_McpAuth_Interest_Fails()
     {
         await using var server = await FakeCopilotServer.StartAsync();
         server.FailMcpAuthInterestRegistration = true;
@@ -2009,8 +1785,7 @@ public sealed partial class ClientSessionLifetimeTests
         Assert.NotNull(server.LastSessionId);
         var interest = Assert.Single(server.Requests, request => request.Method == "session.eventLog.registerInterest");
         Assert.Equal(server.LastSessionId, interest.Params.GetProperty("sessionId").GetString());
-        var delete = Assert.Single(server.Requests, request => request.Method == "session.delete");
-        Assert.Equal(server.LastSessionId, delete.Params.GetProperty("sessionId").GetString());
+        Assert.DoesNotContain(server.Requests, request => request.Method == "session.delete");
     }
 
     [Theory]
@@ -2035,7 +1810,7 @@ public sealed partial class ClientSessionLifetimeTests
             }
         });
 
-        var error = await Record.ExceptionAsync(() => client.CreateSessionAsync(new SessionConfig
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => client.CreateSessionAsync(new SessionConfig
         {
             Cloud = new CloudSessionOptions
             {
@@ -2044,16 +1819,7 @@ public sealed partial class ClientSessionLifetimeTests
             CreateSessionFsProvider = _ => new TextOnlySessionFsProvider()
         }));
 
-        if (failSessionDelete)
-        {
-            var aggregate = Assert.IsType<AggregateException>(error);
-            Assert.Contains(aggregate.InnerExceptions, inner => inner.Message.Contains("does not implement ISessionFsBinaryProvider"));
-            Assert.Contains(aggregate.InnerExceptions, inner => inner.Message.Contains("Failed to delete session"));
-        }
-        else
-        {
-            Assert.Contains("does not implement ISessionFsBinaryProvider", Assert.IsType<InvalidOperationException>(error).Message);
-        }
+        Assert.Contains("does not implement ISessionFsBinaryProvider", error.Message);
         var create = Assert.Single(server.Requests, request => request.Method == "session.create");
         Assert.False(create.Params.TryGetProperty("sessionId", out _));
         var delete = Assert.Single(server.Requests, request => request.Method == "session.delete");
@@ -2107,48 +1873,6 @@ public sealed partial class ClientSessionLifetimeTests
             Assert.NotNull(error);
             Assert.Equal(new byte[] { 0, 255, 254, 1 }, received?.ToArray());
         }
-    }
-
-    [Fact]
-    public async Task Sqlite_SessionFs_Provider_Sends_DBNull_Cells_As_Json_Null()
-    {
-        var provider = new SqliteRowsSessionFsProvider(new SessionFsSqliteResult
-        {
-            Columns = ["id", "description"],
-            Rows = [new Dictionary<string, object> { ["id"] = "t2", ["description"] = DBNull.Value }],
-        });
-        var handler = (ISessionFsHandler)provider;
-
-        var query = await handler.SqliteQueryAsync(
-            new SessionFsSqliteQueryRequest { SessionId = "session", QueryType = SessionFsSqliteQueryType.Query, Query = "SELECT id, description FROM todos" },
-            CancellationToken.None);
-        Assert.Null(query.Error);
-        var row = Assert.Single(query.Rows);
-        Assert.Equal("t2", row["id"].GetString());
-        Assert.Equal(JsonValueKind.Null, row["description"].ValueKind);
-
-        var transaction = await handler.SqliteTransactionAsync(
-            new SessionFsSqliteTransactionRequest
-            {
-                SessionId = "session",
-                Statements = [new SessionFsSqliteTransactionStatement { QueryType = SessionFsSqliteQueryType.Query, Query = "SELECT id, description FROM todos" }],
-            },
-            CancellationToken.None);
-        Assert.Null(transaction.Error);
-        var transactionRow = Assert.Single(Assert.Single(transaction.Results).Rows);
-        Assert.Equal("t2", transactionRow["id"].GetString());
-        Assert.Equal(JsonValueKind.Null, transactionRow["description"].ValueKind);
-    }
-
-    private sealed class SqliteRowsSessionFsProvider(SessionFsSqliteResult result)
-        : TextOnlySessionFsProvider, ISessionFsSqliteProvider, ISessionFsSqliteTransactionProvider
-    {
-        public Task<SessionFsSqliteResult?> QueryAsync(
-            SessionFsSqliteQueryType queryType, string query, IDictionary<string, object?>? bindParams, CancellationToken cancellationToken) =>
-            Task.FromResult<SessionFsSqliteResult?>(result);
-        public Task<bool> ExistsAsync(CancellationToken cancellationToken) => Task.FromResult(true);
-        public Task<IList<SessionFsSqliteResult>> TransactionAsync(IList<SessionFsSqliteStatement> statements, CancellationToken cancellationToken) =>
-            Task.FromResult<IList<SessionFsSqliteResult>>([result]);
     }
 
     private sealed class BinarySessionFsProvider(Func<CancellationToken, Task<byte[]>> read, Func<ReadOnlyMemory<byte>, int?, Task>? write = null)
@@ -2711,11 +2435,6 @@ public sealed partial class ClientSessionLifetimeTests
         using var process = StartExitedProcess();
         await ReplaceConnectionResourcesAsync(client, process);
         using var releaseSetup = new ManualResetEventSlim();
-        using var releaseCreation = new ManualResetEventSlim();
-        var creationBlocked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var scheduler = new ConcurrentExclusiveSchedulerPair(TaskScheduler.Default, maxConcurrencyLevel: 1);
-        var factory = new TaskFactory(CancellationToken.None, TaskCreationOptions.None,
-            TaskContinuationOptions.None, scheduler.ExclusiveScheduler);
         using var reconnectCancellation = new CancellationTokenSource();
         var reconnect = server.ObserveReconnectAsync(reconnectCancellation.Token);
         var setupStarted = new TaskCompletionSource<CopilotSession>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -2729,7 +2448,7 @@ public sealed partial class ClientSessionLifetimeTests
                 await releaseShutdown.Task.WaitAsync(token);
             }
         };
-        var creation = factory.StartNew(() => client.CreateSessionAsync(new SessionConfig
+        var creation = client.CreateSessionAsync(new SessionConfig
         {
             Cloud = new CloudSessionOptions
             {
@@ -2741,31 +2460,21 @@ public sealed partial class ClientSessionLifetimeTests
                 releaseSetup.Wait();
                 return new TextOnlySessionFsProvider();
             }
-        })).Unwrap();
+        });
         Task? stop = null;
-        Task? blocker = null;
         Exception? failure = null;
         var timeout = TimeSpan.FromSeconds(5);
         try
         {
             var session = await setupStarted.Task.WaitAsync(timeout);
-            blocker = factory.StartNew(() =>
-            {
-                creationBlocked.TrySetResult();
-                releaseCreation.Wait();
-            });
-            await creationBlocked.Task.WaitAsync(timeout);
             stop = dispose ? client.DisposeAsync().AsTask() : client.StopAsync();
             await shutdownStarted.Task.WaitAsync(timeout);
             releaseSetup.Set();
             releaseShutdown.TrySetResult();
-            await stop.WaitAsync(timeout);
-            releaseCreation.Set();
 
-            var error = await Assert.ThrowsAsync<AggregateException>(() => creation.WaitAsync(timeout));
-            Assert.Collection(error.InnerExceptions,
-                original => Assert.Contains("stopped connection", Assert.IsType<IOException>(original).Message),
-                cleanup => Assert.IsType<ObjectDisposedException>(cleanup));
+            var error = await Assert.ThrowsAsync<IOException>(() => creation.WaitAsync(timeout));
+            Assert.Contains("stopped connection", error.Message);
+            await stop.WaitAsync(timeout);
             Assert.Throws<IOException>(() => session.On<SessionEvent>(_ => { }));
             Assert.False(server.ReconnectObserved, "Cloud-create cleanup reconnected after session admission closed.");
         }
@@ -2776,16 +2485,15 @@ public sealed partial class ClientSessionLifetimeTests
         finally
         {
             releaseSetup.Set();
-            releaseCreation.Set();
             releaseShutdown.TrySetResult();
-            foreach (var operation in new Task?[] { creation, stop, blocker })
+            foreach (var operation in new Task?[] { creation, stop })
             {
                 if (operation is null) continue;
                 try
                 {
                     await operation.WaitAsync(timeout);
                 }
-                catch (AggregateException) when (ReferenceEquals(operation, creation))
+                catch (IOException) when (ReferenceEquals(operation, creation))
                 {
                     // The rejected creation is the expected result, not a cleanup failure.
                 }
@@ -3418,7 +3126,7 @@ public sealed partial class ClientSessionLifetimeTests
         Assert.Equal("message-1", await session.SendAsync(options));
         var request = Assert.Single(server.Requests, request => request.Method == "session.send").Params;
         AssertMessageSource(request, wireSource);
-        foreach (var property in new[] { "mode", "agentMode", "attachments", "displayPrompt", "requestHeaders", "clientTurnId" })
+        foreach (var property in new[] { "mode", "agentMode", "attachments", "displayPrompt", "requestHeaders" })
         {
             Assert.False(request.TryGetProperty(property, out _));
         }
@@ -3433,7 +3141,6 @@ public sealed partial class ClientSessionLifetimeTests
             options.Mode = mode;
             options.AgentMode = AgentMode.Plan;
             options.DisplayPrompt = "Background update";
-            options.ClientTurnId = "host-turn-1";
             options.Attachments = [new AttachmentFile { Path = "/context.txt", DisplayName = "context.txt" }];
             options.RequestHeaders = new Dictionary<string, string> { ["X-Test"] = "source-parity" };
 
@@ -3446,7 +3153,6 @@ public sealed partial class ClientSessionLifetimeTests
             Assert.Equal(mode, request.GetProperty("mode").GetString());
             Assert.Equal("plan", request.GetProperty("agentMode").GetString());
             Assert.Equal(options.DisplayPrompt, request.GetProperty("displayPrompt").GetString());
-            Assert.Equal("host-turn-1", request.GetProperty("clientTurnId").GetString());
             Assert.Equal("source-parity", request.GetProperty("requestHeaders").GetProperty("X-Test").GetString());
             var attachment = Assert.Single(request.GetProperty("attachments").EnumerateArray());
             Assert.Equal("file", attachment.GetProperty("type").GetString());
@@ -4198,10 +3904,8 @@ public sealed partial class ClientSessionLifetimeTests
         return (int)count.GetValue(dictionary)!;
     }
 
-    [Theory]
-    [InlineData(null)]
-    [InlineData("program-parent")]
-    public async Task CreateSessionAsync_Serializes_ManagedSettings_Permissions(string? programToolCallId)
+    [Fact]
+    public async Task CreateSessionAsync_Serializes_ManagedSettings_Permissions()
     {
         await using var server = await FakeCopilotServer.StartAsync();
         await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
@@ -4276,13 +3980,11 @@ public sealed partial class ClientSessionLifetimeTests
                     Recommendation = AssistedApprovalCompletedRecommendation.RequireApproval,
                     Rationale = "The command modifies protected files."
                 },
-                RequestId = "managed-permission",
-                ProgramToolCallId = programToolCallId
+                RequestId = "managed-permission"
             }
         });
         var invocation = await permissionInvocation.Task.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.True(invocation.ManagedSettingsEnabled);
-        Assert.Equal(programToolCallId, invocation.ProgramToolCallId);
         var promptRequest = Assert.IsType<PermissionPromptRequestCommands>(invocation.PromptRequest);
         Assert.Null(promptRequest.ManagedApprovalRequired);
         Assert.Equal(AssistedApprovalRecommendation.Approve, promptRequest.AssistedApproval?.Recommendation);
@@ -4609,57 +4311,6 @@ public sealed partial class ClientSessionLifetimeTests
     }
 
     [Theory]
-    [InlineData("manual")]
-    [InlineData("assisted")]
-    [InlineData("allow-all")]
-    [InlineData(null)]
-    public async Task CreateAndResumeSessionAsync_Serialize_PermissionMode(string? mode)
-    {
-        await using var server = await FakeCopilotServer.StartAsync();
-        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
-        await client.StartAsync();
-        PermissionMode? permissionMode = mode is null ? null : new PermissionMode(mode);
-
-        await using var created = await client.CreateSessionAsync(new SessionConfig
-        {
-            PermissionMode = permissionMode,
-            OnPermissionRequest = PermissionHandler.ApproveAll
-        });
-        await using var resumed = await client.ResumeSessionAsync("session-permission-mode", new ResumeSessionConfig
-        {
-            PermissionMode = permissionMode,
-            OnPermissionRequest = PermissionHandler.ApproveAll,
-            OnEvent = _ => { }
-        });
-
-        foreach (var method in new[] { "session.create", "session.resume" })
-        {
-            var request = Assert.Single(server.Requests, request => request.Method == method);
-            if (mode is null)
-            {
-                Assert.False(request.Params.TryGetProperty("permissionMode", out _));
-            }
-            else
-            {
-                Assert.Equal(mode, request.Params.GetProperty("permissionMode").GetString());
-            }
-        }
-        foreach (var session in new[] { created, resumed })
-        {
-            if (mode is null)
-            {
-                Assert.Null(session.PermissionModeResult);
-            }
-            else
-            {
-                Assert.NotNull(session.PermissionModeResult);
-                Assert.False(session.PermissionModeResult.Success);
-                Assert.Equal(PermissionMode.Manual, session.PermissionModeResult.Mode);
-            }
-        }
-    }
-
-    [Theory]
     [InlineData(true)]
     [InlineData(false)]
     [InlineData(null)]
@@ -4762,11 +4413,9 @@ public sealed partial class ClientSessionLifetimeTests
         private int _nextRequestId;
         private string? _lastSessionId;
         private bool _delayDestroy;
-        private bool _ignoreDetach;
         private bool _failRuntimeShutdown;
         private bool _failSessionCreate;
         private bool _failSessionSend;
-        private bool _failPendingToolCall;
         private bool _reconnectObserved;
         private int _nextMessageId;
         public bool IncludeTranscriptRecovery { get; set; }
@@ -4775,21 +4424,16 @@ public sealed partial class ClientSessionLifetimeTests
         public string? LastSessionId => _lastSessionId;
         public bool UniqueMessageIds { get; set; }
         public bool FailSessionDelete { get; set; }
-        public bool FailSessionDetach { get; set; }
-        public bool FailSessionResume { get; set; }
-        public string? ResumedSessionId { get; set; }
         public bool FailMcpAuthInterestRegistration { get; set; }
         public bool ReconnectObserved => Volatile.Read(ref _reconnectObserved);
-
-        public Dictionary<string, object?>? Capabilities { get; set; }
 
         public Func<string, Task>? BeforeSendResponse { get; set; }
         public Func<RpcRequestRecord, CancellationToken, Task<object?>>? SendCompletion { get; set; }
 
-        private FakeCopilotServer(TcpListener listener, bool acceptReconnect)
+        private FakeCopilotServer(TcpListener listener)
         {
             _listener = listener;
-            _serverTask = RunAsync(acceptReconnect);
+            _serverTask = RunAsync();
         }
 
         public string Url
@@ -4801,15 +4445,12 @@ public sealed partial class ClientSessionLifetimeTests
             }
         }
 
-        public static Task<FakeCopilotServer> StartAsync(bool acceptReconnect = false)
+        public static Task<FakeCopilotServer> StartAsync()
         {
             var listener = new TcpListener(IPAddress.Loopback, 0);
             listener.Start();
-            return Task.FromResult(new FakeCopilotServer(listener, acceptReconnect));
+            return Task.FromResult(new FakeCopilotServer(listener));
         }
-
-        /// <summary>Serves the next connection a started <paramref name="listener"/> accepts.</summary>
-        public static FakeCopilotServer ServeNextConnection(TcpListener listener) => new(listener, acceptReconnect: false);
 
         public Task DestroyStarted => _destroyStarted.Task;
 
@@ -4851,11 +4492,6 @@ public sealed partial class ClientSessionLifetimeTests
             _delayDestroy = true;
         }
 
-        public void IgnoreDetach()
-        {
-            _ignoreDetach = true;
-        }
-
         public void CompleteDestroy()
         {
             _allowDestroy.TrySetResult();
@@ -4876,22 +4512,10 @@ public sealed partial class ClientSessionLifetimeTests
             _failSessionSend = true;
         }
 
-        public void FailPendingToolCall()
-        {
-            _failPendingToolCall = true;
-        }
-
         public void CloseConnection()
         {
             // RunAsync owns the stream and disposes it after its I/O has stopped.
             _cts.Cancel();
-        }
-
-        public void CloseOutput()
-        {
-            var stream = _stream ?? throw new InvalidOperationException("Client is not connected.");
-            // Deliver buffered responses and EOF without resetting the connection on an unread request.
-            stream.Socket.Shutdown(SocketShutdown.Send);
         }
 
         public async Task<JsonElement> SendRequestAsync(string method, Dictionary<string, object?> parameters)
@@ -4977,6 +4601,7 @@ public sealed partial class ClientSessionLifetimeTests
         {
             _allowDestroy.TrySetResult();
             _cts.Cancel();
+            _listener.Stop();
 
             try
             {
@@ -4984,11 +4609,6 @@ public sealed partial class ClientSessionLifetimeTests
             }
             catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException or IOException or SocketException)
             {
-            }
-            finally
-            {
-                // An admitted reconnect accept must observe cancellation before the listener stops.
-                _listener.Stop();
             }
 
             try
@@ -5003,16 +4623,7 @@ public sealed partial class ClientSessionLifetimeTests
             _writeLock.Dispose();
         }
 
-        private async Task RunAsync(bool acceptReconnect)
-        {
-            do
-            {
-                await RunConnectionAsync();
-            }
-            while (acceptReconnect && !_cts.IsCancellationRequested);
-        }
-
-        private async Task RunConnectionAsync()
+        private async Task RunAsync()
         {
             using var tcpClient = await _listener.AcceptTcpClientAsync(_cts.Token);
             using var stream = tcpClient.GetStream();
@@ -5029,15 +4640,7 @@ public sealed partial class ClientSessionLifetimeTests
                 var root = message.RootElement;
                 if (root.TryGetProperty("method", out var method))
                 {
-                    if (method.GetString() == "session.detach" && _ignoreDetach)
-                    {
-                        // A hung runtime: the detach is never answered, other requests still are.
-                        _destroyStarted.TrySetResult();
-                        continue;
-                    }
-
-                    if ((method.GetString() == "session.sendAndWait" && SendCompletion is not null)
-                        || (method.GetString() is "sessions.findByPrefix" or "session.resume" or "session.detach" or "session.delete" && BeforeResponseAsync is not null))
+                    if (method.GetString() == "session.sendAndWait" && SendCompletion is not null)
                     {
                         _sendCompletionTasks.Add(HandleRequestAsync(stream, root.Clone(), _cts.Token));
                     }
@@ -5099,11 +4702,6 @@ public sealed partial class ClientSessionLifetimeTests
                 _requests.Add(new RpcRequestRecord(method!, paramsElement));
             }
             RequestsChanged.Pulse();
-            var requestRecord = new RpcRequestRecord(method!, paramsElement);
-            if (BeforeResponseAsync is { } beforeResponse)
-            {
-                await beforeResponse(requestRecord, cancellationToken);
-            }
             if (method == "connect" && RejectConnect)
             {
                 await WriteMessageAsync(stream, new Dictionary<string, object?>
@@ -5138,13 +4736,9 @@ public sealed partial class ClientSessionLifetimeTests
                     };
                 }
                 await WriteMessageAsync(stream, response, cancellationToken);
-                if (AfterResponseAsync is { } afterSendResponse)
-                {
-                    await afterSendResponse(requestRecord, cancellationToken);
-                }
                 return;
             }
-            if ((method == "session.create" && _failSessionCreate) || (method == "session.resume" && FailSessionResume))
+            if (method == "session.create" && _failSessionCreate)
             {
                 _failSessionCreate = false;
                 await WriteMessageAsync(stream, new Dictionary<string, object?>
@@ -5154,7 +4748,7 @@ public sealed partial class ClientSessionLifetimeTests
                     ["error"] = new Dictionary<string, object?>
                     {
                         ["code"] = -32000,
-                        ["message"] = method == "session.resume" ? "session resume failed" : "session create failed"
+                        ["message"] = "session create failed"
                     }
                 }, cancellationToken);
                 return;
@@ -5173,21 +4767,6 @@ public sealed partial class ClientSessionLifetimeTests
                 }, cancellationToken);
                 return;
             }
-            if (method == "session.tools.handlePendingToolCall" && _failPendingToolCall)
-            {
-                _failPendingToolCall = false;
-                await WriteMessageAsync(stream, new Dictionary<string, object?>
-                {
-                    ["jsonrpc"] = "2.0",
-                    ["id"] = id,
-                    ["error"] = new Dictionary<string, object?>
-                    {
-                        ["code"] = -32000,
-                        ["message"] = "tool result rejected"
-                    }
-                }, cancellationToken);
-                return;
-            }
             if (method == "session.send" && _failSessionSend)
             {
                 _failSessionSend = false;
@@ -5202,6 +4781,11 @@ public sealed partial class ClientSessionLifetimeTests
                     }
                 }, cancellationToken);
                 return;
+            }
+            var requestRecord = new RpcRequestRecord(method!, paramsElement);
+            if (BeforeResponseAsync is { } beforeResponse)
+            {
+                await beforeResponse(requestRecord, cancellationToken);
             }
             var sendMessageId = method == "session.send" && UniqueMessageIds ? $"message-{Interlocked.Increment(ref _nextMessageId)}" : "message-1";
             if (method == "session.send" && BeforeSendResponse is { } beforeSendResponse)
@@ -5310,34 +4894,17 @@ public sealed partial class ClientSessionLifetimeTests
             }
             _lastSessionId = sessionId;
 
-            var result = new Dictionary<string, object?>
+            return new Dictionary<string, object?>
             {
                 ["sessionId"] = _lastSessionId,
                 ["workspacePath"] = null,
-                ["capabilities"] = Capabilities
+                ["capabilities"] = null
             };
-            // Echo a refused outcome for a requested permission mode, so tests
-            // prove the SDK surfaces the runtime's result rather than the request.
-            if (request.TryGetProperty("params", out var requestParams)
-                && requestParams.ValueKind == JsonValueKind.Object
-                && requestParams.TryGetProperty("permissionMode", out _))
-            {
-                result["permissionModeResult"] = new Dictionary<string, object?>
-                {
-                    ["success"] = false,
-                    ["mode"] = "manual"
-                };
-            }
-            return result;
         }
 
         private Dictionary<string, object?> ResumeSessionResult(JsonElement request)
         {
             var result = CreateSessionResult(request);
-            if (ResumedSessionId is { } sessionId)
-            {
-                result["sessionId"] = sessionId;
-            }
             if (IncludeTranscriptRecovery)
             {
                 result["transcriptRecovery"] = new Dictionary<string, object?>
@@ -5358,7 +4925,7 @@ public sealed partial class ClientSessionLifetimeTests
                 await _allowDestroy.Task.WaitAsync(cancellationToken);
             }
 
-            return new Dictionary<string, object?> { ["success"] = !FailSessionDetach, ["error"] = FailSessionDetach ? "detach rejected" : null };
+            return new Dictionary<string, object?> { ["success"] = true };
         }
 
         private Dictionary<string, object?> HandleRuntimeShutdown()

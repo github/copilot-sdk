@@ -24,6 +24,9 @@ public enum CopilotClientMode {
      * {@link CopilotClientOptions#getCliUrl()} to be set.</li>
      * <li>{@link SessionConfig#getAvailableTools()} must be supplied on every
      * session — no tools are exposed by default.</li>
+     * <li>{@code session.create} always sets
+     * {@code toolFilterPrecedence: "excluded"} so the allowlist and denylist
+     * compose naturally.</li>
      * <li>The SDK injects safe defaults for ambient session features (telemetry,
      * custom instructions, plugins, environment context, etc.).</li>
      * </ul>

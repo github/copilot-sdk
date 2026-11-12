@@ -4,8 +4,6 @@
 
 package com.github.copilot;
 
-import org.junit.jupiter.api.Tag;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -16,9 +14,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 import com.github.copilot.rpc.CopilotClientOptions;
-import com.github.copilot.rpc.RuntimeConnection;
 
-@Tag("e2e")
 class AuthHostE2ETest {
 
     @ParameterizedTest
@@ -32,9 +28,8 @@ class AuthHostE2ETest {
             environment.put("COPILOT_GH_HOST", copilotHost);
             environment.put("GH_HOST", ghHost);
 
-            // This exercises process-environment precedence, not embedded configuration.
-            try (var client = ctx.createClient(new CopilotClientOptions().setConnection(RuntimeConnection.forStdio())
-                    .setEnvironment(environment).setGitHubToken(environment.get("GH_TOKEN")))) {
+            try (var client = ctx.createClient(new CopilotClientOptions().setEnvironment(environment)
+                    .setGitHubToken(environment.get("GH_TOKEN")))) {
                 client.start().get(30, TimeUnit.SECONDS);
                 var status = client.getAuthStatus().get(30, TimeUnit.SECONDS);
                 assertTrue(status.isAuthenticated(), status.getStatusMessage());

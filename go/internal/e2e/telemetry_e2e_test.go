@@ -14,7 +14,6 @@ import (
 
 // Mirrors dotnet/test/TelemetryExportTests.cs (snapshot category "telemetry").
 func TestTelemetryE2E(t *testing.T) {
-	t.Parallel()
 	testharness.SkipIfInProcess(t, "telemetry configuration is not honored in-process")
 	t.Run("should export file telemetry for sdk interactions", func(t *testing.T) {
 		ctx := testharness.NewTestContext(t)
@@ -451,7 +450,6 @@ func findSpanWithOperation(spans []map[string]any, op string) map[string]any {
 // (helpers are unexported), so it is tested in go/telemetry_test.go and is
 // intentionally not duplicated here.
 func TestTelemetryConfigUnit(t *testing.T) {
-	t.Parallel()
 	t.Run("default values are zero", func(t *testing.T) {
 		// Mirrors: TelemetryConfig_DefaultValues_AreNull
 		var cfg copilot.TelemetryConfig

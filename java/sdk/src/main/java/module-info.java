@@ -10,7 +10,7 @@ module com.github.copilot.java {
     requires com.fasterxml.jackson.core;
     requires transitive com.fasterxml.jackson.databind;
     requires com.fasterxml.jackson.datatype.jsr310;
-    requires static org.jspecify;
+    requires static com.github.spotbugs.annotations;
     requires static java.compiler;
     requires static com.sun.jna;
     requires java.net.http;

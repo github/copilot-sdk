@@ -18,7 +18,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -27,7 +26,6 @@ import java.util.logging.Logger;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.StreamReadConstraints;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -56,7 +54,6 @@ class JsonRpcClient implements AutoCloseable {
     private final AtomicLong requestIdCounter = new AtomicLong(0);
     private final Map<Long, CompletableFuture<JsonNode>> pendingRequests = new ConcurrentHashMap<>();
     private final Map<String, BiConsumer<String, JsonNode>> notificationHandlers = new ConcurrentHashMap<>();
-    private final Map<String, String> sessionCallbackRequests = new ConcurrentHashMap<>();
     private final ExecutorService readerExecutor;
     private final ExecutorService cancellationExecutor;
     private final CountDownLatch readerExited = new CountDownLatch(1);
@@ -100,10 +97,6 @@ class JsonRpcClient implements AutoCloseable {
 
     static ObjectMapper createObjectMapper() {
         var mapper = new ObjectMapper();
-        // Fetch callers can explicitly request text bodies larger than Jackson's
-        // default.
-        mapper.getFactory()
-                .setStreamReadConstraints(StreamReadConstraints.builder().maxStringLength(Integer.MAX_VALUE).build());
         mapper.registerModule(new JavaTimeModule());
         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         mapper.configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
@@ -149,10 +142,6 @@ class JsonRpcClient implements AutoCloseable {
      */
     public void registerMethodHandler(String method, BiConsumer<String, JsonNode> handler) {
         notificationHandlers.put(method, handler);
-    }
-
-    boolean hasSessionCallback(String sessionId) {
-        return sessionCallbackRequests.values().stream().anyMatch(id -> CopilotClient.sessionIdsOverlap(id, sessionId));
     }
 
     /**
@@ -206,26 +195,24 @@ class JsonRpcClient implements AutoCloseable {
                     timingNanos);
             throw ex instanceof RuntimeException re ? re : new RuntimeException(ex);
         });
-        resultFuture.whenComplete((value, error) -> {
-            if ((resultFuture.isCancelled() || error instanceof TimeoutException)
-                    && pendingRequests.remove(id, future)) {
-                future.cancel(false);
-                if ("session.sendAndWait".equals(method) || "session.featureFlags.read".equals(method)
-                        || "taskAnalytics.classifyTrajectory".equals(method) || "localModels.watch".equals(method)) {
+        if ("session.sendAndWait".equals(method)) {
+            resultFuture.whenComplete((value, error) -> {
+                if (resultFuture.isCancelled() && pendingRequests.remove(id, future)) {
+                    future.cancel(false);
                     try {
                         cancellationExecutor.execute(() -> {
                             try {
                                 notify("$/cancelRequest", Map.of("id", id));
                             } catch (IOException failure) {
-                                LOG.log(Level.FINE, "Transport closed while cancelling request", failure);
+                                LOG.log(Level.FINE, "Transport closed while cancelling completion request", failure);
                             }
                         });
                     } catch (java.util.concurrent.RejectedExecutionException closed) {
-                        LOG.log(Level.FINE, "Transport closed before request cancellation", closed);
+                        LOG.log(Level.FINE, "Transport closed before completion cancellation", closed);
                     }
                 }
-            }
-        });
+            });
+        }
         return resultFuture;
     }
 
@@ -248,27 +235,7 @@ class JsonRpcClient implements AutoCloseable {
         response.setJsonrpc("2.0");
         response.setId(id);
         response.setResult(result == null ? MAPPER.getNodeFactory().nullNode() : result);
-        try {
-            sendMessage(response, false);
-        } finally {
-            sessionCallbackRequests.remove(MAPPER.valueToTree(id).toString());
-        }
-    }
-
-    /**
-     * Sends a JSON-RPC response whose {@code result.value} is a secret, such as a
-     * password. The diagnostic log shows it as {@code <redacted>}.
-     */
-    void sendSecretResponse(Object id, Object result) throws IOException {
-        var response = new JsonRpcResponse();
-        response.setJsonrpc("2.0");
-        response.setId(id);
-        response.setResult(result == null ? MAPPER.getNodeFactory().nullNode() : result);
-        try {
-            sendMessage(response, true);
-        } finally {
-            sessionCallbackRequests.remove(MAPPER.valueToTree(id).toString());
-        }
+        sendMessage(response);
     }
 
     /**
@@ -290,18 +257,10 @@ class JsonRpcClient implements AutoCloseable {
         error.setMessage(message);
         error.setData(data);
         response.setError(error);
-        try {
-            sendMessage(response);
-        } finally {
-            sessionCallbackRequests.remove(MAPPER.valueToTree(id).toString());
-        }
+        sendMessage(response);
     }
 
-    private void sendMessage(Object message) throws IOException {
-        sendMessage(message, false);
-    }
-
-    private synchronized void sendMessage(Object message, boolean secretResultValue) throws IOException {
+    private synchronized void sendMessage(Object message) throws IOException {
         String json = MAPPER.writeValueAsString(message);
         byte[] content = json.getBytes(StandardCharsets.UTF_8);
         String header = "Content-Length: " + content.length + "\r\n\r\n";
@@ -311,21 +270,14 @@ class JsonRpcClient implements AutoCloseable {
         outputStream.flush();
 
         if (LOG.isLoggable(Level.FINE)) {
-            LOG.fine("Sent: " + redactForLogging(json, secretResultValue));
+            LOG.fine("Sent: " + redactCredentialsForLogging(json));
         }
     }
 
     static String redactCredentialsForLogging(String json) {
-        return redactForLogging(json, false);
-    }
-
-    private static String redactForLogging(String json, boolean secretResultValue) {
         try {
             JsonNode root = MAPPER.readTree(json);
             redactCredentials(root);
-            if (secretResultValue && root.path("result") instanceof ObjectNode result && result.has("value")) {
-                result.put("value", "<redacted>");
-            }
             return MAPPER.writeValueAsString(root);
         } catch (JsonProcessingException error) {
             return "<unable to render JSON-RPC message safely>";
@@ -348,11 +300,11 @@ class JsonRpcClient implements AutoCloseable {
     }
 
     private static boolean isCredentialField(String name) {
-        // Protocol messages use a bare "token" for credentials (for example Negotiate
-        // (SPNEGO) and connection tokens); its rare non-secret uses only lose detail in
-        // diagnostics. "password" covers Basic proxy credentials.
+        // Protocol messages use a bare "token" for credentials (for example Kerberos
+        // SPNEGO and connection tokens); its rare non-secret uses only lose detail in
+        // diagnostics.
         return name.equals("accessToken") || name.equals("gitHubToken") || name.equals("bearerToken")
-                || name.equals("apiKey") || name.equals("token") || name.equals("password");
+                || name.equals("apiKey") || name.equals("token");
     }
 
     private void startReader() {
@@ -464,7 +416,6 @@ class JsonRpcClient implements AutoCloseable {
             handler = closeHandler;
             pendingRequests.forEach((id, future) -> future.completeExceptionally(new IOException("Client closed")));
             pendingRequests.clear();
-            sessionCallbackRequests.clear();
         }
         if (handler != null) {
             try {
@@ -508,10 +459,6 @@ class JsonRpcClient implements AutoCloseable {
                 BiConsumer<String, JsonNode> handler = notificationHandlers.get(method);
                 if (handler != null) {
                     try {
-                        if (id != null && params != null && params.path("sessionId").isTextual()) {
-                            // Async handlers remain active until their reply, not just dispatch.
-                            sessionCallbackRequests.put(id.toString(), params.path("sessionId").asText());
-                        }
                         // Create a context that includes the request ID for responses
                         handler.accept(id != null ? id.toString() : null, params);
                     } catch (Exception e) {
@@ -537,13 +484,6 @@ class JsonRpcClient implements AutoCloseable {
             }
         } catch (JsonProcessingException e) {
             LOG.log(Level.SEVERE, "Error parsing JSON-RPC message", e);
-            // A malformed frame cannot reliably identify which response was lost.
-            Map<Long, CompletableFuture<JsonNode>> failed;
-            synchronized (closeHandlerLock) {
-                failed = Map.copyOf(pendingRequests);
-                pendingRequests.clear();
-            }
-            failed.values().forEach(future -> future.completeExceptionally(e));
         }
     }
 

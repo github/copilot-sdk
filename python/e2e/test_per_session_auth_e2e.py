@@ -15,6 +15,11 @@ async def auth_ctx(ctx: E2ETestContext):
     """Configure per-token user responses on the proxy before tests run."""
     proxy_url = ctx.proxy_url
 
+    # Redirect GitHub API calls to the proxy so per-session auth token
+    # resolution (fetchCopilotUser) is intercepted. Must be set before the
+    # CLI subprocess is spawned (i.e., before the first create_session call).
+    ctx.add_runtime_env("COPILOT_DEBUG_GITHUB_API_URL", proxy_url)
+
     await ctx.set_copilot_user_by_token(
         "token-alice",
         {

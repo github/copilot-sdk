@@ -25,9 +25,6 @@ use crate::{Error, ErrorKind};
 
 type OutboundCallback = unsafe extern "C" fn(*mut c_void, *const u8, usize);
 type HostStartFn = unsafe extern "C" fn(*const u8, usize, *const u8, usize) -> u32;
-type AuthOwnerCallback = unsafe extern "C" fn(*mut c_void, u32, u32) -> bool;
-type HostStartWithAuthOwnerFn =
-    unsafe extern "C" fn(*const u8, usize, *const u8, usize, AuthOwnerCallback, *mut c_void) -> u32;
 type HostShutdownFn = unsafe extern "C" fn(u32) -> bool;
 #[allow(clippy::type_complexity)]
 type ConnectionOpenFn = unsafe extern "C" fn(
@@ -43,15 +40,6 @@ type ConnectionOpenFn = unsafe extern "C" fn(
 ) -> u32;
 type ConnectionWriteFn = unsafe extern "C" fn(u32, *const u8, usize) -> bool;
 type ConnectionCloseFn = unsafe extern "C" fn(u32) -> bool;
-type SessionConnectionOpenFn = unsafe extern "C" fn(
-    u32,
-    *const u8,
-    usize,
-    *const u8,
-    usize,
-    OutboundCallback,
-    *mut c_void,
-) -> u32;
 type ConnectionSetUiThreadHandlerFn = unsafe extern "C" fn(u32, bool) -> bool;
 type ConnectionRunUiActionFn = unsafe extern "C" fn(u32, u32) -> bool;
 
@@ -79,7 +67,6 @@ extern "C" fn on_outbound(user_data: *mut c_void, bytes: *const u8, len: usize) 
 /// process-globally and never unloaded (see [`load_library`]), so this holds
 /// only the bound fn pointers and connection state.
 pub(crate) struct FfiShared {
-    auth_owner: parking_lot::Mutex<Option<Arc<dyn crate::InProcessAuthOwner>>>,
     host_shutdown: HostShutdownFn,
     owns_host: bool,
     connection_write: ConnectionWriteFn,
@@ -101,11 +88,6 @@ unsafe impl Send for FfiShared {}
 unsafe impl Sync for FfiShared {}
 
 impl FfiShared {
-    pub(crate) fn server_id(&self) -> Option<u32> {
-        let server_id = self.server_id.load(Ordering::SeqCst);
-        (!self.closed.load(Ordering::SeqCst) && server_id != 0).then_some(server_id)
-    }
-
     pub(crate) fn configure_ui_thread(&self, enabled: bool) -> Result<(), Error> {
         let connection = self.connection_id.load(Ordering::SeqCst);
         if !self.closed.load(Ordering::SeqCst)
@@ -177,13 +159,10 @@ impl FfiShared {
                 let connection_close = self.connection_close;
                 let host_shutdown = self.host_shutdown;
                 let owns_host = self.owns_host;
-                let auth_owner = Arc::new(self.auth_owner.lock().take());
-                let cleanup_auth_owner = Arc::clone(&auth_owner);
                 let library_path = self.library_path.clone();
                 if let Err(error) = std::thread::Builder::new()
                     .name("copilot-ffi-cleanup".to_owned())
                     .spawn(move || {
-                        let _auth_owner = cleanup_auth_owner;
                         while !unsafe { connection_close(conn) } {
                             std::thread::sleep(std::time::Duration::from_millis(100));
                         }
@@ -198,8 +177,6 @@ impl FfiShared {
                         debug!(library = %library_path.display(), "FFI runtime connection closed");
                     })
                 {
-                    // The host remains live if no cleanup worker can start.
-                    std::mem::forget(auth_owner);
                     warn!(
                         error = %error,
                         library = %self.library_path.display(),
@@ -217,7 +194,6 @@ impl FfiShared {
                 "FFI runtime host shutdown did not recognize server"
             );
         }
-        self.auth_owner.lock().take();
         debug!(library = %self.library_path.display(), "FFI runtime connection closed");
     }
 
@@ -238,50 +214,6 @@ impl FfiShared {
     }
 }
 
-pub(crate) struct HostSessionConstruction {
-    pub(crate) token: u32,
-    connection_id: u32,
-    release: unsafe extern "C" fn(u32, u32) -> bool,
-}
-
-impl Drop for HostSessionConstruction {
-    fn drop(&mut self) {
-        // SAFETY: the library cache retains this function for the process lifetime.
-        unsafe { (self.release)(self.connection_id, self.token) };
-    }
-}
-
-pub(crate) fn prepare_host_session_construction(
-    library_path: &Path,
-    connection_id: u32,
-    payload: &str,
-) -> Result<HostSessionConstruction, Error> {
-    let library = load_library(library_path)?;
-    let prepare = *bind::<unsafe extern "C" fn(u32, *const u8, usize) -> u32>(
-        library,
-        b"copilot_runtime_prepare_host_session_construction\0",
-        library_path,
-    )?;
-    let release = *bind::<unsafe extern "C" fn(u32, u32) -> bool>(
-        library,
-        b"copilot_runtime_release_host_session_construction\0",
-        library_path,
-    )?;
-    // SAFETY: the runtime copies this initialized UTF-8 slice before the call returns.
-    let token = unsafe { prepare(connection_id, payload.as_ptr(), payload.len()) };
-    if token == 0 {
-        return Err(Error::with_message(
-            ErrorKind::InvalidConfig,
-            "the in-process connection cannot prepare host session construction",
-        ));
-    }
-    Ok(HostSessionConstruction {
-        token,
-        connection_id,
-        release,
-    })
-}
-
 fn release_callback_state(state: usize) {
     if state == 0 {
         return;
@@ -290,221 +222,6 @@ fn release_callback_state(state: usize) {
     drop(unsafe { Box::from_raw(state) });
 }
 
-type HostResultCallback = unsafe extern "C" fn(*mut c_void, *const u8, usize);
-type HostPrepareFn =
-    unsafe extern "C" fn(u32, *const u8, usize, HostResultCallback, *mut c_void) -> bool;
-type HostInitializeFn = unsafe extern "C" fn(u32, bool, HostResultCallback, *mut c_void) -> bool;
-type HostReleaseFn = unsafe extern "C" fn(u32) -> bool;
-type HostBeginPermissionUpdateFn = unsafe extern "C" fn(u32) -> u32;
-
-/// A pending permission update on one original in-process host registration.
-#[doc(hidden)]
-pub struct InProcessPermissionUpdate {
-    ticket: u32,
-    finish: HostReleaseFn,
-}
-
-impl Drop for InProcessPermissionUpdate {
-    fn drop(&mut self) {
-        unsafe { (self.finish)(self.ticket) };
-    }
-}
-
-/// Callback authority for a native resource that the SDK already owns.
-#[doc(hidden)]
-pub struct InProcessSessionHost {
-    lease: AtomicU32,
-    channel: u32,
-    token: String,
-    generation: String,
-    initialize: HostInitializeFn,
-    release: HostReleaseFn,
-    begin_permission_update: HostBeginPermissionUpdateFn,
-    finish_permission_update: HostReleaseFn,
-}
-
-fn host_result(bytes: &[u8]) -> Result<serde_json::Value, Error> {
-    let envelope: serde_json::Value = serde_json::from_slice(bytes)
-        .map_err(|error| Error::with_message(ErrorKind::InvalidConfig, error.to_string()))?;
-    if envelope["ok"] != true {
-        return Err(Error::with_message(
-            ErrorKind::InvalidConfig,
-            envelope["error"]["message"]
-                .as_str()
-                .unwrap_or("Invalid SDK host result")
-                .to_owned(),
-        ));
-    }
-    Ok(envelope["result"].clone())
-}
-
-unsafe extern "C" fn host_prepare_result(data: *mut c_void, bytes: *const u8, len: usize) {
-    let result = unsafe { &mut *data.cast::<Option<Result<serde_json::Value, Error>>>() };
-    *result = Some(host_result(unsafe {
-        std::slice::from_raw_parts(bytes, len)
-    }));
-}
-
-unsafe extern "C" fn host_initialize_result(data: *mut c_void, bytes: *const u8, len: usize) {
-    let sender = unsafe {
-        Box::from_raw(data.cast::<tokio::sync::oneshot::Sender<Result<serde_json::Value, Error>>>())
-    };
-    let _ = sender.send(host_result(unsafe {
-        std::slice::from_raw_parts(bytes, len)
-    }));
-}
-
-pub(crate) fn prepare_session_host(
-    path: &Path,
-    connection_id: u32,
-    payload: &str,
-) -> Result<InProcessSessionHost, Error> {
-    let library = load_library(path)?;
-    let prepare = *bind::<HostPrepareFn>(library, b"copilot_runtime_session_host_prepare\0", path)?;
-    let initialize =
-        *bind::<HostInitializeFn>(library, b"copilot_runtime_session_host_initialize\0", path)?;
-    let release = *bind::<HostReleaseFn>(library, b"copilot_runtime_session_host_release\0", path)?;
-    let begin_permission_update = *bind::<HostBeginPermissionUpdateFn>(
-        library,
-        b"copilot_runtime_session_host_begin_permission_update\0",
-        path,
-    )?;
-    let finish_permission_update = *bind::<HostReleaseFn>(
-        library,
-        b"copilot_runtime_session_host_finish_permission_update\0",
-        path,
-    )?;
-    let mut result: Option<Result<serde_json::Value, Error>> = None;
-    // The prepare callback runs before this C ABI call returns.
-    let accepted = unsafe {
-        prepare(
-            connection_id,
-            payload.as_ptr(),
-            payload.len(),
-            host_prepare_result,
-            (&mut result as *mut Option<Result<serde_json::Value, Error>>).cast(),
-        )
-    };
-    if !accepted {
-        return Err(Error::with_message(
-            ErrorKind::InvalidConfig,
-            "The SDK host preparation was rejected",
-        ));
-    }
-    let result = result.ok_or_else(|| {
-        Error::with_message(ErrorKind::InvalidConfig, "The SDK host returned no result")
-    })??;
-    let lease = result["lease"]
-        .as_u64()
-        .and_then(|value| u32::try_from(value).ok())
-        .ok_or_else(|| {
-            Error::with_message(ErrorKind::InvalidConfig, "The SDK host returned no lease")
-        })?;
-    Ok(InProcessSessionHost {
-        lease: AtomicU32::new(lease),
-        channel: result["hostChannel"]
-            .as_u64()
-            .and_then(|value| u32::try_from(value).ok())
-            .ok_or_else(|| {
-                Error::with_message(ErrorKind::InvalidConfig, "The SDK host returned no channel")
-            })?,
-        token: result["registrationToken"]
-            .as_str()
-            .ok_or_else(|| {
-                Error::with_message(ErrorKind::InvalidConfig, "The SDK host returned no token")
-            })?
-            .to_owned(),
-        generation: result["generation"]
-            .as_str()
-            .ok_or_else(|| {
-                Error::with_message(
-                    ErrorKind::InvalidConfig,
-                    "The SDK host returned no generation",
-                )
-            })?
-            .to_owned(),
-        initialize,
-        release,
-        begin_permission_update,
-        finish_permission_update,
-    })
-}
-
-impl InProcessSessionHost {
-    /// Register pending setup before scheduling the SDK setter.
-    ///
-    /// The ticket settles on drop, including cancellation and SDK errors.
-    /// This call takes only short in-memory locks, never native session locks.
-    pub fn begin_permission_update(&self) -> Result<InProcessPermissionUpdate, Error> {
-        let ticket = unsafe { (self.begin_permission_update)(self.lease.load(Ordering::SeqCst)) };
-        if ticket == 0 {
-            return Err(Error::with_message(
-                ErrorKind::InvalidConfig,
-                "The SDK host permission update was rejected",
-            ));
-        }
-        Ok(InProcessPermissionUpdate {
-            ticket,
-            finish: self.finish_permission_update,
-        })
-    }
-
-    /// The original callback channel.
-    pub fn host_channel(&self) -> u32 {
-        self.channel
-    }
-
-    /// The callback registration capability.
-    pub fn registration_token(&self) -> &str {
-        &self.token
-    }
-
-    /// The native resource generation.
-    pub fn generation(&self) -> &str {
-        &self.generation
-    }
-
-    /// Finish the original facade's callback and model setup.
-    pub async fn initialize(&self, exit_plan_mode: bool) -> Result<(), Error> {
-        let (sender, receiver) =
-            tokio::sync::oneshot::channel::<Result<serde_json::Value, Error>>();
-        let data = Box::into_raw(Box::new(sender));
-        // An accepted request owns the sender until its single terminal callback.
-        let accepted = unsafe {
-            (self.initialize)(
-                self.lease.load(Ordering::SeqCst),
-                exit_plan_mode,
-                host_initialize_result,
-                data.cast(),
-            )
-        };
-        if !accepted {
-            drop(unsafe { Box::from_raw(data) });
-            return Err(Error::with_message(
-                ErrorKind::InvalidConfig,
-                "The SDK host initialization was rejected",
-            ));
-        }
-        receiver
-            .await
-            .map_err(|error| Error::with_message(ErrorKind::InvalidConfig, error.to_string()))??;
-        Ok(())
-    }
-
-    /// Release only this facade's callbacks, never its native session.
-    pub fn release(&self) {
-        let lease = self.lease.swap(0, Ordering::SeqCst);
-        if lease != 0 {
-            unsafe { (self.release)(lease) };
-        }
-    }
-}
-
-impl Drop for InProcessSessionHost {
-    fn drop(&mut self) {
-        self.release();
-    }
-}
 impl Drop for FfiShared {
     fn drop(&mut self) {
         self.close();
@@ -547,10 +264,6 @@ impl AsyncRead for FfiReader {
 /// Prepared FFI host. The cdylib is loaded process-globally and never unloaded
 /// (see [`load_library`]).
 pub(crate) struct FfiHost {
-    auth_owner: Option<Arc<dyn crate::InProcessAuthOwner>>,
-    host_start_with_auth_owner: Option<HostStartWithAuthOwnerFn>,
-    session_binding: Option<crate::InProcessSessionBinding>,
-    session_connection_open: Option<SessionConnectionOpenFn>,
     library_path: PathBuf,
     cli_entrypoint: Option<PathBuf>,
     integration_id: Option<String>,
@@ -566,13 +279,6 @@ pub(crate) struct FfiHost {
     connection_run_ui_action: ConnectionRunUiActionFn,
 }
 
-pub(crate) struct FfiHostTarget<'a> {
-    pub auth_owner: Option<Arc<dyn crate::InProcessAuthOwner>>,
-    pub server_id: Option<u32>,
-    pub library_path: Option<&'a Path>,
-    pub session_binding: Option<crate::InProcessSessionBinding>,
-}
-
 // SAFETY: as for `FfiShared` — the bound exports are plain fn pointers, safe to
 // move to the blocking thread that starts the host.
 unsafe impl Send for FfiHost {}
@@ -580,25 +286,23 @@ unsafe impl Send for FfiHost {}
 impl FfiHost {
     /// Load the selected cdylib, defaulting to a sibling of `runtime_entrypoint`.
     pub(crate) fn create(
-        runtime_entrypoint: Option<&Path>,
+        runtime_entrypoint: &Path,
         cli_entrypoint: Option<&Path>,
         integration_id: Option<&str>,
         environment: Vec<(String, String)>,
         args: Vec<String>,
-        target: FfiHostTarget<'_>,
+        attached_server_id: Option<u32>,
+        runtime_library_path: Option<&Path>,
     ) -> Result<Self, Error> {
-        let FfiHostTarget {
-            auth_owner,
-            server_id: attached_server_id,
-            library_path: runtime_library_path,
-            session_binding,
-        } = target;
-        if session_binding.is_some() && attached_server_id.is_none() {
-            return Err(Error::with_message(
+        let runtime_entrypoint = std::fs::canonicalize(runtime_entrypoint).map_err(|e| {
+            Error::with_message(
                 ErrorKind::InvalidConfig,
-                "a borrowed session requires an attached in-process server",
-            ));
-        }
+                format!(
+                    "failed to resolve in-process runtime entrypoint '{}': {e}",
+                    runtime_entrypoint.display()
+                ),
+            )
+        })?;
         let cli_entrypoint = cli_entrypoint
             .map(std::fs::canonicalize)
             .transpose()
@@ -617,25 +321,7 @@ impl FfiHost {
                     "an attached server requires the runtime image already loaded by its host",
                 ));
             }
-            (None, None) => {
-                let runtime_entrypoint = runtime_entrypoint.ok_or_else(|| {
-                    Error::with_message(
-                        ErrorKind::InvalidConfig,
-                        "in-process transport requires a runtime image or CLI entrypoint",
-                    )
-                })?;
-                let runtime_entrypoint =
-                    std::fs::canonicalize(runtime_entrypoint).map_err(|e| {
-                        Error::with_message(
-                            ErrorKind::InvalidConfig,
-                            format!(
-                                "failed to resolve in-process runtime entrypoint '{}': {e}",
-                                runtime_entrypoint.display()
-                            ),
-                        )
-                    })?;
-                resolve_library_path(&runtime_entrypoint)?
-            }
+            (None, None) => resolve_library_path(&runtime_entrypoint)?,
         };
         let library_path = std::fs::canonicalize(selected_library).map_err(|e| {
             Error::with_message(
@@ -644,18 +330,6 @@ impl FfiHost {
             )
         })?;
         let lib = load_library(&library_path)?;
-        let host_start_with_auth_owner = bind_optional::<HostStartWithAuthOwnerFn>(
-            lib,
-            b"copilot_runtime_host_start_with_auth_owner\0",
-            &library_path,
-            auth_owner.is_some(),
-        )?;
-        let session_connection_open = bind_optional::<SessionConnectionOpenFn>(
-            lib,
-            b"copilot_runtime_session_connection_open\0",
-            &library_path,
-            session_binding.is_some(),
-        )?;
 
         let host_start = *bind::<HostStartFn>(lib, b"copilot_runtime_host_start\0", &library_path)?;
         let host_shutdown =
@@ -678,10 +352,6 @@ impl FfiHost {
         )?;
 
         Ok(Self {
-            auth_owner,
-            host_start_with_auth_owner,
-            session_binding,
-            session_connection_open,
             library_path,
             cli_entrypoint,
             integration_id: integration_id.map(str::to_owned),
@@ -699,9 +369,6 @@ impl FfiHost {
     }
 
     /// Start the native runtime and open the FFI JSON-RPC connection.
-    ///
-    /// Cancellation leaves the blocking task to finish. Its unclaimed transport
-    /// closes on drop, retaining the auth owner through native cleanup.
     pub(crate) async fn start(self) -> Result<(FfiReader, Arc<FfiShared>), Error> {
         tokio::task::spawn_blocking(move || self.start_blocking())
             .await
@@ -729,62 +396,7 @@ impl FfiHost {
         let owns_host = self.attached_server_id.is_none();
         let server_id = match self.attached_server_id {
             Some(server_id) => server_id,
-            None => {
-                if let (Some(owner), Some(start)) =
-                    (self.auth_owner.as_ref(), self.host_start_with_auth_owner)
-                {
-                    struct Admission<'a> {
-                        owner: &'a dyn crate::InProcessAuthOwner,
-                        error: parking_lot::Mutex<Option<Error>>,
-                    }
-                    unsafe extern "C" fn bind(
-                        state: *mut c_void,
-                        server: u32,
-                        connection: u32,
-                    ) -> bool {
-                        // SAFETY: startup retains this borrowed state until the call returns.
-                        let admission = unsafe { &*state.cast::<Admission<'_>>() };
-                        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                            admission.owner.bind_startup(server, connection)
-                        }));
-                        match result {
-                            Ok(Ok(())) => true,
-                            Ok(Err(error)) => {
-                                *admission.error.lock() = Some(error);
-                                false
-                            }
-                            Err(_) => {
-                                *admission.error.lock() = Some(Error::with_message(
-                                    ErrorKind::InvalidConfig,
-                                    "SDK startup auth binder panicked",
-                                ));
-                                false
-                            }
-                        }
-                    }
-                    let mut admission = Admission {
-                        owner: owner.as_ref(),
-                        error: parking_lot::Mutex::new(None),
-                    };
-                    // SAFETY: byte spans and callback state remain live throughout startup.
-                    let server = unsafe {
-                        start(
-                            argv.as_ptr(),
-                            argv.len(),
-                            env_ptr,
-                            env_len,
-                            bind,
-                            (&mut admission as *mut Admission<'_>).cast(),
-                        )
-                    };
-                    if let Some(error) = admission.error.into_inner() {
-                        return Err(error);
-                    }
-                    server
-                } else {
-                    unsafe { (self.host_start)(argv.as_ptr(), argv.len(), env_ptr, env_len) }
-                }
-            }
+            None => unsafe { (self.host_start)(argv.as_ptr(), argv.len(), env_ptr, env_len) },
         };
 
         if server_id == 0 {
@@ -802,38 +414,18 @@ impl FfiHost {
             tx,
             closing: AtomicBool::new(false),
         }));
-        let connection_id = if let Some(binding) = self.session_binding.as_ref() {
-            let open = self.session_connection_open.ok_or_else(|| {
-                Error::with_message(
-                    ErrorKind::InvalidConfig,
-                    "session binding export is missing",
-                )
-            })?;
-            unsafe {
-                open(
-                    binding.parent_connection_id,
-                    binding.native_session_id.as_ptr(),
-                    binding.native_session_id.len(),
-                    binding.registration_token.as_ptr(),
-                    binding.registration_token.len(),
-                    on_outbound,
-                    state_ptr as *mut c_void,
-                )
-            }
-        } else {
-            unsafe {
-                (self.connection_open)(
-                    server_id,
-                    on_outbound,
-                    state_ptr as *mut c_void,
-                    std::ptr::null(),
-                    0,
-                    std::ptr::null(),
-                    0,
-                    std::ptr::null(),
-                    0,
-                )
-            }
+        let connection_id = unsafe {
+            (self.connection_open)(
+                server_id,
+                on_outbound,
+                state_ptr as *mut c_void,
+                std::ptr::null(),
+                0,
+                std::ptr::null(),
+                0,
+                std::ptr::null(),
+                0,
+            )
         };
         if connection_id == 0 {
             drop(unsafe { Box::from_raw(state_ptr) });
@@ -847,7 +439,6 @@ impl FfiHost {
         }
 
         let shared = Arc::new(FfiShared {
-            auth_owner: parking_lot::Mutex::new(self.auth_owner),
             host_shutdown: self.host_shutdown,
             owns_host,
             connection_write: self.connection_write,
@@ -891,19 +482,6 @@ fn bind<'lib, T>(
                 String::from_utf8_lossy(symbol.strip_suffix(b"\0").unwrap_or(symbol))
             ),
         )),
-    }
-}
-
-fn bind_optional<T: Copy>(
-    lib: &Library,
-    symbol: &[u8],
-    library_path: &Path,
-    enabled: bool,
-) -> Result<Option<T>, Error> {
-    if enabled {
-        Ok(Some(*bind::<T>(lib, symbol, library_path)?))
-    } else {
-        Ok(None)
     }
 }
 
@@ -1076,39 +654,9 @@ fn build_env_json(environment: &[(String, String)]) -> Option<Vec<u8>> {
     if environment.is_empty() {
         return None;
     }
-    let map: serde_json::Map<String, serde_json::Value> = std::env::vars_os()
-        .filter_map(|(key, value)| {
-            let key = key.into_string().ok()?;
-            let value = match value.into_string() {
-                Ok(value) => value,
-                Err(_) => {
-                    let name = if cfg!(windows) {
-                        key.to_uppercase()
-                    } else {
-                        key.clone()
-                    };
-                    if !matches!(
-                        name.as_str(),
-                        "http_proxy"
-                            | "HTTP_PROXY"
-                            | "https_proxy"
-                            | "HTTPS_PROXY"
-                            | "COPILOT_PROXY_KERBEROS_SPN"
-                            | "TMPDIR"
-                    ) {
-                        return None;
-                    }
-                    // Match native startup capture without falling back to another setting.
-                    "\u{FFFD}".into()
-                }
-            };
-            Some((key, value))
-        })
-        .chain(environment.iter().cloned())
-        .map(|(k, v)| {
-            let key = if cfg!(windows) { k.to_uppercase() } else { k };
-            (key, serde_json::Value::String(v))
-        })
+    let map: serde_json::Map<String, serde_json::Value> = environment
+        .iter()
+        .map(|(k, v)| (k.clone(), serde_json::Value::String(v.clone())))
         .collect();
     Some(serde_json::to_vec(&map).expect("env serializes"))
 }
@@ -1121,6 +669,3 @@ mod initiation_tests;
 
 #[cfg(test)]
 mod shutdown_tests;
-
-#[cfg(test)]
-mod auth_owner_tests;

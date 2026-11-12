@@ -45,9 +45,6 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(AssistantTurnRetryEvent), "assistant.turn_retry")]
 [JsonDerivedType(typeof(AssistantTurnStartEvent), "assistant.turn_start")]
 [JsonDerivedType(typeof(AssistantUsageEvent), "assistant.usage")]
-[JsonDerivedType(typeof(AutoModeRecoveryConsentCompletedEvent), "auto_mode_recovery_consent.completed")]
-[JsonDerivedType(typeof(AutoModeRecoveryConsentRequestedEvent), "auto_mode_recovery_consent.requested")]
-[JsonDerivedType(typeof(AutoModeRecoveryOutcomeEvent), "auto_mode_recovery.outcome")]
 [JsonDerivedType(typeof(AutoModeSwitchCompletedEvent), "auto_mode_switch.completed")]
 [JsonDerivedType(typeof(AutoModeSwitchRequestedEvent), "auto_mode_switch.requested")]
 [JsonDerivedType(typeof(CapabilitiesChangedEvent), "capabilities.changed")]
@@ -65,10 +62,6 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(HookProgressEvent), "hook.progress")]
 [JsonDerivedType(typeof(HookStartEvent), "hook.start")]
 [JsonDerivedType(typeof(HumanResponseRecordedEvent), "human_response.recorded")]
-[JsonDerivedType(typeof(IdeAddFileReferenceEvent), "ide.add_file_reference")]
-[JsonDerivedType(typeof(IdeConnectionChangedEvent), "ide.connection_changed")]
-[JsonDerivedType(typeof(IdeElicitationCompleteEvent), "ide.elicitation_complete")]
-[JsonDerivedType(typeof(IdeSelectionChangedEvent), "ide.selection_changed")]
 [JsonDerivedType(typeof(InstructionUpdateEvent), "instruction.update")]
 [JsonDerivedType(typeof(McpAppToolCallCompleteEvent), "mcp_app.tool_call_complete")]
 [JsonDerivedType(typeof(McpHeadersRefreshCompletedEvent), "mcp.headers_refresh_completed")]
@@ -113,7 +106,6 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(SessionCanvasUnavailableEvent), "session.canvas.unavailable")]
 [JsonDerivedType(typeof(SessionCompactionCompleteEvent), "session.compaction_complete")]
 [JsonDerivedType(typeof(SessionCompactionStartEvent), "session.compaction_start")]
-[JsonDerivedType(typeof(SessionCompactionSummarizedEvent), "session.compaction_summarized")]
 [JsonDerivedType(typeof(SessionCompletionReceiptEvent), "session.completion_receipt")]
 [JsonDerivedType(typeof(SessionContextChangedEvent), "session.context_changed")]
 [JsonDerivedType(typeof(SessionContextClearedEvent), "session.context_cleared")]
@@ -214,7 +206,6 @@ public partial class SessionEvent
     public Guid Id { get; set; }
 
     /// <summary>ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     [JsonPropertyName("parentId")]
     public Guid? ParentId { get; set; }
 
@@ -418,8 +409,6 @@ internal sealed partial class SessionEventJsonConverter : JsonConverter<SessionE
                     return SessionEventsJsonContext.Default.ElicitationCompletedEvent;
                 if (type.SequenceEqual("elicitation.requested"u8))
                     return SessionEventsJsonContext.Default.ElicitationRequestedEvent;
-                if (type.SequenceEqual("ide.selection_changed"u8))
-                    return SessionEventsJsonContext.Default.IdeSelectionChangedEvent;
                 if (type.SequenceEqual("session.canvas.closed"u8))
                     return SessionEventsJsonContext.Default.SessionCanvasClosedEvent;
                 if (type.SequenceEqual("session.canvas.opened"u8))
@@ -438,10 +427,6 @@ internal sealed partial class SessionEventJsonConverter : JsonConverter<SessionE
                     return SessionEventsJsonContext.Default.ToolSearchActivatedEvent;
                 break;
             case 22:
-                if (type.SequenceEqual("ide.add_file_reference"u8))
-                    return SessionEventsJsonContext.Default.IdeAddFileReferenceEvent;
-                if (type.SequenceEqual("ide.connection_changed"u8))
-                    return SessionEventsJsonContext.Default.IdeConnectionChangedEvent;
                 if (type.SequenceEqual("mcp.tools.list_changed"u8))
                     return SessionEventsJsonContext.Default.McpToolsListChangedEvent;
                 if (type.SequenceEqual("session.canvas.removed"u8))
@@ -484,8 +469,6 @@ internal sealed partial class SessionEventJsonConverter : JsonConverter<SessionE
                     return SessionEventsJsonContext.Default.ExitPlanModeCompletedEvent;
                 if (type.SequenceEqual("exit_plan_mode.requested"u8))
                     return SessionEventsJsonContext.Default.ExitPlanModeRequestedEvent;
-                if (type.SequenceEqual("ide.elicitation_complete"u8))
-                    return SessionEventsJsonContext.Default.IdeElicitationCompleteEvent;
                 if (type.SequenceEqual("mcp.prompts.list_changed"u8))
                     return SessionEventsJsonContext.Default.McpPromptsListChangedEvent;
                 if (type.SequenceEqual("session.compaction_start"u8))
@@ -522,8 +505,6 @@ internal sealed partial class SessionEventJsonConverter : JsonConverter<SessionE
                     return SessionEventsJsonContext.Default.SessionQuotaObservationEvent;
                 break;
             case 26:
-                if (type.SequenceEqual("auto_mode_recovery.outcome"u8))
-                    return SessionEventsJsonContext.Default.AutoModeRecoveryOutcomeEvent;
                 if (type.SequenceEqual("auto_mode_switch.completed"u8))
                     return SessionEventsJsonContext.Default.AutoModeSwitchCompletedEvent;
                 if (type.SequenceEqual("auto_mode_switch.requested"u8))
@@ -572,8 +553,6 @@ internal sealed partial class SessionEventJsonConverter : JsonConverter<SessionE
                     return SessionEventsJsonContext.Default.AssistantFusionPhaseFailedEvent;
                 if (type.SequenceEqual("mcp.headers_refresh_completed"u8))
                     return SessionEventsJsonContext.Default.McpHeadersRefreshCompletedEvent;
-                if (type.SequenceEqual("session.compaction_summarized"u8))
-                    return SessionEventsJsonContext.Default.SessionCompactionSummarizedEvent;
                 if (type.SequenceEqual("session.custom_agents_updated"u8))
                     return SessionEventsJsonContext.Default.SessionCustomAgentsUpdatedEvent;
                 if (type.SequenceEqual("session.mode_notice_delivered"u8))
@@ -638,12 +617,6 @@ internal sealed partial class SessionEventJsonConverter : JsonConverter<SessionE
                     return SessionEventsJsonContext.Default.PermissionMessageAuthorizationReadEvent;
                 if (type.SequenceEqual("session.autopilot_objective_changed"u8))
                     return SessionEventsJsonContext.Default.SessionAutopilotObjectiveChangedEvent;
-                break;
-            case 36:
-                if (type.SequenceEqual("auto_mode_recovery_consent.completed"u8))
-                    return SessionEventsJsonContext.Default.AutoModeRecoveryConsentCompletedEvent;
-                if (type.SequenceEqual("auto_mode_recovery_consent.requested"u8))
-                    return SessionEventsJsonContext.Default.AutoModeRecoveryConsentRequestedEvent;
                 break;
             case 37:
                 if (type.SequenceEqual("session.extensions.attachments_pushed"u8))
@@ -773,16 +746,12 @@ internal sealed class SessionEventEnvelope
     public Guid Id { get; set; }
 
     /// <summary>ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     [JsonPropertyName("parentId")]
     public Guid? ParentId { get; set; }
 
     /// <summary>ISO 8601 timestamp when the event was created.</summary>
     [JsonPropertyName("timestamp")]
     public DateTimeOffset Timestamp { get; set; }
-
-    [JsonExtensionData]
-    public IDictionary<string, JsonElement>? AdditionalProperties { get; set; }
 
     internal SessionEvent ToSessionEvent() => new()
     {
@@ -792,60 +761,7 @@ internal sealed class SessionEventEnvelope
         Id = Id,
         ParentId = ParentId,
         Timestamp = Timestamp,
-        AdditionalProperties = AdditionalProperties,
     };
-}
-
-/// <summary>Live IDE state. This state never restores a connection from session history.</summary>
-/// <remarks>Represents the <c>ide.connection_changed</c> event.</remarks>
-public sealed partial class IdeConnectionChangedEvent : SessionEvent
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Type => "ide.connection_changed";
-
-    /// <summary>The <c>ide.connection_changed</c> event payload.</summary>
-    [JsonPropertyName("data")]
-    public required IdeConnectionChangedData Data { get; set; }
-}
-
-/// <summary>A validated selection from the live IDE, or an explicit clear.</summary>
-/// <remarks>Represents the <c>ide.selection_changed</c> event.</remarks>
-public sealed partial class IdeSelectionChangedEvent : SessionEvent
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Type => "ide.selection_changed";
-
-    /// <summary>The <c>ide.selection_changed</c> event payload.</summary>
-    [JsonPropertyName("data")]
-    public required IdeSelectionChangedData Data { get; set; }
-}
-
-/// <summary>An IDE request to attach a file or selection to the composer.</summary>
-/// <remarks>Represents the <c>ide.add_file_reference</c> event.</remarks>
-public sealed partial class IdeAddFileReferenceEvent : SessionEvent
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Type => "ide.add_file_reference";
-
-    /// <summary>The <c>ide.add_file_reference</c> event payload.</summary>
-    [JsonPropertyName("data")]
-    public required IdeAddFileReferenceData Data { get; set; }
-}
-
-/// <summary>An IDE elicitation completion notification.</summary>
-/// <remarks>Represents the <c>ide.elicitation_complete</c> event.</remarks>
-public sealed partial class IdeElicitationCompleteEvent : SessionEvent
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Type => "ide.elicitation_complete";
-
-    /// <summary>The <c>ide.elicitation_complete</c> event payload.</summary>
-    [JsonPropertyName("data")]
-    public required IdeElicitationCompleteData Data { get; set; }
 }
 
 /// <summary>Links a standalone replay head to its complete preceding numbered journal archive.</summary>
@@ -900,7 +816,7 @@ public sealed partial class SessionRemoteSteerableChangedEvent : SessionEvent
     public required SessionRemoteSteerableChangedData Data { get; set; }
 }
 
-/// <summary>Session error details for timeline display. Request-correlated completion RPC failures carry the terminal error's same fields in their error data, with stack and completionEventId.</summary>
+/// <summary>Error details for timeline display including message and optional diagnostic information.</summary>
 /// <remarks>Represents the <c>session.error</c> event.</remarks>
 public sealed partial class SessionErrorEvent : SessionEvent
 {
@@ -1293,7 +1209,7 @@ public sealed partial class SessionUsageInfoEvent : SessionEvent
     public required SessionUsageInfoData Data { get; set; }
 }
 
-/// <summary>Context-cleared details emitted when the conversation is cleared (the session.history.clearContext RPC, or the runtime starting a fresh context window).</summary>
+/// <summary>Context-cleared details emitted when the host clears the conversation (the session.history.clearContext RPC / Session.clearContextMessages).</summary>
 /// <remarks>Represents the <c>session.context_cleared</c> event.</remarks>
 public sealed partial class SessionContextClearedEvent : SessionEvent
 {
@@ -1317,19 +1233,6 @@ public sealed partial class SessionCompactionStartEvent : SessionEvent
     /// <summary>The <c>session.compaction_start</c> event payload.</summary>
     [JsonPropertyName("data")]
     public required SessionCompactionStartData Data { get; set; }
-}
-
-/// <summary>A background compaction's summarizer settled; its summary is not applied to the conversation yet. The matching session.compaction_complete follows once it is applied (or discarded) and remains authoritative.</summary>
-/// <remarks>Represents the <c>session.compaction_summarized</c> event.</remarks>
-public sealed partial class SessionCompactionSummarizedEvent : SessionEvent
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Type => "session.compaction_summarized";
-
-    /// <summary>The <c>session.compaction_summarized</c> event payload.</summary>
-    [JsonPropertyName("data")]
-    public required SessionCompactionSummarizedData Data { get; set; }
 }
 
 /// <summary>Conversation compaction results including success status, metrics, and optional error details.</summary>
@@ -2502,45 +2405,6 @@ public sealed partial class AutoModeSwitchCompletedEvent : SessionEvent
     public required AutoModeSwitchCompletedData Data { get; set; }
 }
 
-/// <summary>Recovery consent for a still-active request. Respond using session.ui.handlePendingAutoModeSwitch. The offer has no timer. Entering Autopilot before recovery admission withdraws it. Dismiss it on auto_mode_recovery_consent.completed or on session resume, rebuild, or disconnect; resume can invalidate it without a completed event.</summary>
-/// <remarks>Represents the <c>auto_mode_recovery_consent.requested</c> event.</remarks>
-public sealed partial class AutoModeRecoveryConsentRequestedEvent : SessionEvent
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Type => "auto_mode_recovery_consent.requested";
-
-    /// <summary>The <c>auto_mode_recovery_consent.requested</c> event payload.</summary>
-    [JsonPropertyName("data")]
-    public required AutoModeRecoveryConsentRequestedData Data { get; set; }
-}
-
-/// <summary>Recovery consent offer closed; clients must dismiss its UI. Completion does not imply consent or recovery success. Events belong to the originating live session; resume can invalidate an offer without this event.</summary>
-/// <remarks>Represents the <c>auto_mode_recovery_consent.completed</c> event.</remarks>
-public sealed partial class AutoModeRecoveryConsentCompletedEvent : SessionEvent
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Type => "auto_mode_recovery_consent.completed";
-
-    /// <summary>The <c>auto_mode_recovery_consent.completed</c> event payload.</summary>
-    [JsonPropertyName("data")]
-    public required AutoModeRecoveryConsentCompletedData Data { get; set; }
-}
-
-/// <summary>Authoritative final outcome of an active-request Auto recovery episode, not a retry-start notification or manual response regeneration. Normal response/error and session completion signals still settle the logical request.</summary>
-/// <remarks>Represents the <c>auto_mode_recovery.outcome</c> event.</remarks>
-public sealed partial class AutoModeRecoveryOutcomeEvent : SessionEvent
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Type => "auto_mode_recovery.outcome";
-
-    /// <summary>The <c>auto_mode_recovery.outcome</c> event payload.</summary>
-    [JsonPropertyName("data")]
-    public required AutoModeRecoveryOutcomeData Data { get; set; }
-}
-
 /// <summary>Session limit exhaustion notification requiring user action.</summary>
 /// <remarks>Represents the <c>session_limits_exhausted.requested</c> event.</remarks>
 public sealed partial class SessionLimitsExhaustedRequestedEvent : SessionEvent
@@ -3009,50 +2873,6 @@ public sealed partial class McpAppToolCallCompleteEvent : SessionEvent
     public required McpAppToolCallCompleteData Data { get; set; }
 }
 
-/// <summary>Live IDE state. This state never restores a connection from session history.</summary>
-public sealed partial class IdeConnectionChangedData
-{
-    /// <summary>Currently available IDE, absent during an outage.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("connectedIde")]
-    public IdeConnectedInfo? ConnectedIde { get; set; }
-
-    /// <summary>IDE whose tool definitions remain registered, including during an outage.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("retainedIde")]
-    public IdeConnectedInfo? RetainedIde { get; set; }
-
-    /// <summary>Latest observed selection, absent after disconnect.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("selection")]
-    public IdeSelection? Selection { get; set; }
-}
-
-/// <summary>A validated selection from the live IDE, or an explicit clear.</summary>
-public sealed partial class IdeSelectionChangedData
-{
-    /// <summary>Selection path, text, and source range, or null when the selection is cleared.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
-    [JsonPropertyName("selection")]
-    public IdeSelection? Selection { get; set; }
-}
-
-/// <summary>An IDE request to attach a file or selection to the composer.</summary>
-public sealed partial class IdeAddFileReferenceData
-{
-    /// <summary>Validated file reference or selected range.</summary>
-    [JsonPropertyName("reference")]
-    public required IdeFileReference Reference { get; set; }
-}
-
-/// <summary>An IDE elicitation completion notification.</summary>
-public sealed partial class IdeElicitationCompleteData
-{
-    /// <summary>Elicitation identifier returned by the IDE.</summary>
-    [JsonPropertyName("elicitationId")]
-    public required string ElicitationId { get; set; }
-}
-
 /// <summary>Links a standalone replay head to its complete preceding numbered journal archive.</summary>
 public sealed partial class SessionJournalLinkData
 {
@@ -3288,7 +3108,7 @@ public sealed partial class SessionRemoteSteerableChangedData
     public required bool RemoteSteerable { get; set; }
 }
 
-/// <summary>Session error details for timeline display. Request-correlated completion RPC failures carry the terminal error's same fields in their error data, with stack and completionEventId.</summary>
+/// <summary>Error details for timeline display including message and optional diagnostic information.</summary>
 public sealed partial class SessionErrorData
 {
     /// <summary>Only set on `errorType: "rate_limit"`. When `true`, the runtime will follow this error with an `auto_mode_switch.requested` event (or silently switch if `continueOnAutoMode` is enabled). UI clients can use this flag to suppress duplicate rendering of the rate-limit error when they show their own auto-mode-switch prompt.</summary>
@@ -3318,11 +3138,6 @@ public sealed partial class SessionErrorData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("providerCallId")]
     public string? ProviderCallId { get; set; }
-
-    /// <summary>Provider-defined error code, when available; unset otherwise. Unlike errorCode, this is not a runtime or Copilot API classification and does not imply a remediation or retry policy.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("providerErrorCode")]
-    public string? ProviderErrorCode { get; set; }
 
     /// <summary>Sanitized provider-defined error parameter preserved from a structured upstream error envelope, when available.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3497,12 +3312,6 @@ public sealed partial class SessionInfoData
     [JsonPropertyName("message")]
     public required string Message { get; set; }
 
-    /// <summary>Reasoning configuration consumed at this conversation boundary. Present on reasoning_effort updates; preserves the original request baseline and applied effort without creating a user message.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonInclude]
-    [JsonPropertyName("responsesReasoning")]
-    internal ResponsesReasoning? ResponsesReasoning { get; set; }
-
     /// <summary>Optional actionable tip displayed with this message.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("tip")]
@@ -3571,7 +3380,7 @@ public sealed partial class SessionModelChangeData
     [JsonPropertyName("autoTierManaged")]
     public bool? AutoTierManaged { get; set; }
 
-    /// <summary>Reason the change happened, when not user-initiated. `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path, `"auto_mode_recovery"` when a prepared Auto route commits and a recovered inference is allowed to proceed before provider dispatch, or `"refusal_fallback"` when the active model declined a request (content refusal) and the runtime switched to the configured refusal-fallback model. UI clients can use this to render contextual copy.</summary>
+    /// <summary>Reason the change happened, when not user-initiated. `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path, or `"refusal_fallback"` when the active model declined a request (content refusal) and the runtime switched to the configured refusal-fallback model. UI clients can use this to render contextual copy.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("cause")]
     public string? Cause { get; set; }
@@ -3695,7 +3504,6 @@ public sealed partial class SessionAutoTierSwitchFailedData
     public required AutoTierSwitchFailureReason Reason { get; set; }
 
     /// <summary>Auto preference that failed to activate, or null when returning to provider-default routing failed.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     [JsonPropertyName("requestedAutoTier")]
     public AutoTier? RequestedAutoTier { get; set; }
 }
@@ -3734,7 +3542,6 @@ public sealed partial class SessionModeNoticeDeliveredData
 public sealed partial class SessionSessionLimitsChangedData
 {
     /// <summary>Current session limits, or null when no limits are active.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     [JsonPropertyName("sessionLimits")]
     public SessionLimitsConfig? SessionLimits { get; set; }
 }
@@ -4127,7 +3934,7 @@ public sealed partial class SessionUsageInfoData
     public long? ToolDefinitionsTokens { get; set; }
 }
 
-/// <summary>Context-cleared details emitted when the conversation is cleared (the session.history.clearContext RPC, or the runtime starting a fresh context window).</summary>
+/// <summary>Context-cleared details emitted when the host clears the conversation (the session.history.clearContext RPC / Session.clearContextMessages).</summary>
 public sealed partial class SessionContextClearedData
 {
     /// <summary>Optional initial message set after clearing.</summary>
@@ -4204,40 +4011,6 @@ public sealed partial class SessionCompactionStartData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("trigger")]
     public CompactionTrigger? Trigger { get; set; }
-}
-
-/// <summary>A background compaction's summarizer settled; its summary is not applied to the conversation yet. The matching session.compaction_complete follows once it is applied (or discarded) and remains authoritative.</summary>
-public sealed partial class SessionCompactionSummarizedData
-{
-    /// <summary>Always true: the settled outcome still awaits being applied, which session.compaction_complete reports.</summary>
-    [JsonPropertyName("applyPending")]
-    public required bool ApplyPending { get; set; }
-
-    /// <summary>Identifier shared with the matching compaction start and completion events.</summary>
-    [JsonPropertyName("compactionAttemptId")]
-    public required string CompactionAttemptId { get; set; }
-
-    /// <summary>Error message if the summarizer failed.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("error")]
-    public string? Error { get; set; }
-
-    /// <summary>How the compaction ran relative to the conversation, as on the start event ("background"). Open set; readers must tolerate other values.</summary>
-    [JsonPropertyName("execution")]
-    public required string Execution { get; set; }
-
-    /// <summary>Bounded reason for a failed summarizer, using the same values as the completion event's failureReason. Unknown future values are preserved.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("failureReason")]
-    public string? FailureReason { get; set; }
-
-    /// <summary>How the summarizer settled: "succeeded", "failed", or "cancelled". Open set; readers must tolerate other values.</summary>
-    [JsonPropertyName("outcome")]
-    public required string Outcome { get; set; }
-
-    /// <summary>Whether the summarizer produced a summary that can be applied.</summary>
-    [JsonPropertyName("success")]
-    public required bool Success { get; set; }
 }
 
 /// <summary>Conversation compaction results including success status, metrics, and optional error details.</summary>
@@ -4692,7 +4465,6 @@ public sealed partial class SessionFusionResolvedData
     public FusionScores? Scores { get; set; }
 
     /// <summary>Concrete model selected for Critique review, or the legacy Cascade judge/repair model when role-specific fields are absent.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     [JsonPropertyName("secondaryModel")]
     public string? SecondaryModel { get; set; }
 
@@ -4735,7 +4507,6 @@ public sealed partial class SessionFusionCompletedData
     public required string CommitId { get; set; }
 
     /// <summary>Reason the turn used a degraded route, when applicable.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     [JsonPropertyName("degradedReason")]
     public string? DegradedReason { get; set; }
 
@@ -4744,12 +4515,10 @@ public sealed partial class SessionFusionCompletedData
     public required double DurationMs { get; set; }
 
     /// <summary>Concrete model that supplied the authoritative final content.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     [JsonPropertyName("finalSourceModel")]
     public string? FinalSourceModel { get; set; }
 
     /// <summary>Phase whose output supplied the authoritative final content.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     [JsonPropertyName("finalSourcePhaseId")]
     public string? FinalSourcePhaseId { get; set; }
 
@@ -4859,11 +4628,6 @@ public sealed partial class UserMessageData
     [JsonPropertyName("causalDependencies")]
     public string[]? CausalDependencies { get; set; }
 
-    /// <summary>Opaque clientTurnId the caller supplied on the send that delivered this message, echoed when the message is consumed, whether it started a turn, drained from the queue or was consumed as steering. Absent when that send supplied none.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("clientTurnId")]
-    public string? ClientTurnId { get; set; }
-
     /// <summary>The user's message text as displayed in the timeline.</summary>
     [JsonPropertyName("content")]
     public required string Content { get; set; }
@@ -4872,11 +4636,6 @@ public sealed partial class UserMessageData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("delivery")]
     public UserMessageDelivery? Delivery { get; set; }
-
-    /// <summary>Whether the submitted prompt or attachments contain a task, before adding generated context such as timestamps; independent of timeline display text. Absent in older events.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("hasSubmittedTask")]
-    public bool? HasSubmittedTask { get; set; }
 
     /// <summary>CAPI interaction ID for correlating this user message with its turn.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -5213,7 +4972,6 @@ public sealed partial class AssistantFusionPhaseCompletedData
     public required FusionPhaseUsage Usage { get; set; }
 
     /// <summary>Structured judge or critic verdict, when the phase produces one.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     [JsonPropertyName("verdict")]
     public string? Verdict { get; set; }
 }
@@ -5822,7 +5580,7 @@ public sealed partial class AssistantUsageData
     [JsonPropertyName("providerCallId")]
     public string? ProviderCallId { get; set; }
 
-    /// <summary>Fixed-set configured provider type of the bring-your-own-key model: "openai", "azure", "anthropic", "google", "local_model" (a user-configured local model), "winml" (a Copilot-managed Windows ML model), or "other". Never the caller-supplied provider name. Absent for Copilot-served models.</summary>
+    /// <summary>Fixed-set configured provider type of the bring-your-own-key model: "openai", "azure", "anthropic", "local_model" (a user-configured local model), "winml" (a Copilot-managed Windows ML model), or "other". Never the caller-supplied provider name. Absent for Copilot-served models.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonInclude]
     [JsonPropertyName("providerType")]
@@ -6246,7 +6004,7 @@ public sealed partial class ModelCallFailureData
     [JsonPropertyName("providerCallId")]
     public string? ProviderCallId { get; set; }
 
-    /// <summary>Fixed-set configured provider type of the bring-your-own-key model for the failed call: "openai", "azure", "anthropic", "google", "local_model" (a user-configured local model), "winml" (a Copilot-managed Windows ML model), or "other". Never the caller-supplied provider name. Absent for Copilot-served models.</summary>
+    /// <summary>Fixed-set configured provider type of the bring-your-own-key model for the failed call: "openai", "azure", "anthropic", "local_model" (a user-configured local model), "winml" (a Copilot-managed Windows ML model), or "other". Never the caller-supplied provider name. Absent for Copilot-served models.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonInclude]
     [JsonPropertyName("providerType")]
@@ -6537,12 +6295,6 @@ public sealed partial class ToolExecutionStartData
     [JsonPropertyName("parentToolCallId")]
     public string? ParentToolCallId { get; set; }
 
-    /// <summary>Host-owned call ID of the run_program invocation that requested this child tool. Its result is program input, not a model message; agent attribution remains independent.</summary>
-    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("programToolCallId")]
-    public string? ProgramToolCallId { get; set; }
-
     /// <summary>Whether the selected tool descriptor explicitly classifies this call as read-only.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("readOnly")]
@@ -6701,12 +6453,6 @@ public sealed partial class ToolExecutionCompleteData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("parentToolCallId")]
     public string? ParentToolCallId { get; set; }
-
-    /// <summary>Host-owned call ID of the run_program invocation that requested this child tool. Its result is program input, not a model message; agent attribution remains independent.</summary>
-    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("programToolCallId")]
-    public string? ProgramToolCallId { get; set; }
 
     /// <summary>Tool execution result on success.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -7239,7 +6985,6 @@ public sealed partial class SubagentSelectedData
     public required string AgentName { get; set; }
 
     /// <summary>List of tool names available to this agent, or null for all tools.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     [JsonPropertyName("tools")]
     public string[]? Tools { get; set; }
 }
@@ -7477,11 +7222,6 @@ public sealed partial class PermissionRequestedData
     /// <summary>Details of the permission being requested.</summary>
     [JsonPropertyName("permissionRequest")]
     public required PermissionRequest PermissionRequest { get; set; }
-
-    /// <summary>Program invocation owning this permission request. Its child call must not be resumed independently.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("programToolCallId")]
-    public string? ProgramToolCallId { get; set; }
 
     /// <summary>Derived user-facing permission prompt details for UI consumers.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -8000,12 +7740,6 @@ public sealed partial class ExternalToolRequestedData
     [JsonPropertyName("arguments")]
     public JsonElement? Arguments { get; set; }
 
-    /// <summary>Whether the tool definition had an SDK handler when this request was dispatched.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonInclude]
-    [JsonPropertyName("hasHandler")]
-    internal bool? HasHandler { get; set; }
-
     /// <summary>Stable provider identity captured with an extension-owned tool definition; hosts use it to route the request to the same provider that was offered to the model.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("providerId")]
@@ -8061,11 +7795,6 @@ public sealed partial class CommandQueuedData
     /// <summary>Unique identifier for this request; used to respond via session.respondToQueuedCommand().</summary>
     [JsonPropertyName("requestId")]
     public required string RequestId { get; set; }
-
-    /// <summary>Whether a schedule dispatched this command. Consumers must reject commands marked as not schedulable before executing a scheduled request. Absent for ordinary queued commands.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("scheduled")]
-    public bool? Scheduled { get; set; }
 }
 
 /// <summary>Registered command dispatch request routed to the owning client.</summary>
@@ -8124,82 +7853,6 @@ public sealed partial class AutoModeSwitchCompletedData
     /// <summary>The user's auto-mode-switch choice.</summary>
     [JsonPropertyName("response")]
     public required AutoModeSwitchResponse Response { get; set; }
-}
-
-/// <summary>Recovery consent for a still-active request. Respond using session.ui.handlePendingAutoModeSwitch. The offer has no timer. Entering Autopilot before recovery admission withdraws it. Dismiss it on auto_mode_recovery_consent.completed or on session resume, rebuild, or disconnect; resume can invalidate it without a completed event.</summary>
-public sealed partial class AutoModeRecoveryConsentRequestedData
-{
-    /// <summary>Whether this offer permits remembering consent with yes_always. Currently true only for per-model rate limits.</summary>
-    [JsonPropertyName("allowAlways")]
-    public required bool AllowAlways { get; set; }
-
-    /// <summary>Eligible upstream failure code: model_degraded, model_overloaded, or user_model_rate_limited.</summary>
-    [JsonPropertyName("errorCode")]
-    public required string ErrorCode { get; set; }
-
-    /// <summary>Original logical interaction identity, when available. Do not infer it from transcript order.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("interactionId")]
-    public string? InteractionId { get; set; }
-
-    /// <summary>Explicit model selected for the failed request before Auto recovery.</summary>
-    [JsonPropertyName("originalModel")]
-    public required string OriginalModel { get; set; }
-
-    /// <summary>Initiating user-message identity, when available, distinct from later steering messages.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("originatingMessageId")]
-    public string? OriginatingMessageId { get; set; }
-
-    /// <summary>One-use offer or recovery episode identifier bound to the originating live session. It cannot be carried across resume or used to replay a settled request.</summary>
-    [JsonPropertyName("requestId")]
-    public required string RequestId { get; set; }
-
-    /// <summary>Rate-limit reset information when supplied by the provider. This is not a consent deadline.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("retryAfterSeconds")]
-    public double? RetryAfterSeconds { get; set; }
-}
-
-/// <summary>Recovery consent offer closed; clients must dismiss its UI. Completion does not imply consent or recovery success. Events belong to the originating live session; resume can invalidate an offer without this event.</summary>
-public sealed partial class AutoModeRecoveryConsentCompletedData
-{
-    /// <summary>Settlement reason, distinguishing user acceptance/decline and saved-preference acceptance from cancellation, handler loss, supersession, and emergency disablement. mode_changed withdraws an unanswered offer when the session enters Autopilot before recovery admission.</summary>
-    [JsonPropertyName("reason")]
-    public required string Reason { get; set; }
-
-    /// <summary>Identifier of the settled offer; clients must dismiss the matching consent UI.</summary>
-    [JsonPropertyName("requestId")]
-    public required string RequestId { get; set; }
-
-    /// <summary>User response when one was supplied. Absent when the runtime settled the offer without a user answer.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("response")]
-    public AutoModeSwitchResponse? Response { get; set; }
-}
-
-/// <summary>Authoritative final outcome of an active-request Auto recovery episode, not a retry-start notification or manual response regeneration. Normal response/error and session completion signals still settle the logical request.</summary>
-public sealed partial class AutoModeRecoveryOutcomeData
-{
-    /// <summary>Whether a recovered Auto inference was allowed to proceed, reported on the final outcome rather than as a live start notification. True does not imply success. False when consent or preparation ended without a retry.</summary>
-    [JsonPropertyName("autoModeRecoveryAdmitted")]
-    public required bool AutoModeRecoveryAdmitted { get; set; }
-
-    /// <summary>Original upstream failure code that qualified the request for recovery.</summary>
-    [JsonPropertyName("errorCode")]
-    public required string ErrorCode { get; set; }
-
-    /// <summary>Explicit model selected for the original failed request.</summary>
-    [JsonPropertyName("originalModel")]
-    public required string OriginalModel { get; set; }
-
-    /// <summary>Recovery episode identifier, also used by its consent offer when one was displayed.</summary>
-    [JsonPropertyName("requestId")]
-    public required string RequestId { get; set; }
-
-    /// <summary>Final recovery disposition, such as succeeded, failed, declined, cancelled, superseded, or unavailable. mode_changed means entering Autopilot stopped recovery before admission, including after consent was accepted.</summary>
-    [JsonPropertyName("status")]
-    public required string Status { get; set; }
 }
 
 /// <summary>Session limit exhaustion notification requiring user action.</summary>
@@ -8904,123 +8557,6 @@ public sealed partial class McpAppToolCallCompleteData
     public required string ToolName { get; set; }
 }
 
-/// <summary>An IDE connection on the runtime host.</summary>
-/// <remarks>Nested data type for <c>IdeConnectedInfo</c>.</remarks>
-public sealed partial class IdeConnectedInfo
-{
-    /// <summary>IDE display name.</summary>
-    [JsonPropertyName("ideName")]
-    public required string IdeName { get; set; }
-
-    /// <summary>IDE lock file path on the runtime host.</summary>
-    [JsonPropertyName("lockFilePath")]
-    public required string LockFilePath { get; set; }
-
-    /// <summary>IDE process identifier on the runtime host.</summary>
-    [JsonPropertyName("pid")]
-    public required long Pid { get; set; }
-
-    /// <summary>Registered MCP server name.</summary>
-    [JsonPropertyName("serverName")]
-    public required string ServerName { get; set; }
-
-    /// <summary>Absolute workspace path on the runtime host.</summary>
-    [JsonPropertyName("workspaceFolder")]
-    public required string WorkspaceFolder { get; set; }
-}
-
-/// <summary>A zero-based location in an IDE document.</summary>
-/// <remarks>Nested data type for <c>IdePosition</c>.</remarks>
-public sealed partial class IdePosition
-{
-    /// <summary>Zero-based character offset.</summary>
-    [JsonPropertyName("character")]
-    public required double Character { get; set; }
-
-    /// <summary>Zero-based line number.</summary>
-    [JsonPropertyName("line")]
-    public required double Line { get; set; }
-}
-
-/// <summary>The active selection range in an IDE document.</summary>
-/// <remarks>Nested data type for <c>IdeSelectionRange</c>.</remarks>
-public sealed partial class IdeSelectionRange
-{
-    /// <summary>End position.</summary>
-    [JsonPropertyName("end")]
-    public required IdePosition End { get; set; }
-
-    /// <summary>Whether the selection contains no text.</summary>
-    [JsonPropertyName("isEmpty")]
-    public required bool IsEmpty { get; set; }
-
-    /// <summary>Start position.</summary>
-    [JsonPropertyName("start")]
-    public required IdePosition Start { get; set; }
-}
-
-/// <summary>A validated live IDE selection.</summary>
-/// <remarks>Nested data type for <c>IdeSelection</c>.</remarks>
-public sealed partial class IdeSelection
-{
-    /// <summary>Whether the selection is current.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("current")]
-    public bool? Current { get; set; }
-
-    /// <summary>Document path on the runtime host.</summary>
-    [JsonPropertyName("filePath")]
-    public required string FilePath { get; set; }
-
-    /// <summary>Document URL supplied by the IDE.</summary>
-    [JsonPropertyName("fileUrl")]
-    public required string FileUrl { get; set; }
-
-    /// <summary>Selection endpoints and empty state.</summary>
-    [JsonPropertyName("selection")]
-    public required IdeSelectionRange Selection { get; set; }
-
-    /// <summary>Selected document text.</summary>
-    [JsonPropertyName("text")]
-    public required string Text { get; set; }
-}
-
-/// <summary>The endpoints of an IDE file reference.</summary>
-/// <remarks>Nested data type for <c>IdeRange</c>.</remarks>
-public sealed partial class IdeRange
-{
-    /// <summary>End position.</summary>
-    [JsonPropertyName("end")]
-    public required IdePosition End { get; set; }
-
-    /// <summary>Start position.</summary>
-    [JsonPropertyName("start")]
-    public required IdePosition Start { get; set; }
-}
-
-/// <summary>A validated IDE request to attach a file or selected text.</summary>
-/// <remarks>Nested data type for <c>IdeFileReference</c>.</remarks>
-public sealed partial class IdeFileReference
-{
-    /// <summary>Document path on the runtime host.</summary>
-    [JsonPropertyName("filePath")]
-    public required string FilePath { get; set; }
-
-    /// <summary>Document URL supplied by the IDE.</summary>
-    [JsonPropertyName("fileUrl")]
-    public required string FileUrl { get; set; }
-
-    /// <summary>Selected text, or null for a whole file.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
-    [JsonPropertyName("selectedText")]
-    public string? SelectedText { get; set; }
-
-    /// <summary>Selected range, or null for a whole file.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
-    [JsonPropertyName("selection")]
-    public IdeRange? Selection { get; set; }
-}
-
 /// <summary>Working directory and git context at session start.</summary>
 /// <remarks>Nested data type for <c>WorkingDirectoryContext</c>.</remarks>
 public sealed partial class WorkingDirectoryContext
@@ -9078,23 +8614,6 @@ public sealed partial class SessionLimitsConfig
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("maxAiCredits")]
     public double? MaxAiCredits { get; set; }
-}
-
-/// <summary>Original request-level and effective conversation reasoning effort for a provider history boundary; the historical type name is retained for compatibility.</summary>
-/// <remarks>Nested data type for <c>ResponsesReasoning</c>.</remarks>
-public sealed partial class ResponsesReasoning
-{
-    /// <summary>Effective effort selected before this message, independent of the response-level reasoning field.</summary>
-    [JsonPropertyName("effort")]
-    public required string Effort { get; set; }
-
-    /// <summary>Original request-level effort, retained while replaying this conversation prefix.</summary>
-    [JsonPropertyName("initialEffort")]
-    public required string InitialEffort { get; set; }
-
-    /// <summary>Provider model whose reasoning settings this boundary records.</summary>
-    [JsonPropertyName("model")]
-    public required string Model { get; set; }
 }
 
 /// <summary>The <c>status</c> variant of <see cref="SessionIndexedSearchData"/>.</summary>
@@ -9402,12 +8921,10 @@ public sealed partial class UsageMetricsProviderModelMetric
     public string? ModelDisplayName { get; set; }
 
     /// <summary>Model identity, or null for legacy aggregate-only usage.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     [JsonPropertyName("modelId")]
     public string? ModelId { get; set; }
 
     /// <summary>Provider identity and product label captured when the call was dispatched; null when unknown.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     [JsonPropertyName("provider")]
     public ModelProviderRef? Provider { get; set; }
 }
@@ -9876,13 +9393,6 @@ internal sealed partial class CompactionCompleteAttemptMetrics
     [JsonPropertyName("deadlinePolicy")]
     internal string? DeadlinePolicy { get; set; }
 
-    /// <summary>Time a background compaction's summarizer was held for the turn's in-flight request to start responding before it was sent, in milliseconds. The compaction's deadline starts when the summarizer is sent. Absent when the summarizer was not held.</summary>
-    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonInclude]
-    [JsonPropertyName("dispatchWaitMs")]
-    internal TimeSpan? DispatchWait { get; set; }
-
     /// <summary>Time from the start of the compaction to this event, in milliseconds, whatever the outcome.</summary>
     [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonInclude]
@@ -10101,6 +9611,23 @@ internal sealed partial class CompactionCompleteFailureDiagnostics
     [JsonInclude]
     [JsonPropertyName("transportErrorKind")]
     internal string? TransportErrorKind { get; set; }
+}
+
+/// <summary>Original request-level and effective conversation reasoning effort for a provider history boundary; the historical type name is retained for compatibility.</summary>
+/// <remarks>Nested data type for <c>ResponsesReasoning</c>.</remarks>
+public sealed partial class ResponsesReasoning
+{
+    /// <summary>Effective effort selected before this message, independent of the response-level reasoning field.</summary>
+    [JsonPropertyName("effort")]
+    public required string Effort { get; set; }
+
+    /// <summary>Original request-level effort, retained while replaying this conversation prefix.</summary>
+    [JsonPropertyName("initialEffort")]
+    public required string InitialEffort { get; set; }
+
+    /// <summary>Provider model whose reasoning settings this boundary records.</summary>
+    [JsonPropertyName("model")]
+    public required string Model { get; set; }
 }
 
 /// <summary>How far the compaction's summarizer model calls had progressed when the compaction's outcome was decided. Stream statistics describe the latest model request; durationMs and attemptCount cover every request.</summary>
@@ -13542,7 +13069,7 @@ public sealed partial class PermissionRequestShellPossibleUrl
     public required string Url { get; set; }
 }
 
-/// <summary>A sandbox filesystem policy edit that would let a blocked operation run inside the sandbox instead of outside it. Offered only on a sandbox escalation request whose denial adding this path lifts, and only when managed policy permits the grant. A host accepts it with session.sandbox.grantPathForRequest, which adds the path to the session's sandbox policy and re-runs the operation sandboxed. A host that persists sandbox settings must save the optional policy spelling when present; otherwise it must escape every literal `$` in the concrete path as `$$` before saving that path.</summary>
+/// <summary>A sandbox filesystem policy edit that would let a blocked operation run inside the sandbox instead of outside it. Offered only on a sandbox escalation request whose denial adding this path lifts, and only when managed policy permits the grant. A host accepts it with session.sandbox.grantPathForRequest, which adds the path to the session's sandbox policy and re-runs the operation sandboxed; a host that persists sandbox settings may also save the path there.</summary>
 /// <remarks>Nested data type for <c>PermissionSandboxPathGrant</c>.</remarks>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed partial class PermissionSandboxPathGrant
@@ -13559,11 +13086,6 @@ public sealed partial class PermissionSandboxPathGrant
     /// <summary>Absolute path to add to the sandbox filesystem policy.</summary>
     [JsonPropertyName("path")]
     public required string Path { get; set; }
-
-    /// <summary>Policy spelling to persist for the grant. This can differ from path when a managed allowlist names the same location through an environment expression. Hosts that persist sandbox settings must save this value when present. When it is absent, they must escape every literal `$` in path as `$$` before saving path so the policy grammar does not interpret it as an environment reference.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("persistedPath")]
-    public string? PersistedPath { get; set; }
 
     /// <summary>readonlyPaths entries the grant removes, exactly as written in the policy, because a read-only entry for the same location would otherwise keep the path read-only. A host that persists the path must remove these entries from its stored readonlyPaths too.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -13936,12 +13458,6 @@ public sealed partial class PermissionApprovalEvaluation
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed partial class PermissionAssistedApproval
 {
-    /// <summary>Zero-based indexes into the shell request's `commandSegments` that a `requireApproval` recommendation identified as needing approval, validated by the runtime against that request. Absent when the recommendation did not attribute approval to specific segments; the whole command then needs approval.</summary>
-    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("approvalRequiredCommandSegments")]
-    public long[]? ApprovalRequiredCommandSegments { get; set; }
-
     /// <summary>Runtime reason and judge-call metadata. Absent on older events; missing metadata means unknown, not that the judge was skipped.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("evaluation")]
@@ -14528,11 +14044,6 @@ public sealed partial class PermissionPromptRequestUrl : PermissionPromptRequest
     [JsonPropertyName("managedApprovalRequired")]
     public bool? ManagedApprovalRequired { get; set; }
 
-    /// <summary>Wildcard pattern covering the registrable domain of the URL and its subdomains, for example https://*.example.com for https://api.example.com/x. The runtime computes it from the Public Suffix List, keeping the URL's scheme and non-default port, so every host offers the same scope. Absent when no parent-domain approval can be offered safely (IP addresses, private-network names, public suffixes) and for sandbox-bypass requests. Hosts may offer it as a broader alternative to approving the exact origin for the running session and, when the user chooses it, return it as the domain of an approve-for-session response. It is session-only: the runtime matches it by registrable domain, so a subdomain the Public Suffix List lists as a separate owner (for example a bucket under s3.amazonaws.com) is not covered, and the runtime never persists it. Do not offer it as a permanent approval; an approve-permanently response carrying this exact pattern is kept for the session only and writes nothing to settings. The pattern also matches the registrable domain itself.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("parentDomainPattern")]
-    public string? ParentDomainPattern { get; set; }
-
     /// <summary>Immediately preceding URL when this prompt is for a redirect target.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("redirectedFrom")]
@@ -14979,7 +14490,6 @@ public sealed partial class UserToolSessionApprovalMcp : UserToolSessionApproval
     public required string ServerName { get; set; }
 
     /// <summary>Optional MCP tool name, or null for all tools on the server.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     [JsonPropertyName("toolName")]
     public string? ToolName { get; set; }
 }
@@ -15146,7 +14656,6 @@ public sealed partial class PermissionResultCancelled : PermissionResult
 public sealed partial class PermissionRule
 {
     /// <summary>Argument value matched against the request, or null when the rule kind has no argument (e.g. 'read', 'write', 'memory').</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     [JsonPropertyName("argument")]
     public string? Argument { get; set; }
 
@@ -15504,11 +15013,6 @@ public sealed partial class CommandsChangedCommand
 /// <remarks>Nested data type for <c>CapabilitiesChangedUI</c>.</remarks>
 public sealed partial class CapabilitiesChangedUI
 {
-    /// <summary>Whether a recovery-aware Auto-switch responder is registered. This does not imply current eligibility or override model policy.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("autoModeRecovery")]
-    public bool? AutoModeRecovery { get; set; }
-
     /// <summary>Whether canvas rendering is now supported.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("canvases")]
@@ -15532,12 +15036,7 @@ public sealed partial class HumanResponseRecordedResponseAskUser : HumanResponse
     [JsonIgnore]
     public override string ResponseKind => "ask_user";
 
-    /// <summary>How the person refused the question; absent for an accepted answer.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("action")]
-    public HumanResponseAskUserAction? Action { get; set; }
-
-    /// <summary>Exact answer content accepted from the user; empty when the person refused the question.</summary>
+    /// <summary>Exact answer content accepted from the user.</summary>
     [JsonPropertyName("content")]
     public required IDictionary<string, JsonElement> Content { get; set; }
 
@@ -15562,7 +15061,7 @@ public sealed partial class HumanResponseRecordedResponseUserInput : HumanRespon
     [JsonPropertyName("allowFreeform")]
     public bool? AllowFreeform { get; set; }
 
-    /// <summary>Exact selected or free-form answer submitted by the user; empty when the person dismissed the question.</summary>
+    /// <summary>Exact selected or free-form answer submitted by the user.</summary>
     [JsonPropertyName("answer")]
     public required string Answer { get; set; }
 
@@ -15570,11 +15069,6 @@ public sealed partial class HumanResponseRecordedResponseUserInput : HumanRespon
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("choices")]
     public string[]? Choices { get; set; }
-
-    /// <summary>True when the person dismissed the question instead of answering it.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("dismissed")]
-    public bool? Dismissed { get; set; }
 
     /// <summary>Exact question displayed to the user.</summary>
     [JsonPropertyName("question")]
@@ -15618,7 +15112,7 @@ public sealed partial class HumanResponseRecordedResponseExitPlanMode : HumanRes
     [JsonPropertyName("recommendedAction")]
     public required ExitPlanModeAction RecommendedAction { get; set; }
 
-    /// <summary>Action the runtime applied for an approved plan: the user's selection, or the default an approval without one applies.</summary>
+    /// <summary>Action selected by the user, when applicable.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("selectedAction")]
     public ExitPlanModeAction? SelectedAction { get; set; }
@@ -15628,7 +15122,7 @@ public sealed partial class HumanResponseRecordedResponseExitPlanMode : HumanRes
     public required string Summary { get; set; }
 }
 
-/// <summary>Exact runtime-owned question or reviewed plan paired with the typed response that settled it. A refusal records the question without an answer and never grants authority.</summary>
+/// <summary>Exact runtime-owned question or reviewed plan paired with the typed response that settled it.</summary>
 /// <remarks>Polymorphic base type discriminated by <c>responseKind</c>.</remarks>
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "responseKind",
@@ -15752,7 +15246,6 @@ public sealed partial class CustomAgentsUpdatedAgent
     public required string Source { get; set; }
 
     /// <summary>List of tool names available to this agent, or null when all tools are available.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     [JsonPropertyName("tools")]
     public string[]? Tools { get; set; }
 
@@ -15766,7 +15259,6 @@ public sealed partial class CustomAgentsUpdatedAgent
 public sealed partial class McpServerMetadata
 {
     /// <summary>Non-empty natural-language guidance for using the server, or null when the server omitted instructions or advertised an empty string.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     [JsonPropertyName("instructions")]
     public string? Instructions { get; set; }
 }
@@ -15835,7 +15327,7 @@ public sealed partial class ExtensionsLoadedExtension
     [JsonPropertyName("source")]
     public required ExtensionsLoadedExtensionSource Source { get; set; }
 
-    /// <summary>Current status: running, dormant, disabled, failed, or starting.</summary>
+    /// <summary>Current status: running, disabled, failed, or starting.</summary>
     [JsonPropertyName("status")]
     public required ExtensionsLoadedExtensionStatus Status { get; set; }
 }
@@ -16699,18 +16191,6 @@ public readonly struct IndexedSearchDisabledReason : IEquatable<IndexedSearchDis
 
     /// <summary>The workspace is not available on the runtime's local filesystem.</summary>
     public static IndexedSearchDisabledReason WorkspaceNotLocal { get; } = new("workspace_not_local");
-
-    /// <summary>Another process holds the machine-wide indexed-search server slot.</summary>
-    public static IndexedSearchDisabledReason ServerLimit { get; } = new("server_limit");
-
-    /// <summary>The workspace is a filesystem or network-share root.</summary>
-    public static IndexedSearchDisabledReason FilesystemRoot { get; } = new("filesystem_root");
-
-    /// <summary>The workspace is the user's home directory.</summary>
-    public static IndexedSearchDisabledReason HomeDirectory { get; } = new("home_directory");
-
-    /// <summary>The user's home directory could not be determined.</summary>
-    public static IndexedSearchDisabledReason HomeDirectoryDetectionFailed { get; } = new("home_directory_detection_failed");
 
     /// <summary>Returns a value indicating whether two <see cref="IndexedSearchDisabledReason"/> instances are equivalent.</summary>
     public static bool operator ==(IndexedSearchDisabledReason left, IndexedSearchDisabledReason right) => left.Equals(right);
@@ -19414,7 +18894,7 @@ public readonly struct UserMessageAgentMode : IEquatable<UserMessageAgentMode>
     }
 }
 
-/// <summary>Why the binary data is absent: it exceeded the inline size limit, its asset was unavailable, or its image format was unsupported.</summary>
+/// <summary>Why the binary data is absent: it exceeded the inline size limit, or its asset was unavailable.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct OmittedBinaryOmittedReason : IEquatable<OmittedBinaryOmittedReason>
@@ -19438,9 +18918,6 @@ public readonly struct OmittedBinaryOmittedReason : IEquatable<OmittedBinaryOmit
 
     /// <summary>The referenced binary asset could not be found (e.g. a truncated log).</summary>
     public static OmittedBinaryOmittedReason AssetUnavailable { get; } = new("asset_unavailable");
-
-    /// <summary>The image format or MIME label is not accepted by the model.</summary>
-    public static OmittedBinaryOmittedReason UnsupportedFormat { get; } = new("unsupported_format");
 
     /// <summary>Returns a value indicating whether two <see cref="OmittedBinaryOmittedReason"/> instances are equivalent.</summary>
     public static bool operator ==(OmittedBinaryOmittedReason left, OmittedBinaryOmittedReason right) => left.Equals(right);
@@ -20204,9 +19681,6 @@ public readonly struct AssistantUsageApiEndpoint : IEquatable<AssistantUsageApiE
 
     /// <summary>WebSocket Responses API endpoint.</summary>
     public static AssistantUsageApiEndpoint WsResponses { get; } = new("ws:/responses");
-
-    /// <summary>Gemini Interactions API endpoint.</summary>
-    public static AssistantUsageApiEndpoint Interactions { get; } = new("/interactions");
 
     /// <summary>Returns a value indicating whether two <see cref="AssistantUsageApiEndpoint"/> instances are equivalent.</summary>
     public static bool operator ==(AssistantUsageApiEndpoint left, AssistantUsageApiEndpoint right) => left.Equals(right);
@@ -25475,67 +24949,6 @@ public readonly struct HumanResponseActor : IEquatable<HumanResponseActor>
     }
 }
 
-/// <summary>How the person refused a built-in `ask_user` question instead of answering it.</summary>
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct HumanResponseAskUserAction : IEquatable<HumanResponseAskUserAction>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="HumanResponseAskUserAction"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="HumanResponseAskUserAction"/>.</param>
-    [JsonConstructor]
-    public HumanResponseAskUserAction(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="HumanResponseAskUserAction"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>The person explicitly declined the question.</summary>
-    public static HumanResponseAskUserAction Decline { get; } = new("decline");
-
-    /// <summary>The person dismissed the question.</summary>
-    public static HumanResponseAskUserAction Cancel { get; } = new("cancel");
-
-    /// <summary>Returns a value indicating whether two <see cref="HumanResponseAskUserAction"/> instances are equivalent.</summary>
-    public static bool operator ==(HumanResponseAskUserAction left, HumanResponseAskUserAction right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="HumanResponseAskUserAction"/> instances are not equivalent.</summary>
-    public static bool operator !=(HumanResponseAskUserAction left, HumanResponseAskUserAction right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is HumanResponseAskUserAction other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(HumanResponseAskUserAction other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{HumanResponseAskUserAction}"/> for serializing <see cref="HumanResponseAskUserAction"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<HumanResponseAskUserAction>
-    {
-        /// <inheritdoc />
-        public override HumanResponseAskUserAction Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, HumanResponseAskUserAction value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(HumanResponseAskUserAction));
-        }
-    }
-}
-
 /// <summary>Terminal status a workflow run committed. A settled run is never `pending` or `running`, so those two members of the run-status domain are deliberately absent.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -25892,7 +25305,7 @@ public readonly struct ExtensionsLoadedExtensionSource : IEquatable<ExtensionsLo
     }
 }
 
-/// <summary>Current status: running, dormant, disabled, failed, or starting.</summary>
+/// <summary>Current status: running, disabled, failed, or starting.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLoadedExtensionStatus>
@@ -25913,9 +25326,6 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 
     /// <summary>The extension process is running.</summary>
     public static ExtensionsLoadedExtensionStatus Running { get; } = new("running");
-
-    /// <summary>The extension is enabled and discoverable but not yet requested.</summary>
-    public static ExtensionsLoadedExtensionStatus Dormant { get; } = new("dormant");
 
     /// <summary>The extension is installed but disabled.</summary>
     public static ExtensionsLoadedExtensionStatus Disabled { get; } = new("disabled");
@@ -25965,7 +25375,6 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSourceGenerationOptions(
     JsonSerializerDefaults.Web,
     AllowOutOfOrderMetadataProperties = true,
-    MaxDepth = JsonRpc.MaxIncomingMessageDepth,
     NumberHandling = JsonNumberHandling.AllowReadingFromString,
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(AbortData))]
@@ -26044,12 +25453,6 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(AttachmentSelectionDetailsEnd))]
 [JsonSerializable(typeof(AttachmentSelectionDetailsStart))]
 [JsonSerializable(typeof(AttachmentSessionReference))]
-[JsonSerializable(typeof(AutoModeRecoveryConsentCompletedData))]
-[JsonSerializable(typeof(AutoModeRecoveryConsentCompletedEvent))]
-[JsonSerializable(typeof(AutoModeRecoveryConsentRequestedData))]
-[JsonSerializable(typeof(AutoModeRecoveryConsentRequestedEvent))]
-[JsonSerializable(typeof(AutoModeRecoveryOutcomeData))]
-[JsonSerializable(typeof(AutoModeRecoveryOutcomeEvent))]
 [JsonSerializable(typeof(AutoModeSwitchCompletedData))]
 [JsonSerializable(typeof(AutoModeSwitchCompletedEvent))]
 [JsonSerializable(typeof(AutoModeSwitchRequestedData))]
@@ -26128,20 +25531,6 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(HumanResponseRecordedResponseAskUser))]
 [JsonSerializable(typeof(HumanResponseRecordedResponseExitPlanMode))]
 [JsonSerializable(typeof(HumanResponseRecordedResponseUserInput))]
-[JsonSerializable(typeof(IdeAddFileReferenceData))]
-[JsonSerializable(typeof(IdeAddFileReferenceEvent))]
-[JsonSerializable(typeof(IdeConnectedInfo))]
-[JsonSerializable(typeof(IdeConnectionChangedData))]
-[JsonSerializable(typeof(IdeConnectionChangedEvent))]
-[JsonSerializable(typeof(IdeElicitationCompleteData))]
-[JsonSerializable(typeof(IdeElicitationCompleteEvent))]
-[JsonSerializable(typeof(IdeFileReference))]
-[JsonSerializable(typeof(IdePosition))]
-[JsonSerializable(typeof(IdeRange))]
-[JsonSerializable(typeof(IdeSelection))]
-[JsonSerializable(typeof(IdeSelectionChangedData))]
-[JsonSerializable(typeof(IdeSelectionChangedEvent))]
-[JsonSerializable(typeof(IdeSelectionRange))]
 [JsonSerializable(typeof(InstructionUpdateData))]
 [JsonSerializable(typeof(InstructionUpdateEvent))]
 [JsonSerializable(typeof(ManagedPermissionsContext))]
@@ -26308,8 +25697,6 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(SessionCompactionCompleteEvent))]
 [JsonSerializable(typeof(SessionCompactionStartData))]
 [JsonSerializable(typeof(SessionCompactionStartEvent))]
-[JsonSerializable(typeof(SessionCompactionSummarizedData))]
-[JsonSerializable(typeof(SessionCompactionSummarizedEvent))]
 [JsonSerializable(typeof(SessionCompletionReceiptData))]
 [JsonSerializable(typeof(SessionCompletionReceiptEvent))]
 [JsonSerializable(typeof(SessionContextChangedData))]

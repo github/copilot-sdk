@@ -268,17 +268,10 @@ func TestGitHubTokenProviderCleanupOnDelete(t *testing.T) {
 
 func TestSessionOperationsSerializeBySessionID(t *testing.T) {
 	client := &Client{}
-	unlockFirst, err := client.lockSessionOperation(t.Context(), "same-session")
-	if err != nil {
-		t.Fatal(err)
-	}
+	unlockFirst := client.lockSessionOperation("same-session")
 	sameSessionAcquired := make(chan struct{})
 	go func() {
-		unlock, err := client.lockSessionOperation(t.Context(), "same-session")
-		if err != nil {
-			t.Error(err)
-			return
-		}
+		unlock := client.lockSessionOperation("same-session")
 		close(sameSessionAcquired)
 		unlock()
 	}()
@@ -291,11 +284,7 @@ func TestSessionOperationsSerializeBySessionID(t *testing.T) {
 
 	otherSessionAcquired := make(chan struct{})
 	go func() {
-		unlock, err := client.lockSessionOperation(t.Context(), "other-session")
-		if err != nil {
-			t.Error(err)
-			return
-		}
+		unlock := client.lockSessionOperation("other-session")
 		close(otherSessionAcquired)
 		unlock()
 	}()
@@ -319,43 +308,10 @@ func TestGitHubTokenProvidersClearedOnConnectionClose(t *testing.T) {
 		return GitHubTokenCancelled(), nil
 	})
 
-	client.handleConnectionClose(client.client)
+	client.handleConnectionClose()
 
 	if len(client.gitHubTokenProviders) != 0 {
 		t.Fatal("provider registrations were not cleared after connection closure")
-	}
-}
-
-func TestGitHubTokenProvidersSurviveRetiredTransportClose(t *testing.T) {
-	oldSession, oldPeer := newSetToolsTestSession(t)
-	replacement, _ := newSetToolsTestSession(t)
-	client := NewClient(nil)
-	client.client = oldSession.client
-	client.setupNotificationHandler()
-	client.client = replacement.client
-	client.setupNotificationHandler()
-	t.Cleanup(client.ForceStop)
-	registration := client.registerGitHubTokenProvider(func(GitHubTokenProviderArgs) (*GitHubTokenProviderResult, error) {
-		return GitHubTokenCancelled(), nil
-	})
-
-	if err := oldPeer.stdoutW.Close(); err != nil {
-		t.Fatal(err)
-	}
-	select {
-	case <-oldSession.client.ConnectionClosed():
-	case <-time.After(5 * time.Second):
-		t.Fatal("the retired transport did not finish its close callback")
-	}
-
-	client.gitHubTokenProvidersMux.Lock()
-	provider := client.gitHubTokenProviders[registration]
-	client.gitHubTokenProvidersMux.Unlock()
-	if provider == nil {
-		t.Fatal("a retired transport cleared the replacement's token provider")
-	}
-	if _, err := provider(GitHubTokenProviderArgs{}); err != nil {
-		t.Fatal("replacement token provider failed:", err)
 	}
 }
 

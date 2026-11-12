@@ -10,7 +10,7 @@ package com.github.copilot.generated.rpc;
 import javax.annotation.processing.Generated;
 
 /**
- * Current status: running, dormant, disabled, failed, or starting
+ * Current status: running, disabled, failed, or starting
  *
  * @since 1.0.0
  */
@@ -18,8 +18,6 @@ import javax.annotation.processing.Generated;
 public enum ExtensionStatus {
     /** The {@code running} variant. */
     RUNNING("running"),
-    /** The {@code dormant} variant. */
-    DORMANT("dormant"),
     /** The {@code disabled} variant. */
     DISABLED("disabled"),
     /** The {@code failed} variant. */

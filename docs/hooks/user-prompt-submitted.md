@@ -36,16 +36,12 @@ type UserPromptSubmittedHandler = (
 <!-- docs-validate: hidden -->
 ```python
 from copilot.session import UserPromptSubmittedHookInput, UserPromptSubmittedHookOutput
-from copilot.session import UserPromptSubmittedHandler as SdkUserPromptSubmittedHandler
 from typing import Callable, Awaitable
 
 UserPromptSubmittedHandler = Callable[
     [UserPromptSubmittedHookInput, dict[str, str]],
     Awaitable[UserPromptSubmittedHookOutput | None]
 ]
-
-def check(handler: UserPromptSubmittedHandler) -> SdkUserPromptSubmittedHandler:
-    return handler
 ```
 <!-- /docs-validate: hidden -->
 ```python
@@ -66,19 +62,10 @@ package main
 
 import copilot "github.com/github/copilot-sdk/go"
 
-// Aliases let the signature below use the package's own type names.
-type (
-    UserPromptSubmittedHookInput  = copilot.UserPromptSubmittedHookInput
-    HookInvocation                = copilot.HookInvocation
-    UserPromptSubmittedHookOutput = copilot.UserPromptSubmittedHookOutput
-)
-
 type UserPromptSubmittedHandler func(
-    input UserPromptSubmittedHookInput,
-    invocation HookInvocation,
-) (*UserPromptSubmittedHookOutput, error)
-
-var _ = copilot.UserPromptSubmittedHandler(UserPromptSubmittedHandler(nil))
+    input copilot.UserPromptSubmittedHookInput,
+    invocation copilot.HookInvocation,
+) (*copilot.UserPromptSubmittedHookOutput, error)
 
 func main() {}
 ```
@@ -102,12 +89,6 @@ using GitHub.Copilot;
 public delegate Task<UserPromptSubmittedHookOutput?> UserPromptSubmittedHandler(
     UserPromptSubmittedHookInput input,
     HookInvocation invocation);
-
-static class UserPromptSubmittedHandlerCheck
-{
-    static SessionHooks Check(UserPromptSubmittedHandler handler) =>
-        new() { OnUserPromptSubmitted = handler.Invoke };
-}
 ```
 <!-- /docs-validate: hidden -->
 ```csharp
@@ -127,24 +108,8 @@ import com.github.copilot.rpc.*;
 import java.util.concurrent.CompletableFuture;
 
 public class UserPromptSubmittedSignature {
-    static class Documented {
-        @FunctionalInterface
-        public interface UserPromptSubmittedHandler {
-            CompletableFuture<UserPromptSubmittedHookOutput> handle(
-                UserPromptSubmittedHookInput input,
-                HookInvocation invocation);
-        }
-    }
-
-    // The documented interface and the SDK's accept each other's implementations.
-    static UserPromptSubmittedHandler toSdk(Documented.UserPromptSubmittedHandler documented) {
-        return documented::handle;
-    }
-
-    static Documented.UserPromptSubmittedHandler fromSdk(UserPromptSubmittedHandler sdk) {
-        return sdk::handle;
-    }
-
+    UserPromptSubmittedHandler handler = (UserPromptSubmittedHookInput input, HookInvocation invocation) ->
+        CompletableFuture.completedFuture(null);
     public static void main(String[] args) {}
 }
 ```
@@ -254,6 +219,7 @@ import (
 func main() {
 	client := copilot.NewClient(nil)
 	session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
+		OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 		Hooks: &copilot.SessionHooks{
 			OnUserPromptSubmitted: func(input copilot.UserPromptSubmittedHookInput, inv copilot.HookInvocation) (*copilot.UserPromptSubmittedHookOutput, error) {
 				fmt.Printf("[%s] User: %s\n", inv.SessionID, input.Prompt)
@@ -281,6 +247,30 @@ session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
 <details>
 <summary><strong>.NET</strong></summary>
 
+<!-- docs-validate: hidden -->
+```csharp
+using GitHub.Copilot;
+
+public static class UserPromptSubmittedExample
+{
+    public static async Task Main()
+    {
+        await using var client = new CopilotClient();
+        var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            Hooks = new SessionHooks
+            {
+                OnUserPromptSubmitted = (input, invocation) =>
+                {
+                    Console.WriteLine($"[{invocation.SessionId}] User: {input.Prompt}");
+                    return Task.FromResult<UserPromptSubmittedHookOutput?>(null);
+                },
+            },
+        });
+    }
+}
+```
+<!-- /docs-validate: hidden -->
 ```csharp
 var session = await client.CreateSessionAsync(new SessionConfig
 {
@@ -550,7 +540,7 @@ const session = await client.createSession({
 
 1. **Use `additionalContext` over `modifiedPrompt`** - Adding context is less intrusive than rewriting the prompt.
 
-1. **Use `additionalContext` for advisory guidance**: Context informs the model but enforces nothing. To refuse a prompt, return a [block decision](#blocking-a-prompt) instead.
+1. **Use `additionalContext` for advisory guidance**: This hook cannot reject a prompt or enforce policy. Enforce hard limits before calling `session.send()`.
 
 1. **Keep processing fast** - This hook runs on every user message. Avoid slow operations.
 

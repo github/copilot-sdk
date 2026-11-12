@@ -12,14 +12,14 @@ pub(crate) use lifecycle_diagnostics::LifecycleDiagnosticEvent;
 use serde::{Deserialize, Serialize};
 pub use session_events::{
     AbortReason, AgentModelPolicy, AssistedApprovalAssessment, AutoTier, BlockedPermissionAction,
-    ContextTier, IdeConnectedInfo, IdeSelection, IndexedSearchState, ManagedPermissionsContext,
-    ManagedSettingsResolvedSource, McpOauthHttpResponse, McpOauthWWWAuthenticateParams,
-    McpServerMetadata, McpServerSource, McpServerStatus, McpSkillOrigin, ModelChangeSource,
-    ModelProviderKind, ModelProviderRef, OmittedBinaryOmittedReason, PermissionDecisionSource,
-    PermissionMode, PermissionPromptRequest, PermissionRule, PolicyHelperCapabilities,
-    PolicyHelperFailure, ProviderQuotaState, ReasoningSummary, RemediationAction,
-    SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskBlocker,
-    TaskCompletionOutcome, UsageGetMetricsResult, UserToolSessionApproval, Verbosity,
+    ContextTier, IndexedSearchState, ManagedPermissionsContext, ManagedSettingsResolvedSource,
+    McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource,
+    McpServerStatus, McpSkillOrigin, ModelChangeSource, ModelProviderKind, ModelProviderRef,
+    OmittedBinaryOmittedReason, PermissionDecisionSource, PermissionMode, PermissionPromptRequest,
+    PermissionRule, PolicyHelperCapabilities, PolicyHelperFailure, ProviderQuotaState,
+    ReasoningSummary, RemediationAction, SessionLimitsConfig, SessionMode, ShutdownType,
+    SkillSource, TaskBlocker, TaskCompletionOutcome, UsageGetMetricsResult,
+    UserToolSessionApproval, Verbosity,
 };
 
 use super::sdk_api_shared::*;
@@ -321,24 +321,6 @@ pub struct CanvasProviderRegisterRequest {
 pub struct CanvasProviderUnregisterRequest {
     /// Connection identifier to unregister
     pub connection_id: String,
-}
-
-/// Closes a canvas through its original owned or attached session namespace.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CanvasSourceCloseRequest {
-    /// Exact authenticated local attachment identifier. Omit for the SDK connection's owned session.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub attach_id: Option<i64>,
-    /// Open canvas instance identifier
-    pub instance_id: String,
 }
 
 /// Semantic digest of a strictly parsed and schema-validated JSON MCP card. Both URL-backed and embedded cards are canonicalised with RFC 8785 JSON Canonicalization Scheme, encoded as UTF-8, and hashed with SHA-256.
@@ -1461,25 +1443,6 @@ pub struct McpAppsSetHostContextRequest {
     pub context: McpAppsSetHostContextDetails,
 }
 
-/// Invokes a tool on a session MCP server through the server's permission policy.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct McpCallToolRequest {
-    /// MCP tool arguments.
-    pub arguments: serde_json::Value,
-    /// Registered MCP server name.
-    pub server_name: String,
-    /// Unprefixed MCP tool name.
-    pub tool_name: String,
-}
-
 /// The requestId previously passed to executeSampling that should be cancelled.
 ///
 /// <div class="warning">
@@ -1884,33 +1847,6 @@ pub struct McpHeadersHandlePendingHeadersRefreshRequestRequest {
 pub struct McpHeadersHandlePendingHeadersRefreshRequestResult {
     /// Whether the response was accepted. False if the request was unknown, timed out, or already resolved.
     pub success: bool,
-}
-
-/// IDE metadata for an existing local MCP endpoint on the runtime host.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct McpIdeConfig {
-    /// Client process identifier sent to the IDE.
-    pub client_pid: i64,
-    /// Client package version used by the MCP initialize request.
-    pub client_version: String,
-    /// IDE display name.
-    pub ide_name: String,
-    /// Lock file whose removal ends the live connection.
-    pub lock_file_path: String,
-    /// Client parent process identifier sent to the IDE.
-    pub parent_pid: i64,
-    /// IDE process identifier.
-    pub pid: i64,
-    /// Absolute workspace path on the runtime host.
-    pub workspace_folder: String,
 }
 
 /// Already-confirmed durable work must be reconciled before new mutations or inventory.
@@ -2382,105 +2318,6 @@ pub struct McpListToolsResult {
     pub tools: Vec<McpTools>,
 }
 
-/// Full host-driven authentication for an arbitrary, possibly unsaved, MCP URL.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct McpOauthAuthenticateRequest {
-    /// Authorization timeout in milliseconds. Defaults to five minutes.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub authorization_timeout_ms: Option<i64>,
-    /// Fail with browser_required when silent authentication cannot complete.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub browserless: Option<bool>,
-    /// Text displayed after a successful loopback callback.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub callback_success_message: Option<String>,
-    /// Client metadata document URL. Omission uses the session identity.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub client_id_metadata_url: Option<String>,
-    /// Display name for new dynamic client registrations.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub client_name: Option<String>,
-    /// Delay before the runtime offers device authorization.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub device_code_offer_timeout_ms: Option<i64>,
-    /// Override the device authorization poll interval in milliseconds.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub device_code_poll_interval_ms: Option<i64>,
-    /// Correlation identity reserved through prepareFlow.
-    pub flow_id: String,
-    /// Start device authorization instead of a browser flow.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub force_device_code: Option<bool>,
-    /// Bypass cached grants for explicit account selection.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub force_reauth: Option<bool>,
-    /// Preserve previously granted scopes during additional consent.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub include_existing_token_scopes: Option<bool>,
-    /// Preserve replacement policy when another pending flow owns consent.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub preserve_pending_flow_replacement_flags: Option<bool>,
-    /// Fixed callback port. A busy port fails without fallback.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub redirect_port: Option<i64>,
-    /// Raw protected-resource metadata already fetched by the host.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub resource_metadata: Option<String>,
-    /// Proxy fallback when the session has not published an egress entry.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub sandbox_proxy: Option<String>,
-    /// MCP endpoint, without a requirement for saved configuration.
-    pub server_url: String,
-    /// Use environment session claims for a hostless compatibility call, while retaining this requester's egress authority.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub sessionless: Option<bool>,
-    /// Let the host present the authorization URL without a runtime browser launch.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub skip_browser_open: Option<bool>,
-    /// Reject the cached access token but permit a refresh grant.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub skip_cached_access_token: Option<bool>,
-    /// Static OAuth client settings for this attempt.
-    #[doc(hidden)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) static_client_config: Option<McpOauthFlowStaticClientConfig>,
-    /// Credential owner. Omission uses the authoritative session store.
-    #[doc(hidden)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) store: Option<McpOauthFlowStore>,
-    /// Challenge captured by the host, including an empty challenge.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub www_authenticate_params: Option<McpOauthWWWAuthenticateParams>,
-}
-
-/// Token projection for the existing host-delegated provider.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct McpOauthAuthenticateResult {
-    /// Access token from the runtime-owned store.
-    pub access_token: String,
-    /// Remaining lifetime in seconds when the issuer supplied an expiry.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub expires_in: Option<i64>,
-    /// Token scheme. Defaults to Bearer.
-    pub token_type: String,
-}
-
 /// Identifies the MCP server whose persisted OAuth credentials were updated.
 ///
 /// <div class="warning">
@@ -2591,14 +2428,6 @@ pub struct McpOauthCompleteRequest {
     pub callback_url: String,
 }
 
-/// Dispose an explicit host store without altering the session authorizer's owner.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct McpOauthDisposeStoreRequest {
-    /// Host-selected identity of the explicit store.
-    pub store_id: String,
-}
-
 /// An OAuth challenge from a remote MCP server whose protected-resource metadata should be read.
 ///
 /// <div class="warning">
@@ -2643,14 +2472,6 @@ pub(crate) struct McpOauthFetchProtectedResourceMetadataResult {
     /// Metadata document exactly as the server returned it, unparsed. Absent when no document could be read from the explicit metadata URL or, when omitted, the conventional metadata endpoints.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata_text: Option<String>,
-}
-
-/// Correlation identity reserved before an effectful authentication request.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct McpOauthFlowIdentityRequest {
-    /// Host-chosen identity, unique within this session requester.
-    pub flow_id: String,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -3083,23 +2904,6 @@ pub struct McpOauthRespondResult {
     pub success: bool,
 }
 
-/// Persist a confidential client's static secret without exposing token-store CRUD.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct McpOauthSaveStaticClientSecretRequest {
-    /// Secret to persist in the selected credential owner.
-    pub secret: String,
-    /// Preserve hostless credential and account selection.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub sessionless: Option<bool>,
-    /// Credential owner. Omission uses the authoritative session store.
-    #[doc(hidden)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) store: Option<McpOauthFlowStore>,
-    /// Runtime OAuth credential key.
-    pub store_key: String,
-}
-
 /// An OAuth client a server configuration pins, without its secret.
 ///
 /// <div class="warning">
@@ -3154,105 +2958,6 @@ pub(crate) struct McpOauthStaticClientConfigResult {
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) client_config: Option<McpOauthStaticClientConfig>,
-}
-
-/// A narrow token-validity query against the chosen credential owner.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct McpOauthStoredGrantRequest {
-    /// Preserve hostless credential and account selection.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub sessionless: Option<bool>,
-    /// Static client identity required for refresh, when configured.
-    #[doc(hidden)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) static_client_config: Option<McpOauthFlowStaticClientConfig>,
-    /// Credential owner. Omission uses the authoritative session store.
-    #[doc(hidden)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) store: Option<McpOauthFlowStore>,
-    /// Runtime OAuth credential key.
-    pub store_key: String,
-}
-
-/// Derive a credential key through the selected account and store owner.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct McpOauthStoreKeyRequest {
-    /// Static OAuth client identity, when configured.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub client_id: Option<String>,
-    /// Metadata document identity when no static client is configured.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub client_id_metadata_url: Option<String>,
-    /// MCP endpoint whose credentials the key identifies.
-    pub server_url: String,
-    /// Preserve hostless credential and account selection.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub sessionless: Option<bool>,
-    /// Credential owner. Omission uses the authoritative session store.
-    #[doc(hidden)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) store: Option<McpOauthFlowStore>,
-}
-
-/// Tokenless initialize handshake for a possibly unsaved remote MCP server.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct McpOauthTestConnectionRequest {
-    /// Headers sent during the handshake.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub headers: Option<HashMap<String, String>>,
-    /// Proxy fallback when no session egress entry exists.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub sandbox_proxy: Option<String>,
-    /// Transport. Omission selects Streamable HTTP.
-    #[doc(hidden)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) r#type: Option<McpOauthTestConnectionTransport>,
-    /// Remote endpoint to initialize without an OAuth token.
-    pub url: String,
-}
-
-/// The server accepted an unauthenticated initialize request.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct McpOauthTestConnectionResultConnected {
-    pub status: McpOauthTestConnectionResultConnectedStatus,
-}
-
-/// The server refused the initialize request with an authentication challenge.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct McpOauthTestConnectionResultNeedsAuth {
-    /// The transport's authentication error message.
-    pub error: String,
-    /// Exact refusing HTTP response, when the transport captured it.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub http_response: Option<McpOauthHttpResponse>,
-    pub status: McpOauthTestConnectionResultNeedsAuthStatus,
-    /// Raw WWW-Authenticate header, when the refusing response supplies one.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub www_authenticate_header: Option<String>,
-    /// Parsed challenge parameters from the refusing HTTP response.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub www_authenticate_params: Option<McpOauthWWWAuthenticateParams>,
-}
-
-/// The handshake failed for a reason other than authentication.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct McpOauthTestConnectionResultFailed {
-    /// Transport or session policy failure detail.
-    pub error: String,
-    pub status: McpOauthTestConnectionResultFailedStatus,
 }
 
 /// A computed MCP install plan. Nothing has been applied: the plan describes what installing would change, and the plan handle is what a later apply operation would consume.
@@ -4118,28 +3823,6 @@ pub struct McpServerConfigHttp {
     pub url: String,
 }
 
-/// A session-only local IDE endpoint. Starting it never writes persistent configuration.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct McpServerConfigLocal {
-    /// Endpoint headers from IDE discovery.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub headers: Option<HashMap<String, String>>,
-    /// IDE identity and initialize metadata. The server name must be `ide`.
-    pub ide: McpIdeConfig,
-    /// Existing Unix socket or Windows named pipe on the runtime host.
-    pub socket_path: String,
-    /// Local transport discriminator.
-    pub r#type: McpServerConfigLocalType,
-}
-
 /// In-process MCP server configuration used by embedded SDK clients.
 ///
 /// <div class="warning">
@@ -4373,7 +4056,7 @@ pub(crate) struct McpShouldExcludeGitHubToolsRequest {
     /// The session's tool denylist, when it set one. Omitted means the session constrains nothing this way.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub excluded_tools: Option<Vec<String>>,
-    /// How the allowlist and denylist combine when both are set. Omitted uses the default excluded precedence; supply the session's explicit Update selection when present.
+    /// How the allowlist and denylist combine when both are set. Omitted means the default every session gets, so a caller that never chose a precedence is answered as its sessions behave.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_filter_precedence: Option<OptionsUpdateToolFilterPrecedence>,
 }
@@ -4404,7 +4087,7 @@ pub(crate) struct McpShouldExcludeGitHubToolsResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpStartServerRequest {
-    /// MCP server configuration (stdio, remote HTTP/SSE, or session-only local IDE endpoint). Local IDE endpoints never write persistent configuration. Omit to start with the already-registered configuration.
+    /// MCP server configuration (stdio process or remote HTTP/SSE). Omit to start the server with its already-registered configuration (config-free start-by-name).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub config: Option<serde_json::Value>,
     /// Name of the MCP server to start
@@ -4443,7 +4126,7 @@ impl McpStartServerOptions {
         }
     }
 
-    /// MCP server configuration (stdio, remote HTTP/SSE, or session-only local IDE endpoint). Local IDE endpoints never write persistent configuration. Omit to start with the already-registered configuration.
+    /// MCP server configuration (stdio process or remote HTTP/SSE). Omit to start the server with its already-registered configuration (config-free start-by-name).
     pub fn config(mut self, value: serde_json::Value) -> Self {
         self.legacy.config = Some(value);
         self
@@ -4477,7 +4160,7 @@ pub struct McpStartServersResult {
     pub filtered_servers: Vec<McpFilteredServer>,
 }
 
-/// Server name and optional transport selector for an individual MCP server stop. Omit transport to stop the server by name.
+/// Server name for an individual MCP server stop.
 ///
 /// <div class="warning">
 ///
@@ -4510,8 +4193,6 @@ pub struct McpStopServerOptions {
     legacy: McpStopServerRequest,
     #[serde(skip_serializing_if = "Option::is_none")]
     expected_installation_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    transport: Option<McpServerConfigLocalType>,
 }
 
 impl McpStopServerOptions {
@@ -4522,7 +4203,6 @@ impl McpStopServerOptions {
                 server_name: server_name.into(),
             },
             expected_installation_id: None,
-            transport: None,
         }
     }
 
@@ -4531,27 +4211,6 @@ impl McpStopServerOptions {
         self.expected_installation_id = Some(value.into());
         self
     }
-
-    /// Optional transport selector. The only supported value, local-http, requires serverName ide and cannot accompany expectedInstallationId. It cancels pending IDE initialization and removes local IDE state without stopping an ordinary server with the same name. Omit this field for a generic stop by name.
-    pub fn transport(mut self, value: McpServerConfigLocalType) -> Self {
-        self.transport = Some(value);
-        self
-    }
-}
-
-/// Per-server MCP tool definition token costs.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct McpToolTokenBreakdownResult {
-    /// One entry per MCP server with tools in the session's current tool set, in tool order. Empty both when the session has not computed its tool set yet and when the computed tool set contains no MCP tools; the two cases are not distinguished.
-    pub servers: Vec<McpServerToolTokenBreakdown>,
 }
 
 /// Server name identifying the external client to remove.
@@ -4854,7 +4513,7 @@ pub struct PluginsBuiltinSetRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PluginsDisableRequest {
-    /// Plugin names, "plugin@marketplace" specs, or opaque directSourceId values from inventory to disable. Use directSourceId to distinguish same-named direct installations. Unknown targets and session-only plugin-directory mounts are ignored. Direct-install decisions persist on the installation record. Plugin-owned MCP servers are stopped in active sessions immediately; other plugin contributions remain available until each session reloads plugins.
+    /// Plugin names or "plugin@marketplace" specs to disable. Unknown names are ignored. Non-marketplace direct installs cannot be disabled via this API; uninstall them instead. Plugin-owned MCP servers are stopped in active sessions immediately; other plugin contributions remain available until each session reloads plugins.
     pub names: Vec<String>,
     /// Working directory whose repository `enabledPlugins` overlay decides whether this mutation is repository-controlled. Hosts that serve sessions across several repositories (the SDK server) should pass the session's directory; otherwise the guard is evaluated against the server process's own working directory, which may belong to a different repository. Defaults to the server's current working directory.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -4872,7 +4531,7 @@ pub struct PluginsDisableRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PluginsEnableRequest {
-    /// Plugin names, "plugin@marketplace" specs, or opaque directSourceId values from inventory to enable. Use directSourceId to distinguish same-named direct installations. Unknown targets and session-only plugin-directory mounts are ignored. Direct-install decisions persist on the installation record; active sessions must reload plugins to load newly enabled contributions.
+    /// Plugin names or "plugin@marketplace" specs to enable. Unknown names are ignored. Non-marketplace direct installs are always enabled and cannot be toggled via this API.
     pub names: Vec<String>,
     /// Working directory whose repository `enabledPlugins` overlay decides whether this mutation is repository-controlled. Hosts that serve sessions across several repositories (the SDK server) should pass the session's directory; otherwise the guard is evaluated against the server process's own working directory, which may belong to a different repository. Defaults to the server's current working directory.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -6120,16 +5779,6 @@ pub struct CanvasOpenResult {
     pub url: Option<String>,
 }
 
-/// A standard MCP tool result, or null when the IDE is disconnected.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-pub type McpCallToolResult = Option<McpToolResult>;
-
 /// A runtime-assigned secret placeholder. The identifier is carried once, inside the placeholder, so it cannot contradict a separate secret-id field.
 ///
 /// <div class="warning">
@@ -7290,6 +6939,28 @@ pub enum McpOauthPendingRequestResponse {
     RuntimeRefresh(McpOauthPendingRequestResponseRuntimeRefresh),
 }
 
+/// OAuth grant type override for this login.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpOauthLoginGrantType {
+    /// Interactive browser-based OAuth flow using an authorization code, typically with PKCE.
+    #[serde(rename = "authorization_code")]
+    AuthorizationCode,
+    /// Headless OAuth flow where a confidential client authenticates directly with a client secret.
+    #[serde(rename = "client_credentials")]
+    ClientCredentials,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Why a passive MCP OAuth probe determined authentication is needed.
 ///
 /// <div class="warning">
@@ -7384,43 +7055,6 @@ pub enum McpServerConfigHttpOauthGrantType {
     #[default]
     #[serde(other)]
     Unknown,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum McpOauthTestConnectionResultConnectedStatus {
-    #[serde(rename = "connected")]
-    #[default]
-    Connected,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum McpOauthTestConnectionResultNeedsAuthStatus {
-    #[serde(rename = "needs-auth")]
-    #[default]
-    NeedsAuth,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum McpOauthTestConnectionResultFailedStatus {
-    #[serde(rename = "failed")]
-    #[default]
-    Failed,
-}
-
-/// Outcome of the tokenless handshake, with the original challenge when available.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub(crate) enum McpOauthTestConnectionResult {
-    Connected(McpOauthTestConnectionResultConnected),
-    NeedsAuth(McpOauthTestConnectionResultNeedsAuth),
-    Failed(McpOauthTestConnectionResultFailed),
 }
 
 /// Discriminator: a plan was computed and nothing was changed
@@ -7601,25 +7235,6 @@ pub enum McpServerConfigHttpType {
     /// Server-Sent Events transport.
     #[serde(rename = "sse")]
     Sse,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-/// Local transport for a session-owned IDE endpoint.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum McpServerConfigLocalType {
-    /// Existing Unix socket or Windows named pipe.
-    #[serde(rename = "local-http")]
-    LocalHttp,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

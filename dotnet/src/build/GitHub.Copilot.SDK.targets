@@ -1,8 +1,7 @@
 <Project>
   <!-- These targets run in consuming projects when they build -->
-  <!-- CopilotCliVersion is imported from the props file generated at SDK build time and packaged alongside.
-       Both are packed as build/<PackageId>.*, so the props shares this file's basename. -->
-  <Import Project="$(MSBuildThisFileDirectory)$(MSBuildThisFileName).props" Condition="'$(CopilotCliVersion)' == '' And Exists('$(MSBuildThisFileDirectory)$(MSBuildThisFileName).props')" />
+  <!-- CopilotCliVersion is imported from GitHub.Copilot.SDK.props (generated at SDK build time, packaged alongside) -->
+  <Import Project="$(MSBuildThisFileDirectory)GitHub.Copilot.SDK.props" Condition="'$(CopilotCliVersion)' == '' And Exists('$(MSBuildThisFileDirectory)GitHub.Copilot.SDK.props')" />
 
   <!-- Resolve portable RID from explicit RuntimeIdentifier or build host -->
   <PropertyGroup>
@@ -89,7 +88,7 @@
        Skipped when CopilotCliBinaryPath is set (consumer supplied the binary)
        or when CopilotSkipCliDownload=true (consumer opted out entirely). -->
   <Target Name="_DownloadCopilotCli" DependsOnTargets="$(_CopilotCliVersionTarget)" BeforeTargets="BeforeBuild" Condition="'$(TargetFramework)' != '' And '$(CopilotCliBinaryPath)' == '' And '$(CopilotSkipCliDownload)' != 'true' And '$(_CopilotPlatform)' != ''">
-    <Error Condition="'$(CopilotCliVersion)' == ''" Text="CopilotCliVersion is not set. The $(MSBuildThisFileName).props file may be missing from the NuGet package." />
+    <Error Condition="'$(CopilotCliVersion)' == ''" Text="CopilotCliVersion is not set. The GitHub.Copilot.SDK.props file may be missing from the NuGet package." />
 
     <!-- Compute paths using version (now available) -->
     <PropertyGroup>
@@ -164,9 +163,6 @@
     <Error Condition="!Exists('$(_CopilotRuntimeNodePath)')" Text="Copilot runtime wrapper at '$(_CopilotCliBinaryPath)' is missing its adjacent runtime.node at '$(_CopilotRuntimeNodePath)'." />
     <WriteLinesToFile File="$(_CopilotRuntimeBundleCompleteMarker)" Lines="$(CopilotCliVersion)" Overwrite="true"
                       Condition="'$(_CopilotRuntimeBundleMissing)' == 'true'" />
-    <!-- The extracted bundle and its completion marker are the cache; an incomplete
-         cache is removed and downloaded again, so the archive is never read after this. -->
-    <Delete Files="$(_CopilotArchivePath)" />
   </Target>
 
   <!-- Copy the compatibility CLI entrypoint to output and register it for transitive

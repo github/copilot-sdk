@@ -13,9 +13,7 @@ import com.github.copilot.generated.rpc.HostStartResult;
 import com.github.copilot.generated.rpc.HostSetSessionCreationPolicyParams;
 import com.github.copilot.generated.rpc.HostUnpublishSessionParams;
 import com.github.copilot.generated.rpc.HostUnpublishSessionResult;
-import com.github.copilot.generated.rpc.RpcCaller;
 import com.github.copilot.generated.rpc.ServerHostApi;
-import java.util.LinkedHashMap;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -27,12 +25,10 @@ import java.util.concurrent.CompletableFuture;
 public final class AhpHost implements AutoCloseable {
     private final HostStartResult info;
     private final ServerHostApi rpc;
-    private final RpcCaller rpcCaller;
 
-    AhpHost(HostStartResult info, ServerHostApi rpc, RpcCaller rpcCaller) {
+    AhpHost(HostStartResult info, ServerHostApi rpc) {
         this.info = info;
         this.rpc = rpc;
-        this.rpcCaller = rpcCaller;
     }
 
     /**
@@ -88,7 +84,7 @@ public final class AhpHost implements AutoCloseable {
      * @return completion of listener cleanup
      */
     public CompletableFuture<Void> dispose() {
-        return rpc.dispose(HostDisposeParams.builder().hostId(info.hostId()).build());
+        return rpc.dispose(new HostDisposeParams(info.hostId()));
     }
 
     /**
@@ -100,16 +96,7 @@ public final class AhpHost implements AutoCloseable {
      * @return the published AHP session identity
      */
     public CompletableFuture<HostPublishSessionResult> publishSession(String sessionId) {
-        if (sessionId == null) {
-            // The generated builder rejects null, but the established wire contract
-            // sends the request with the absent property and reports runtime validation
-            // through the returned future.
-            var params = new LinkedHashMap<String, Object>();
-            params.put("hostId", info.hostId());
-            return rpcCaller.invoke("host.publishSession", params, HostPublishSessionResult.class);
-        }
-        return rpc
-                .publishSession(HostPublishSessionParams.builder().hostId(info.hostId()).sessionId(sessionId).build());
+        return rpc.publishSession(new HostPublishSessionParams(info.hostId(), sessionId));
     }
 
     /**
@@ -122,14 +109,7 @@ public final class AhpHost implements AutoCloseable {
      * @return whether a publication was removed; false when already absent
      */
     public CompletableFuture<HostUnpublishSessionResult> unpublishSession(String sessionId) {
-        if (sessionId == null) {
-            // Preserve the pre-builder omitted sessionId payload.
-            var params = new LinkedHashMap<String, Object>();
-            params.put("hostId", info.hostId());
-            return rpcCaller.invoke("host.unpublishSession", params, HostUnpublishSessionResult.class);
-        }
-        return rpc.unpublishSession(
-                HostUnpublishSessionParams.builder().hostId(info.hostId()).sessionId(sessionId).build());
+        return rpc.unpublishSession(new HostUnpublishSessionParams(info.hostId(), sessionId));
     }
 
     /**
@@ -138,7 +118,7 @@ public final class AhpHost implements AutoCloseable {
      * @return the advertised host sessions
      */
     public CompletableFuture<HostListSessionsResult> listSessions() {
-        return rpc.listSessions(HostListSessionsParams.builder().hostId(info.hostId()).build());
+        return rpc.listSessions(new HostListSessionsParams(info.hostId()));
     }
 
     /**
@@ -150,8 +130,7 @@ public final class AhpHost implements AutoCloseable {
      * @return acknowledgement that the policy was applied
      */
     public CompletableFuture<Void> setAllowCreatingNewSessions(boolean allowed) {
-        return rpc.setSessionCreationPolicy(HostSetSessionCreationPolicyParams.builder().hostId(info.hostId())
-                .allowCreatingNewSessions(allowed).build());
+        return rpc.setSessionCreationPolicy(new HostSetSessionCreationPolicyParams(info.hostId(), allowed));
     }
 
     /** Disposes the listener and waits for acknowledged cleanup. */

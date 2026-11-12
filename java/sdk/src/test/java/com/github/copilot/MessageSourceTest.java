@@ -54,8 +54,7 @@ class MessageSourceTest {
                 Arguments.of(MessageSource.agent("Reviewer-7"), "agent-Reviewer-7"),
                 Arguments.of(MessageSource.agent("agent-Worker"), "agent-agent-Worker"),
                 Arguments.of(MessageSource.agent(" Team/α "), "agent- Team/α "),
-                Arguments.of(MessageSource.agent(""), "agent-"),
-                Arguments.of(MessageSource.automation("merge-check"), "automation-merge-check"));
+                Arguments.of(MessageSource.agent(""), "agent-"));
     }
 
     static Stream<Arguments> sourcesAndModes() {
@@ -98,7 +97,6 @@ class MessageSourceTest {
         assertThrows(IllegalArgumentException.class, () -> MessageSource.fromValue("USER"));
         assertThrows(IOException.class, () -> MAPPER.readValue("\"unknown\"", MessageSource.class));
         assertThrows(NullPointerException.class, () -> MessageSource.agent(null));
-        assertThrows(NullPointerException.class, () -> MessageSource.automation(null));
     }
 
     @ParameterizedTest
@@ -163,8 +161,7 @@ class MessageSourceTest {
         assertEquals(source, copy.getSource());
         assertEquals(MAPPER.<JsonNode>valueToTree(options), MAPPER.<JsonNode>valueToTree(copy));
         copy.setSource(null).setPrompt("changed").setAttachments(List.of()).setMode("enqueue")
-                .setAgentMode(AgentMode.INTERACTIVE).setRequestHeaders(Map.of()).setDisplayPrompt("changed")
-                .setClientTurnId("changed");
+                .setAgentMode(AgentMode.INTERACTIVE).setRequestHeaders(Map.of()).setDisplayPrompt("changed");
         assertEquals(source, options.getSource());
         assertEquals(MAPPER.<JsonNode>valueToTree(fullOptions().setSource(source)),
                 MAPPER.<JsonNode>valueToTree(options));
@@ -194,7 +191,7 @@ class MessageSourceTest {
 
             var expected = MAPPER.createObjectNode().put("sessionId", "source-session").put("prompt", "hello")
                     .put("mode", mode).put("agentMode", "plan").put("displayPrompt", "display")
-                    .put("clientTurnId", "host-turn-1").put("source", source.getValue());
+                    .put("source", source.getValue());
             expected.set("attachments", MAPPER.valueToTree(options.getAttachments()));
             expected.set("requestHeaders", MAPPER.valueToTree(Map.of("X-Trace", "trace-id")));
             assertEquals(expected, server.takeSendParams());
@@ -262,8 +259,7 @@ class MessageSourceTest {
     private static MessageOptions fullOptions() {
         return new MessageOptions().setPrompt("hello").setMode("immediate").setAgentMode(AgentMode.PLAN)
                 .setAttachments(List.of(new Attachment("file", "/workspace/example.java", "example")))
-                .setRequestHeaders(Map.of("X-Trace", "trace-id")).setDisplayPrompt("display")
-                .setClientTurnId("host-turn-1");
+                .setRequestHeaders(Map.of("X-Trace", "trace-id")).setDisplayPrompt("display");
     }
 
     private static SessionConfig sessionConfig() {

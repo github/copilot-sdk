@@ -104,14 +104,14 @@ alias(
 )
 
 alias(
-    name = "flate2-1.1.11",
-    actual = "@sdk_vendor__flate2-1.1.11//:flate2",
+    name = "flate2-1.1.10",
+    actual = "@sdk_vendor__flate2-1.1.10//:flate2",
     tags = ["manual"],
 )
 
 alias(
     name = "flate2",
-    actual = "@sdk_vendor__flate2-1.1.11//:flate2",
+    actual = "@sdk_vendor__flate2-1.1.10//:flate2",
     tags = ["manual"],
 )
 
@@ -200,26 +200,26 @@ alias(
 )
 
 alias(
-    name = "openssl-0.10.82",
-    actual = "@sdk_vendor__openssl-0.10.82//:openssl",
+    name = "openssl-0.10.81",
+    actual = "@sdk_vendor__openssl-0.10.81//:openssl",
     tags = ["manual"],
 )
 
 alias(
     name = "openssl",
-    actual = "@sdk_vendor__openssl-0.10.82//:openssl",
+    actual = "@sdk_vendor__openssl-0.10.81//:openssl",
     tags = ["manual"],
 )
 
 alias(
-    name = "openssl-sys-0.9.118",
-    actual = "@sdk_vendor__openssl-sys-0.9.118//:openssl_sys",
+    name = "openssl-sys-0.9.117",
+    actual = "@sdk_vendor__openssl-sys-0.9.117//:openssl_sys",
     tags = ["manual"],
 )
 
 alias(
     name = "openssl-sys",
-    actual = "@sdk_vendor__openssl-sys-0.9.118//:openssl_sys",
+    actual = "@sdk_vendor__openssl-sys-0.9.117//:openssl_sys",
     tags = ["manual"],
 )
 
@@ -284,14 +284,14 @@ alias(
 )
 
 alias(
-    name = "rusqlite-0.42.0",
-    actual = "@sdk_vendor__rusqlite-0.42.0//:rusqlite",
+    name = "rusqlite-0.41.1",
+    actual = "@sdk_vendor__rusqlite-0.41.1//:rusqlite",
     tags = ["manual"],
 )
 
 alias(
     name = "rusqlite",
-    actual = "@sdk_vendor__rusqlite-0.42.0//:rusqlite",
+    actual = "@sdk_vendor__rusqlite-0.41.1//:rusqlite",
     tags = ["manual"],
 )
 
@@ -488,14 +488,14 @@ alias(
 )
 
 alias(
-    name = "uuid-1.29.1",
-    actual = "@sdk_vendor__uuid-1.29.1//:uuid",
+    name = "uuid-1.29.0",
+    actual = "@sdk_vendor__uuid-1.29.0//:uuid",
     tags = ["manual"],
 )
 
 alias(
     name = "uuid",
-    actual = "@sdk_vendor__uuid-1.29.1//:uuid",
+    actual = "@sdk_vendor__uuid-1.29.0//:uuid",
     tags = ["manual"],
 )
 
@@ -512,13 +512,13 @@ alias(
 )
 
 alias(
-    name = "zip-9.4.2",
-    actual = "@sdk_vendor__zip-9.4.2//:zip",
+    name = "zip-9.2.2",
+    actual = "@sdk_vendor__zip-9.2.2//:zip",
     tags = ["manual"],
 )
 
 alias(
     name = "zip",
-    actual = "@sdk_vendor__zip-9.4.2//:zip",
+    actual = "@sdk_vendor__zip-9.2.2//:zip",
     tags = ["manual"],
 )

@@ -534,14 +534,14 @@ async fn services_http_and_websocket_via_handler() {
                 ws_authority,
                 counters: counters.clone(),
             };
-            let client = ctx.start_llm_client(handler).await;
-            let session = client
-                .create_session(
-                    ctx.approve_all_session_config().with_capi(
-                        github_copilot_sdk::CapiSessionOptions::new()
-                            .with_enable_web_socket_responses(true),
-                    ),
+            let client = ctx
+                .start_llm_client(
+                    handler,
+                    &[("COPILOT_EXP_COPILOT_CLI_WEBSOCKET_RESPONSES", "true")],
                 )
+                .await;
+            let session = client
+                .create_session(ctx.approve_all_session_config())
                 .await
                 .expect("create session");
 
@@ -652,7 +652,7 @@ async fn preserves_message_source_through_runtime_delivery() {
     with_e2e_context_no_snapshot(|ctx| {
         Box::pin(async move {
             let handler = Arc::new(RecordingHandler::default());
-            let client = ctx.start_llm_client(handler.clone()).await;
+            let client = ctx.start_llm_client(handler.clone(), &[]).await;
 
             for typed_rpc in [false, true] {
                 for immediate in [false, true] {
@@ -734,7 +734,7 @@ async fn threads_session_id_into_inference() {
         Box::pin(async move {
             ctx.set_default_copilot_user();
             let handler = Arc::new(RecordingHandler::default());
-            let client = ctx.start_llm_client(handler.clone()).await;
+            let client = ctx.start_llm_client(handler.clone(), &[]).await;
 
             // CAPI session.
             let capi_session = client
@@ -881,7 +881,7 @@ async fn surfaces_handler_errors() {
         Box::pin(async move {
             ctx.set_default_copilot_user();
             let handler = Arc::new(ThrowingHandler::default());
-            let client = ctx.start_llm_client(handler.clone()).await;
+            let client = ctx.start_llm_client(handler.clone(), &[]).await;
             let session = client
                 .create_session(ctx.approve_all_session_config())
                 .await
@@ -954,7 +954,7 @@ async fn observes_runtime_driven_cancel() {
         Box::pin(async move {
             ctx.set_default_copilot_user();
             let handler = Arc::new(CancellingHandler::default());
-            let client = ctx.start_llm_client(handler.clone()).await;
+            let client = ctx.start_llm_client(handler.clone(), &[]).await;
             let session = client
                 .create_session(ctx.approve_all_session_config())
                 .await
@@ -1009,7 +1009,7 @@ async fn withdrawn_running_turn_prompt_leaves_persisted_history() {
         Box::pin(async move {
             ctx.set_default_copilot_user();
             let handler = Arc::new(CancellingHandler::default());
-            let client = ctx.start_llm_client(handler.clone()).await;
+            let client = ctx.start_llm_client(handler.clone(), &[]).await;
             let session = client
                 .create_session(ctx.approve_all_session_config())
                 .await

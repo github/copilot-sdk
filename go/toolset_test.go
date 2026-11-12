@@ -146,23 +146,20 @@ func TestValidateToolFilterList_allowsSourceQualifiedWildcards(t *testing.T) {
 
 func TestResolveToolFilterOptions_emptyModeRequiresAvailableTools(t *testing.T) {
 	c := NewClient(&ClientOptions{Mode: ModeEmpty, BaseDirectory: t.TempDir()})
-	_, _, err := c.resolveToolFilterOptions(nil, nil)
+	_, _, _, err := c.resolveToolFilterOptions(nil, nil)
 	if err == nil {
 		t.Fatal("expected error in empty mode without available tools")
 	}
 }
 
-func TestResolveToolFilterOptions_preservesBothLists(t *testing.T) {
+func TestResolveToolFilterOptions_setsExcludedPrecedence(t *testing.T) {
 	c := NewClient(&ClientOptions{Mode: ModeCopilotCli})
-	avail, excl, err := c.resolveToolFilterOptions([]string{"builtin:*"}, []string{"builtin:bash"})
+	_, _, precedence, err := c.resolveToolFilterOptions(nil, []string{"builtin:bash"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !reflect.DeepEqual(avail, []string{"builtin:*"}) {
-		t.Errorf("expected availableTools [builtin:*], got %v", avail)
-	}
-	if len(excl) != 1 || excl[0] != "builtin:bash" {
-		t.Errorf("expected excludedTools [builtin:bash], got %v", excl)
+	if precedence == nil || *precedence != "excluded" {
+		t.Errorf("expected precedence 'excluded', got %v", precedence)
 	}
 }
 

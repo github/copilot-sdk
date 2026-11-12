@@ -670,7 +670,7 @@ unsubscribeIdle();
 ```python
 from copilot import CopilotClient
 from copilot.session import PermissionDecisionApproveOnce
-from copilot.session_events import AssistantMessageData, SessionEventType
+from copilot.session_events import AssistantMessageData, SessionEvent, SessionEventType
 
 client = CopilotClient()
 
@@ -680,7 +680,7 @@ session = await client.create_session(on_permission_request=lambda req, inv: Per
 unsubscribe = session.on(lambda event: print(f"Event: {event.type}"))
 
 # Filter by event type in your handler
-def handle_event(event):
+def handle_event(event: SessionEvent) -> None:
     if event.type == SessionEventType.SESSION_IDLE:
         print("Session is idle")
     elif isinstance(event.data, AssistantMessageData):
@@ -802,6 +802,38 @@ tokio::spawn(async move {
 
 <details>
 <summary><strong>.NET</strong></summary>
+
+<!-- docs-validate: hidden -->
+```csharp
+using GitHub.Copilot;
+
+public static class EventSubscriptionExample
+{
+    public static void Example(CopilotSession session)
+    {
+        // Subscribe to all events
+        var unsubscribe = session.On<SessionEvent>(ev => Console.WriteLine($"Event: {ev.Type}"));
+
+        // Filter by event type using pattern matching
+        session.On<SessionEvent>(ev =>
+        {
+            switch (ev)
+            {
+                case SessionIdleEvent:
+                    Console.WriteLine("Session is idle");
+                    break;
+                case AssistantMessageEvent msg:
+                    Console.WriteLine($"Message: {msg.Data.Content}");
+                    break;
+            }
+        });
+
+        // Later, to unsubscribe:
+        unsubscribe.Dispose();
+    }
+}
+```
+<!-- /docs-validate: hidden -->
 
 ```csharp
 // Subscribe to all events
@@ -1322,7 +1354,7 @@ const getWeather = defineTool("get_weather", {
         },
         required: ["city"],
     },
-    handler: async ({ city }: { city: string }) => {
+    handler: async ({ city }) => {
         const conditions = ["sunny", "cloudy", "rainy", "partly cloudy"];
         const temp = Math.floor(Math.random() * 30) + 50;
         const condition = conditions[Math.floor(Math.random() * conditions.length)];
@@ -1965,18 +1997,15 @@ copilot --headless --port 4321
 
 If you don't specify a port, the CLI will choose a random available port.
 
-By default the headless server only accepts connections from loopback (`127.0.0.1`), so the SDK must run on the same machine. To accept connections from other hosts (for example when running the CLI in a container or on a separate server), bind to a non-loopback address with `--host`. A non-loopback bind requires a connection token, or the server refuses to start:
+By default the headless server only accepts connections from loopback (`127.0.0.1`), so the SDK must run on the same machine. To accept connections from other hosts (for example when running the CLI in a container or on a separate server), bind to a non-loopback address with `--host`:
 
 ```bash
-# Listen on all interfaces; set a shared secret the clients will send
-export COPILOT_CONNECTION_TOKEN="$(openssl rand -hex 32)"
+# Listen on all interfaces
 copilot --headless --host 0.0.0.0 --port 4321
 ```
 
 > [!WARNING]
-> Exposing the headless server on a non-loopback address makes it reachable by anyone who can route to that address. The server requires `COPILOT_CONNECTION_TOKEN` to be set to a non-empty value for a non-loopback bind, and clients must send the same value as `connectionToken`; still pair it with network controls (firewall, private network, reverse proxy) appropriate for your environment.
-
-The connection carries plaintext JSON-RPC over TCP, not HTTP or TLS. Node.js, Python, Go, .NET, and Java reject `https://`; `http://` is an address alias. Connection tokens do not encrypt traffic, so confidentiality requires an encrypted tunnel or equivalent application-managed protection.
+> Exposing the headless server on a non-loopback address makes it reachable by anyone who can route to that address. Pair it with network controls (firewall, private network, reverse proxy) and authentication appropriate for your environment.
 
 ### Connecting the SDK to the external server
 
@@ -2024,19 +2053,19 @@ session = await client.create_session(on_permission_request=PermissionHandler.ap
 ```go
 package main
 
-import copilot "github.com/github/copilot-sdk/go"
-
 import (
 	"context"
 	"log"
+
+	copilot "github.com/github/copilot-sdk/go"
 )
 
 func main() {
 	ctx := context.Background()
 
-	client := copilot.NewClient(&copilot.ClientOptions{
-		Connection: copilot.URIConnection{URL: "localhost:4321"},
-	})
+    client := copilot.NewClient(&copilot.ClientOptions{
+        Connection: copilot.URIConnection{URL: "localhost:4321"},
+    })
 
 	if err := client.Start(ctx); err != nil {
 		log.Fatal(err)
@@ -2044,10 +2073,9 @@ func main() {
 	defer client.Stop()
 
 	// Use the client normally
-	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
+	_, _ = client.CreateSession(ctx, &copilot.SessionConfig{
 		OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 	})
-	_, _ = session, err
 }
 ```
 <!-- /docs-validate: hidden -->
@@ -2155,6 +2183,18 @@ Pass a `telemetry` (or `Telemetry`) config when creating the client. This is the
 <summary><strong>Node.js / TypeScript</strong></summary>
 
 <!-- docs-validate: strict -->
+<!-- docs-validate: hidden -->
+```typescript
+import { CopilotClient as SdkClient } from "@github/copilot-sdk";
+
+new SdkClient({
+  telemetry: {
+    otlpEndpoint: "http://localhost:4318",
+  },
+});
+```
+<!-- /docs-validate: hidden -->
+
 ```typescript
 import { CopilotClient } from "@github/copilot-sdk";
 
@@ -2223,6 +2263,7 @@ Dependency: `go.opentelemetry.io/otel`
 <details>
 <summary><strong>Rust</strong></summary>
 
+<!-- docs-validate: skip -->
 ```rust
 use github_copilot_sdk::{Client, ClientOptions, OtelExporterType, TelemetryConfig};
 
@@ -2290,9 +2331,20 @@ The OTLP protocol field configures the CLI's `"otlp-http"` exporter for all sign
 To write traces to a local file instead of an OTLP endpoint:
 
 <!-- docs-validate: strict -->
+<!-- docs-validate: hidden -->
 ```typescript
-import { CopilotClient } from "@github/copilot-sdk";
+import { CopilotClient as SdkClient } from "@github/copilot-sdk";
 
+new SdkClient({
+  telemetry: {
+    filePath: "./traces.jsonl",
+    exporterType: "file",
+  },
+});
+```
+<!-- /docs-validate: hidden -->
+
+```typescript
 const client = new CopilotClient({
   telemetry: {
     filePath: "./traces.jsonl",

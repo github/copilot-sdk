@@ -12,32 +12,10 @@ namespace GitHub.Copilot.Test.E2E;
 public class ScenarioTestingPersistenceE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     : ScenarioTestingE2ETestBase(fixture, "scenario_testing_persistence", output)
 {
-    private sealed class MessagesBackendFactAttribute : FactAttribute
+    [Fact]
+    public async Task Should_Retry_From_Existing_History_With_Empty_SendMessages()
     {
-        public MessagesBackendFactAttribute()
-        {
-            if (E2ETestBackendConfiguration.Current is E2ETestBackend.OpenAIResponses or E2ETestBackend.OpenAICompletions)
-                Skip = "Assistant prefill is rejected only by the Anthropic Messages API";
-        }
-    }
-
-    // The Messages API rejects a request that ends in an assistant message, so an
-    // empty batch after the final reply must end without a model request.
-    // OpenAI BYOK backends accept a trailing assistant message, so this is
-    // pinned to the Messages endpoint (CAPI and the Anthropic backend). A fresh
-    // replay endpoint isolates the process-wide model catalog so this snapshot's
-    // /v1/messages endpoint controls routing.
-    [MessagesBackendFact]
-    public async Task Should_Not_Prefill_Claude_When_Empty_SendMessages_Follows_The_Final_Reply()
-    {
-        await using var context = await E2ETestContext.CreateAsync();
-        await context.ConfigureForTestAsync("scenario_testing_persistence", replayOnly: true);
-        await using var client = context.CreateClient();
-        await using var session = await context.CreateSessionAsync(client, new SessionConfig
-        {
-            Model = "claude-sonnet-5",
-            OnPermissionRequest = PermissionHandler.ApproveAll,
-        });
+        await using var session = await CreateSessionAsync();
         var initial = await session.SendAndWaitAsync(new MessageOptions
         {
             Prompt = "Reply with exactly EMPTY_BATCH_CONTEXT_READY.",
@@ -51,10 +29,9 @@ public class ScenarioTestingPersistenceE2ETests(E2ETestFixture fixture, ITestOut
         Assert.Single(
             events.OfType<UserMessageEvent>(),
             evt => evt.Data.Content == "Reply with exactly EMPTY_BATCH_CONTEXT_READY.");
-        Assert.Empty(events.OfType<SessionErrorEvent>());
-        Assert.Equal(
-            ["EMPTY_BATCH_CONTEXT_READY"],
-            events.OfType<AssistantMessageEvent>().Select(evt => evt.Data.Content ?? string.Empty));
+        Assert.Contains(
+            events.OfType<AssistantMessageEvent>(),
+            evt => (evt.Data.Content ?? string.Empty).Contains("EMPTY_BATCH_RETRY_DONE", StringComparison.Ordinal));
     }
 
     [Fact]

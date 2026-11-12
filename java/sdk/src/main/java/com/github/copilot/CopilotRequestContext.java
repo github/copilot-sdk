@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
-import org.jspecify.annotations.Nullable;
+import edu.umd.cs.findbugs.annotations.Nullable;
 
 /**
  * The per-request context handed to every {@link CopilotRequestHandler} hook.

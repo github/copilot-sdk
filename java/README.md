@@ -32,25 +32,20 @@ runtime.
 
 Stable releases are available from Maven Central. Preview versions use Maven `-SNAPSHOT` coordinates and the repository shown in [Snapshot builds](#snapshot-builds).
 
-The SDK starts the Copilot runtime from a separate JAR for each platform, which `copilot-sdk-java` does not pull in.
-Add `com.github:copilot-sdk-java-runtime` at the same version as the SDK, with the classifier for the platform the application runs on: `linux-x64`, `linux-arm64`, `linuxmusl-x64`, `linuxmusl-arm64`, `darwin-x64`, `darwin-arm64`, `win32-x64` or `win32-arm64`.
-In Gradle that is `implementation 'com.github:copilot-sdk-java-runtime:<version>:<classifier>'`; the Maven form is shown under [Additional dependency](#additional-dependency).
-Without it, `CopilotClient.start()` fails with a `FileNotFoundException` unless `cliPath` or `COPILOT_CLI_PATH` names a Copilot CLI to launch instead.
-
 ### Maven
 
 ```xml
 <dependency>
     <groupId>com.github</groupId>
     <artifactId>copilot-sdk-java</artifactId>
-    <version>1.0.28</version>
+    <version>1.0.15</version>
 </dependency>
 ```
 
 ### Gradle
 
 ```groovy
-implementation 'com.github:copilot-sdk-java:1.0.28'
+implementation 'com.github:copilot-sdk-java:1.0.15'
 ```
 
 ### Snapshot builds
@@ -72,7 +67,7 @@ Java previews are published three times per weekday, at 10:00, 13:00, and 15:00 
 <dependency>
     <groupId>com.github</groupId>
     <artifactId>copilot-sdk-java</artifactId>
-    <version>1.0.29-SNAPSHOT</version>
+    <version>1.0.15-SNAPSHOT</version>
 </dependency>
 ```
 
@@ -91,7 +86,7 @@ repositories {
 Then add the snapshot dependency:
 
 ```groovy
-implementation 'com.github:copilot-sdk-java:1.0.29-SNAPSHOT'
+implementation 'com.github:copilot-sdk-java:1.0.15-SNAPSHOT'
 ```
 
 ## In-process mode (experimental)
@@ -106,7 +101,7 @@ Add both the SDK and the platform-specific native runtime to your project:
 
 ```xml
 <dependencies>
-    <!-- Pure-Java SDK -->
+    <!-- Pure-Java SDK (~1.5 MB) -->
     <dependency>
         <groupId>com.github</groupId>
         <artifactId>copilot-sdk-java</artifactId>
@@ -156,7 +151,7 @@ environment before starting the runtime instead.
 ## Quick Start
 
 For experimental in-process AHP hosting, select a transport explicitly:
-`client.startAhpHost(new AhpHostOptions().setAuthentication(AhpHostAuthentication.github()).setLocalServer(HostLocalServerOptions.builder().build()))`.
+`client.startAhpHost(new AhpHostOptions().setAuthentication(AhpHostAuthentication.github()).setLocalServer(new HostLocalServerOptions(null, null, null, null)))`.
 Admission is explicit in every client mode: select `github()`, `none()`, or
 `custom("stable-owner", request -> CompletableFuture.completedFuture(new AhpAuthenticationResult("stable-owner", "2099-01-01T00:00:00Z")))`.
 Custom validators receive the decrypted admission token and a cancellation
@@ -168,7 +163,7 @@ Mission Control requires `github()`. Create/resume callbacks receive trusted
 `request.authentication()` separately from `request.config()`; custom tokens
 never become GitHub or model-provider credentials.
 The transport types are in `com.github.copilot.generated.rpc`. For GitHub Mission
-Control, use `.setGithubEnvironment(HostGitHubEnvironmentOptions.builder().name("My host").computeId("compute-id").build())`
+Control, use `.setGithubEnvironment(new HostGitHubEnvironmentOptions("My host", "compute-id"))`
 instead, or configure both transports. GitHub environment name and compute ID are
 required; there is no implicit local listener. The host's `getUrl()`, `getToken()`,
 and `getPid()` may return `null`; `getEnvironmentId()` returns the GitHub environment
@@ -318,96 +313,48 @@ spawned UI work should observe this signal and retire itself when it completes.
 Dropping an outbound installation or OAuth future does not cancel that
 operation.
 
-### Network callbacks (experimental)
+### Kerberos authentication callback
 
-Use `CopilotClientOptions.setNetwork(NetworkConfig)` when the SDK host should
-take over parts of the runtime's networking, for example when the runtime runs
-in WSL or a container and should use VS Code's proxy settings, the host's
-Kerberos tickets and the host's proxy credentials. Registration happens during
-`start()`, before sessions can be created, and startup fails if it is rejected.
-Without this option, or for a callback you leave unset, the runtime handles
-that part itself. Referencing `NetworkConfig` requires opting in to
-[experimental APIs](#using-experimental-apis).
-
-- `setResolveProxy(...)` decides the proxies for every request the runtime would
-  otherwise route by ambient proxy settings: proxy environment variables,
-  `NO_PROXY` and operating-system proxy settings are not consulted unless it
-  answers `null`. The callback receives the generated
-  `NetworkResolveProxyRequest`, whose `url()` is the request target as a PAC
-  script sees it: without credentials or fragment, and for `https` and `wss`
-  also without path and query. Return a `CompletableFuture<String>` with a
-  PAC-style list such as `PROXY proxy.example:8080; HTTPS proxy.example:443; DIRECT`
-  (the format of Electron's `session.resolveProxy`); answer `DIRECT` for a
-  direct connection, or `null` to let the runtime resolve the proxy itself, as
-  if no callback were registered. Entry types the runtime doesn't support, such
-  as SOCKS and QUIC, are skipped. If the callback
-  fails, the request fails rather than connecting directly. Requests to loopback
-  targets, and requests with an explicitly configured proxy, never consult it.
-  The runtime caches answers, including `null`, for 5 seconds and waits at most
-  10 seconds for the callback.
-- `setAuthenticateNegotiate(...)` supplies the Kerberos token for a proxy's
-  Negotiate challenge instead of the runtime's native credential lookup. The
-  callback receives the generated `NetworkAuthenticateNegotiateRequest`, whose
-  `spn()` is a service principal in the platform-independent
-  `service/host[@REALM]` form; validate it before issuing credentials. Return a
-  `CompletableFuture<String>` with a fresh base64 SPNEGO token without the
-  `Negotiate ` prefix, or `null` when credentials are unavailable, which fails
-  the request unless the proxy also offers Basic and `setAuthenticateBasic(...)`
-  supplies credentials. The runtime waits at most 30 seconds for the callback
-  (less when the request's own deadline is sooner). Tokens are not cached and
-  must not be logged or persisted. The callback supplies the initial SPNEGO
-  token only; exchanges requiring continuation tokens are not supported.
-  Proxies chosen by `setResolveProxy(...)` are authenticated the same way.
-- `setAuthenticateBasic(...)` supplies credentials for a proxy's Basic
-  challenge on requests the runtime tunnels through the proxy (`https` and
-  `wss`). The callback receives the generated
-  `NetworkAuthenticateBasicRequest`, whose `proxy()` is `http://host:port` or
-  `https://host:port`, whose `realm()`, if any, comes from the proxy and is
-  untrusted text, and whose `previousRejected()` is true when the proxy rejected
-  the credentials the connection sent last. Return a
-  `CompletableFuture<NetworkAuthenticateBasicResult>` that completes with the
-  user name and password, or with `null` (for example
-  `CompletableFuture.completedFuture(null)`) or an empty user name when
-  credentials are unavailable, which fails the request with the proxy's
-  challenge; returning a `null` future instead is a callback error. The user
-  name must not contain a colon, neither the user name nor the password may
-  contain control characters, and a `null` password means an empty one. The
-  runtime remembers the answer for that proxy and uses it for later
-  connections, until the proxy rejects it; then it calls again with
-  `previousRejected()` set, so complete with different credentials, for example
-  by asking the user, or with `null`. A later
-  connection sends the answer without waiting for a challenge, unless the
-  runtime may try Negotiate with that proxy first. A connection submits at most
-  three sets of credentials. While a call is pending, other requests through
-  that proxy wait for its answer. When a proxy offers both Negotiate and Basic,
-  the runtime prefers Negotiate and answers with Basic when Negotiate is
-  unavailable or the proxy rejects it. The runtime does not time the callback
-  out: a request whose own deadline passes stops waiting, but the answer is
-  still remembered.
-  Never log or persist credentials.
-
-The callbacks run on the client executor; if the executor rejects one, the
-request fails. When the runtime stops waiting (it cancels the request, for
-example after its timeout, or the connection closes), a queued invocation is
-skipped, the returned future is cancelled, and any later result is ignored.
-
-By default the callbacks serve only requests made for sessions this client
-creates or resumes. With `setScope(NetworkScope.RUNTIME)` they also serve the
-runtime's shared background traffic, such as catalog refreshes and telemetry;
-only one connection at a time can hold that scope, so startup fails if another
-client holds it. The registration ends when the connection closes.
+Use `CopilotClientOptions.setKerberosAuth(new KerberosAuthConfig(mode, callback))`
+when Kerberos tickets must be obtained by the SDK host, for example from Windows
+when the runtime runs in WSL. The runtime currently uses it for proxy
+authentication. The callback receives the generated `KerberosAuthAcquireRequest`,
+whose `spn()` is a service principal in the platform-independent
+`service/host[@REALM]` form, and returns a `CompletableFuture<String>` with a
+fresh base64 SPNEGO token without the `Negotiate ` prefix, or `null` when
+credentials are unavailable. The callback should validate the principal before
+issuing credentials.
 
 ```java
-import com.github.copilot.generated.rpc.NetworkScope;
+import com.github.copilot.generated.rpc.KerberosAuthMode;
 import com.github.copilot.rpc.CopilotClientOptions;
-import com.github.copilot.rpc.NetworkConfig;
+import com.github.copilot.rpc.KerberosAuthConfig;
 
-var options = new CopilotClientOptions().setNetwork(new NetworkConfig()
-        .setScope(NetworkScope.RUNTIME)
-        .setResolveProxy(request -> resolveProxyFor(request.url()))
-        .setAuthenticateNegotiate(request -> acquireSpnegoToken(request.spn()))
-        .setAuthenticateBasic(request -> lookUpProxyCredentials(request.proxy())));
+var options = new CopilotClientOptions().setKerberosAuth(new KerberosAuthConfig(KerberosAuthMode.FALLBACK,
+        request -> acquireSpnegoToken(request.spn())));
 ```
+
+With `KerberosAuthMode.FALLBACK`, native credential acquisition (including the
+first token) is tried first; only failure invokes the callback. With
+`KerberosAuthMode.ALWAYS`, native credential lookup is never attempted. Without
+this option, behavior is unchanged. Registration happens during `start()`,
+before sessions can be created, and startup fails if it is rejected.
+
+By default the callback authenticates only requests made for sessions this
+client creates or resumes. With `KerberosAuthScope.RUNTIME` it also
+authenticates the runtime's shared background traffic, such as catalog refreshes
+and telemetry; only one connection at a time can hold that scope, so startup
+fails if another client holds it. The registration ends when the connection
+closes. In `FALLBACK` mode, if the callback cannot supply a valid token,
+the native credential error is reported. In `ALWAYS` mode, a disconnected,
+failing, or empty callback fails authentication. The runtime waits at most 30
+seconds for the callback (less when the request's own deadline is sooner) and
+treats a timeout as a callback failure. The callback runs on the client
+executor; if the executor rejects it, the lookup fails. When the runtime cancels
+a lookup or the connection closes, a queued invocation is skipped and the
+returned future is cancelled. Tokens are not cached and must not be
+logged or persisted. The callback supplies the initial SPNEGO token only;
+exchanges requiring continuation tokens still need native negotiation.
 
 `SessionConfig.setAutopilot(AutopilotOptions)` and the corresponding
 `ResumeSessionConfig` setter configure experimental Autopilot policy.
@@ -426,26 +373,16 @@ The default is `AskUserVariant.LEGACY`. Re-supply the option and handler through
 `ResumeSessionConfig.setContinuePendingWork(false)` interrupts work still in
 flight when resuming (the default), while preserving completed tool results
 already durably recorded by the runtime.
-Pass `new ResumeSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setContinuePendingWork(true)`
-to `resumeSession` to keep waiting for pending tool calls and permission requests
+Pass `new ResumeSessionConfig().setContinuePendingWork(true)` to
+`resumeSession` to keep waiting for pending tool calls and permission requests
 instead. Leave the option unset to use the runtime default. Re-register any
-external tools needed for continued work. For abandoned SDK-backed calls recovered
-from history, re-registering the handler interrupts rather than replays the call;
-resume without that handler to supply its result yourself. An active resident
-resume preserves running callbacks and accepts their eventual results.
+external tools needed to handle continued work.
 
 `SessionConfig.setInteractiveUser(true)` declares that a person types the
 session's messages, as in an editor chat panel. This enables the runtime's
 user-message analysis telemetry for user-authored messages. Automated messages
 stay excluded. The default is off, and cloud sessions ignore it. Re-supply it
 through `ResumeSessionConfig` on a cold resume.
-
-`SessionConfig.setPermissionMode(PermissionMode.ALLOW_ALL)` applies a permission
-mode before the session's first turn, and `ResumeSessionConfig` applies it
-before a resume continues pending work. It uses the same checks as
-`session.permissions.setMode`, and `CopilotSession.getPermissionModeResult()`
-reports whether it was applied and the authoritative mode. Cloud sessions
-reject it.
 
 For rotating per-session GitHub credentials, use
 `SessionConfig.setGitHubTokenProvider(...)` (or the equivalent
@@ -459,9 +396,9 @@ var config = new SessionConfig()
     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL);
 ```
 
-The remaining lifetime, in seconds at callback completion, must exceed 3600
-seconds after token validation. Production GitHub tokens typically last eight
-hours. Static tokens and providers are mutually exclusive.
+The remaining lifetime is required and must be positive when the callback
+completes; production GitHub tokens typically last eight hours. A static token
+and a provider are mutually exclusive.
 
 Initial acquisition runs during session creation or resume. Cancellation,
 provider errors, and invalid token responses reject that operation instead of
@@ -478,10 +415,6 @@ references it.
 ```java
 import com.github.copilot.SkillProvider;
 import com.github.copilot.SkillProviderDescriptor;
-import com.github.copilot.rpc.PermissionHandler;
-import com.github.copilot.rpc.SessionConfig;
-import java.util.List;
-import java.util.concurrent.CompletableFuture;
 
 SkillProvider provider = new SkillProvider() {
     @Override
@@ -524,8 +457,8 @@ templates, and assets, set its descriptor's `directory` to the absolute path of
 the local folder that holds them:
 
 ```java
-var descriptor = new SkillProviderDescriptor("release-notes", "Writes release notes in the team's format.",
-    null, null, null, "/srv/skills/release-notes");
+new SkillProviderDescriptor("release-notes", "Writes release notes in the team's format.",
+    null, null, null, "/srv/skills/release-notes")
 ```
 
 When the skill is activated, the runtime lists the folder's files for the model.
@@ -566,10 +499,6 @@ session.sendAndWait(new MessageOptions()
     .setPrompt("The review found no blocking issues.")
     .setSource(MessageSource.agent("reviewer"))).get();
 ```
-
-Use `MessageSource.automation(id)` for a turn sent on behalf of an automation the
-user configured, such as a recurring check-in; it serializes as `automation-<id>`.
-An automation turn defines the session's task like a user message but carries no human authority; see [Message provenance](../docs/features/steering-and-queueing.md#message-provenance).
 
 Leave `source` unset to omit it from the request and retain the runtime's default
 user-input behavior, or set `MessageSource.USER` explicitly. Source is independent
@@ -686,46 +615,6 @@ PermissionHandler handler = (request, invocation) -> {
 };
 ```
 
-### Reporting a person's answers
-
-When a person answers a prompt in your UI, label the result with a `PermissionDecisionContext` so Assisted Permissions can treat the answer as the person's own authority. Permission, user-input, plan-review, and elicitation results all accept the same label through `setDecisionContext(...)`:
-
-```java
-import java.util.concurrent.CompletableFuture;
-
-import com.github.copilot.generated.rpc.PermissionDecisionContext;
-import com.github.copilot.generated.rpc.PermissionDecisionOutcome;
-import com.github.copilot.generated.rpc.PermissionDecisionSource;
-import com.github.copilot.generated.rpc.PermissionDecisionSurface;
-import com.github.copilot.generated.rpc.PermissionResponseCapability;
-import com.github.copilot.rpc.ElicitationResult;
-import com.github.copilot.rpc.ElicitationResultAction;
-import com.github.copilot.rpc.ExitPlanModeResult;
-import com.github.copilot.rpc.SessionConfig;
-import com.github.copilot.rpc.UserInputResponse;
-
-var personAnswered = PermissionDecisionContext.builder()
-        .source(PermissionDecisionSource.HUMAN_RESPONSE)
-        .responseCapability(PermissionResponseCapability.INTERACTIVE)
-        .surface(PermissionDecisionSurface.SDK)
-        .outcome(PermissionDecisionOutcome.PROMPTED_USER)
-        .build();
-
-var config = new SessionConfig()
-        .setOnPermissionRequest(handler)
-        .setOnUserInputRequest((request, invocation) -> CompletableFuture.completedFuture(
-                new UserInputResponse().setAnswer("Only src/app.ts").setWasFreeform(true)
-                        .setDecisionContext(personAnswered)))
-        .setOnExitPlanMode((request, invocation) -> CompletableFuture.completedFuture(
-                new ExitPlanModeResult().setApproved(true).setSelectedAction("interactive")
-                        .setDecisionContext(personAnswered)))
-        .setOnElicitationRequest(context -> CompletableFuture.completedFuture(
-                new ElicitationResult().setAction(ElicitationResultAction.DECLINE)
-                        .setDecisionContext(personAnswered)));
-```
-
-Label a person's declines and dismissals too; the runtime decides which answers carry authority. It accepts the label only from the connection that owns the session, so other connections' answers still settle, without it. Leave automated answers unlabeled: the SDK then sends no `decisionContext`.
-
 ## Try it with JBang
 
 You can run the SDK without setting up a full Java project, by using [JBang](https://www.jbang.dev/).
@@ -737,8 +626,6 @@ Or run it directly from the repository:
 ```bash
 jbang https://github.com/github/copilot-sdk/blob/main/java/sdk/jbang-example.java
 ```
-
-The example depends only on `copilot-sdk-java`, not on the platform runtime JAR, so set `COPILOT_CLI_PATH` to a Copilot CLI before running it.
 
 ## Annotation-based tools and `ToolInvocation` context
 
@@ -803,8 +690,6 @@ ToolDefinition search = ToolDefinition
 `Param.of(type, name, description)` creates a required parameter. For optional parameters with defaults:
 
 ```java
-import com.github.copilot.tool.Param;
-
 Param<Integer> limit = Param.of(Integer.class, "limit", "Max results", false, "10");
 ```
 
@@ -812,34 +697,8 @@ Param<Integer> limit = Param.of(Integer.class, "limit", "Max results", false, "1
 
 Use `fromAsync` for asynchronous tool handlers:
 
-<!-- docs-validate: hidden -->
 ```java
 import java.util.concurrent.CompletableFuture;
-import com.github.copilot.rpc.ToolDefinition;
-import com.github.copilot.tool.Param;
-
-public class AsyncToolHandlerExample {
-    // The reader's own remote call.
-    static String fetchRemote(String url) {
-        return url;
-    }
-
-    static ToolDefinition fetchDataTool() {
-        ToolDefinition fetchData = ToolDefinition.fromAsync(
-            "fetch_data",
-            "Fetches data from remote source",
-            Param.of(String.class, "url", "Data source URL"),
-            url -> CompletableFuture.supplyAsync(() -> fetchRemote(url))
-        );
-        return fetchData;
-    }
-}
-```
-<!-- /docs-validate: hidden -->
-```java
-import java.util.concurrent.CompletableFuture;
-import com.github.copilot.rpc.ToolDefinition;
-import com.github.copilot.tool.Param;
 
 ToolDefinition fetchData = ToolDefinition.fromAsync(
     "fetch_data",
@@ -854,9 +713,6 @@ ToolDefinition fetchData = ToolDefinition.fromAsync(
 Inline tools can access `ToolInvocation` runtime context using `fromWithToolInvocation`:
 
 ```java
-import com.github.copilot.rpc.ToolDefinition;
-import com.github.copilot.tool.Param;
-
 ToolDefinition reportPhase = ToolDefinition.fromWithToolInvocation(
     "report_phase",
     "Reports the current phase with invocation context",
@@ -874,7 +730,6 @@ Chain fluent modifiers to set tool options:
 - `.skipPermission(boolean)` — bypass permission prompts
 - `.defer(ToolDefer)` — control deferred execution (`AUTO`, `NEVER`)
 - `.overridesBuiltInTool(boolean)` — shadow built-in tools
-- `.idempotent(boolean)` — declares that repeating a call has no further effect (true of any tool without side effects); the runtime uses it to decide whether a lost call can be safely repeated, and it doesn't affect permissions
 
 ### String-schema `apply_patch` overrides
 
@@ -907,10 +762,6 @@ schema if references are needed.
 registered by this Java client without recreating the session:
 
 ```java
-import java.util.List;
-import com.github.copilot.rpc.ToolDefinition;
-import com.github.copilot.tool.Param;
-
 session.setTools(List.of(
     ToolDefinition.from("lookup_fruit", "Looks up fruit by code",
         Param.of(Integer.class, "code", "Fruit code"),
@@ -966,9 +817,6 @@ Change the Auto routing preference without changing the selected model. The runt
 Watch for the outcome through the `session.model_change` event on success or the ephemeral `session.auto_tier_switch_failed` event on failure. A failed activation leaves the incumbent effective tier unchanged. Read the authoritative committed, pending, and activating preferences at any time through the session's `model.getCurrent` RPC method.
 
 ```java
-import com.github.copilot.generated.rpc.ModelSwitchAutoTierStatus;
-import com.github.copilot.rpc.AutoTier;
-
 var result = session.setAutoTier(AutoTier.INTELLIGENCE).get();
 if (result.status() == ModelSwitchAutoTierStatus.PENDING) {
     // Accepted, but not yet in effect.
@@ -980,139 +828,18 @@ session.setAutoTier(null).get();
 
 `setModel(SetModelOptions)` accepts the same preference through `SetModelOptions.setAutoTier(...)`, which stages the tier atomically with selecting `auto`. Call `setResetAutoTier(true)` instead to return to provider-default routing; the two options are mutually exclusive.
 
-For Copilot Fusion, use the CLI's names: model `"fusion"` with `CapiSessionOptions.setFusionTier(...)` on create or resume, `SetModelOptions.setFusionTier(...)` on `setModel`, or `session.setFusionTier(...)`. The tiers are `FusionTier.STANDARD`, `FusionTier.HIGH`, and `FusionTier.MAX` (`com.github.copilot.generated.rpc.FusionTier`). The routing identifiers these replace (`balance`, `hydrafusion`, and `hydrafusion-max`, and the `hydrafusion` and `hydrafusion-max` model IDs) remain accepted but are deprecated. See [Copilot Fusion names](../docs/features/session-persistence.md#copilot-fusion-names).
-
-## Named construction and compatibility
-
-Use the construction API that matches the object's role:
-
-* **SDK-owned options** such as `SessionConfig`, `SetModelOptions`, and
-  `com.github.copilot.rpc.ModelCapabilitiesOverride` keep their fluent `setX(...)`
-  methods.
-* **Generated object DTOs** use `Type.builder().property(value).build()`, including
-  nested event payloads. Records retain component accessors such as `content()`;
-  builders do not add JavaBeans getters or `toBuilder()`.
-* **Extensible generated requests** keep their required-input constructors and
-  fluent setters. For example, `SessionModelSwitchToRequest` exposes `providerId`,
-  which the frozen `SessionModelSwitchToParams` record does not. Both expose
-  `contextTier`. Use the existing request overload when `providerId` is needed,
-  not another options or builder API.
-
-```java
-import com.github.copilot.AllowCopilotExperimental;
-import com.github.copilot.CopilotSession;
-import com.github.copilot.generated.AssistantMessageEvent;
-import com.github.copilot.generated.rpc.ContextTier;
-import com.github.copilot.generated.rpc.SessionModelSwitchToParams;
-import com.github.copilot.generated.rpc.SessionModelSwitchToRequest;
-import com.github.copilot.rpc.ModelCapabilitiesOverride;
-import com.github.copilot.rpc.SetModelOptions;
-import java.util.concurrent.CompletableFuture;
-
-@AllowCopilotExperimental
-class ConstructionExample {
-    static CompletableFuture<Void> configureModel(CopilotSession session) {
-        return session.setModel(new SetModelOptions()
-            .setModel("gpt-5.4")
-            .setModelCapabilities(new ModelCapabilitiesOverride()
-                .setSupports(new ModelCapabilitiesOverride.Supports().setVision(false))));
-    }
-
-    static CompletableFuture<?> useRecord(CopilotSession session) {
-        var params = SessionModelSwitchToParams.builder()
-            .sessionId(session.getSessionId())
-            .modelId("gpt-5.4")
-            .reasoningEffort("low")
-            .build();
-        return session.getRpc().model.switchTo(params);
-    }
-
-    static CompletableFuture<?> useExtensibleRequest(CopilotSession session) {
-        return session.getRpc().model.switchTo(new SessionModelSwitchToRequest("gpt-5.4")
-            .setProviderId("my-provider")
-            .setContextTier(ContextTier.fromValue("long_context")));
-    }
-
-    static AssistantMessageEvent makeEvent() {
-        var event = new AssistantMessageEvent();
-        event.setData(AssistantMessageEvent.AssistantMessageEventData.builder()
-            .messageId("message-1")
-            .content("Hello")
-            .build());
-        return event;
-    }
-}
-```
-
-Builders are additive: generated DTOs remain records or their existing mutable
-variant classes. Mainline and published 1.0.28 constructor signatures are retained,
-deprecated in favor of named construction, with `forRemoval = false`; no
-constructor removal is scheduled. Retaining those signatures preserves selected
-source and bytecode compatibility, but deprecation is not warning-free:
-`-Xlint:deprecation -Werror` can fail a consumer build.
-
-For additive optional **reference** properties, unchanged builder source and
-already-compiled builder callers remain usable. Retained constructors preserve
-released argument types and order, defaulting newly added optional
-references to null with the existing omission behavior, including for middle
-insertions. This guarantee requires unchanged existing property names, types,
-and requiredness. It does not cover required additions, renames, removals, type
-changes, conflicting erased constructor descriptors, exact record
-reflection/deconstruction shape, or equality, hash-code, and string results
-across different schemas.
-
-`build()` rejects missing required properties with
-`IllegalStateException("Missing required property: <wire-name>")`. Required
-nullable properties need an explicit setter call, which can supply null.
-Optional setters can be omitted; builders do not materialize schema defaults.
-False, zero, and empty values count as supplied. Supply actual session IDs even
-though session-bound RPC wrappers remain authoritative. Retained constructors
-and Jackson reads do not pass through builder validation. A nullable setter does
-not promise a JSON null; existing omission behavior and explicit-null reset APIs
-such as `setAutoTier(null)` remain unchanged.
-
-Builders are mutable and reusable; each build creates a fresh DTO without changing
-earlier field assignments. Collections retain shallow aliasing and mutability,
-not defensive copies or deep immutability. Raw `JsonNode` union wrappers, open
-maps, opaque JSON, enums, sealed interfaces, abstract union bases, event
-envelopes, and transport/framework types retain their existing construction APIs.
-Generated packages remain public in the existing SDK module.
-
-Javadoc `@since` describes the introduction of the API it documents: an older
-record type's tag does not date its newly added builder. Constructor deprecation
-metadata likewise describes the deprecation release, not the record's original
-introduction.
-
 ## Reasoning-summary presentation (experimental)
 
 Read the current model's reasoning-summary policy through `session.getRpc().model.getReasoningSummaries(...)`. Load the model catalog with `session.getRpc().model.list().get()` first, or accept a result with `ready() == false`.
 
 ```java
-import com.github.copilot.AllowCopilotExperimental;
-import com.github.copilot.CopilotSession;
 import com.github.copilot.generated.rpc.SessionModelGetReasoningSummariesParams;
 
-@AllowCopilotExperimental
-class ReasoningSummaryExample {
-    static void readPolicy(CopilotSession session) throws Exception {
-        var presentation = SessionModelGetReasoningSummariesParams.builder()
-            .sessionId(session.getSessionId())
-            .summariesVisible(false)
-            .build();
-        var policy = session.getRpc().model.getReasoningSummaries(presentation).get();
-        System.out.println(policy.visibility());
-    }
-}
+var presentation = new SessionModelGetReasoningSummariesParams(null, false);
+var policy = session.getRpc().model.getReasoningSummaries(presentation).get();
 ```
 
-Omit `persistedShowReasoning` when the persisted visibility setting is unset, or
-set it to that setting's value. `summariesVisible` reports whether the host
-currently shows summaries (unset defaults to false). Supply the actual session
-ID to the builder; the session wrapper still overrides it with its bound ID.
-The deprecated two-argument presentation-state and three-argument constructors
-remain available. `visibility()` can be `null` while experiment assignment is
-pending, and `clearRedundantSetting()` tells the host when its persisted setting
-matches the model default.
+The two constructor arguments are the persisted visibility setting (`null` when unset) and whether the host currently shows summaries (`null` defaults to false). The session wrapper supplies the session ID; callers do not need a placeholder ID. The original three-argument constructor remains available. `visibility()` can be `null` while experiment assignment is pending, and `clearRedundantSetting()` tells the host when its persisted setting matches the model default.
 
 ## Session Store
 
@@ -1304,7 +1031,7 @@ The processor uses standard JSR 269 annotation processing APIs for maximum porta
 | Local variable with experimental type (including `var` inference) | ❌ | Move the usage into a declaration the processor can see, or use the compiler flag |
 | Cast to experimental type | ❌ | Use the compiler flag for a whole-compilation opt-in |
 
-In practice, these gaps rarely matter for experimental types: any meaningful use of an experimental SDK type almost always appears in a field declaration, method signature, or type hierarchy — all of which are caught. A purely inline expression with no declaration footprint (e.g., `session.getRpc().model.getReasoningSummaries(params).join()`) slips through, and so does any use of an experimental method, described below.
+In practice, these gaps rarely matter: any meaningful use of an experimental SDK type almost always appears in a field declaration, method signature, or type hierarchy — all of which are caught. A purely inline expression with no declaration footprint (e.g., `session.rpc().experimental.foo().join()`) is the only case that would slip through.
 
 ### Example
 
@@ -1328,7 +1055,7 @@ public class Consumer {
 }
 ```
 
-The processor checks the types that declarations name, not the members your code uses. `@CopilotExperimental` on an individual method of an otherwise stable type is therefore not enforced: calling that method, storing its result in a field of a stable type, or overriding it compiles without an opt-in. Likewise, calling a static method of an experimental type compiles as long as no declaration names that type. `@AllowCopilotExperimental` mirrors the same declaration-level boundary: annotating a class opts in that class and its enclosed declarations, while annotating a method or constructor opts in just that executable signature.
+The gate also applies to individual methods annotated with `@CopilotExperimental` on otherwise stable types. When a type-level annotation is present, all member accesses through that type are considered experimental. `@AllowCopilotExperimental` mirrors the same declaration-level boundary: annotating a class opts in that class and its enclosed declarations, while annotating a method or constructor opts in just that executable signature.
 
 ## Projects Using This SDK
 

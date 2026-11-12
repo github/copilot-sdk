@@ -43,22 +43,6 @@ public final class SessionModelApi {
     }
 
     /**
-     * Reads the session's cached startup model state without fetching a catalog or resolving credentials. An interactive host can claim the one-time enablement prompt after applying its startup configuration. Claims remain shared with the owning host and are scoped to this session's lifetime.
-     * <p>
-     * Note: the {@code sessionId} field in the params record is overridden
-     * by the session-scoped wrapper; any value provided is ignored.
-     *
-     * @apiNote This method is experimental and may change in a future version.
-     * @since 1.0.0
-     */
-    @CopilotExperimental
-    public CompletableFuture<SessionModelStartupAdmissionResult> startupAdmission(SessionModelStartupAdmissionParams params) {
-        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
-        _p.put("sessionId", this.sessionId);
-        return caller.invoke("session.model.startupAdmission", _p, SessionModelStartupAdmissionResult.class);
-    }
-
-    /**
      * Switches the session to a model and optional reasoning configuration.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
@@ -103,22 +87,6 @@ public final class SessionModelApi {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.model.switchAutoTier", _p, SessionModelSwitchAutoTierResult.class);
-    }
-
-    /**
-     * Requests a Copilot Fusion tier without changing the session's selected model, naming the tier as the CLI's `--fusion-tier` does. The runtime resolves the tier to the Auto routing preference it stands for and then behaves exactly like `switchAutoTier`: the latest unclaimed request wins, and the runtime commits it only after a later prompt using the `auto` model mints a usable model and token pair.
-     * <p>
-     * Note: the {@code sessionId} field in the params record is overridden
-     * by the session-scoped wrapper; any value provided is ignored.
-     *
-     * @apiNote This method is experimental and may change in a future version.
-     * @since 1.0.0
-     */
-    @CopilotExperimental
-    public CompletableFuture<SessionModelSwitchAutoTierResult> switchFusionTier(SessionModelSwitchFusionTierParams params) {
-        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
-        _p.put("sessionId", this.sessionId);
-        return caller.invoke("session.model.switchFusionTier", _p, SessionModelSwitchAutoTierResult.class);
     }
 
     /**

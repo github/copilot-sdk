@@ -28,13 +28,6 @@ impl<'a> ClientRpc<'a> {
         }
     }
 
-    /// `providersSource.*` sub-namespace.
-    pub fn providers_source(&self) -> ClientRpcProvidersSource<'a> {
-        ClientRpcProvidersSource {
-            client: self.client,
-        }
-    }
-
     /// `session.*` sub-namespace.
     pub fn session(&self) -> ClientRpcSession<'a> {
         ClientRpcSession {
@@ -74,9 +67,11 @@ impl<'a> ClientRpcCafeMetrics<'a> {
         params: CafeMetricsStartRequest,
     ) -> Result<CafeMetricsStartResult, Error> {
         let wire_params = serde_json::to_value(params)?;
-        self.client
-            .call_typed(rpc_methods::CAFEMETRICS_START, Some(wire_params))
-            .await
+        let _value = self
+            .client
+            .call(rpc_methods::CAFEMETRICS_START, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
     }
 
     /// Resolves release eligibility once from the immutable release lookup shared with auto-update. Requires the private trusted CLI host capability.
@@ -103,9 +98,11 @@ impl<'a> ClientRpcCafeMetrics<'a> {
         params: CafeMetricsResolveAdmissionRequest,
     ) -> Result<CafeMetricsResolveAdmissionResult, Error> {
         let wire_params = serde_json::to_value(params)?;
-        self.client
-            .call_typed(rpc_methods::CAFEMETRICS_RESOLVEADMISSION, Some(wire_params))
-            .await
+        let _value = self
+            .client
+            .call(rpc_methods::CAFEMETRICS_RESOLVEADMISSION, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
     }
 
     /// Records one terminal resume result. Does nothing before startup. Requires the private trusted CLI host capability.
@@ -128,9 +125,9 @@ impl<'a> ClientRpcCafeMetrics<'a> {
         params: CafeMetricsRecordResumeResultRequest,
     ) -> Result<(), Error> {
         let wire_params = serde_json::to_value(params)?;
-        let _: serde::de::IgnoredAny = self
+        let _value = self
             .client
-            .call_typed(
+            .call(
                 rpc_methods::CAFEMETRICS_RECORDRESUMERESULT,
                 Some(wire_params),
             )
@@ -151,9 +148,9 @@ impl<'a> ClientRpcCafeMetrics<'a> {
     /// </div>
     pub async fn shutdown(&self) -> Result<(), Error> {
         let wire_params = serde_json::json!({});
-        let _: serde::de::IgnoredAny = self
+        let _value = self
             .client
-            .call_typed(rpc_methods::CAFEMETRICS_SHUTDOWN, Some(wire_params))
+            .call(rpc_methods::CAFEMETRICS_SHUTDOWN, Some(wire_params))
             .await?;
         Ok(())
     }
@@ -178,48 +175,11 @@ impl<'a> ClientRpcCafeMetrics<'a> {
         params: CafeMetricsShutdownRequest,
     ) -> Result<(), Error> {
         let wire_params = serde_json::to_value(params)?;
-        let _: serde::de::IgnoredAny = self
+        let _value = self
             .client
-            .call_typed(rpc_methods::CAFEMETRICS_SHUTDOWN, Some(wire_params))
+            .call(rpc_methods::CAFEMETRICS_SHUTDOWN, Some(wire_params))
             .await?;
         Ok(())
-    }
-}
-
-/// `providersSource.*` RPCs.
-#[derive(Clone, Copy)]
-pub struct ClientRpcProvidersSource<'a> {
-    pub(crate) client: &'a Client,
-}
-
-impl<'a> ClientRpcProvidersSource<'a> {
-    /// Forwards a saved-model addition over the original authenticated local attachment to its owning server. Requires private CLI-host admission and fails if that attachment is no longer active; never saves to the controller as a fallback.
-    ///
-    /// Wire method: `providersSource.addModel`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - Saves through the exact authenticated local attachment that discovered a model.
-    ///
-    /// # Returns
-    ///
-    /// Result of adding a model to the saved provider configuration.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub async fn add_model(
-        &self,
-        params: AttachedProviderConfigurationAddModelRequest,
-    ) -> Result<SavedProviderConfigurationAddModelResult, Error> {
-        let wire_params = serde_json::to_value(params)?;
-        self.client
-            .call_typed(rpc_methods::PROVIDERSSOURCE_ADDMODEL, Some(wire_params))
-            .await
     }
 }
 
@@ -233,20 +193,6 @@ impl<'a> ClientRpcSession<'a> {
     /// `session.cafeMetrics.*` sub-namespace.
     pub fn cafe_metrics(&self) -> ClientRpcSessionCafeMetrics<'a> {
         ClientRpcSessionCafeMetrics {
-            client: self.client,
-        }
-    }
-
-    /// `session.canvasSource.*` sub-namespace.
-    pub fn canvas_source(&self) -> ClientRpcSessionCanvasSource<'a> {
-        ClientRpcSessionCanvasSource {
-            client: self.client,
-        }
-    }
-
-    /// `session.mcp.*` sub-namespace.
-    pub fn mcp(&self) -> ClientRpcSessionMcp<'a> {
-        ClientRpcSessionMcp {
             client: self.client,
         }
     }
@@ -276,9 +222,9 @@ impl<'a> ClientRpcSessionCafeMetrics<'a> {
     /// </div>
     pub async fn attach(&self, params: SessionCafeMetricsAttachParams) -> Result<(), Error> {
         let wire_params = serde_json::to_value(params)?;
-        let _: serde::de::IgnoredAny = self
+        let _value = self
             .client
-            .call_typed(rpc_methods::SESSION_CAFEMETRICS_ATTACH, Some(wire_params))
+            .call(rpc_methods::SESSION_CAFEMETRICS_ATTACH, Some(wire_params))
             .await?;
         Ok(())
     }
@@ -300,337 +246,11 @@ impl<'a> ClientRpcSessionCafeMetrics<'a> {
     /// </div>
     pub async fn detach(&self, params: SessionCafeMetricsDetachParams) -> Result<(), Error> {
         let wire_params = serde_json::to_value(params)?;
-        let _: serde::de::IgnoredAny = self
+        let _value = self
             .client
-            .call_typed(rpc_methods::SESSION_CAFEMETRICS_DETACH, Some(wire_params))
+            .call(rpc_methods::SESSION_CAFEMETRICS_DETACH, Some(wire_params))
             .await?;
         Ok(())
-    }
-}
-
-/// `session.canvasSource.*` RPCs.
-#[derive(Clone, Copy)]
-pub struct ClientRpcSessionCanvasSource<'a> {
-    pub(crate) client: &'a Client,
-}
-
-impl<'a> ClientRpcSessionCanvasSource<'a> {
-    /// Closes a canvas through its original session source. Requires the privately admitted in-process CLI host.
-    ///
-    /// Wire method: `session.canvasSource.close`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - Closes a canvas through its original owned or attached session namespace.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub async fn close(&self, params: CanvasSourceCloseRequest) -> Result<(), Error> {
-        let wire_params = serde_json::to_value(params)?;
-        let _: serde::de::IgnoredAny = self
-            .client
-            .call_typed(rpc_methods::SESSION_CANVASSOURCE_CLOSE, Some(wire_params))
-            .await?;
-        Ok(())
-    }
-}
-
-/// `session.mcp.*` RPCs.
-#[derive(Clone, Copy)]
-pub struct ClientRpcSessionMcp<'a> {
-    pub(crate) client: &'a Client,
-}
-
-impl<'a> ClientRpcSessionMcp<'a> {
-    /// `mcp.oauth.*` sub-namespace.
-    pub fn oauth(&self) -> ClientRpcSessionMcpOauth<'a> {
-        ClientRpcSessionMcpOauth {
-            client: self.client,
-        }
-    }
-}
-
-/// `mcp.oauth.*` RPCs.
-#[derive(Clone, Copy)]
-pub struct ClientRpcSessionMcpOauth<'a> {
-    pub(crate) client: &'a Client,
-}
-
-impl<'a> ClientRpcSessionMcpOauth<'a> {
-    /// Reserves a host-driven OAuth flow identity before authentication or cancellation.
-    ///
-    /// Wire method: `session.mcp.oauth.prepareFlow`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - Correlation identity reserved before an effectful authentication request.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub async fn prepare_flow(
-        &self,
-        params: SessionMcpOauthPrepareFlowParams,
-    ) -> Result<(), Error> {
-        let wire_params = serde_json::to_value(params)?;
-        let _: serde::de::IgnoredAny = self
-            .client
-            .call_typed(
-                rpc_methods::SESSION_MCP_OAUTH_PREPAREFLOW,
-                Some(wire_params),
-            )
-            .await?;
-        Ok(())
-    }
-
-    /// Cancels an exact host-driven OAuth flow on its original session requester.
-    ///
-    /// Wire method: `session.mcp.oauth.cancelFlow`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - Correlation identity reserved before an effectful authentication request.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub async fn cancel_flow(&self, params: SessionMcpOauthCancelFlowParams) -> Result<(), Error> {
-        let wire_params = serde_json::to_value(params)?;
-        let _: serde::de::IgnoredAny = self
-            .client
-            .call_typed(rpc_methods::SESSION_MCP_OAUTH_CANCELFLOW, Some(wire_params))
-            .await?;
-        Ok(())
-    }
-
-    /// Authenticates an arbitrary MCP URL through the original session credential owner, with correlated host progress and authorization callbacks.
-    ///
-    /// Wire method: `session.mcp.oauth.authenticate`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - Full host-driven authentication for an arbitrary, possibly unsaved, MCP URL.
-    ///
-    /// # Returns
-    ///
-    /// Token projection for the existing host-delegated provider.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub async fn authenticate(
-        &self,
-        params: SessionMcpOauthAuthenticateParams,
-    ) -> Result<McpOauthAuthenticateResult, Error> {
-        let wire_params = serde_json::to_value(params)?;
-        self.client
-            .call_typed(
-                rpc_methods::SESSION_MCP_OAUTH_AUTHENTICATE,
-                Some(wire_params),
-            )
-            .await
-    }
-
-    /// Checks whether the selected MCP credential owner has a valid access token.
-    ///
-    /// Wire method: `session.mcp.oauth.hasValidTokens`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - A narrow token-validity query against the chosen credential owner.
-    ///
-    /// # Returns
-    ///
-    /// Whether the credential operation succeeded.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub async fn has_valid_tokens(
-        &self,
-        params: SessionMcpOauthHasValidTokensParams,
-    ) -> Result<SessionMcpOauthHasValidTokensResult, Error> {
-        let wire_params = serde_json::to_value(params)?;
-        self.client
-            .call_typed(
-                rpc_methods::SESSION_MCP_OAUTH_HASVALIDTOKENS,
-                Some(wire_params),
-            )
-            .await
-    }
-
-    /// Attempts silent MCP token refresh without opening a browser.
-    ///
-    /// Wire method: `session.mcp.oauth.tryRefreshTokens`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - A narrow token-validity query against the chosen credential owner.
-    ///
-    /// # Returns
-    ///
-    /// Whether the credential operation succeeded.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub async fn try_refresh_tokens(
-        &self,
-        params: SessionMcpOauthTryRefreshTokensParams,
-    ) -> Result<SessionMcpOauthTryRefreshTokensResult, Error> {
-        let wire_params = serde_json::to_value(params)?;
-        self.client
-            .call_typed(
-                rpc_methods::SESSION_MCP_OAUTH_TRYREFRESHTOKENS,
-                Some(wire_params),
-            )
-            .await
-    }
-
-    /// Stores a confidential MCP client's static secret in its selected credential owner.
-    ///
-    /// Wire method: `session.mcp.oauth.saveStaticClientSecret`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - Persist a confidential client's static secret without exposing token-store CRUD.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub async fn save_static_client_secret(
-        &self,
-        params: SessionMcpOauthSaveStaticClientSecretParams,
-    ) -> Result<(), Error> {
-        let wire_params = serde_json::to_value(params)?;
-        let _: serde::de::IgnoredAny = self
-            .client
-            .call_typed(
-                rpc_methods::SESSION_MCP_OAUTH_SAVESTATICCLIENTSECRET,
-                Some(wire_params),
-            )
-            .await?;
-        Ok(())
-    }
-
-    /// Releases an explicit host-owned MCP OAuth store on its original session requester.
-    ///
-    /// Wire method: `session.mcp.oauth.disposeStore`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - Dispose an explicit host store without altering the session authorizer's owner.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub async fn dispose_store(
-        &self,
-        params: SessionMcpOauthDisposeStoreParams,
-    ) -> Result<(), Error> {
-        let wire_params = serde_json::to_value(params)?;
-        let _: serde::de::IgnoredAny = self
-            .client
-            .call_typed(
-                rpc_methods::SESSION_MCP_OAUTH_DISPOSESTORE,
-                Some(wire_params),
-            )
-            .await?;
-        Ok(())
-    }
-
-    /// Completes a tokenless initialize handshake for an unsaved remote MCP URL, preserving session egress and the refusing authentication challenge.
-    ///
-    /// Wire method: `session.mcp.oauth.testConnection`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - Tokenless initialize handshake for a possibly unsaved remote MCP server.
-    ///
-    /// # Returns
-    ///
-    /// Outcome of the tokenless handshake, with the original challenge when available.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub async fn test_connection(
-        &self,
-        params: SessionMcpOauthTestConnectionParams,
-    ) -> Result<McpOauthTestConnectionResult, Error> {
-        let wire_params = serde_json::to_value(params)?;
-        self.client
-            .call_typed(
-                rpc_methods::SESSION_MCP_OAUTH_TESTCONNECTION,
-                Some(wire_params),
-            )
-            .await
-    }
-
-    /// Derives an MCP credential key through the selected session account and store owner.
-    ///
-    /// Wire method: `session.mcp.oauth.storeKey`.
-    ///
-    /// # Parameters
-    ///
-    /// * `params` - Derive a credential key through the selected account and store owner.
-    ///
-    /// # Returns
-    ///
-    /// The selected owner's OAuth credential key.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases. Pin both the
-    /// SDK and CLI versions if your code depends on it.
-    ///
-    /// </div>
-    pub async fn store_key(
-        &self,
-        params: SessionMcpOauthStoreKeyParams,
-    ) -> Result<SessionMcpOauthStoreKeyResult, Error> {
-        let wire_params = serde_json::to_value(params)?;
-        self.client
-            .call_typed(rpc_methods::SESSION_MCP_OAUTH_STOREKEY, Some(wire_params))
-            .await
     }
 }
 

@@ -21,43 +21,8 @@ public class SessionUiCapabilities {
     @JsonProperty("elicitation")
     private Boolean elicitation;
 
-    @JsonProperty("autoModeRecovery")
-    private Boolean autoModeRecovery;
-
     @JsonProperty("mcpApps")
     private Boolean mcpApps;
-
-    /**
-     * Gets the runtime acknowledgment for retained-request Auto recovery.
-     *
-     * @return empty or {@code false} when unsupported
-     */
-    @JsonIgnore
-    public Optional<Boolean> getAutoModeRecovery() {
-        return Optional.ofNullable(autoModeRecovery);
-    }
-
-    /**
-     * Sets the runtime acknowledgment for Auto recovery.
-     *
-     * @param autoModeRecovery
-     *            whether the runtime supports recovery
-     * @return this instance for method chaining
-     */
-    public SessionUiCapabilities setAutoModeRecovery(boolean autoModeRecovery) {
-        this.autoModeRecovery = autoModeRecovery;
-        return this;
-    }
-
-    /**
-     * Clears the runtime acknowledgment. Absence means unsupported.
-     *
-     * @return this instance for method chaining
-     */
-    public SessionUiCapabilities clearAutoModeRecovery() {
-        this.autoModeRecovery = null;
-        return this;
-    }
 
     /**
      * Returns whether the host supports interactive elicitation dialogs.

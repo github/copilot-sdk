@@ -12,9 +12,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.github.copilot.generated.rpc.HostExitReason;
 import com.github.copilot.generated.rpc.HostExitedNotification;
 import com.github.copilot.generated.rpc.HostStartRequest;
-import com.github.copilot.generated.rpc.RpcCaller;
 import com.github.copilot.generated.rpc.ServerHostApi;
-import com.github.copilot.generated.rpc.SessionOptionsUpdateParams;
 import com.github.copilot.rpc.ResumeSessionConfig;
 import com.github.copilot.rpc.SessionConfig;
 import java.io.IOException;
@@ -23,7 +21,6 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -118,7 +115,7 @@ final class AhpHostManager {
         this.executor = executor;
     }
 
-    CompletableFuture<AhpHost> start(ServerHostApi rpc, RpcCaller rpcCaller, AhpHostOptions options) {
+    CompletableFuture<AhpHost> start(ServerHostApi rpc, AhpHostOptions options) {
         var host = new Host(rpc, options);
         synchronized (gate) {
             hosts.put(host.id, host);
@@ -135,7 +132,7 @@ final class AhpHostManager {
                         .setLocalServer(snapshot.getLocalServer()).setGitHubEnvironment(snapshot.getGithubEnvironment())
                         .setSessionFactory(snapshot.getCreateSession() != null)
                         .setResumeFactory(snapshot.getResumeSession() != null))
-                .thenApply(info -> new AhpHost(info, rpc, rpcCaller)).whenComplete((result, error) -> {
+                .thenApply(info -> new AhpHost(info, rpc)).whenComplete((result, error) -> {
                     if (error != null) {
                         endHost(host, null);
                     }
@@ -288,33 +285,16 @@ final class AhpHostManager {
         entry.cancellation.completeAsync(() -> null);
     }
 
-    void capture(CopilotSession session, Object request, SessionOptionsUpdateParams optionsPatch) {
+    void capture(CopilotSession session, Object request) {
         synchronized (gate) {
             for (Host host : hosts.values()) {
                 for (Handoff handoff : host.handoffs.values()) {
                     if (handoff.configs != null && handoff.sessionId.equals(session.getSessionId())) {
-                        handoff.configs.put(session, snapshot(request, optionsPatch));
+                        handoff.configs.put(session, JsonRpcClient.getObjectMapper().valueToTree(request));
                     }
                 }
             }
         }
-    }
-
-    private static ObjectNode snapshot(Object request, SessionOptionsUpdateParams optionsPatch) {
-        ObjectMapper mapper = JsonRpcClient.getObjectMapper();
-        ObjectNode snapshot = mapper.valueToTree(request);
-        if (optionsPatch != null) {
-            JsonNode applied = mapper.valueToTree(optionsPatch);
-            // These settings are sent by the post-create options patch,
-            // never in the create or resume request, so record the
-            // values that patch applied.
-            for (String key : List.of("skipCustomInstructions", "coauthorEnabled", "manageScheduleEnabled")) {
-                if (applied.hasNonNull(key)) {
-                    snapshot.set(key, applied.get(key));
-                }
-            }
-        }
-        return snapshot;
     }
 
     void disconnect() {

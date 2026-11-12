@@ -62,8 +62,13 @@ public class SessionEventLoopLeakE2ETests(E2ETestFixture fixture, ITestOutputHel
         // An invalid per-session GitHub token, redirected at the replaying proxy, makes
         // the real CLI reject session.create with a genuine RPC error (401 Unauthorized)
         // — the same failure path a real user would hit, not a mocked transport.
+        var env = new Dictionary<string, string>(Ctx.GetEnvironment())
+        {
+            ["COPILOT_DEBUG_GITHUB_API_URL"] = Ctx.ProxyUrl,
+        };
         var client = Ctx.CreateClient(
             options: new CopilotClientOptions { SessionFs = CreateSessionFsConfig() },
+            environment: env,
             autoInjectGitHubToken: false);
         var seen = new List<CopilotSession>();
 

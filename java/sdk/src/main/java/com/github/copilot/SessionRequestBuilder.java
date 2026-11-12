@@ -12,11 +12,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.github.copilot.rpc.CopilotClientMode;
 import com.github.copilot.rpc.CreateSessionRequest;
-import com.github.copilot.rpc.MemoryConfiguration;
 import com.github.copilot.rpc.ProviderConfig;
 import com.github.copilot.rpc.NamedProviderConfig;
 import com.github.copilot.rpc.BearerTokenProvider;
@@ -26,7 +23,6 @@ import com.github.copilot.rpc.ResumeSessionRequest;
 import com.github.copilot.rpc.SectionOverride;
 import com.github.copilot.rpc.SectionOverrideAction;
 import com.github.copilot.rpc.SessionConfig;
-import com.github.copilot.rpc.StoredMemory;
 import com.github.copilot.rpc.SystemMessageConfig;
 import com.github.copilot.rpc.ToolDefinition;
 import com.github.copilot.rpc.ToolDefer;
@@ -46,20 +42,6 @@ final class SessionRequestBuilder {
 
     private SessionRequestBuilder() {
         // Utility class
-    }
-
-    /**
-     * Returns the app's store-memory callback, or {@code null} when none is set.
-     *
-     * @throws IllegalArgumentException
-     *             if a callback is set but memory is not enabled
-     */
-    static Function<StoredMemory, CompletableFuture<Void>> requestedMemoryStore(MemoryConfiguration memory) {
-        var storeMemory = memory != null ? memory.getStoreMemory() : null;
-        if (storeMemory != null && !memory.getEnabled()) {
-            throw new IllegalArgumentException("memory.storeMemory requires memory.enabled to be true.");
-        }
-        return storeMemory;
     }
 
     /**
@@ -121,34 +103,8 @@ final class SessionRequestBuilder {
         return tools.stream().map(SessionRequestBuilder::toProtocolExternalTool).toList();
     }
 
-    static boolean requiresNullToolNameCompatibility(List<ToolDefinition> tools) {
-        return tools != null && tools.stream()
-                .anyMatch(tool -> tool.name() == null || tool.namespace() != null && tool.namespace().name() == null);
-    }
-
-    static ArrayNode toProtocolExternalToolsPreservingNullNames(List<ToolDefinition> tools) {
-        ArrayNode result = JsonRpcClient.getObjectMapper().createArrayNode();
-        for (ToolDefinition tool : tools) {
-            ObjectNode wire = JsonRpcClient.getObjectMapper().valueToTree(toProtocolExternalTool(tool, true));
-            if (tool.name() == null) {
-                wire.remove("name");
-            }
-            if (tool.namespace() != null && tool.namespace().name() == null) {
-                ((ObjectNode) wire.path("namespace")).remove("name");
-            }
-            result.add(wire);
-        }
-        return result;
-    }
-
     @SuppressWarnings("unchecked")
     private static ProtocolExternalToolDefinition toProtocolExternalTool(ToolDefinition tool) {
-        return toProtocolExternalTool(tool, false);
-    }
-
-    @SuppressWarnings("unchecked")
-    private static ProtocolExternalToolDefinition toProtocolExternalTool(ToolDefinition tool,
-            boolean substituteRequiredNulls) {
         Map<String, Object> parameters = null;
         if (tool.parameters() instanceof Map<?, ?> map) {
             parameters = (Map<String, Object>) map;
@@ -157,26 +113,13 @@ final class SessionRequestBuilder {
                     new TypeReference<Map<String, Object>>() {
                     });
         }
-        return ProtocolExternalToolDefinition.builder()
-                .name(tool.name() != null || !substituteRequiredNulls ? tool.name() : "")
-                .description(tool.description() != null ? tool.description() : "").parameters(parameters)
-                .overridesBuiltInTool(tool.overridesBuiltInTool()).skipPermission(tool.skipPermission())
-                .hasHandler(tool.handler() != null).defer(toProtocolDefer(tool.defer())).isTerminal(tool.isTerminal())
-                .metadata(tool.metadata()).namespace(toProtocolNamespace(tool.namespace(), substituteRequiredNulls))
-                .idempotent(tool.idempotent()).build();
+        return new ProtocolExternalToolDefinition(tool.name(), tool.description() != null ? tool.description() : "",
+                null, parameters, tool.overridesBuiltInTool(), tool.skipPermission(), toProtocolDefer(tool.defer()),
+                tool.isTerminal(), tool.metadata(), toProtocolNamespace(tool.namespace()));
     }
 
     private static ProtocolExternalToolNamespace toProtocolNamespace(ToolNamespace namespace) {
-        return toProtocolNamespace(namespace, false);
-    }
-
-    private static ProtocolExternalToolNamespace toProtocolNamespace(ToolNamespace namespace,
-            boolean substituteRequiredNulls) {
-        return namespace == null
-                ? null
-                : ProtocolExternalToolNamespace.builder()
-                        .name(namespace.name() != null || !substituteRequiredNulls ? namespace.name() : "")
-                        .description(namespace.description()).build();
+        return namespace == null ? null : new ProtocolExternalToolNamespace(namespace.name(), namespace.description());
     }
 
     private static ProtocolExternalToolDefer toProtocolDefer(ToolDefer defer) {
@@ -219,7 +162,6 @@ final class SessionRequestBuilder {
         request.setName(config.getName());
         request.setClientName(config.getClientName());
         request.setReasoningEffort(config.getReasoningEffort());
-        config.getAllowMultipleToolCalls().ifPresent(request::setAllowMultipleToolCalls);
         request.setReasoningSummary(config.getReasoningSummary());
         request.setContextTier(config.getContextTier());
         request.setAskUserVariant(config.getAskUserVariant());
@@ -228,7 +170,6 @@ final class SessionRequestBuilder {
         request.setAvailableTools(config.getAvailableTools());
         request.setExcludedTools(config.getExcludedTools());
         request.setExcludedBuiltInAgents(config.getExcludedBuiltInAgents());
-        request.setIncludedBuiltInAgents(config.getIncludedBuiltInAgents());
         request.setProvider(config.getProvider());
         request.setCapi(config.getCapi());
         request.setProviders(config.getProviders());
@@ -242,9 +183,6 @@ final class SessionRequestBuilder {
                 .ifPresent(request::setIsExperimentalMode);
         if (config.getOnUserInputRequest() != null) {
             request.setRequestUserInput(true);
-        }
-        if (config.getOnShellAuthenticationRequest() != null) {
-            request.setRequestShellAuthentication(true);
         }
         if (config.getHooks() != null && config.getHooks().hasHooks()) {
             request.setHooks(true);
@@ -293,15 +231,12 @@ final class SessionRequestBuilder {
         if (config.getSkillProvider() != null) {
             request.setHasSkillProvider(true);
         }
-        if (config.getMemory() != null && config.getMemory().getStoreMemory() != null) {
-            request.setHasMemoryStore(true);
-        }
         if (config.getEmbeddingCacheStorage() != null) {
             request.setEmbeddingCacheStorage(config.getEmbeddingCacheStorage());
         }
         request.setModelCapabilities(config.getModelCapabilities());
 
-        if (config.getCommands() != null) {
+        if (config.getCommands() != null && !config.getCommands().isEmpty()) {
             var wireCommands = config.getCommands().stream()
                     .map(c -> new CommandWireDefinition(c.getName(), c.getDescription()))
                     .collect(java.util.stream.Collectors.toList());
@@ -320,9 +255,6 @@ final class SessionRequestBuilder {
         if (config.getOnAutoModeSwitch() != null) {
             request.setRequestAutoModeSwitch(true);
         }
-        if (config.isAutoModeRecovery()) {
-            request.setRequestAutoModeRecovery(true);
-        }
         request.setGitHubToken(config.getGitHubToken());
         request.setCloud(config.getCloud());
         request.setFeatureFlags(config.getFeatureFlags());
@@ -331,7 +263,6 @@ final class SessionRequestBuilder {
         request.setExcludedManagedSettings(config.getExcludedManagedSettings());
         config.getEnforceManagedModelDefaults().ifPresent(request::setEnforceManagedModelDefaults);
         config.getInteractiveUser().ifPresent(request::setInteractiveUser);
-        config.getPermissionMode().ifPresent(request::setPermissionMode);
         request.setManagedSettings(config.getManagedSettings());
 
         return request;
@@ -385,7 +316,6 @@ final class SessionRequestBuilder {
         config.getAllowTranscriptRecovery().ifPresent(request::setAllowTranscriptRecovery);
         request.setClientName(config.getClientName());
         request.setReasoningEffort(config.getReasoningEffort());
-        config.getAllowMultipleToolCalls().ifPresent(request::setAllowMultipleToolCalls);
         request.setReasoningSummary(config.getReasoningSummary());
         request.setContextTier(config.getContextTier());
         request.setAskUserVariant(config.getAskUserVariant());
@@ -394,7 +324,6 @@ final class SessionRequestBuilder {
         request.setAvailableTools(config.getAvailableTools());
         request.setExcludedTools(config.getExcludedTools());
         request.setExcludedBuiltInAgents(config.getExcludedBuiltInAgents());
-        request.setIncludedBuiltInAgents(config.getIncludedBuiltInAgents());
         request.setProvider(config.getProvider());
         request.setCapi(config.getCapi());
         request.setProviders(config.getProviders());
@@ -408,9 +337,6 @@ final class SessionRequestBuilder {
                 .ifPresent(request::setIsExperimentalMode);
         if (config.getOnUserInputRequest() != null) {
             request.setRequestUserInput(true);
-        }
-        if (config.getOnShellAuthenticationRequest() != null) {
-            request.setRequestShellAuthentication(true);
         }
         if (config.getHooks() != null && config.getHooks().hasHooks()) {
             request.setHooks(true);
@@ -430,9 +356,6 @@ final class SessionRequestBuilder {
         config.getEnableSkills().ifPresent(request::setEnableSkills);
         if (config.getSkillProvider() != null) {
             request.setHasSkillProvider(true);
-        }
-        if (config.getMemory() != null && config.getMemory().getStoreMemory() != null) {
-            request.setHasMemoryStore(true);
         }
         if (config.getEmbeddingCacheStorage() != null) {
             request.setEmbeddingCacheStorage(config.getEmbeddingCacheStorage());
@@ -468,7 +391,7 @@ final class SessionRequestBuilder {
         request.setInfiniteSessions(config.getInfiniteSessions());
         request.setModelCapabilities(config.getModelCapabilities());
 
-        if (config.getCommands() != null) {
+        if (config.getCommands() != null && !config.getCommands().isEmpty()) {
             var wireCommands = config.getCommands().stream()
                     .map(c -> new CommandWireDefinition(c.getName(), c.getDescription()))
                     .collect(java.util.stream.Collectors.toList());
@@ -487,9 +410,6 @@ final class SessionRequestBuilder {
         if (config.getOnAutoModeSwitch() != null) {
             request.setRequestAutoModeSwitch(true);
         }
-        if (config.isAutoModeRecovery()) {
-            request.setRequestAutoModeRecovery(true);
-        }
         request.setGitHubToken(config.getGitHubToken());
         request.setFeatureFlags(config.getFeatureFlags());
         request.setExpAssignments(config.getExpAssignments());
@@ -497,7 +417,6 @@ final class SessionRequestBuilder {
         request.setExcludedManagedSettings(config.getExcludedManagedSettings());
         config.getEnforceManagedModelDefaults().ifPresent(request::setEnforceManagedModelDefaults);
         config.getInteractiveUser().ifPresent(request::setInteractiveUser);
-        config.getPermissionMode().ifPresent(request::setPermissionMode);
         request.setManagedSettings(config.getManagedSettings());
 
         return request;
@@ -544,15 +463,8 @@ final class SessionRequestBuilder {
         if (config.getOnUserInputRequest() != null) {
             session.registerUserInputHandler(config.getOnUserInputRequest());
         }
-        if (config.getOnShellAuthenticationRequest() != null) {
-            session.registerShellAuthenticationHandler(config.getOnShellAuthenticationRequest());
-        }
         if (config.getSkillProvider() != null) {
             session.registerSkillProvider(config.getSkillProvider());
-        }
-        var memoryStore = config.getMemory() != null ? config.getMemory().getStoreMemory() : null;
-        if (memoryStore != null) {
-            session.registerMemoryStore(memoryStore);
         }
         if (config.getHooks() != null) {
             session.registerHooks(config.getHooks());
@@ -606,15 +518,8 @@ final class SessionRequestBuilder {
         if (config.getOnUserInputRequest() != null) {
             session.registerUserInputHandler(config.getOnUserInputRequest());
         }
-        if (config.getOnShellAuthenticationRequest() != null) {
-            session.registerShellAuthenticationHandler(config.getOnShellAuthenticationRequest());
-        }
         if (config.getSkillProvider() != null) {
             session.registerSkillProvider(config.getSkillProvider());
-        }
-        var memoryStore = config.getMemory() != null ? config.getMemory().getStoreMemory() : null;
-        if (memoryStore != null) {
-            session.registerMemoryStore(memoryStore);
         }
         if (config.getHooks() != null) {
             session.registerHooks(config.getHooks());

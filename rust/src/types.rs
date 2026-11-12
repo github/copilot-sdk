@@ -86,11 +86,6 @@ pub use crate::copilot_request_handler::{
 pub use crate::copilot_request_handler::{
     CopilotWebSocketForwarder, CopilotWebSocketForwarderBuilder, forward_http,
 };
-/// Copilot Fusion tier, matching the CLI's `--fusion-tier`. The runtime
-/// resolves each tier to the Auto routing preference it stands for.
-pub use crate::generated::api_types::FusionTier;
-/// Outcome of an initial permission mode requested at create or resume.
-pub use crate::generated::api_types::PermissionsSetModeResult;
 pub use crate::generated::api_types::{
     AutopilotOptions, DiagnosticLogLevel, DiagnosticSourcesConfiguration, DiagnosticsConfiguration,
     McpDiagnosticSourceConfiguration, SessionManagementScope,
@@ -106,18 +101,15 @@ pub use crate::generated::session_events::AgentModelPolicy;
 /// [`AutoTier::Fast`] is an integrator-only latency preset, not a first-party
 /// GitHub Copilot product preference.
 pub use crate::generated::session_events::AutoTier;
-/// Permission mode requested for a session.
-pub use crate::generated::session_events::PermissionMode;
 use crate::generated::session_events::ReasoningSummary;
 /// Context window tier for models that support tiered context windows.
 pub use crate::generated::session_events::{ContextTier, SessionLimitsConfig};
 use crate::github_token::GitHubTokenProvider;
 use crate::handler::{
     AutoModeSwitchHandler, ElicitationHandler, ExitPlanModeHandler, McpAuthHandler,
-    PermissionHandler, ShellAuthenticationHandler, UserInputHandler,
+    PermissionHandler, UserInputHandler,
 };
 use crate::hooks::SessionHooks;
-use crate::memory_store::MemoryStore;
 use crate::provider_token::BearerTokenProvider;
 pub use crate::session_fs::{
     DirEntry, DirEntryKind, FileByteRange, FileInfo, FsError, SessionFsBinaryProvider,
@@ -443,13 +435,6 @@ pub struct Tool {
     /// model can read the error and retry.
     #[serde(default, skip_serializing_if = "is_false")]
     pub is_terminal: bool,
-    /// When `true`, declares that repeating a call with the same arguments
-    /// has no additional effect beyond the first call, as is true of any tool
-    /// without side effects. The runtime may use this to decide that a call
-    /// whose outcome was lost can be safely repeated. It does not affect
-    /// permission checks.
-    #[serde(default, skip_serializing_if = "is_false")]
-    pub idempotent: bool,
     /// Controls whether the tool may be deferred (loaded lazily via tool
     /// search) rather than always pre-loaded. When [`DeferMode::Auto`], the
     /// tool can be deferred and surfaced through tool search. When
@@ -475,25 +460,15 @@ pub struct Tool {
     /// matching `external_tool.requested` broadcasts to this handler.
     /// When `None`, the tool is declaration-only.
     ///
-    /// Serialized only as a boolean `hasHandler` ownership marker.
+    /// Skipped during serialization — the handler is runtime behavior,
+    /// not part of the wire representation.
     ///
     /// Crate-private to enforce builder semantics: external callers must
     /// install a handler through [`Tool::with_handler`] and inspect via
     /// [`Tool::handler`], so an already-attached handler cannot be
     /// silently overwritten by direct field assignment.
-    #[serde(
-        rename = "hasHandler",
-        serialize_with = "serialize_tool_handler",
-        skip_deserializing
-    )]
+    #[serde(skip)]
     pub(crate) handler: Option<Arc<dyn crate::tool::ToolHandler>>,
-}
-
-fn serialize_tool_handler<S: serde::Serializer>(
-    handler: &Option<Arc<dyn crate::tool::ToolHandler>>,
-    serializer: S,
-) -> Result<S::Ok, S::Error> {
-    serializer.serialize_bool(handler.is_some())
 }
 
 #[inline]
@@ -634,18 +609,6 @@ impl Tool {
         self
     }
 
-    /// Declares whether repeating a call with the same arguments has no
-    /// additional effect beyond the first call, as is true of any tool
-    /// without side effects.
-    ///
-    /// The runtime may use this to decide that a call whose outcome was lost
-    /// can be safely repeated. It does not affect permission checks.
-    #[must_use]
-    pub fn with_idempotent(mut self, idempotent: bool) -> Self {
-        self.idempotent = idempotent;
-        self
-    }
-
     /// Set the deferral mode controlling whether the tool may be loaded
     /// lazily via tool search ([`DeferMode::Auto`]) or always pre-loaded
     /// ([`DeferMode::Never`]).
@@ -689,18 +652,16 @@ impl Tool {
 /// Handlers for a session's client-supplied tools, keyed by tool name.
 pub(crate) type ToolHandlerMap = HashMap<String, Arc<dyn crate::tool::ToolHandler>>;
 
-/// Collect each tool's handler into a [`ToolHandlerMap`], preserving handler
-/// presence for the wire ownership marker.
+/// Move each tool's handler into a [`ToolHandlerMap`], leaving declaration-only
+/// definitions to send on the wire.
 ///
 /// Two handlers for one name are rejected because dispatch, which is keyed by
 /// name, could only ever reach one of them.
-pub(crate) fn collect_tool_handlers(tools: &[Tool]) -> Result<ToolHandlerMap, crate::Error> {
+pub(crate) fn take_tool_handlers(tools: &mut [Tool]) -> Result<ToolHandlerMap, crate::Error> {
     let mut handlers = ToolHandlerMap::new();
     for tool in tools {
-        if let Some(handler) = &tool.handler
-            && handlers
-                .insert(tool.name.clone(), handler.clone())
-                .is_some()
+        if let Some(handler) = tool.handler.take()
+            && handlers.insert(tool.name.clone(), handler).is_some()
         {
             return Err(crate::Error::with_message(
                 crate::ErrorKind::InvalidConfig,
@@ -722,7 +683,6 @@ impl std::fmt::Debug for Tool {
             .field("overrides_built_in_tool", &self.overrides_built_in_tool)
             .field("skip_permission", &self.skip_permission)
             .field("is_terminal", &self.is_terminal)
-            .field("idempotent", &self.idempotent)
             .field("defer", &self.defer)
             .field("metadata", &self.metadata)
             .field("namespace", &self.namespace)
@@ -971,8 +931,8 @@ pub struct DefaultAgentConfig {
 /// Configuration for large tool output handling.
 ///
 /// When a tool produces output exceeding [`max_size_bytes`](Self::max_size_bytes),
-/// the runtime writes the full output to a file in [`output_directory`](Self::output_directory)
-/// and returns the file path and a truncated preview to the model.
+/// the SDK writes the full output to a file in [`output_directory`](Self::output_directory)
+/// and returns a truncated preview to the model.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
@@ -981,8 +941,7 @@ pub struct LargeToolOutputConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub enabled: Option<bool>,
     /// Maximum tool output size in bytes before it is redirected to a file.
-    /// Uses the runtime's configured threshold when unset
-    /// (20480 bytes by default on the CLI).
+    /// Defaults to 50KB on the CLI.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_size_bytes: Option<u64>,
     /// Directory where large tool output files are written. Defaults to
@@ -1523,7 +1482,7 @@ pub struct McpHttpServerConfig {
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct ProviderConfig {
-    /// Provider type: `"openai"`, `"azure"`, `"anthropic"`, or `"google"`. Defaults to
+    /// Provider type: `"openai"`, `"azure"`, or `"anthropic"`. Defaults to
     /// `"openai"` on the CLI.
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "type")]
     pub provider_type: Option<String>,
@@ -1540,7 +1499,10 @@ pub struct ProviderConfig {
     /// Product serving the model, such as `"ollama"` or `"lm_studio"`,
     /// reported in telemetry as `model_provider`. Allowed values are
     /// `"openai"`, `"anthropic"`, `"azure_openai"`, `"ollama"`,
-    /// `"lm_studio"`, `"foundry_local"`, and `"llama_cpp"`; only affects telemetry.
+    /// `"lm_studio"`, `"foundry_local"`, and `"llama_cpp"`. `"azure_openai"`
+    /// also omits explicit prompt-cache breakpoints, which limit cross-turn
+    /// cache reuse on Azure; set it for a proxy or custom domain in front of
+    /// Azure OpenAI.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model_provider: Option<String>,
     /// API endpoint URL.
@@ -1633,7 +1595,7 @@ impl ProviderConfig {
         }
     }
 
-    /// Set the provider type (`"openai"`, `"azure"`, `"anthropic"`, or `"google"`).
+    /// Set the provider type (`"openai"`, `"azure"`, or `"anthropic"`).
     pub fn with_provider_type(mut self, provider_type: impl Into<String>) -> Self {
         self.provider_type = Some(provider_type.into());
         self
@@ -1654,7 +1616,9 @@ impl ProviderConfig {
 
     /// Set the product serving the model. Allowed values are `"openai"`,
     /// `"anthropic"`, `"azure_openai"`, `"ollama"`, `"lm_studio"`,
-    /// `"foundry_local"`, and `"llama_cpp"`. Only affects telemetry.
+    /// `"foundry_local"`, and `"llama_cpp"`. `"azure_openai"` also omits
+    /// explicit prompt-cache breakpoints; see
+    /// [`model_provider`](Self::model_provider).
     pub fn with_model_provider(mut self, model_provider: impl Into<String>) -> Self {
         self.model_provider = Some(model_provider.into());
         self
@@ -1760,28 +1724,8 @@ pub struct CapiSessionOptions {
     ///
     /// To change the preference on a live session, use
     /// [`Session::set_auto_tier`](crate::session::Session::set_auto_tier).
-    ///
-    /// For Copilot Fusion, prefer [`fusion_tier`](Self::fusion_tier). The
-    /// `balance`, `hydrafusion` and `hydrafusion-max` identifiers it replaces
-    /// remain accepted but are deprecated.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_tier: Option<AutoTier>,
-
-    /// Copilot Fusion tier for model `fusion` or `auto`, matching the CLI's
-    /// `--fusion-tier`.
-    ///
-    /// The runtime resolves the tier to the Auto routing preference it stands
-    /// for and then applies it exactly like [`auto_tier`](Self::auto_tier), so
-    /// `session.model.getCurrent` and `session.model_change` events report that
-    /// preference as `autoTier`. Cannot be combined with `auto_tier`.
-    ///
-    /// To change the tier on a live session, use
-    /// [`Session::set_fusion_tier`](crate::session::Session::set_fusion_tier).
-    ///
-    /// **Experimental.** Part of an experimental Auto routing surface and may
-    /// change or be removed in a future release.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub fusion_tier: Option<FusionTier>,
 
     /// Whether to use WebSocket transport for CAPI Responses API calls.
     ///
@@ -1801,12 +1745,6 @@ impl CapiSessionOptions {
     /// Set the routing tier for the `auto` model (Auto mode V2).
     pub fn with_auto_tier(mut self, auto_tier: AutoTier) -> Self {
         self.auto_tier = Some(auto_tier);
-        self
-    }
-
-    /// Set the Copilot Fusion tier for the `fusion` or `auto` model.
-    pub fn with_fusion_tier(mut self, fusion_tier: FusionTier) -> Self {
-        self.fusion_tier = Some(fusion_tier);
         self
     }
 
@@ -1840,13 +1778,10 @@ pub struct AzureProviderOptions {
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct NamedProviderConfig {
-    /// Forward-compatible runtime options for a local model.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub local_model: Option<serde_json::Value>,
     /// Unique name used by [`ProviderModelConfig::provider`] to reference
     /// this connection.
     pub name: String,
-    /// Provider type: `"openai"`, `"azure"`, `"anthropic"`, or `"google"`. Defaults to
+    /// Provider type: `"openai"`, `"azure"`, or `"anthropic"`. Defaults to
     /// `"openai"` on the CLI.
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "type")]
     pub provider_type: Option<String>,
@@ -1857,7 +1792,10 @@ pub struct NamedProviderConfig {
     /// Product serving this provider's models, such as `"ollama"` or
     /// `"lm_studio"`, reported in telemetry as `model_provider`. Allowed values
     /// are `"openai"`, `"anthropic"`, `"azure_openai"`, `"ollama"`,
-    /// `"lm_studio"`, `"foundry_local"`, and `"llama_cpp"`; only affects telemetry.
+    /// `"lm_studio"`, `"foundry_local"`, and `"llama_cpp"`. `"azure_openai"`
+    /// also omits explicit prompt-cache breakpoints, which limit cross-turn
+    /// cache reuse on Azure; set it for a proxy or custom domain in front of
+    /// Azure OpenAI.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model_provider: Option<String>,
     /// API endpoint URL.
@@ -1905,12 +1843,6 @@ impl std::fmt::Debug for NamedProviderConfig {
 }
 
 impl NamedProviderConfig {
-    /// Set runtime options for a local model without changing their JSON shape.
-    pub fn with_local_model(mut self, options: serde_json::Value) -> Self {
-        self.local_model = Some(options);
-        self
-    }
-
     /// Construct a [`NamedProviderConfig`] with the required `name` and
     /// `base_url` set; all other fields default to unset.
     pub fn new(name: impl Into<String>, base_url: impl Into<String>) -> Self {
@@ -1921,7 +1853,7 @@ impl NamedProviderConfig {
         }
     }
 
-    /// Set the provider type (`"openai"`, `"azure"`, `"anthropic"`, or `"google"`).
+    /// Set the provider type (`"openai"`, `"azure"`, or `"anthropic"`).
     pub fn with_provider_type(mut self, provider_type: impl Into<String>) -> Self {
         self.provider_type = Some(provider_type.into());
         self
@@ -1935,7 +1867,9 @@ impl NamedProviderConfig {
 
     /// Set the product serving this provider's models. Allowed values are
     /// `"openai"`, `"anthropic"`, `"azure_openai"`, `"ollama"`,
-    /// `"lm_studio"`, `"foundry_local"`, and `"llama_cpp"`. Only affects telemetry.
+    /// `"lm_studio"`, `"foundry_local"`, and `"llama_cpp"`. `"azure_openai"`
+    /// also omits explicit prompt-cache breakpoints; see
+    /// [`model_provider`](Self::model_provider).
     pub fn with_model_provider(mut self, model_provider: impl Into<String>) -> Self {
         self.model_provider = Some(model_provider.into());
         self
@@ -2013,12 +1947,6 @@ fn prepare_bearer_token_providers(
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct ProviderModelConfig {
-    /// Persisted on-device Auto annotation.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub auto_local: Option<serde_json::Value>,
-    /// Provider-published model metadata, including live Auto routing annotations.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub metadata: Option<HashMap<String, serde_json::Value>>,
     /// Model identifier, unique within its provider. Combined with
     /// [`provider`](Self::provider) to form the selection id `provider/id`.
     pub id: String,
@@ -2051,18 +1979,6 @@ pub struct ProviderModelConfig {
 }
 
 impl ProviderModelConfig {
-    /// Set the persisted on-device Auto annotation.
-    pub fn with_auto_local(mut self, annotation: serde_json::Value) -> Self {
-        self.auto_local = Some(annotation);
-        self
-    }
-
-    /// Set provider-published model metadata.
-    pub fn with_metadata(mut self, metadata: HashMap<String, serde_json::Value>) -> Self {
-        self.metadata = Some(metadata);
-        self
-    }
-
     /// Construct a [`ProviderModelConfig`] with the required `id` and
     /// `provider` set; all other fields default to unset.
     pub fn new(id: impl Into<String>, provider: impl Into<String>) -> Self {
@@ -2368,10 +2284,6 @@ pub enum WorkingDirectoryTrust {
 #[derive(Clone)]
 #[non_exhaustive]
 pub struct SessionConfig {
-    /// Whether the model may request multiple tool calls per response (default true).
-    /// False is a provider hint, not an execution guarantee: all returned calls
-    /// are handled and handlers may run concurrently. Re-supply on cold resume.
-    pub allow_multiple_tool_calls: Option<bool>,
     /// Custom session ID. When unset, the CLI generates one.
     pub session_id: Option<SessionId>,
     /// Name the session at creation, as `session.name.set` would, and validated
@@ -2381,7 +2293,7 @@ pub struct SessionConfig {
     /// even if it never runs a turn. Local sessions only: cloud creation rejects
     /// it.
     pub name: Option<String>,
-    /// Model to use (e.g. `"gpt-5.4"`, `"claude-sonnet-4"`).
+    /// Model to use (e.g. `"gpt-4"`, `"claude-sonnet-4"`).
     pub model: Option<String>,
     /// Exact model IDs this session may use. When unset, the host imposes no
     /// model restriction. The runtime validates configured IDs, rejects an
@@ -2440,12 +2352,6 @@ pub struct SessionConfig {
     /// selected or invoked unless a custom agent with the same name is
     /// configured.
     pub excluded_builtin_agents: Option<Vec<String>>,
-    /// Built-in subagent names to allow, subject to availability and exclusions.
-    /// `Some(vec![])` disables all built-in subagents; custom agents remain
-    /// available, including same-name agents. `None` uses defaults on create or
-    /// cold resume and preserves the current allowlist on warm resume.
-    /// Not persisted; re-supply on resume after restart.
-    pub included_builtin_agents: Option<Vec<String>>,
     /// Built-in skill names to include in the session. In
     /// [`ClientMode::Empty`](crate::ClientMode::Empty), `None` excludes all
     /// runtime-bundled skills; `Some` opts the named built-ins back in.
@@ -2654,11 +2560,6 @@ pub struct SessionConfig {
     pub model_capabilities: Option<crate::generated::api_types::ModelCapabilitiesOverride>,
     /// Per-session configuration for the runtime memory feature.
     pub memory: Option<MemoryConfiguration>,
-    /// **Experimental.** Stores memories in the app instead of the built-in
-    /// memory backends. Used only when [`memory`](Self::memory) is enabled.
-    ///
-    /// The store is runtime-only and is not serialized.
-    pub memory_store: Option<Arc<dyn MemoryStore>>,
     /// Override the default configuration directory location. When set,
     /// the session uses this directory for storing config and state.
     pub config_directory: Option<PathBuf>,
@@ -2735,15 +2636,6 @@ pub struct SessionConfig {
     /// cloud sessions. Set via
     /// [`with_interactive_user`](Self::with_interactive_user).
     pub interactive_user: Option<bool>,
-    /// Permission mode applied before the session's first turn, before
-    /// session creation returns. Uses the same checks as
-    /// `session.permissions.setMode`; a mode that managed policy or session
-    /// capabilities refuse leaves the current mode in place.
-    /// [`Session::permission_mode_result`](crate::session::Session::permission_mode_result)
-    /// reports whether it was applied and the authoritative mode. Not supported
-    /// for cloud sessions. Set via
-    /// [`with_permission_mode`](Self::with_permission_mode).
-    pub permission_mode: Option<PermissionMode>,
     /// Optional managed-settings layer injected at session bootstrap. Currently
     /// carries a [`permissions`](ManagedSettingsPermissions) object that composes
     /// restrictively with any server- or device-level managed settings. This
@@ -2778,14 +2670,6 @@ pub struct SessionConfig {
     /// Optional auto-mode-switch handler. When `None`,
     /// `requestAutoModeSwitch: false` goes on the wire.
     pub auto_mode_switch_handler: Option<Arc<dyn AutoModeSwitchHandler>>,
-    /// Optional handler for passwords and other answers that shell commands
-    /// run by the agent ask for. When `None`, `requestShellAuthentication` is left
-    /// off the wire, so the runtime never asks this client.
-    pub shell_authentication_handler: Option<Arc<dyn ShellAuthenticationHandler>>,
-    /// Opt in to runtime-owned recovery of an eligible active request using Auto.
-    /// Requires an auto-mode-switch handler and positive runtime acknowledgment.
-    /// Defaults to false; re-supply on resume. The handler must not resend or rewind.
-    pub auto_mode_recovery: bool,
     /// Session lifecycle hook handler (pre/post tool use, session
     /// start/end, etc.). When set, the SDK auto-enables the wire-level
     /// `hooks` flag. Use [`with_hooks`](Self::with_hooks) to install one.
@@ -2849,7 +2733,6 @@ impl std::fmt::Debug for SessionConfig {
             .field("allowed_models", &self.allowed_models)
             .field("client_name", &self.client_name)
             .field("reasoning_effort", &self.reasoning_effort)
-            .field("allow_multiple_tool_calls", &self.allow_multiple_tool_calls)
             .field("reasoning_summary", &self.reasoning_summary)
             .field("context_tier", &self.context_tier)
             .field("streaming", &self.streaming)
@@ -2869,7 +2752,6 @@ impl std::fmt::Debug for SessionConfig {
             .field("available_tools", &self.available_tools)
             .field("excluded_tools", &self.excluded_tools)
             .field("excluded_builtin_agents", &self.excluded_builtin_agents)
-            .field("included_builtin_agents", &self.included_builtin_agents)
             .field("included_builtin_skills", &self.included_builtin_skills)
             .field("mcp_servers", &self.mcp_servers)
             .field("diagnostics", &self.diagnostics)
@@ -2941,7 +2823,6 @@ impl std::fmt::Debug for SessionConfig {
             .field("autopilot", &self.autopilot)
             .field("model_capabilities", &self.model_capabilities)
             .field("memory", &self.memory)
-            .field("memory_store", &self.memory_store.as_ref().map(|_| "<set>"))
             .field("config_directory", &self.config_directory)
             .field("working_directory", &self.working_directory)
             .field("additional_directories", &self.additional_directories)
@@ -2968,7 +2849,6 @@ impl std::fmt::Debug for SessionConfig {
                 &self.enforce_managed_model_defaults,
             )
             .field("interactive_user", &self.interactive_user)
-            .field("permission_mode", &self.permission_mode)
             .field("enable_experimental_mode", &self.enable_experimental_mode)
             .field("managed_settings", &self.managed_settings)
             .field(
@@ -2999,11 +2879,6 @@ impl std::fmt::Debug for SessionConfig {
                 "auto_mode_switch_handler",
                 &self.auto_mode_switch_handler.as_ref().map(|_| "<set>"),
             )
-            .field("auto_mode_recovery", &self.auto_mode_recovery)
-            .field(
-                "shell_authentication_handler",
-                &self.shell_authentication_handler.as_ref().map(|_| "<set>"),
-            )
             .field(
                 "hooks_handler",
                 &self.hooks_handler.as_ref().map(|_| "<set>"),
@@ -3026,7 +2901,6 @@ impl Default for SessionConfig {
     fn default() -> Self {
         Self {
             session_id: None,
-            allow_multiple_tool_calls: None,
             name: None,
             model: None,
             allowed_models: None,
@@ -3048,7 +2922,6 @@ impl Default for SessionConfig {
             available_tools: None,
             excluded_tools: None,
             excluded_builtin_agents: None,
-            included_builtin_agents: None,
             included_builtin_skills: None,
             mcp_servers: None,
             diagnostics: None,
@@ -3096,7 +2969,6 @@ impl Default for SessionConfig {
             autopilot: None,
             model_capabilities: None,
             memory: None,
-            memory_store: None,
             config_directory: None,
             working_directory: None,
             additional_directories: None,
@@ -3112,7 +2984,6 @@ impl Default for SessionConfig {
             excluded_managed_settings: None,
             enforce_managed_model_defaults: None,
             interactive_user: None,
-            permission_mode: None,
             managed_settings: None,
             session_fs_provider: None,
             permission_handler: None,
@@ -3121,8 +2992,6 @@ impl Default for SessionConfig {
             user_input_handler: None,
             exit_plan_mode_handler: None,
             auto_mode_switch_handler: None,
-            shell_authentication_handler: None,
-            auto_mode_recovery: false,
             hooks_handler: None,
             permission_policy: None,
             system_message_transform: None,
@@ -3149,46 +3018,33 @@ pub(crate) struct SessionConfigRuntime {
     pub user_input_handler: Option<Arc<dyn UserInputHandler>>,
     pub exit_plan_mode_handler: Option<Arc<dyn ExitPlanModeHandler>>,
     pub auto_mode_switch_handler: Option<Arc<dyn AutoModeSwitchHandler>>,
-    pub shell_authentication_handler: Option<Arc<dyn ShellAuthenticationHandler>>,
     pub hooks_handler: Option<Arc<dyn SessionHooks>>,
     pub system_message_transform: Option<Arc<dyn SystemMessageTransform>>,
     pub tool_handlers: ToolHandlerMap,
     pub canvas_handler: Option<Arc<dyn CanvasHandler>>,
     pub session_fs_provider: Option<Arc<dyn SessionFsProvider>>,
     pub skill_provider: Option<Arc<dyn SkillProvider>>,
-    pub memory_store: Option<Arc<dyn MemoryStore>>,
     pub bearer_token_providers: HashMap<String, Arc<dyn BearerTokenProvider>>,
     pub github_token_provider: Option<Arc<dyn GitHubTokenProvider>>,
     pub commands: Option<Vec<CommandDefinition>>,
 }
 
 impl SessionConfig {
-    /// Set [`allow_multiple_tool_calls`](Self::allow_multiple_tool_calls).
-    pub fn with_allow_multiple_tool_calls(mut self, allowed: bool) -> Self {
-        self.allow_multiple_tool_calls = Some(allowed);
-        self
-    }
-
     /// Consume this config to produce the [`SessionCreateWire`] payload
     /// for `session.create` and a [`SessionConfigRuntime`] bundle holding
     /// the runtime-only fields (handlers, transforms, providers).
     ///
     /// Wire-format flags are derived from handler presence and the policy
-    /// field. Tool handler Arcs are shared until wire serialization completes;
-    /// other runtime fields are moved into the returned runtime, avoiding deep
-    /// `Vec<Tool>` / `IndexMap<String, Value>` clones.
+    /// field; runtime fields are moved out into the returned runtime so
+    /// the deep `Vec<Tool>` / `IndexMap<String, Value>` clones the previous
+    /// `&self`-based shape required are eliminated, and the order of
+    /// reading-vs-moving is enforced at compile time.
     ///
     /// [`SessionCreateWire`]: crate::wire::SessionCreateWire
     pub(crate) fn into_wire(
         mut self,
         session_id: Option<SessionId>,
     ) -> Result<(crate::wire::SessionCreateWire, SessionConfigRuntime), crate::Error> {
-        if self.auto_mode_recovery && self.auto_mode_switch_handler.is_none() {
-            return Err(crate::Error::with_message(
-                crate::ErrorKind::InvalidConfig,
-                "auto_mode_recovery requires auto_mode_switch_handler",
-            ));
-        }
         if self.github_token.is_some() && self.github_token_provider.is_some() {
             return Err(crate::Error::with_message(
                 crate::ErrorKind::InvalidConfig,
@@ -3200,13 +3056,11 @@ impl SessionConfig {
         let request_user_input = self.user_input_handler.is_some();
         let request_exit_plan_mode = self.exit_plan_mode_handler.is_some();
         let request_auto_mode_switch = self.auto_mode_switch_handler.is_some();
-        let request_shell_authentication = self.shell_authentication_handler.is_some();
         let request_elicitation = self.elicitation_handler.is_some();
         let hooks_flag = self.hooks_handler.is_some();
         let has_skill_provider = self.skill_provider.is_some();
-        let has_memory_store = self.memory_store.is_some();
 
-        let tool_handlers = collect_tool_handlers(self.tools.as_deref().unwrap_or_default())?;
+        let tool_handlers = take_tool_handlers(self.tools.as_deref_mut().unwrap_or_default())?;
 
         let wire_commands = self.commands.as_ref().map(|cmds| {
             cmds.iter()
@@ -3222,7 +3076,6 @@ impl SessionConfig {
             prepare_bearer_token_providers(&mut self.provider, &mut self.providers);
 
         let wire = crate::wire::SessionCreateWire {
-            allow_multiple_tool_calls: self.allow_multiple_tool_calls,
             session_id,
             name: self.name,
             model: self.model,
@@ -3244,7 +3097,7 @@ impl SessionConfig {
             available_tools: self.available_tools,
             excluded_tools: self.excluded_tools,
             excluded_builtin_agents: self.excluded_builtin_agents,
-            included_builtin_agents: self.included_builtin_agents,
+            tool_filter_precedence: "excluded",
             mcp_servers: self.mcp_servers,
             diagnostics: self.diagnostics,
             lifecycle_diagnostics: self.lifecycle_diagnostics,
@@ -3263,15 +3116,12 @@ impl SessionConfig {
             enable_session_store: self.enable_session_store,
             enable_skills: self.enable_skills,
             has_skill_provider: has_skill_provider.then_some(true),
-            has_memory_store: has_memory_store.then_some(true),
             request_user_input,
             request_permission: permission_active,
             request_exit_plan_mode,
             request_auto_mode_switch,
-            request_auto_mode_recovery: self.auto_mode_recovery.then_some(true),
             request_elicitation,
             request_mcp_apps: self.enable_mcp_apps.unwrap_or(false),
-            request_shell_authentication: request_shell_authentication.then_some(true),
             github_mcp_tool_config: self.github_mcp_tool_config,
             hooks: hooks_flag,
             skill_directories: self.skill_directories,
@@ -3317,7 +3167,6 @@ impl SessionConfig {
             excluded_managed_settings: self.excluded_managed_settings,
             enforce_managed_model_defaults: self.enforce_managed_model_defaults,
             interactive_user: self.interactive_user,
-            permission_mode: self.permission_mode,
             is_experimental_mode: self.enable_experimental_mode,
             managed_settings: self.managed_settings,
         };
@@ -3330,14 +3179,12 @@ impl SessionConfig {
             user_input_handler: self.user_input_handler,
             exit_plan_mode_handler: self.exit_plan_mode_handler,
             auto_mode_switch_handler: self.auto_mode_switch_handler,
-            shell_authentication_handler: self.shell_authentication_handler,
             hooks_handler: self.hooks_handler,
             system_message_transform: self.system_message_transform,
             tool_handlers,
             canvas_handler,
             session_fs_provider: self.session_fs_provider,
             skill_provider: self.skill_provider,
-            memory_store: self.memory_store,
             bearer_token_providers,
             github_token_provider: self.github_token_provider,
             commands: self.commands,
@@ -3392,24 +3239,6 @@ impl SessionConfig {
         handler: Arc<dyn AutoModeSwitchHandler>,
     ) -> Self {
         self.auto_mode_switch_handler = Some(handler);
-        self
-    }
-
-    /// Install a [`ShellAuthenticationHandler`] for passwords and other answers that
-    /// shell commands run by the agent ask for, such as `sudo -A`, `ssh`, or
-    /// `git` over HTTPS.
-    pub fn with_shell_authentication_handler(
-        mut self,
-        handler: Arc<dyn ShellAuthenticationHandler>,
-    ) -> Self {
-        self.shell_authentication_handler = Some(handler);
-        self
-    }
-
-    /// Enable retained-request recovery. Consent uses
-    /// [`AutoModeSwitchHandler::handle_auto_mode_recovery`] and has no runtime deadline.
-    pub fn with_auto_mode_recovery(mut self, enabled: bool) -> Self {
-        self.auto_mode_recovery = enabled;
         self
     }
 
@@ -3628,17 +3457,6 @@ impl SessionConfig {
         S: Into<String>,
     {
         self.excluded_builtin_agents = Some(agents.into_iter().map(Into::into).collect());
-        self
-    }
-
-    /// Set the built-in subagent allowlist. An empty iterator disables all
-    /// built-in subagents without restricting custom agents.
-    pub fn with_included_builtin_agents<I, S>(mut self, agents: I) -> Self
-    where
-        I: IntoIterator<Item = S>,
-        S: Into<String>,
-    {
-        self.included_builtin_agents = Some(agents.into_iter().map(Into::into).collect());
         self
     }
 
@@ -3979,15 +3797,6 @@ impl SessionConfig {
         self
     }
 
-    /// Install an experimental [`MemoryStore`] for this session.
-    ///
-    /// Requires memory enabled with [`Self::with_memory`]; otherwise session setup
-    /// fails before any request is sent. Not supported for cloud sessions.
-    pub fn with_memory_store(mut self, store: Arc<dyn MemoryStore>) -> Self {
-        self.memory_store = Some(store);
-        self
-    }
-
     /// Configure the runtime memory feature for this session.
     pub fn with_memory(mut self, memory: MemoryConfiguration) -> Self {
         self.memory = Some(memory);
@@ -4028,11 +3837,9 @@ impl SessionConfig {
 
     /// Install a rotating GitHub token provider for this session.
     ///
-    /// The provider must return the remaining lifetime in seconds when its callback
-    /// completes. More than 3600 seconds must still remain after token validation;
-    /// validation time counts against the lifetime. Production GitHub tokens
-    /// typically last eight hours. This option is mutually exclusive with
-    /// [`with_github_token`](Self::with_github_token).
+    /// The provider must return a positive remaining lifetime in seconds when
+    /// its callback completes. Production GitHub tokens typically last eight
+    /// hours. This option is mutually exclusive with [`with_github_token`](Self::with_github_token).
     pub fn with_github_token_provider(mut self, provider: Arc<dyn GitHubTokenProvider>) -> Self {
         self.github_token_provider = Some(provider);
         self
@@ -4158,12 +3965,6 @@ impl SessionConfig {
         self
     }
 
-    /// Set the permission mode applied before the session's first turn.
-    pub fn with_permission_mode(mut self, permission_mode: PermissionMode) -> Self {
-        self.permission_mode = Some(permission_mode);
-        self
-    }
-
     /// Inject a managed-settings layer (currently permission rules) at session
     /// bootstrap. This layer is startup-only and is not persisted, so it must be
     /// re-supplied on resume to remain in effect. Can be combined with
@@ -4182,13 +3983,9 @@ impl SessionConfig {
 #[derive(Clone)]
 #[non_exhaustive]
 pub struct ResumeSessionConfig {
-    /// Whether the model may request multiple tool calls per response (default true).
-    /// False is a provider hint, not an execution guarantee: all returned calls
-    /// are handled and handlers may run concurrently. Re-supply on cold resume.
-    pub allow_multiple_tool_calls: Option<bool>,
     /// ID of the session to resume.
     pub session_id: SessionId,
-    /// Model to use for this session (e.g. `"gpt-5.4"`, `"claude-sonnet-4"`).
+    /// Model to use for this session (e.g. `"gpt-4"`, `"claude-sonnet-4"`).
     /// Can change the model when resuming.
     pub model: Option<String>,
     /// Exact model IDs the resumed session may use. When unset, the host
@@ -4249,12 +4046,6 @@ pub struct ResumeSessionConfig {
     /// selected or invoked unless a custom agent with the same name is
     /// configured.
     pub excluded_builtin_agents: Option<Vec<String>>,
-    /// Built-in subagent names to allow, subject to availability and exclusions.
-    /// `Some(vec![])` disables all built-in subagents; custom agents remain
-    /// available, including same-name agents. `None` uses defaults on cold
-    /// resume and preserves the current allowlist on warm resume.
-    /// Not persisted; re-supply on resume after restart.
-    pub included_builtin_agents: Option<Vec<String>>,
     /// Built-in skill names to include in the resumed session. In
     /// [`ClientMode::Empty`](crate::ClientMode::Empty), `None` excludes all
     /// runtime-bundled skills; `Some` opts the named built-ins back in.
@@ -4408,11 +4199,6 @@ pub struct ResumeSessionConfig {
     pub model_capabilities: Option<crate::generated::api_types::ModelCapabilitiesOverride>,
     /// Per-session configuration for the runtime memory feature on resume.
     pub memory: Option<MemoryConfiguration>,
-    /// **Experimental.** Stores memories in the app instead of the built-in
-    /// memory backends. Used only when [`memory`](Self::memory) is enabled.
-    ///
-    /// The store is not persisted and must be re-supplied on each resume.
-    pub memory_store: Option<Arc<dyn MemoryStore>>,
     /// Override the default configuration directory location on resume.
     pub config_directory: Option<PathBuf>,
     /// Per-session working directory on resume.
@@ -4462,13 +4248,6 @@ pub struct ResumeSessionConfig {
     /// session is already active in the runtime. Set via
     /// [`with_interactive_user`](Self::with_interactive_user).
     pub interactive_user: Option<bool>,
-    /// Permission mode applied before resumed pending work continues and
-    /// before the resume returns. If it is refused (for example by managed
-    /// policy), continued work runs under the mode
-    /// [`Session::permission_mode_result`](crate::session::Session::permission_mode_result)
-    /// reports. See [`SessionConfig::permission_mode`]. Set via
-    /// [`with_permission_mode`](Self::with_permission_mode).
-    pub permission_mode: Option<PermissionMode>,
     /// Optional managed-settings layer injected on resume. See
     /// [`SessionConfig::managed_settings`]. This layer is not persisted, so it
     /// must be re-supplied on resume to remain in effect; omitting it clears the
@@ -4488,11 +4267,9 @@ pub struct ResumeSessionConfig {
     pub suppress_resume_event: Option<bool>,
     /// When `true`, instructs the runtime to continue any tool calls or
     /// permission requests that were pending when the previous connection
-    /// was dropped. To hand off a session from one process to another, end
-    /// the first client with [`Client::stop`] before resuming the session
-    /// elsewhere. [`Client::force_stop`] does not wait for the runtime to
-    /// save the session, so when it terminates a runtime the client started,
-    /// pending work can be lost.
+    /// was dropped. Use this together with [`Client::force_stop`] to hand
+    /// off a session from one process to another without losing in-flight
+    /// work.
     /// When omitted or `false` (the default), work still pending on resume
     /// is treated as interrupted; completed tool results already recorded by
     /// the runtime are preserved.
@@ -4501,13 +4278,7 @@ pub struct ResumeSessionConfig {
     /// caller-supplied results via the corresponding low-level RPC methods. Resuming
     /// does not re-emit restored permission requests or re-invoke permission handlers
     /// or already-dispatched external tool callbacks.
-    /// If a pending call was recorded as SDK-handler-backed and resume registers a
-    /// handler for that tool, the abandoned callback is interrupted, never replayed.
-    /// Handlerless calls remain pending. To supply an abandoned callback's result
-    /// manually, resume without a handler for it. Older requests without recorded
-    /// callback ownership also remain pending.
     ///
-    /// [`Client::stop`]: crate::Client::stop
     /// [`Client::force_stop`]: crate::Client::force_stop
     pub continue_pending_work: Option<bool>,
     /// Permit recovery of a damaged transcript on resume. Defaults to `true`
@@ -4530,11 +4301,6 @@ pub struct ResumeSessionConfig {
     /// Optional auto-mode-switch handler. See
     /// [`SessionConfig::auto_mode_switch_handler`].
     pub auto_mode_switch_handler: Option<Arc<dyn AutoModeSwitchHandler>>,
-    /// Optional shell-authentication handler. See
-    /// [`SessionConfig::shell_authentication_handler`].
-    pub shell_authentication_handler: Option<Arc<dyn ShellAuthenticationHandler>>,
-    /// Re-enroll in retained-request recovery. See [`SessionConfig::auto_mode_recovery`].
-    pub auto_mode_recovery: bool,
     /// Session hook handler. See [`SessionConfig::hooks_handler`].
     pub hooks_handler: Option<Arc<dyn SessionHooks>>,
     /// Permission policy. See `SessionConfig::permission_policy`.
@@ -4566,7 +4332,6 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("allowed_models", &self.allowed_models)
             .field("client_name", &self.client_name)
             .field("reasoning_effort", &self.reasoning_effort)
-            .field("allow_multiple_tool_calls", &self.allow_multiple_tool_calls)
             .field("reasoning_summary", &self.reasoning_summary)
             .field("context_tier", &self.context_tier)
             .field("streaming", &self.streaming)
@@ -4587,7 +4352,6 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("available_tools", &self.available_tools)
             .field("excluded_tools", &self.excluded_tools)
             .field("excluded_builtin_agents", &self.excluded_builtin_agents)
-            .field("included_builtin_agents", &self.included_builtin_agents)
             .field("included_builtin_skills", &self.included_builtin_skills)
             .field("mcp_servers", &self.mcp_servers)
             .field("diagnostics", &self.diagnostics)
@@ -4654,7 +4418,6 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("autopilot", &self.autopilot)
             .field("model_capabilities", &self.model_capabilities)
             .field("memory", &self.memory)
-            .field("memory_store", &self.memory_store.as_ref().map(|_| "<set>"))
             .field("config_directory", &self.config_directory)
             .field("working_directory", &self.working_directory)
             .field("additional_directories", &self.additional_directories)
@@ -4680,7 +4443,6 @@ impl std::fmt::Debug for ResumeSessionConfig {
                 &self.enforce_managed_model_defaults,
             )
             .field("interactive_user", &self.interactive_user)
-            .field("permission_mode", &self.permission_mode)
             .field("enable_experimental_mode", &self.enable_experimental_mode)
             .field("managed_settings", &self.managed_settings)
             .field(
@@ -4707,11 +4469,6 @@ impl std::fmt::Debug for ResumeSessionConfig {
                 "auto_mode_switch_handler",
                 &self.auto_mode_switch_handler.as_ref().map(|_| "<set>"),
             )
-            .field("auto_mode_recovery", &self.auto_mode_recovery)
-            .field(
-                "shell_authentication_handler",
-                &self.shell_authentication_handler.as_ref().map(|_| "<set>"),
-            )
             .field(
                 "hooks_handler",
                 &self.hooks_handler.as_ref().map(|_| "<set>"),
@@ -4728,22 +4485,6 @@ impl std::fmt::Debug for ResumeSessionConfig {
 }
 
 impl ResumeSessionConfig {
-    pub(crate) fn validate_auto_mode_recovery(&self) -> Result<(), crate::Error> {
-        if self.auto_mode_recovery && self.auto_mode_switch_handler.is_none() {
-            return Err(crate::Error::with_message(
-                crate::ErrorKind::InvalidConfig,
-                "auto_mode_recovery requires auto_mode_switch_handler",
-            ));
-        }
-        Ok(())
-    }
-
-    /// Set [`allow_multiple_tool_calls`](Self::allow_multiple_tool_calls).
-    pub fn with_allow_multiple_tool_calls(mut self, allowed: bool) -> Self {
-        self.allow_multiple_tool_calls = Some(allowed);
-        self
-    }
-
     /// Consume this config to produce the [`SessionResumeWire`] payload
     /// for `session.resume` and a [`SessionConfigRuntime`] bundle holding
     /// the runtime-only fields (handlers, transforms, providers).
@@ -4754,7 +4495,6 @@ impl ResumeSessionConfig {
     pub(crate) fn into_wire(
         mut self,
     ) -> Result<(crate::wire::SessionResumeWire, SessionConfigRuntime), crate::Error> {
-        self.validate_auto_mode_recovery()?;
         if self.github_token.is_some() && self.github_token_provider.is_some() {
             return Err(crate::Error::with_message(
                 crate::ErrorKind::InvalidConfig,
@@ -4766,13 +4506,11 @@ impl ResumeSessionConfig {
         let request_user_input = self.user_input_handler.is_some();
         let request_exit_plan_mode = self.exit_plan_mode_handler.is_some();
         let request_auto_mode_switch = self.auto_mode_switch_handler.is_some();
-        let request_shell_authentication = self.shell_authentication_handler.is_some();
         let request_elicitation = self.elicitation_handler.is_some();
         let hooks_flag = self.hooks_handler.is_some();
         let has_skill_provider = self.skill_provider.is_some();
-        let has_memory_store = self.memory_store.is_some();
 
-        let tool_handlers = collect_tool_handlers(self.tools.as_deref().unwrap_or_default())?;
+        let tool_handlers = take_tool_handlers(self.tools.as_deref_mut().unwrap_or_default())?;
 
         let wire_commands = self.commands.as_ref().map(|cmds| {
             cmds.iter()
@@ -4788,7 +4526,6 @@ impl ResumeSessionConfig {
             prepare_bearer_token_providers(&mut self.provider, &mut self.providers);
 
         let wire = crate::wire::SessionResumeWire {
-            allow_multiple_tool_calls: self.allow_multiple_tool_calls,
             session_id: self.session_id,
             model: self.model,
             allowed_models: self.allowed_models,
@@ -4810,7 +4547,7 @@ impl ResumeSessionConfig {
             available_tools: self.available_tools,
             excluded_tools: self.excluded_tools,
             excluded_builtin_agents: self.excluded_builtin_agents,
-            included_builtin_agents: self.included_builtin_agents,
+            tool_filter_precedence: "excluded",
             mcp_servers: self.mcp_servers,
             diagnostics: self.diagnostics,
             lifecycle_diagnostics: self.lifecycle_diagnostics,
@@ -4827,15 +4564,12 @@ impl ResumeSessionConfig {
             enable_session_store: self.enable_session_store,
             enable_skills: self.enable_skills,
             has_skill_provider: has_skill_provider.then_some(true),
-            has_memory_store: has_memory_store.then_some(true),
             request_user_input,
             request_permission: permission_active,
             request_exit_plan_mode,
             request_auto_mode_switch,
-            request_auto_mode_recovery: self.auto_mode_recovery.then_some(true),
             request_elicitation,
             request_mcp_apps: self.enable_mcp_apps.unwrap_or(false),
-            request_shell_authentication: request_shell_authentication.then_some(true),
             github_mcp_tool_config: self.github_mcp_tool_config,
             hooks: hooks_flag,
             skill_directories: self.skill_directories,
@@ -4880,7 +4614,6 @@ impl ResumeSessionConfig {
             excluded_managed_settings: self.excluded_managed_settings,
             enforce_managed_model_defaults: self.enforce_managed_model_defaults,
             interactive_user: self.interactive_user,
-            permission_mode: self.permission_mode,
             is_experimental_mode: self.enable_experimental_mode,
             managed_settings: self.managed_settings,
             suppress_resume_event: self.suppress_resume_event,
@@ -4896,14 +4629,12 @@ impl ResumeSessionConfig {
             user_input_handler: self.user_input_handler,
             exit_plan_mode_handler: self.exit_plan_mode_handler,
             auto_mode_switch_handler: self.auto_mode_switch_handler,
-            shell_authentication_handler: self.shell_authentication_handler,
             hooks_handler: self.hooks_handler,
             system_message_transform: self.system_message_transform,
             tool_handlers,
             canvas_handler,
             session_fs_provider: self.session_fs_provider,
             skill_provider: self.skill_provider,
-            memory_store: self.memory_store,
             bearer_token_providers,
             github_token_provider: self.github_token_provider,
             commands: self.commands,
@@ -4918,7 +4649,6 @@ impl ResumeSessionConfig {
     /// fields you need.
     pub fn new(session_id: SessionId) -> Self {
         Self {
-            allow_multiple_tool_calls: None,
             session_id,
             model: None,
             allowed_models: None,
@@ -4941,7 +4671,6 @@ impl ResumeSessionConfig {
             available_tools: None,
             excluded_tools: None,
             excluded_builtin_agents: None,
-            included_builtin_agents: None,
             included_builtin_skills: None,
             mcp_servers: None,
             diagnostics: None,
@@ -4987,7 +4716,6 @@ impl ResumeSessionConfig {
             autopilot: None,
             model_capabilities: None,
             memory: None,
-            memory_store: None,
             config_directory: None,
             working_directory: None,
             additional_directories: None,
@@ -5002,7 +4730,6 @@ impl ResumeSessionConfig {
             excluded_managed_settings: None,
             enforce_managed_model_defaults: None,
             interactive_user: None,
-            permission_mode: None,
             managed_settings: None,
             session_fs_provider: None,
             suppress_resume_event: None,
@@ -5014,8 +4741,6 @@ impl ResumeSessionConfig {
             user_input_handler: None,
             exit_plan_mode_handler: None,
             auto_mode_switch_handler: None,
-            shell_authentication_handler: None,
-            auto_mode_recovery: false,
             hooks_handler: None,
             permission_policy: None,
             system_message_transform: None,
@@ -5070,22 +4795,6 @@ impl ResumeSessionConfig {
         handler: Arc<dyn AutoModeSwitchHandler>,
     ) -> Self {
         self.auto_mode_switch_handler = Some(handler);
-        self
-    }
-
-    /// Install a [`ShellAuthenticationHandler`] for the resumed session.
-    pub fn with_shell_authentication_handler(
-        mut self,
-        handler: Arc<dyn ShellAuthenticationHandler>,
-    ) -> Self {
-        self.shell_authentication_handler = Some(handler);
-        self
-    }
-
-    /// Re-enroll the resumed session in runtime-owned Auto recovery.
-    /// See [`SessionConfig::with_auto_mode_recovery`].
-    pub fn with_auto_mode_recovery(mut self, enabled: bool) -> Self {
-        self.auto_mode_recovery = enabled;
         self
     }
 
@@ -5296,17 +5005,6 @@ impl ResumeSessionConfig {
         S: Into<String>,
     {
         self.excluded_builtin_agents = Some(agents.into_iter().map(Into::into).collect());
-        self
-    }
-
-    /// Set the built-in subagent allowlist. An empty iterator disables all
-    /// built-in subagents without restricting custom agents.
-    pub fn with_included_builtin_agents<I, S>(mut self, agents: I) -> Self
-    where
-        I: IntoIterator<Item = S>,
-        S: Into<String>,
-    {
-        self.included_builtin_agents = Some(agents.into_iter().map(Into::into).collect());
         self
     }
 
@@ -5620,15 +5318,6 @@ impl ResumeSessionConfig {
         self
     }
 
-    /// Install an experimental [`MemoryStore`] on resume; it is not persisted and must be re-supplied on each resume.
-    ///
-    /// Requires memory enabled with [`Self::with_memory`]; otherwise session setup
-    /// fails before any request is sent. Not supported for cloud sessions.
-    pub fn with_memory_store(mut self, store: Arc<dyn MemoryStore>) -> Self {
-        self.memory_store = Some(store);
-        self
-    }
-
     /// Configure the runtime memory feature for the resumed session.
     pub fn with_memory(mut self, memory: MemoryConfiguration) -> Self {
         self.memory = Some(memory);
@@ -5667,11 +5356,9 @@ impl ResumeSessionConfig {
 
     /// Install a rotating GitHub token provider for the resumed session.
     ///
-    /// The provider must return the remaining lifetime in seconds when its callback
-    /// completes. More than 3600 seconds must still remain after token validation;
-    /// validation time counts against the lifetime. Production GitHub tokens
-    /// typically last eight hours. Mutually exclusive with
-    /// [`with_github_token`](Self::with_github_token).
+    /// The provider must return a positive remaining lifetime in seconds when
+    /// its callback completes. Production GitHub tokens typically last eight
+    /// hours. Mutually exclusive with [`with_github_token`](Self::with_github_token).
     pub fn with_github_token_provider(mut self, provider: Arc<dyn GitHubTokenProvider>) -> Self {
         self.github_token_provider = Some(provider);
         self
@@ -5704,10 +5391,9 @@ impl ResumeSessionConfig {
 
     /// When `true`, instructs the runtime to continue any tool calls or
     /// permission requests that were pending when the previous connection
-    /// was dropped. To hand off a session from one process to another, end
-    /// the first client with [`Client::stop`](crate::Client::stop), not
-    /// [`Client::force_stop`](crate::Client::force_stop), which can lose
-    /// pending work the runtime has not saved yet.
+    /// was dropped. Use this together with
+    /// [`Client::force_stop`](crate::Client::force_stop) to hand off a
+    /// session from one process to another without losing in-flight work.
     /// When `false` (the default), pending work is treated as interrupted on
     /// resume; already-recorded tool results are preserved.
     ///
@@ -5809,12 +5495,6 @@ impl ResumeSessionConfig {
         self
     }
 
-    /// Set the permission mode applied before resumed work continues.
-    pub fn with_permission_mode(mut self, permission_mode: PermissionMode) -> Self {
-        self.permission_mode = Some(permission_mode);
-        self
-    }
-
     /// Inject a managed-settings layer (currently permission rules) on resume.
     /// See [`SessionConfig::with_managed_settings`]. Must be re-supplied on
     /// resume; omitting it clears the previously injected layer.
@@ -5904,9 +5584,6 @@ pub struct CreateSessionResult {
     /// Capabilities negotiated with the CLI for this session.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub capabilities: Option<SessionCapabilities>,
-    /// Outcome of the requested [`SessionConfig::permission_mode`].
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub permission_mode_result: Option<PermissionsSetModeResult>,
 }
 
 /// Details of transcript repair planned during resume.
@@ -5947,9 +5624,6 @@ pub(crate) struct ResumeSessionResult {
     /// Recovery performed in memory while loading the session.
     #[serde(default)]
     pub transcript_recovery: Option<TranscriptRecovery>,
-    /// Outcome of the requested [`ResumeSessionConfig::permission_mode`].
-    #[serde(default)]
-    pub permission_mode_result: Option<PermissionsSetModeResult>,
 }
 
 /// Severity level for [`Session::log`](crate::session::Session::log) messages.
@@ -6021,10 +5695,6 @@ pub struct SetModelOptions {
     /// rejects this option when the model is anything other than `auto`; use
     /// [`Session::set_auto_tier`](crate::session::Session::set_auto_tier) to
     /// change the preference without changing the selected model.
-    ///
-    /// For Copilot Fusion, prefer [`AutoTierPreference::Fusion`]. The
-    /// `balance`, `hydrafusion` and `hydrafusion-max` identifiers it replaces
-    /// remain accepted but are deprecated.
     pub auto_tier: Option<AutoTierPreference>,
 }
 
@@ -6036,20 +5706,12 @@ pub struct SetModelOptions {
 /// This is a three-state choice. Leaving [`SetModelOptions::auto_tier`] as
 /// `None` leaves the current preference alone, which is different from
 /// [`AutoTierPreference::Reset`], which actively resets it.
-///
-/// New ways to choose a preference can be added as variants, so a `match` on
-/// this enum needs a wildcard arm.
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[non_exhaustive]
 pub enum AutoTierPreference {
     /// Route using a specific tier.
     Tier(AutoTier),
     /// Return to the provider's default Auto routing.
     Reset,
-    /// Route using a Copilot Fusion tier, matching the CLI's `--fusion-tier`.
-    /// Valid when the model is `fusion` or `auto`; the runtime resolves the
-    /// tier to the Auto routing preference it stands for.
-    Fusion(FusionTier),
 }
 
 impl SetModelOptions {
@@ -6090,13 +5752,6 @@ impl SetModelOptions {
     /// Auto routing.
     pub fn with_reset_auto_tier(mut self) -> Self {
         self.auto_tier = Some(AutoTierPreference::Reset);
-        self
-    }
-
-    /// Set [`auto_tier`](Self::auto_tier) to a Copilot Fusion tier, matching
-    /// the CLI's `--fusion-tier`.
-    pub fn with_fusion_tier(mut self, tier: FusionTier) -> Self {
-        self.auto_tier = Some(AutoTierPreference::Fusion(tier));
         self
     }
 }
@@ -6543,12 +6198,6 @@ pub enum MessageSource {
     System,
     /// A message from the agent with this opaque sender ID.
     Agent(String),
-    /// A turn sent on behalf of the automation with this opaque ID, such as a
-    /// recurring check-in the user configured. The turn defines the session's
-    /// task like a user message but carries no human authority. The ID must not
-    /// be empty: the runtime does not treat `automation-` alone as an
-    /// automation turn.
-    Automation(String),
 }
 
 impl std::fmt::Display for MessageSource {
@@ -6557,7 +6206,6 @@ impl std::fmt::Display for MessageSource {
             Self::User => f.write_str("user"),
             Self::System => f.write_str("system"),
             Self::Agent(id) => write!(f, "agent-{id}"),
-            Self::Automation(id) => write!(f, "automation-{id}"),
         }
     }
 }
@@ -6577,16 +6225,7 @@ impl<'de> Deserialize<'de> for MessageSource {
             value => value
                 .strip_prefix("agent-")
                 .map(|id| Self::Agent(id.to_owned()))
-                .or_else(|| {
-                    value
-                        .strip_prefix("automation-")
-                        .map(|id| Self::Automation(id.to_owned()))
-                })
-                .ok_or_else(|| {
-                    serde::de::Error::custom(
-                        "expected user, system, agent-<id>, or automation-<id>",
-                    )
-                }),
+                .ok_or_else(|| serde::de::Error::custom("expected user, system, or agent-<id>")),
         }
     }
 }
@@ -6694,18 +6333,6 @@ pub struct MessageOptions {
     pub tracestate: Option<String>,
     /// If provided, this is shown in the timeline instead of `prompt`.
     pub display_prompt: Option<String>,
-    /// Opaque caller-chosen ID for the turn this message starts.
-    ///
-    /// The runtime copies it unchanged into
-    /// `_meta["com.github.copilot/turnId"]` on every MCP `tools/call` made
-    /// while serving that turn, including calls from sub-agents and Autopilot
-    /// continuations. When a running turn consumes the message as visible user
-    /// steering, the value (or its absence) replaces the turn's ID from the
-    /// next model call onward. The `user.message` event for the message
-    /// echoes it as `clientTurnId` and is persisted like other events; the
-    /// value stamped on MCP calls is held in memory only and is not restored
-    /// on resume.
-    pub client_turn_id: Option<String>,
 }
 
 impl MessageOptions {
@@ -6723,7 +6350,6 @@ impl MessageOptions {
             traceparent: None,
             tracestate: None,
             display_prompt: None,
-            client_turn_id: None,
         }
     }
 
@@ -6800,14 +6426,6 @@ impl MessageOptions {
     /// Set the display prompt shown in the timeline instead of `prompt`.
     pub fn with_display_prompt(mut self, display_prompt: impl Into<String>) -> Self {
         self.display_prompt = Some(display_prompt.into());
-        self
-    }
-
-    /// Set the opaque caller-chosen ID for the turn this message starts.
-    ///
-    /// See [`client_turn_id`](Self::client_turn_id).
-    pub fn with_client_turn_id(mut self, client_turn_id: impl Into<String>) -> Self {
-        self.client_turn_id = Some(client_turn_id.into());
         self
     }
 }
@@ -6913,119 +6531,6 @@ pub struct SessionEvent {
     pub data: Value,
 }
 
-/// UI capabilities from a `capabilities.changed` event, including Auto recovery.
-///
-/// The legacy [`crate::session_events::CapabilitiesChangedUI`] remains
-/// unchanged so existing complete struct literals and destructuring patterns
-/// continue to compile. Use
-/// [`SessionEvent::capabilities_changed_data_with_auto_mode_recovery`] to read
-/// the recovery capability from the event payload.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CapabilitiesChangedUIWithAutoModeRecovery {
-    /// Whether recovery-aware Auto switching is enabled for this session.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub auto_mode_recovery: Option<bool>,
-    /// Whether canvas rendering is supported.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub canvases: Option<bool>,
-    /// Whether elicitation is supported.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub elicitation: Option<bool>,
-    /// Whether MCP Apps UI passthrough is supported.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub mcp_apps: Option<bool>,
-}
-
-/// Capability changes from a `capabilities.changed` event, including Auto recovery.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CapabilitiesChangedDataWithAutoModeRecovery {
-    /// UI capability changes.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub ui: Option<CapabilitiesChangedUIWithAutoModeRecovery>,
-}
-
-/// An event payload with experimental programmatic tool-call provenance.
-///
-/// Deserialize [`SessionEvent::data`] into this wrapper around
-/// [`PermissionRequestedData`](crate::session_events::PermissionRequestedData),
-/// [`ToolExecutionStartData`](crate::session_events::ToolExecutionStartData), or
-/// [`ToolExecutionCompleteData`](crate::session_events::ToolExecutionCompleteData)
-/// to retain provenance without changing those payloads' existing struct literals
-/// or exhaustive destructuring.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ProgrammaticToolCallData<T> {
-    /// The existing event payload.
-    #[serde(flatten)]
-    pub data: T,
-    /// Host-owned ID of the `run_program` invocation that owns this child call or permission.
-    /// Absent for ordinary tool calls and permissions.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub program_tool_call_id: Option<String>,
-}
-
-/// An experimental typed session event retaining programmatic tool-call provenance.
-///
-/// Deserialize the whole wire event into this projection before converting to
-/// [`TypedSessionEvent`](crate::session_events::TypedSessionEvent), whose legacy
-/// payload structs cannot retain program ownership. Serialization restores the
-/// ownership field inside `data`, preserving the session-event wire format.
-/// Nest in [`SessionEventWithMetadata`] to also retain journal checkpoint markers.
-#[derive(Debug, Clone)]
-pub struct ProgrammaticToolCallEvent {
-    /// The existing typed event envelope and payload.
-    pub event: crate::session_events::TypedSessionEvent,
-    /// Host-owned ID of the program invocation owning this call or permission.
-    /// Absent for ordinary events.
-    pub program_tool_call_id: Option<String>,
-}
-
-impl Serialize for ProgrammaticToolCallEvent {
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut wire =
-            serde_json::to_value(&self.event).map_err(<S::Error as serde::ser::Error>::custom)?;
-        if self.event.parent_id.is_none() {
-            wire["parentId"] = Value::Null;
-        }
-        if let Some(parent_id) = &self.program_tool_call_id {
-            let data = wire
-                .get_mut("data")
-                .and_then(Value::as_object_mut)
-                .ok_or_else(|| {
-                    <S::Error as serde::ser::Error>::custom(
-                        "program-owned event data must be an object",
-                    )
-                })?;
-            data.insert(
-                "programToolCallId".to_owned(),
-                Value::String(parent_id.clone()),
-            );
-        }
-        wire.serialize(serializer)
-    }
-}
-
-impl<'de> Deserialize<'de> for ProgrammaticToolCallEvent {
-    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let mut wire = Value::deserialize(deserializer)?;
-        let program_tool_call_id = wire
-            .get_mut("data")
-            .and_then(Value::as_object_mut)
-            .and_then(|data| data.remove("programToolCallId"))
-            .map(serde_json::from_value::<Option<String>>)
-            .transpose()
-            .map_err(<D::Error as serde::de::Error>::custom)?
-            .flatten();
-        let event = serde_json::from_value(wire).map_err(<D::Error as serde::de::Error>::custom)?;
-        Ok(Self {
-            event,
-            program_tool_call_id,
-        })
-    }
-}
-
 /// An event-log record with optional journal replay metadata.
 ///
 /// Deserialize replay-view records into this wrapper to retain their checkpoint
@@ -7041,26 +6546,6 @@ pub struct SessionEventWithMetadata<T = SessionEvent> {
     /// Whether this record is synthetic replay state in a linked journal head.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub checkpoint: Option<bool>,
-}
-
-/// A feature-flag read with optional runtime display state.
-///
-/// Returned by
-/// [`read_with_options`](crate::rpc::SessionRpcFeatureFlags::read_with_options).
-/// The legacy [`SessionFeatureFlagsReadResult`](crate::rpc::SessionFeatureFlagsReadResult)
-/// retains its complete struct literals and patterns.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionFeatureFlagsReadResultWithDisplayState {
-    /// Requested feature values. Unknown or unset values are absent.
-    pub flags: HashMap<String, bool>,
-    /// Explicit override results; null means neither source supplies a boolean.
-    pub overrides: Vec<Option<bool>>,
-    /// The state used by these evaluations.
-    pub snapshot: crate::rpc::FeatureFlagServiceSnapshot,
-    /// Redacted runtime decisions, present only for an available display read.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub display_state: Option<Value>,
 }
 
 /// An event-log page retaining checkpoint markers on replay-view records.
@@ -7079,33 +6564,6 @@ pub struct EventsReadResultWithMetadata {
     pub events: Vec<SessionEventWithMetadata>,
     /// Whether more events remain in the selected direction.
     pub has_more: bool,
-}
-
-impl crate::generated::api_types::TaskAnalyticsClassifyTrajectoryRequest {
-    /// Builds a trajectory classification request from recorded session
-    /// events, such as the result of [`Session::get_events`](crate::session::Session::get_events).
-    ///
-    /// Typed events can normalize or discard JSON fields. For exact archive
-    /// identity across retries, assign [`Session::get_raw_events`](crate::session::Session::get_raw_events)
-    /// directly to the request's `events` field instead.
-    ///
-    /// Other request fields use their defaults and can be set on the result.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This API is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases.
-    ///
-    /// </div>
-    pub fn from_session_events(events: &[SessionEvent]) -> Result<Self, crate::Error> {
-        Ok(Self {
-            events: events
-                .iter()
-                .map(serde_json::to_value)
-                .collect::<Result<_, _>>()?,
-            ..Default::default()
-        })
-    }
 }
 
 impl SessionEvent {
@@ -7128,22 +6586,6 @@ impl SessionEvent {
     /// event types where you need strongly-typed field access.
     pub fn typed_data<T: serde::de::DeserializeOwned>(&self) -> Option<T> {
         serde_json::from_value(self.data.clone()).ok()
-    }
-
-    /// Read a `capabilities.changed` payload with the Auto recovery capability.
-    ///
-    /// The legacy [`crate::session_events::CapabilitiesChangedData`] and
-    /// [`crate::session_events::CapabilitiesChangedUI`] types retain their
-    /// existing construction shape. This accessor returns a separate
-    /// representation so the new wire field does not break their complete
-    /// struct literals or destructuring patterns.
-    pub fn capabilities_changed_data_with_auto_mode_recovery(
-        &self,
-    ) -> Option<CapabilitiesChangedDataWithAutoModeRecovery> {
-        if self.event_type != "capabilities.changed" {
-            return None;
-        }
-        self.typed_data()
     }
 
     /// `model_call` errors are transient — the CLI agent loop continues
@@ -7499,26 +6941,6 @@ pub struct ElicitationRequest {
     pub url: Option<String>,
 }
 
-/// Context for an offer to recover the active request using Auto.
-#[non_exhaustive]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AutoModeRecoveryContext {
-    /// The one-use offer identifier, not a replay token.
-    pub request_id: String,
-    /// The original explicit model selection.
-    pub original_model: String,
-    /// Whether this offer permits remembering consent.
-    /// Currently true only for per-model rate limits.
-    pub allow_always: bool,
-    /// The retained interaction identifier, when available.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub interaction_id: Option<String>,
-    /// The original user-message identifier, when available.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub originating_message_id: Option<String>,
-}
-
 /// Session-level capabilities reported by the CLI after session creation.
 ///
 /// Capabilities indicate which features the CLI host supports for this session.
@@ -7647,28 +7069,6 @@ pub enum PermissionRequestKind {
 /// Used for both the `permission.request` RPC call (which expects a response)
 /// and `permission.requested` notifications (fire-and-forget). Contains the
 /// full params object.
-///
-/// Convert handler data into the original request for managed-policy review.
-/// The borrowed conversion leaves the handler data unchanged:
-///
-/// ```
-/// use github_copilot_sdk::PermissionRequestData;
-/// use github_copilot_sdk::rpc::SessionPermissionsManagedReviewRequiredParams;
-/// use serde_json::json;
-///
-/// let data = PermissionRequestData {
-///     extra: json!({
-///         "requestId": "permission-1",
-///         "permissionRequest": {"kind": "write", "path": "/workspace/report.txt"}
-///     }),
-///     ..Default::default()
-/// };
-/// let params = SessionPermissionsManagedReviewRequiredParams {
-///     request: (&data).into(),
-/// };
-/// assert_eq!(params.request, json!({"kind": "write", "path": "/workspace/report.txt"}));
-/// println!("{}", params.request);
-/// ```
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionRequestData {
@@ -7692,32 +7092,6 @@ pub struct PermissionRequestData {
     /// CLI version, so we preserve it as `Value`.
     #[serde(flatten)]
     pub extra: Value,
-}
-
-impl From<&PermissionRequestData> for Value {
-    /// Copies the original request, without the permission event envelope.
-    ///
-    /// Legacy callbacks without `permissionRequest` retain their full raw data.
-    fn from(data: &PermissionRequestData) -> Self {
-        data.extra
-            .get("permissionRequest")
-            .unwrap_or(&data.extra)
-            .clone()
-    }
-}
-
-impl From<PermissionRequestData> for Value {
-    /// Moves the original request, without the permission event envelope.
-    ///
-    /// Legacy callbacks without `permissionRequest` retain their full raw data.
-    fn from(data: PermissionRequestData) -> Self {
-        match data.extra {
-            Value::Object(mut fields) => fields
-                .remove("permissionRequest")
-                .unwrap_or(Value::Object(fields)),
-            value => value,
-        }
-    }
 }
 
 impl PermissionRequestData {

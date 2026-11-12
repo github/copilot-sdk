@@ -21,7 +21,7 @@ public class ClientE2ETests(E2ETestFixture fixture) : IClassFixture<E2ETestFixtu
     [InlineData(false)]  // TCP transport
     public async Task Should_Start_And_Connect_To_Server(bool useStdio)
     {
-        using var client = Ctx.CreateClient(new CopilotClientOptions { Connection = useStdio ? RuntimeConnection.ForStdio() : RuntimeConnection.ForTcp() });
+        using var client = new CopilotClient(new CopilotClientOptions { Connection = useStdio ? RuntimeConnection.ForStdio() : RuntimeConnection.ForTcp() });
 
         try
         {
@@ -41,60 +41,25 @@ public class ClientE2ETests(E2ETestFixture fixture) : IClassFixture<E2ETestFixtu
     [Fact]
     public async Task Should_Start_And_Connect_Over_InProcess_Ffi()
     {
-        await using var siblingContext = await E2ETestContext.CreateAsync();
-        await using var client = new CopilotClient(await OptionsAsync(Ctx, "first"));
-        await using var sibling = new CopilotClient(await OptionsAsync(siblingContext, "second"));
-
-        await Task.WhenAll(client.StartAsync(), sibling.StartAsync());
-        var pong = await client.PingAsync("ffi message");
-        Assert.Equal("pong: ffi message", pong.Message);
-        Assert.NotEqual(default, pong.Timestamp);
-
-        var status = await client.GetAuthStatusAsync();
-        var siblingStatus = await sibling.GetAuthStatusAsync();
-        Assert.True(status.IsAuthenticated, status.StatusMessage);
-        Assert.True(siblingStatus.IsAuthenticated, siblingStatus.StatusMessage);
-
-        await using var session = await Ctx.CreateSessionAsync(client, new SessionConfig
+        // In-process FFI hosting loads the bundled runtime library directly; if it is
+        // unavailable, StartAsync throws and the test fails hard.
+        using var client = new CopilotClient(new CopilotClientOptions
         {
-            WorkingDirectory = Ctx.WorkDir,
-            OnPermissionRequest = PermissionHandler.ApproveAll,
+            Connection = RuntimeConnection.ForInProcess(),
         });
-        await using var siblingSession = await siblingContext.CreateSessionAsync(sibling, new SessionConfig
-        {
-            WorkingDirectory = siblingContext.WorkDir,
-            OnPermissionRequest = PermissionHandler.ApproveAll,
-        });
-        Assert.Equal(Path.Join(Ctx.HomeDir, "session-state", session.SessionId), session.WorkspacePath);
-        Assert.Equal(Path.Join(siblingContext.HomeDir, "session-state", siblingSession.SessionId), siblingSession.WorkspacePath);
-        Assert.Equal("first", (await session.Rpc.GitHubAuth.GetStatusAsync()).Login);
-        Assert.Equal("second", (await siblingSession.Rpc.GitHubAuth.GetStatusAsync()).Login);
 
-        await client.DisposeAsync();
-        Assert.Equal("pong: survivor", (await sibling.PingAsync("survivor")).Message);
-        Assert.True((await sibling.GetAuthStatusAsync()).IsAuthenticated);
-        Assert.Equal("second", (await siblingSession.Rpc.GitHubAuth.GetStatusAsync()).Login);
-
-        static async Task<CopilotClientOptions> OptionsAsync(E2ETestContext context, string name)
+        try
         {
-            var token = $"ffi-{name}-token";
-            await context.SetCopilotUserByTokenAsync(token, new CopilotUserConfig(
-                Login: name,
-                CopilotPlan: "individual_pro",
-                Endpoints: new CopilotUserEndpoints(Api: context.ProxyUrl, Telemetry: context.ProxyUrl),
-                AnalyticsTrackingId: $"ffi-{name}-tracking-id"));
-            return new CopilotClientOptions
-            {
-                Connection = RuntimeConnection.ForInProcess(),
-                InternalTestOptions = new InternalTestOptions
-                {
-                    CopilotApiUrl = context.ProxyUrl,
-                    GitHubApiUrl = context.ProxyUrl,
-                },
-                BaseDirectory = context.HomeDir,
-                GitHubToken = token,
-                UseLoggedInUser = false,
-            };
+            await client.StartAsync();
+            var pong = await client.PingAsync("ffi message");
+            Assert.Equal("pong: ffi message", pong.Message);
+            Assert.NotEqual(default, pong.Timestamp);
+
+            await client.StopAsync();
+        }
+        finally
+        {
+            await client.ForceStopAsync();
         }
     }
 
@@ -103,7 +68,7 @@ public class ClientE2ETests(E2ETestFixture fixture) : IClassFixture<E2ETestFixtu
     [InlineData(false)]  // TCP transport
     public async Task Should_Force_Stop_Without_Cleanup(bool useStdio)
     {
-        using var client = Ctx.CreateClient(new CopilotClientOptions { Connection = useStdio ? RuntimeConnection.ForStdio() : RuntimeConnection.ForTcp() });
+        using var client = new CopilotClient(new CopilotClientOptions { Connection = useStdio ? RuntimeConnection.ForStdio() : RuntimeConnection.ForTcp() });
 
         await Ctx.CreateSessionAsync(client, new SessionConfig { OnPermissionRequest = PermissionHandler.ApproveAll });
         await client.ForceStopAsync();
@@ -114,7 +79,7 @@ public class ClientE2ETests(E2ETestFixture fixture) : IClassFixture<E2ETestFixtu
     [InlineData(false)]  // TCP transport
     public async Task Should_Get_Status_With_Version_And_Protocol_Info(bool useStdio)
     {
-        using var client = Ctx.CreateClient(new CopilotClientOptions { Connection = useStdio ? RuntimeConnection.ForStdio() : RuntimeConnection.ForTcp() });
+        using var client = new CopilotClient(new CopilotClientOptions { Connection = useStdio ? RuntimeConnection.ForStdio() : RuntimeConnection.ForTcp() });
 
         try
         {
@@ -138,7 +103,7 @@ public class ClientE2ETests(E2ETestFixture fixture) : IClassFixture<E2ETestFixtu
     [InlineData(false)]  // TCP transport
     public async Task Should_Get_Auth_Status(bool useStdio)
     {
-        using var client = Ctx.CreateClient(new CopilotClientOptions { Connection = useStdio ? RuntimeConnection.ForStdio() : RuntimeConnection.ForTcp() });
+        using var client = new CopilotClient(new CopilotClientOptions { Connection = useStdio ? RuntimeConnection.ForStdio() : RuntimeConnection.ForTcp() });
 
         try
         {
@@ -165,7 +130,7 @@ public class ClientE2ETests(E2ETestFixture fixture) : IClassFixture<E2ETestFixtu
     [InlineData(false)]  // TCP transport
     public async Task Should_List_Models_When_Authenticated(bool useStdio)
     {
-        using var client = Ctx.CreateClient(new CopilotClientOptions { Connection = useStdio ? RuntimeConnection.ForStdio() : RuntimeConnection.ForTcp() });
+        using var client = new CopilotClient(new CopilotClientOptions { Connection = useStdio ? RuntimeConnection.ForStdio() : RuntimeConnection.ForTcp() });
 
         try
         {
@@ -203,7 +168,7 @@ public class ClientE2ETests(E2ETestFixture fixture) : IClassFixture<E2ETestFixtu
     [InlineData(false)]  // TCP transport
     public async Task Should_Not_Throw_When_Disposing_Session_After_Stopping_Client(bool useStdio)
     {
-        await using var client = Ctx.CreateClient(new CopilotClientOptions { Connection = useStdio ? RuntimeConnection.ForStdio() : RuntimeConnection.ForTcp() });
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = useStdio ? RuntimeConnection.ForStdio() : RuntimeConnection.ForTcp() });
         await using var session = await Ctx.CreateSessionAsync(client, new SessionConfig { OnPermissionRequest = PermissionHandler.ApproveAll });
 
         await client.StopAsync();
@@ -217,7 +182,7 @@ public class ClientE2ETests(E2ETestFixture fixture) : IClassFixture<E2ETestFixtu
         var cliPath = Path.Join(Ctx.WorkDir, $"failing-cli-{Guid.NewGuid():N}.js");
         await File.WriteAllTextAsync(cliPath, FailingCliScript);
 
-        using var client = Ctx.CreateClient(new CopilotClientOptions
+        var client = new CopilotClient(new CopilotClientOptions
         {
             Connection = useStdio
                 ? RuntimeConnection.ForStdio(path: cliPath)
@@ -263,7 +228,7 @@ public class ClientE2ETests(E2ETestFixture fixture) : IClassFixture<E2ETestFixtu
     [InlineData(false)]  // TCP transport
     public async Task Should_Allow_CreateSession_Called_Without_PermissionHandler(bool useStdio)
     {
-        await using var client = Ctx.CreateClient(new CopilotClientOptions { Connection = useStdio ? RuntimeConnection.ForStdio() : RuntimeConnection.ForTcp() });
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = useStdio ? RuntimeConnection.ForStdio() : RuntimeConnection.ForTcp() });
         await using var session = await Ctx.CreateSessionAsync(client, new SessionConfig());
 
         Assert.NotNull(session.SessionId);
@@ -313,7 +278,7 @@ public class ClientE2ETests(E2ETestFixture fixture) : IClassFixture<E2ETestFixtu
         };
 
         var callCount = 0;
-        await using var client = Ctx.CreateClient(new CopilotClientOptions
+        await using var client = new CopilotClient(new CopilotClientOptions
         {
             Connection = useStdio ? RuntimeConnection.ForStdio() : RuntimeConnection.ForTcp(),
             OnListModels = (ct) =>
@@ -350,7 +315,7 @@ public class ClientE2ETests(E2ETestFixture fixture) : IClassFixture<E2ETestFixtu
         };
 
         var callCount = 0;
-        await using var client = Ctx.CreateClient(new CopilotClientOptions
+        await using var client = new CopilotClient(new CopilotClientOptions
         {
             Connection = useStdio ? RuntimeConnection.ForStdio() : RuntimeConnection.ForTcp(),
             OnListModels = (ct) =>
@@ -386,7 +351,7 @@ public class ClientE2ETests(E2ETestFixture fixture) : IClassFixture<E2ETestFixtu
         };
 
         var callCount = 0;
-        await using var client = Ctx.CreateClient(new CopilotClientOptions
+        await using var client = new CopilotClient(new CopilotClientOptions
         {
             Connection = useStdio ? RuntimeConnection.ForStdio() : RuntimeConnection.ForTcp(),
             OnListModels = (ct) =>

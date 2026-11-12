@@ -25,7 +25,6 @@ import type {
     WorkflowLogLine,
     WorkflowRunResult as WireWorkflowRunResult,
     ModelSwitchAutoTierResult,
-    PermissionsSetModeResult,
     SendAndWaitResult,
     SessionManagementCreateHostRequest,
     SessionManagementCreateResult,
@@ -34,8 +33,6 @@ import type {
 import { type Canvas, CanvasError } from "./canvas.js";
 import type { OpenCanvasInstance } from "./generated/rpc.js";
 import { getTraceContext } from "./telemetry.js";
-import { rawHistoryResponse } from "./taskAnalyticsJson.js";
-import type { TrajectoryJsonValue } from "./generated/rpc.js";
 import { isResponseSchema, toJsonSchema } from "./schema.js";
 import { isAttributedPermissionResult } from "./types.js";
 import type {
@@ -65,7 +62,6 @@ import type {
     ReasoningEffort,
     ReasoningSummary,
     AutoTier,
-    FusionTier,
     ModelCapabilitiesOverride,
     SectionTransformFn,
     SessionCapabilities,
@@ -87,14 +83,9 @@ import type {
     TraceContextProvider,
     TranscriptRecovery,
     TypedSessionEventHandler,
-    ShellAuthenticationHandler,
-    ShellAuthenticationRequest,
-    ShellAuthenticationResponse,
     UserInputHandler,
     UserInputRequest,
     UserInputResponse,
-    MemoryConfiguration,
-    StoredMemory,
 } from "./types.js";
 import {
     WORKFLOW_AGENT_OPTION_KEYS,
@@ -145,16 +136,13 @@ function copyDefinedWorkflowAgentOption<TKey extends keyof WorkflowAgentOptions>
 function toToolDefinition(tool: Tool): ProtocolExternalToolDefinition {
     return {
         name: tool.name,
-        title: tool.title,
         description: tool.description ?? "",
         parameters: toJsonSchema(tool.parameters) as ProtocolExternalToolDefinition["parameters"],
         overridesBuiltInTool: tool.overridesBuiltInTool,
         skipPermission: tool.skipPermission,
-        hasHandler: !!tool.handler,
         defer: tool.defer,
         metadata: tool.metadata as ProtocolExternalToolDefinition["metadata"],
         isTerminal: tool.isTerminal,
-        idempotent: tool.idempotent,
         namespace: tool.namespace,
     };
 }
@@ -498,7 +486,7 @@ const TOOL_SEARCH_TOOL_NAME = "tool_search_tool";
  *
  * @example
  * ```typescript
- * const session = await client.createSession({ model: "gpt-5.4" });
+ * const session = await client.createSession({ model: "gpt-4" });
  *
  * // Subscribe to events
  * session.on((event) => {
@@ -522,7 +510,6 @@ const TOOL_SEARCH_TOOL_NAME = "tool_search_tool";
 
 export class CopilotSession {
     private _transcriptRecovery?: TranscriptRecovery;
-    private _permissionModeResult?: PermissionsSetModeResult;
     private eventHandlers: Set<SessionEventHandler> = new Set();
     private typedEventHandlers: Map<SessionEventType, Set<(event: SessionEvent) => void>> =
         new Map();
@@ -539,14 +526,11 @@ export class CopilotSession {
     private permissionHandler?: PermissionHandler;
     private mcpAuthHandler?: McpAuthHandler;
     private userInputHandler?: UserInputHandler;
-    private shellAuthenticationHandler?: ShellAuthenticationHandler;
-    private pendingShellAuthenticationRequests = new Map<string, AbortController>();
     private elicitationHandler?: ElicitationHandler;
     private exitPlanModeHandler?: ExitPlanModeHandler;
     private autoModeSwitchHandler?: AutoModeSwitchHandler;
     private skillProvider?: SkillProvider;
     private sessionCreationHandler?: SessionCreationHandler;
-    private memoryStoreHandler?: MemoryConfiguration["storeMemory"];
     private hooks?: SessionHooks;
     private transformCallbacks?: Map<string, SectionTransformFn>;
     private _rpc: ReturnType<typeof createSessionRpc> | null = null;
@@ -561,7 +545,6 @@ export class CopilotSession {
     private completionRpcUnsupported = false;
     private disconnecting = false;
     private onDisconnected?: () => void;
-    private releaseFromClient?: () => void;
 
     /** @internal Client session API handlers, populated by CopilotClient during create/resume. */
     clientSessionApis: ClientSessionApiHandlers = {};
@@ -736,7 +719,7 @@ export class CopilotSession {
      * @internal This constructor is internal. Use {@link CopilotClient.createSession} to create sessions.
      */
     constructor(
-        private _sessionId: string,
+        public readonly sessionId: string,
         private connection: MessageConnection,
         private _workspacePath?: string,
         traceContextProvider?: TraceContextProvider,
@@ -750,17 +733,6 @@ export class CopilotSession {
         this.mcpAuthHandler = options?.mcpAuthHandler;
         this.managedSettingsEnabled = options?.managedSettingsEnabled === true;
         this.onDisconnected = options?.onDisconnected;
-    }
-
-    get sessionId(): string {
-        return this._sessionId;
-    }
-
-    /** @internal */
-    _setSessionId(sessionId: string): void {
-        this._sessionId = sessionId;
-        this._rpc = null;
-        this._internalRpc = null;
     }
 
     /**
@@ -798,20 +770,6 @@ export class CopilotSession {
     /** @internal */
     setTranscriptRecovery(recovery: TranscriptRecovery | undefined): void {
         this._transcriptRecovery = recovery;
-    }
-
-    /**
-     * Outcome of the `permissionMode` requested when this session was created
-     * or resumed: whether it was applied, and the authoritative mode the
-     * session started in. Undefined when no mode was requested.
-     */
-    get permissionModeResult(): PermissionsSetModeResult | undefined {
-        return this._permissionModeResult;
-    }
-
-    /** @internal */
-    setPermissionModeResult(result: PermissionsSetModeResult | undefined): void {
-        this._permissionModeResult = result;
     }
 
     /**
@@ -889,7 +847,6 @@ export class CopilotSession {
             prompt: options.prompt,
             source: options.source,
             displayPrompt: options.displayPrompt,
-            clientTurnId: options.clientTurnId,
             attachments: options.attachments,
             mode: options.mode,
             agentMode: options.agentMode,
@@ -1092,13 +1049,7 @@ export class CopilotSession {
                 event.type === "session.error" &&
                 (!event.data.originatingMessageId || event.data.originatingMessageId === messageId)
             ) {
-                const error = Object.assign(new Error(event.data.message), {
-                    data: {
-                        ...event.data,
-                        stack: event.data.stack ?? null,
-                        completionEventId: event.id,
-                    },
-                });
+                const error = new Error(event.data.message);
                 error.stack = event.data.stack;
                 resolveOutcome({ kind: "error", error });
             }
@@ -1310,13 +1261,7 @@ export class CopilotSession {
                     ? event.data.originatingMessageId === messageId
                     : consumed)
             ) {
-                const error = Object.assign(new Error(event.data.message), {
-                    data: {
-                        ...event.data,
-                        stack: event.data.stack ?? null,
-                        completionEventId: event.id,
-                    },
-                });
+                const error = new Error(event.data.message);
                 error.stack = event.data.stack;
                 fail(error);
             }
@@ -1385,7 +1330,6 @@ export class CopilotSession {
             return;
         }
         this.disconnected = true;
-        this.releaseFromClient = undefined;
         for (const fail of this.pendingResponseWaits) {
             fail(new Error("Session disconnected while waiting for a response"));
         }
@@ -1402,24 +1346,17 @@ export class CopilotSession {
             controller.abort();
         }
         this.pendingSessionCreations.clear();
-        this._clearMemoryStore();
         this.eventHandlers.clear();
         this.typedEventHandlers.clear();
         this.toolHandlers.clear();
         this.permissionHandler = undefined;
         this.mcpAuthHandler = undefined;
         this.userInputHandler = undefined;
-        this.shellAuthenticationHandler = undefined;
-        for (const controller of this.pendingShellAuthenticationRequests.values()) {
-            controller.abort();
-        }
-        this.pendingShellAuthenticationRequests.clear();
         this.elicitationHandler = undefined;
         this.exitPlanModeHandler = undefined;
         this.autoModeSwitchHandler = undefined;
         this.skillProvider = undefined;
         this.sessionCreationHandler = undefined;
-        this.memoryStoreHandler = undefined;
         this.hooks = undefined;
         this.traceContextProvider = undefined;
         this.bearerTokenProviders.clear();
@@ -1451,19 +1388,6 @@ export class CopilotSession {
     _setOnDisconnected(callback: () => void): void {
         this.assertConnected();
         this.onDisconnected = callback;
-    }
-
-    /**
-     * @internal Lets the owning client stop tracking this session once `disconnect()`
-     * succeeds. Failed create/resume paths unregister the session themselves.
-     */
-    _setReleaseFromClient(callback: () => void): void {
-        this.releaseFromClient = callback;
-    }
-
-    /** @internal */
-    _isDisconnected(): boolean {
-        return this.disconnected;
     }
 
     /**
@@ -1590,9 +1514,6 @@ export class CopilotSession {
             return;
         }
         if (event.type === "external_tool.requested") {
-            if (event.data.hasHandler === false) {
-                return;
-            }
             const { requestId, toolName } = event.data as {
                 requestId: string;
                 toolName: string;
@@ -1633,7 +1554,6 @@ export class CopilotSession {
                 promptRequest,
                 assistedApprovalAssessment,
                 resolvedByHook,
-                programToolCallId,
             } = event.data as PermissionRequestedData;
             if (resolvedByHook) {
                 return; // Already resolved by a permissionRequest hook; no client action needed.
@@ -1643,8 +1563,7 @@ export class CopilotSession {
                     requestId,
                     permissionRequest,
                     promptRequest,
-                    assistedApprovalAssessment,
-                    programToolCallId
+                    assistedApprovalAssessment
                 );
             }
         } else if (event.type === "mcp.oauth_required") {
@@ -1756,7 +1675,6 @@ export class CopilotSession {
         }
         this.pendingExternalTools.set(requestId, controller);
 
-        let claimed = false;
         try {
             // The built-in tool-search tool receives a snapshot of the session's
             // currently initialized tools so an override can filter the live
@@ -1804,16 +1722,6 @@ export class CopilotSession {
             } else if (typeof rawResult === "string") {
                 result = rawResult;
             } else if (isToolResultObject(rawResult)) {
-                // Telemetry that cannot be encoded as JSON would stop the result from
-                // being sent at all, leaving the call unanswered, so answer it with the error.
-                try {
-                    JSON.stringify(rawResult.toolTelemetry);
-                } catch (error) {
-                    const message = error instanceof Error ? error.message : String(error);
-                    throw new Error(`failed to serialize tool telemetry: ${message}`);
-                }
-                // Handlers can return extra fields that must also be JSON-serializable.
-                JSON.stringify(rawResult);
                 result = rawResult;
             } else {
                 result = JSON.stringify(rawResult);
@@ -1821,62 +1729,19 @@ export class CopilotSession {
             if (!this._claimExternalTool(requestId, controller)) {
                 return;
             }
-            claimed = true;
             await this.rpc.tools.handlePendingToolCall({ requestId, result });
         } catch (error) {
-            if (claimed) {
-                // The handler finished but its result never reached the runtime, which
-                // is still waiting on the call. This invocation already owns the
-                // request, so report the failure and answer the call with it.
-                if (this.disconnected) {
-                    return;
-                }
-                console.error("External tool result delivery failed", {
-                    sessionId: this.sessionId,
-                    requestId,
-                    toolName,
-                    error,
-                });
-            } else if (!this._claimExternalTool(requestId, controller)) {
+            if (!this._claimExternalTool(requestId, controller)) {
                 return;
             }
-            let message = error instanceof Error ? error.message : String(error);
-            if (!message) {
-                // An empty error reads as no error, so the call would count as a success.
-                message = (error instanceof Error && error.name) || "Error";
-            }
-            // Handler errors are initial replies too; retry failed delivery once,
-            // but never recursively retry a fallback error response.
-            for (let attempt = 0; attempt < (claimed ? 1 : 2); attempt++) {
-                try {
-                    await this.rpc.tools.handlePendingToolCall({ requestId, error: message });
-                    return;
-                } catch (rpcError) {
-                    const retryable = !claimed && attempt === 0 && !this.disconnected;
-                    if (!retryable) {
-                        if (
-                            !(
-                                rpcError instanceof ConnectionError ||
-                                rpcError instanceof ResponseError
-                            )
-                        ) {
-                            throw rpcError;
-                        }
-                        return;
-                    }
-                    // A transport can also fail with a plain Error (for example a write
-                    // EPIPE), so retry the initial reply once whatever the failure is.
-                    console.error("External tool error delivery failed", {
-                        sessionId: this.sessionId,
-                        requestId,
-                        toolName,
-                        error: rpcError,
-                    });
-                    message =
-                        (rpcError instanceof Error ? rpcError.message || rpcError.name : "") ||
-                        String(rpcError) ||
-                        "Error";
+            const message = error instanceof Error ? error.message : String(error);
+            try {
+                await this.rpc.tools.handlePendingToolCall({ requestId, error: message });
+            } catch (rpcError) {
+                if (!(rpcError instanceof ConnectionError || rpcError instanceof ResponseError)) {
+                    throw rpcError;
                 }
+                // Connection lost or RPC error — nothing we can do
             }
         } finally {
             if (this.pendingExternalTools.get(requestId) === controller) {
@@ -1902,8 +1767,7 @@ export class CopilotSession {
         requestId: string,
         permissionRequest: PermissionRequest,
         promptRequest?: PermissionRequestedData["promptRequest"],
-        assistedApprovalAssessment?: PermissionRequestedData["assistedApprovalAssessment"],
-        programToolCallId?: string
+        assistedApprovalAssessment?: PermissionRequestedData["assistedApprovalAssessment"]
     ): Promise<void> {
         try {
             const invocation: PermissionHandlerInvocation = {
@@ -1911,7 +1775,6 @@ export class CopilotSession {
                 managedSettingsEnabled: this.managedSettingsEnabled,
                 ...(promptRequest === undefined ? {} : { promptRequest }),
                 ...(assistedApprovalAssessment === undefined ? {} : { assistedApprovalAssessment }),
-                ...(programToolCallId === undefined ? {} : { programToolCallId }),
             };
             const handlerResult = await this.permissionHandler!(permissionRequest, invocation);
             const isAttributed = isAttributedPermissionResult(handlerResult);
@@ -2477,9 +2340,6 @@ export class CopilotSession {
                     action: result.action,
                     ...(result.content ? { content: result.content } : {}),
                 },
-                ...(result.decisionContext !== undefined
-                    ? { decisionContext: result.decisionContext }
-                    : {}),
             });
         } catch {
             // Handler failed — attempt to cancel so the request doesn't hang
@@ -2660,18 +2520,6 @@ export class CopilotSession {
     }
 
     /**
-     * Registers the handler for passwords and other answers that shell
-     * commands run by the agent ask for.
-     *
-     * @param handler - The shell authentication handler, or undefined to remove it
-     * @internal This method is typically called internally when creating a session.
-     */
-    registerShellAuthenticationHandler(handler?: ShellAuthenticationHandler): void {
-        this.assertConnected();
-        this.shellAuthenticationHandler = handler;
-    }
-
-    /**
      * Registers the session's skill provider.
      *
      * @param provider - The skill provider, or undefined to remove it
@@ -2697,47 +2545,6 @@ export class CopilotSession {
         } catch (error) {
             if (this.sessionCreationHandler === handler) this.sessionCreationHandler = previous;
             throw error;
-        }
-    }
-
-    /**
-     * Registers the callback the runtime calls through `memoryStore.store`.
-     * Registered before create or resume declares `hasMemoryStore`.
-     * @internal
-     */
-    _registerMemoryStore(handler: MemoryConfiguration["storeMemory"]): void {
-        this.assertConnected();
-        this.memoryStoreHandler = handler;
-    }
-
-    /** @internal */
-    _clearMemoryStore(): void {
-        this.memoryStoreHandler = undefined;
-    }
-
-    /** @internal */
-    async _handleMemoryStore(memory: StoredMemory, signal: AbortSignal): Promise<void> {
-        this.assertConnected();
-        const handler = this.memoryStoreHandler;
-        if (!handler) throw new Error("No memory store is registered");
-        try {
-            await handler(
-                {
-                    sessionId: memory.sessionId,
-                    subject: memory.subject,
-                    fact: memory.fact,
-                    citations: memory.citations,
-                    reason: memory.reason,
-                },
-                { signal }
-            );
-        } catch (error) {
-            if (signal.aborted) {
-                throw new ResponseError(-32800, "Memory store call cancelled");
-            }
-            // The runtime reports a generic failure to the model; keep the cause visible to the app.
-            console.warn("Memory store callback failed", error);
-            throw new Error("Memory store callback failed");
         }
     }
 
@@ -2920,70 +2727,6 @@ export class CopilotSession {
     }
 
     /**
-     * Asks the registered handler for a secret. Any failure, a malformed answer,
-     * or an abort cancels the prompt, so the program that asked fails instead
-     * of receiving a wrong value. Never logs the answer.
-     *
-     * @param cancelled - Aborted when the runtime no longer needs the answer.
-     * @internal This method is for internal use by the SDK.
-     */
-    async _handleShellAuthenticationRequest(
-        request: ShellAuthenticationRequest,
-        cancelled: AbortSignal
-    ): Promise<ShellAuthenticationResponse> {
-        const handler = this.shellAuthenticationHandler;
-        if (
-            !handler ||
-            cancelled.aborted ||
-            this.pendingShellAuthenticationRequests.has(request.requestId)
-        ) {
-            return { action: "cancel" };
-        }
-        const controller = new AbortController();
-        const abort = () => controller.abort();
-        cancelled.addEventListener("abort", abort, { once: true });
-        this.pendingShellAuthenticationRequests.set(request.requestId, controller);
-        try {
-            // A handler that never settles after its prompt is cancelled must not
-            // keep the request open.
-            const cancellation = new Promise<undefined>((resolve) => {
-                controller.signal.addEventListener("abort", () => resolve(undefined), {
-                    once: true,
-                });
-            });
-            const result = await Promise.race([
-                Promise.resolve(
-                    handler(request, {
-                        sessionId: this.sessionId,
-                        signal: controller.signal,
-                    })
-                ),
-                cancellation,
-            ]);
-            if (
-                controller.signal.aborted ||
-                result?.action !== "accept" ||
-                typeof result.value !== "string"
-            ) {
-                return { action: "cancel" };
-            }
-            return { action: "accept", value: result.value };
-        } catch (error) {
-            // Cancelling the prompt settles the race above, so only handler failures land here.
-            // The error's message or name could contain the answer, so only its type is logged.
-            console.error("Shell authentication handler failed", {
-                sessionId: this.sessionId,
-                requestId: request.requestId,
-                errorType: errorTypeName(error),
-            });
-            return { action: "cancel" };
-        } finally {
-            cancelled.removeEventListener("abort", abort);
-            this.pendingShellAuthenticationRequests.delete(request.requestId);
-        }
-    }
-
-    /**
      * Handles a hooks invocation from the Copilot CLI.
      *
      * @param hookType - The type of hook being invoked
@@ -3044,7 +2787,6 @@ export class CopilotSession {
      *
      * This returns the complete conversation history including user messages,
      * assistant responses, tool executions, and other session events.
-     * Use getRawEvents for archives containing integers outside JavaScript's safe range.
      *
      * @returns A promise that resolves with an array of all session events
      * @throws Error if the session has been disconnected or the connection fails
@@ -3065,20 +2807,6 @@ export class CopilotSession {
         });
 
         return (response as { events: SessionEvent[] }).events;
-    }
-
-    /**
-     * Retrieves history with unsafe integers preserved as bigint values.
-     * Timestamp strings, explicit nulls, and unknown fields are retained.
-     * Pass the result directly to taskAnalytics.classifyTrajectory; JSON.stringify
-     * does not support bigint, but that RPC's encoder does.
-     */
-    async getRawEvents(): Promise<TrajectoryJsonValue[]> {
-        const response = await this.connection.sendRequest<{ events: TrajectoryJsonValue[] }>(
-            "session.getMessages",
-            { sessionId: this.sessionId, [rawHistoryResponse]: true }
-        );
-        return response.events;
     }
 
     /**
@@ -3119,9 +2847,7 @@ export class CopilotSession {
                     `Failed to disconnect session ${this.sessionId}: ${response.error || "Unknown error"}`
                 );
             }
-            const release = this.releaseFromClient;
             this._markDisconnected();
-            release?.();
         } catch (error) {
             this.disconnecting = false;
             throw error;
@@ -3171,9 +2897,8 @@ export class CopilotSession {
      * await session.setModel("gpt-5.4");
      * await session.setModel("claude-sonnet-4.6", { reasoningEffort: "high" });
      *
-     * // Select Copilot Fusion and its tier in one call, like
-     * // `copilot --model fusion --fusion-tier high`.
-     * await session.setModel("fusion", { fusionTier: "high" });
+     * // Select the Auto model and its routing preference in one call.
+     * await session.setModel("auto", { autoTier: "intelligence" });
      * ```
      */
     async setModel(
@@ -3191,27 +2916,10 @@ export class CopilotSession {
              * `auto`; use {@link setAutoTier} to change the preference without
              * changing the selected model.
              *
-             * For Copilot Fusion, prefer `fusionTier`. The `balance`,
-             * `hydrafusion` and `hydrafusion-max` identifiers it replaces
-             * remain accepted but are deprecated.
-             *
              * @experimental Part of an experimental Auto routing surface and may
              * change or be removed in a future release.
              */
             autoTier?: AutoTier | null;
-            /**
-             * Copilot Fusion tier to apply when `model` is `fusion` or `auto`,
-             * matching the CLI's `--fusion-tier`.
-             *
-             * The runtime resolves the tier to the Auto routing preference it
-             * stands for and stages it exactly like `autoTier`. Cannot be
-             * combined with `autoTier`; use {@link setFusionTier} to change the
-             * tier without changing the selected model.
-             *
-             * @experimental Part of an experimental Auto routing surface and may
-             * change or be removed in a future release.
-             */
-            fusionTier?: FusionTier;
         }
     ): Promise<void> {
         await this.rpc.model.switchTo({ modelId: model, ...options });
@@ -3233,10 +2941,6 @@ export class CopilotSession {
      * Only the most recent request survives: issuing a new request replaces any
      * earlier one that has not yet been claimed by a turn.
      *
-     * For Copilot Fusion, prefer {@link setFusionTier}. The `balance`,
-     * `hydrafusion` and `hydrafusion-max` identifiers it replaces remain
-     * accepted but are deprecated.
-     *
      * @param autoTier - Routing preference to activate, or `null` to return to
      *   the provider's default Auto routing
      * @returns The runtime's immediate acknowledgement and Auto preference snapshot
@@ -3254,34 +2958,6 @@ export class CopilotSession {
      */
     async setAutoTier(autoTier: AutoTier | null): Promise<ModelSwitchAutoTierResult> {
         return await this.rpc.model.switchAutoTier({ autoTier });
-    }
-
-    /**
-     * Change the Copilot Fusion tier without changing the selected model,
-     * naming the tier as the CLI's `--fusion-tier` does.
-     *
-     * The runtime resolves the tier to the Auto routing preference it stands
-     * for and then handles the request exactly like {@link setAutoTier}: it
-     * takes effect on a later user turn that uses the `fusion` or `auto`
-     * model. To return to the provider's default routing, call
-     * `setAutoTier(null)`.
-     *
-     * @param fusionTier - Copilot Fusion tier to activate
-     * @returns The runtime's immediate acknowledgement and Auto preference snapshot
-     *
-     * @experimental Part of an experimental Auto routing surface and may change
-     * or be removed in a future release.
-     *
-     * @example
-     * ```typescript
-     * const result = await session.setFusionTier("max");
-     * if (result.status === "pending") {
-     *     // Takes effect on a later turn that uses Copilot Fusion.
-     * }
-     * ```
-     */
-    async setFusionTier(fusionTier: FusionTier): Promise<ModelSwitchAutoTierResult> {
-        return await this.rpc.model.switchFusionTier({ fusionTier });
     }
 
     /**
@@ -3407,23 +3083,6 @@ function toCanvasRpcError(error: unknown): ResponseError<unknown> {
 // The provider's own error text is deliberately not forwarded to the runtime.
 function skillProviderFailure(operation: string): ResponseError<undefined> {
     return new ResponseError(ErrorCodes.InternalError, `Skill provider ${operation} failed`);
-}
-
-/**
- * Names a thrown value's class, as the other SDKs log an exception's type. Reads the class from
- * the prototype, never the error's own `name` or `message`, which the thrower can set to anything.
- */
-function errorTypeName(error: unknown): string {
-    if ((typeof error !== "object" && typeof error !== "function") || error === null) {
-        return typeof error;
-    }
-    try {
-        const name: unknown = Object.getPrototypeOf(error)?.constructor?.name;
-        return typeof name === "string" && name !== "" ? name : typeof error;
-    } catch {
-        // A getter or proxy trap can throw, and logging must not.
-        return typeof error;
-    }
 }
 
 type WorkflowResultValidationCategory =

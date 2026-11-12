@@ -9,7 +9,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
@@ -21,13 +20,10 @@ import java.util.function.Supplier;
 
 import com.github.copilot.generated.rpc.LlmInferenceHttpResponseChunkError;
 import com.github.copilot.generated.rpc.LlmInferenceHttpResponseChunkParams;
-import com.github.copilot.generated.rpc.LlmInferenceHttpResponseChunkResult;
-import com.github.copilot.generated.rpc.LlmInferenceHttpResponseStartResult;
 import com.github.copilot.generated.rpc.LlmInferenceHttpResponseStartParams;
-import com.github.copilot.generated.rpc.RpcCaller;
 import com.github.copilot.generated.rpc.ServerLlmInferenceApi;
 
-import org.jspecify.annotations.Nullable;
+import edu.umd.cs.findbugs.annotations.Nullable;
 
 /**
  * One intercepted request in flight. Carries the request context plus the body
@@ -68,7 +64,6 @@ final class LlmInferenceExchange {
     private final String requestId;
     private String method;
     private final Supplier<ServerLlmInferenceApi> rpcSupplier;
-    private final RpcCaller rpcCaller;
 
     private final BlockingQueue<BodyItem> body = new LinkedBlockingQueue<>();
     private final CompletableFuture<Void> cancellation = new CompletableFuture<>();
@@ -80,10 +75,9 @@ final class LlmInferenceExchange {
 
     private CopilotRequestContext context;
 
-    LlmInferenceExchange(String requestId, Supplier<ServerLlmInferenceApi> rpcSupplier, RpcCaller rpcCaller) {
+    LlmInferenceExchange(String requestId, Supplier<ServerLlmInferenceApi> rpcSupplier) {
         this.requestId = requestId;
         this.rpcSupplier = rpcSupplier;
-        this.rpcCaller = rpcCaller;
     }
 
     String requestId() {
@@ -201,22 +195,7 @@ final class LlmInferenceExchange {
             }
             started = true;
         }
-        if (headers == null) {
-            // The generated builder requires headers, but the established wire payload
-            // omits null headers. Keep this explicit compatibility path behind the same
-            // closed-connection check as the generated API.
-            api();
-            Map<String, Object> params = new LinkedHashMap<>();
-            params.put("requestId", requestId);
-            params.put("status", (long) status);
-            if (statusText != null) {
-                params.put("statusText", statusText);
-            }
-            return rpcCaller.invoke("llmInference.httpResponseStart", params, LlmInferenceHttpResponseStartResult.class)
-                    .thenApply(ignored -> null);
-        }
-        var params = LlmInferenceHttpResponseStartParams.builder().requestId(requestId).status((long) status)
-                .statusText(statusText).headers(headers).build();
+        var params = new LlmInferenceHttpResponseStartParams(requestId, (long) status, statusText, headers);
         return api().httpResponseStart(params).thenApply(ignored -> null);
     }
 
@@ -244,8 +223,7 @@ final class LlmInferenceExchange {
             }
             finished = true;
         }
-        var params = LlmInferenceHttpResponseChunkParams.builder().requestId(requestId).data("").end(Boolean.TRUE)
-                .build();
+        var params = new LlmInferenceHttpResponseChunkParams(requestId, "", null, Boolean.TRUE, null);
         join(api().httpResponseChunk(params));
     }
 
@@ -256,25 +234,8 @@ final class LlmInferenceExchange {
             }
             finished = true;
         }
-        if (message == null) {
-            // The generated builder requires a message, but the established wire payload
-            // permits a terminal error object with no message.
-            api();
-            Map<String, Object> error = new LinkedHashMap<>();
-            if (code != null) {
-                error.put("code", code);
-            }
-            Map<String, Object> params = new LinkedHashMap<>();
-            params.put("requestId", requestId);
-            params.put("data", "");
-            params.put("end", Boolean.TRUE);
-            params.put("error", error);
-            join(rpcCaller.invoke("llmInference.httpResponseChunk", params, LlmInferenceHttpResponseChunkResult.class));
-            return;
-        }
-        var error = LlmInferenceHttpResponseChunkError.builder().message(message).code(code).build();
-        var params = LlmInferenceHttpResponseChunkParams.builder().requestId(requestId).data("").end(Boolean.TRUE)
-                .error(error).build();
+        var error = new LlmInferenceHttpResponseChunkError(message, code);
+        var params = new LlmInferenceHttpResponseChunkParams(requestId, "", null, Boolean.TRUE, error);
         join(api().httpResponseChunk(params));
     }
 
@@ -295,8 +256,8 @@ final class LlmInferenceExchange {
                         "LLM inference response writeResponse() called after endResponse()/errorResponse()");
             }
         }
-        var params = LlmInferenceHttpResponseChunkParams.builder().requestId(requestId).data(data)
-                .binary(binary ? Boolean.TRUE : null).end(Boolean.FALSE).build();
+        var params = new LlmInferenceHttpResponseChunkParams(requestId, data, binary ? Boolean.TRUE : null,
+                Boolean.FALSE, null);
         return api().httpResponseChunk(params).thenApply(ignored -> null);
     }
 

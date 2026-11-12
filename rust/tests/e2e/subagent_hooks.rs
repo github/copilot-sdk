@@ -45,19 +45,21 @@ async fn should_apply_subagent_lifecycle_hook_outputs() {
                 let (parent_reply, parent_reply_observed) = watch::channel(false);
 
                 let client = ctx
-                    .start_llm_client(Arc::clone(&request_log))
+                    .start_llm_client(
+                        Arc::clone(&request_log),
+                        &[("COPILOT_EXP_COPILOT_CLI_SESSION_BASED_SUBAGENTS", "true")],
+                    )
                     .await;
 
-                let config = ctx.approve_all_session_config().with_hooks(Arc::new(
-                    RecordingHooks {
-                        log: Arc::clone(&hook_log),
-                        parent_reply_observed,
-                        subagent_starts: Arc::clone(&subagent_starts),
-                        subagent_stops: Arc::clone(&subagent_stops),
-                    },
-                ));
                 let session = client
-                    .create_session(config)
+                    .create_session(ctx.approve_all_session_config().with_hooks(Arc::new(
+                        RecordingHooks {
+                            log: Arc::clone(&hook_log),
+                            parent_reply_observed,
+                            subagent_starts: Arc::clone(&subagent_starts),
+                            subagent_stops: Arc::clone(&subagent_stops),
+                        },
+                    )))
                     .await
                     .expect("create session");
 

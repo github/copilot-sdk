@@ -10,7 +10,7 @@ use github_copilot_sdk::handler::{
 use github_copilot_sdk::rpc::ModelSetAllowedModelsRequest;
 use github_copilot_sdk::session_events::{
     SessionErrorData, SessionEventType, SessionInfoData, SessionModelChangeData, SessionResumeData,
-    SessionStartData, SessionWarningData, UserMessageAgentMode, UserMessageData,
+    SessionStartData, SessionWarningData, UserMessageData,
 };
 use github_copilot_sdk::tool::ToolHandler;
 use github_copilot_sdk::types::LogLevel as SessionLogLevel;
@@ -53,17 +53,6 @@ async fn shouldcreateanddisconnectsessions() {
                     .typed_data::<SessionStartData>()
                     .expect("session.start data");
                 assert_eq!(start.session_id, session.id().clone());
-
-                let raw_events = session.get_raw_events().await.expect("get raw events");
-                assert!(
-                    !raw_events.is_empty(),
-                    "expected initial raw session events"
-                );
-                assert_eq!(raw_events[0]["type"], "session.start");
-                assert_eq!(
-                    raw_events[0].get("parentId"),
-                    Some(&serde_json::Value::Null)
-                );
 
                 session.disconnect().await.expect("disconnect session");
                 assert!(
@@ -1750,7 +1739,7 @@ async fn should_send_with_mode_property() {
                         Some(json!({
                             "sessionId": session.id().as_str(),
                             "prompt": "Say mode ok.",
-                            "agentMode": "plan",
+                            "mode": "plan",
                         })),
                     )
                     .await
@@ -1772,7 +1761,10 @@ async fn should_send_with_mode_property() {
                     .typed_data::<UserMessageData>()
                     .expect("user.message data");
                 assert_eq!(data.content, "Say mode ok.");
-                assert_eq!(data.agent_mode, Some(UserMessageAgentMode::Plan));
+                assert!(
+                    data.agent_mode.is_none(),
+                    "runtime should accept but not echo per-message mode"
+                );
 
                 session.disconnect().await.expect("disconnect session");
                 client.stop().await.expect("stop client");

@@ -10,7 +10,6 @@ import java.lang.reflect.RecordComponent;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -24,8 +23,6 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
-import com.fasterxml.jackson.core.JsonFactory;
-import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.exc.InvalidTypeIdException;
@@ -57,16 +54,8 @@ import com.github.copilot.generated.rpc.SessionModelGetReasoningSummariesParams;
 import com.github.copilot.generated.rpc.SessionModelGetReasoningSummariesResult;
 import com.github.copilot.generated.rpc.SessionModelSwitchToParams;
 import com.github.copilot.generated.rpc.SessionModelSwitchToRequest;
-import com.github.copilot.generated.rpc.SessionOptionsUpdateParams;
-import com.github.copilot.generated.rpc.SessionPermissionsManagedReviewRequiredParams;
 import com.github.copilot.generated.rpc.SessionRpc;
-import com.github.copilot.generated.rpc.SessionToolsUpdateSubagentSettingsParams;
-import com.github.copilot.generated.rpc.SubagentSettingsConfig;
 import com.github.copilot.rpc.AgentInfo;
-import com.github.copilot.rpc.PermissionHandler;
-import com.github.copilot.rpc.PermissionInvocation;
-import com.github.copilot.rpc.PermissionRequest;
-import com.github.copilot.rpc.PermissionRequestResult;
 
 /**
  * Unit tests for the generated RPC wrapper classes ({@link ServerRpc} and
@@ -157,7 +146,7 @@ class RpcWrappersTest {
         var stub = new StubCaller();
         var server = new ServerRpc(stub);
 
-        var params = com.github.copilot.generated.rpc.PingParams.builder().message(null).build();
+        var params = new com.github.copilot.generated.rpc.PingParams(null);
         server.ping(params);
 
         assertEquals(1, stub.calls.size());
@@ -181,7 +170,7 @@ class RpcWrappersTest {
         var stub = new StubCaller();
         var server = new ServerRpc(stub);
 
-        var params = McpConfigAddParams.builder().name("myServer").config(null).build();
+        var params = new McpConfigAddParams("myServer", null);
         server.mcp.config.add(params);
 
         assertEquals(1, stub.calls.size());
@@ -194,7 +183,7 @@ class RpcWrappersTest {
         var stub = new StubCaller();
         var server = new ServerRpc(stub);
 
-        var params = McpDiscoverParams.builder().workingDirectory("/workspace").includeEffectiveSource(null).build();
+        var params = new McpDiscoverParams("/workspace", null);
         server.mcp.discover(params);
 
         assertEquals(1, stub.calls.size());
@@ -205,88 +194,13 @@ class RpcWrappersTest {
     // ── SessionRpc tests ──────────────────────────────────────────────────────
 
     @ParameterizedTest
-    @ValueSource(booleans = {false, true})
-    void permissionHandler_forwards_original_request_fields_for_managed_review(boolean rawJson) throws Exception {
-        var mapper = new ObjectMapper();
-        var original = mapper.readTree("""
-                {
-                  "kind": "read",
-                  "toolCallId": "read-call",
-                  "managedApprovalRequired": false,
-                  "readOnlyDirectories": ["/workspace"],
-                  "path": "/workspace/file.txt",
-                  "futureDetails": {"enabled": true, "values": [1, null, "value"]}
-                }
-                """);
-        var request = PermissionRequest.fromJsonValue(original);
-        var extensions = new LinkedHashMap<>(request.getExtensionData());
-        var stub = new StubCaller();
-        stub.nextResult = false;
-        var session = new SessionRpc(stub, "permission-session");
-        var forwarded = new AtomicReference<SessionPermissionsManagedReviewRequiredParams>();
-        PermissionHandler handler = (permissionRequest, invocation) -> {
-            var params = SessionPermissionsManagedReviewRequiredParams.builder().sessionId("caller-session")
-                    .request(rawJson ? original : permissionRequest).build();
-            forwarded.set(params);
-            return session.permissions.managedReviewRequired(params).thenApply(
-                    required -> required ? PermissionRequestResult.noResult() : PermissionRequestResult.approveOnce());
-        };
-
-        assertEquals("approve-once", handler.handle(request, new PermissionInvocation()).get().getKind());
-
-        assertEquals(1, stub.calls.size());
-        var call = stub.calls.get(0);
-        assertEquals("session.permissions.managedReviewRequired", call.method());
-        assertEquals(Boolean.class, call.resultType());
-        var payload = assertInstanceOf(JsonNode.class, call.params());
-        assertEquals("permission-session", payload.path("sessionId").asText());
-        assertEquals(original, payload.path("request"));
-        assertFalse(payload.path("request").has("extensionData"));
-        assertEquals("caller-session", forwarded.get().sessionId());
-        assertSame(rawJson ? original : request, forwarded.get().request());
-        assertEquals(extensions, request.getExtensionData());
-    }
-
-    @ParameterizedTest
-    @NullSource
-    @ValueSource(strings = {"empty", "configured"})
-    @AllowCopilotExperimental
-    void sessionRpc_subagent_settings_preserve_explicit_null(String mode) {
-        var stub = new StubCaller();
-        var session = new SessionRpc(stub, "subagent-session");
-        var settings = mode == null
-                ? null
-                : SubagentSettingsConfig.builder().maxDepth("configured".equals(mode) ? 4L : null).build();
-
-        session.tools
-                .updateSubagentSettings(SessionToolsUpdateSubagentSettingsParams.builder().subagents(settings).build())
-                .join();
-
-        assertEquals(1, stub.calls.size());
-        var call = stub.calls.get(0);
-        assertEquals("session.tools.updateSubagentSettings", call.method());
-        var payload = assertInstanceOf(JsonNode.class, call.params());
-        var expected = new ObjectMapper().createObjectNode().put("sessionId", "subagent-session");
-        if (mode == null) {
-            expected.putNull("subagents");
-        } else {
-            var subagents = expected.putObject("subagents");
-            if ("configured".equals(mode)) {
-                subagents.put("maxDepth", 4L);
-            }
-        }
-        assertEquals(expected, payload);
-    }
-
-    @ParameterizedTest
     @CsvSource({"true,false", "false,true", "null,null"})
     void sessionRpc_reasoning_summaries_accepts_only_host_state(String persisted, String visible) {
         var stub = new StubCaller();
         var session = new SessionRpc(stub, "reasoning-session");
         Boolean persistedShowReasoning = "null".equals(persisted) ? null : Boolean.valueOf(persisted);
         Boolean summariesVisible = "null".equals(visible) ? null : Boolean.valueOf(visible);
-        var params = SessionModelGetReasoningSummariesParams.builder().persistedShowReasoning(persistedShowReasoning)
-                .summariesVisible(summariesVisible).build();
+        var params = new SessionModelGetReasoningSummariesParams(persistedShowReasoning, summariesVisible);
 
         assertNull(params.sessionId());
         session.model.getReasoningSummaries(params).join();
@@ -366,21 +280,14 @@ class RpcWrappersTest {
 
         session.connectors.getCapabilities();
         session.connectors.getStatus();
-        session.connectors.list(
-                SessionConnectorsListParams.builder().sessionId("ignored-session").accountId("account-1").build());
-        session.connectors.refresh(
-                SessionConnectorsRefreshParams.builder().sessionId("ignored-session").accountId("account-1").build());
-        session.connectors.connect(SessionConnectorsConnectParams.builder().sessionId("ignored-session")
-                .accountId("account-1").connectorName("outlook").build());
-        session.connectors.reconnect(SessionConnectorsReconnectParams.builder().sessionId("ignored-session")
-                .accountId("account-1").connectorName("outlook").build());
-        session.connectors.continueConnection(SessionConnectorsContinueConnectionParams.builder()
-                .sessionId("ignored-session").continuationId("continuation-1").maxAttempts(3L).pollIntervalMs(1_000L)
-                .deadlineMs(30_000L).build());
-        session.connectors.disconnect(SessionConnectorsDisconnectParams.builder().sessionId("ignored-session")
-                .accountId("account-1").connectorName("outlook").build());
-        session.connectors.reconcile(SessionConnectorsReconcileParams.builder().sessionId("ignored-session")
-                .accountId("account-1").refreshCatalog(true).build());
+        session.connectors.list(new SessionConnectorsListParams("ignored-session", "account-1"));
+        session.connectors.refresh(new SessionConnectorsRefreshParams("ignored-session", "account-1"));
+        session.connectors.connect(new SessionConnectorsConnectParams("ignored-session", "account-1", "outlook"));
+        session.connectors.reconnect(new SessionConnectorsReconnectParams("ignored-session", "account-1", "outlook"));
+        session.connectors.continueConnection(new SessionConnectorsContinueConnectionParams("ignored-session",
+                "continuation-1", 3L, 1_000L, 30_000L));
+        session.connectors.disconnect(new SessionConnectorsDisconnectParams("ignored-session", "account-1", "outlook"));
+        session.connectors.reconcile(new SessionConnectorsReconcileParams("ignored-session", "account-1", true));
 
         assertEquals(9, stub.calls.size());
         assertConnectorCall(stub.calls.get(0), "session.connectors.getCapabilities",
@@ -549,9 +456,8 @@ class RpcWrappersTest {
         try (var sockets = new SocketPair()) {
             var stub = sockets.stubServer();
             var session = new SessionRpc(sockets.client()::invoke, "sess-connectors");
-            var future = session.connectors.continueConnection(SessionConnectorsContinueConnectionParams.builder()
-                    .sessionId("ignored-session").continuationId("continuation-1").maxAttempts(3L)
-                    .pollIntervalMs(1_000L).deadlineMs(10_000L).build());
+            var future = session.connectors.continueConnection(new SessionConnectorsContinueConnectionParams(
+                    "ignored-session", "continuation-1", 3L, 1_000L, 10_000L));
             var request = stub.readOneMessage();
             assertEquals("session.connectors.continueConnection", request.get("method").asText());
             assertEquals(new ObjectMapper().readTree("""
@@ -595,10 +501,8 @@ class RpcWrappersTest {
         var session = new SessionRpc(stub, "sess-xyz");
 
         // switchTo takes extra params beyond sessionId
-        var switchParams = SessionModelSwitchToParams.builder().sessionId(null).modelId("gpt-5").autoTier(null)
-                .reasoningEffort(null).reasoningSummary(null).verbosity(null).modelCapabilities(null).contextTier(null)
-                .source(null).deferIfModelChangeQueued(null).compactionDecision(null).runCompactionPreflight(null)
-                .repoScope(null).modelChangeScope(null).requireAvailable(null).pickerPersistence(null).build();
+        var switchParams = new SessionModelSwitchToParams(null, "gpt-5", null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null);
         session.model.switchTo(switchParams);
         session.model.switchTo(new SessionModelSwitchToRequest("gpt-5").setProviderId("catalog-provider"));
 
@@ -616,176 +520,6 @@ class RpcWrappersTest {
         assertEquals("sess-xyz", providerRequest.get("sessionId").asText());
         assertEquals("catalog-provider", providerRequest.get("providerId").asText());
         assertEquals("gpt-5", providerRequest.get("modelId").asText());
-    }
-
-    @Test
-    void modelSwitchBuilderPreservesOmittedNullAndValueOnTheWire() throws Exception {
-        var builder = SessionModelSwitchToParams.builder().modelId("gpt-5");
-        var requests = List.of(builder.build(), builder.reasoningEffort(null).build(),
-                builder.reasoningEffort("high").build());
-        try (var sockets = new SocketPair()) {
-            var peer = sockets.stubServer();
-            var session = new CopilotSession("presence-session", sockets.client());
-            try {
-                for (int index = 0; index < requests.size(); index++) {
-                    var response = session.getRpc().model.switchTo(requests.get(index));
-                    var message = peer.readOneMessage();
-                    var params = message.path("params");
-                    assertEquals("session.model.switchTo", message.path("method").asText());
-                    assertEquals("presence-session", params.path("sessionId").asText());
-                    assertEquals("gpt-5", params.path("modelId").asText());
-                    assertFalse(params.has("autoTier"), "Untouched nullable fields must stay omitted: " + params);
-                    var mapper = JsonRpcClient.getObjectMapper();
-                    assertEquals(params,
-                            mapper.valueToTree(mapper.treeToValue(params, SessionModelSwitchToParams.class)));
-                    if (index == 0) {
-                        assertFalse(params.has("reasoningEffort"), "Untouched effort must stay omitted: " + params);
-                    } else {
-                        assertTrue(params.has("reasoningEffort"), "Explicit effort must be present: " + params);
-                        if (index == 1) {
-                            assertTrue(params.get("reasoningEffort").isNull(), "Reset must send JSON null: " + params);
-                        } else {
-                            assertEquals("high", params.get("reasoningEffort").asText());
-                        }
-                    }
-                    peer.respond(message, JsonRpcClient.getObjectMapper().createObjectNode().put("modelId", "gpt-5"));
-                    response.get(3, TimeUnit.SECONDS);
-                }
-            } finally {
-                session.forceStopLocally();
-            }
-        }
-    }
-
-    @Test
-    void optionsUpdateBuilderPreservesExplicitClearsOnTheWire() throws Exception {
-        var limits = com.github.copilot.generated.rpc.SessionLimitsConfig.builder().maxAiCredits(5.0).build();
-        var requests = List.of(SessionOptionsUpdateParams.builder().build(),
-                SessionOptionsUpdateParams.builder().sessionLimits(null).includedBuiltinAgents(null)
-                        .includedBuiltinSkills(null).build(),
-                SessionOptionsUpdateParams.builder().sessionLimits(limits).includedBuiltinAgents(List.of())
-                        .includedBuiltinSkills(List.of()).build());
-        try (var sockets = new SocketPair()) {
-            var peer = sockets.stubServer();
-            var session = new CopilotSession("limits-session", sockets.client());
-            try {
-                for (int index = 0; index < requests.size(); index++) {
-                    var response = session.getRpc().options.update(requests.get(index));
-                    var message = peer.readOneMessage();
-                    var params = message.path("params");
-                    assertEquals("session.options.update", message.path("method").asText());
-                    assertEquals("limits-session", params.path("sessionId").asText());
-                    assertFalse(params.has("model"), "Untouched options must stay omitted: " + params);
-                    var mapper = JsonRpcClient.getObjectMapper();
-                    assertEquals(params,
-                            mapper.valueToTree(mapper.treeToValue(params, SessionOptionsUpdateParams.class)));
-                    for (String field : List.of("sessionLimits", "includedBuiltinAgents", "includedBuiltinSkills")) {
-                        if (index == 0) {
-                            assertFalse(params.has(field), "Untouched " + field + " must stay omitted: " + params);
-                        } else {
-                            assertTrue(params.has(field), "Explicit " + field + " must be present: " + params);
-                            if (index == 1) {
-                                assertTrue(params.get(field).isNull(), "Clear must send JSON null: " + params);
-                            }
-                        }
-                    }
-                    if (index == 2) {
-                        assertEquals(5.0, params.path("sessionLimits").path("maxAiCredits").asDouble());
-                        assertTrue(params.get("includedBuiltinAgents").isArray());
-                        assertTrue(params.get("includedBuiltinAgents").isEmpty());
-                        assertTrue(params.get("includedBuiltinSkills").isArray());
-                        assertTrue(params.get("includedBuiltinSkills").isEmpty());
-                    }
-                    peer.respond(message, JsonRpcClient.getObjectMapper().createObjectNode());
-                    response.get(3, TimeUnit.SECONDS);
-                }
-            } finally {
-                session.forceStopLocally();
-            }
-        }
-    }
-
-    @Test
-    void extensibleModelSwitchRequestPreservesExplicitNull() {
-        var caller = new StubCaller();
-        var rpc = new SessionRpc(caller, "request-session");
-        rpc.model.switchTo(new SessionModelSwitchToRequest("gpt-5"));
-        rpc.model.switchTo(new SessionModelSwitchToRequest("gpt-5").setReasoningEffort(null));
-        rpc.model.switchTo(new SessionModelSwitchToRequest("gpt-5").setReasoningEffort("high"));
-
-        var omitted = JsonRpcClient.getObjectMapper().valueToTree(caller.calls.get(0).params());
-        var cleared = JsonRpcClient.getObjectMapper().valueToTree(caller.calls.get(1).params());
-        var provided = JsonRpcClient.getObjectMapper().valueToTree(caller.calls.get(2).params());
-        assertFalse(omitted.has("reasoningEffort"));
-        assertTrue(cleared.has("reasoningEffort"), "Explicit null must be present: " + cleared);
-        assertTrue(cleared.get("reasoningEffort").isNull());
-        assertEquals("high", provided.path("reasoningEffort").asText());
-        assertFalse(cleared.has("autoTier"), "Untouched nullable fields must stay omitted: " + cleared);
-    }
-
-    @Test
-    void nullablePresenceSurvivesJacksonWithoutChangingLegacyConstructorOmission() throws Exception {
-        var mapper = JsonRpcClient.getObjectMapper();
-        var input = mapper.readTree("""
-                {"sessionId":"round-trip-session","modelId":"gpt-5","reasoningEffort":null}
-                """);
-        var decoded = mapper.treeToValue(input, SessionModelSwitchToParams.class);
-        assertEquals(input, mapper.valueToTree(decoded));
-
-        var types = Arrays.stream(SessionModelSwitchToParams.class.getRecordComponents())
-                .filter(component -> !component.getAccessor()
-                        .isAnnotationPresent(com.fasterxml.jackson.annotation.JsonIgnore.class))
-                .map(RecordComponent::getType).toArray(Class<?>[]::new);
-        var arguments = new Object[types.length];
-        arguments[0] = "legacy-session";
-        arguments[1] = "gpt-5";
-        var legacy = SessionModelSwitchToParams.class.getConstructor(types).newInstance(arguments);
-        var wire = mapper.valueToTree(legacy);
-        assertEquals("legacy-session", wire.path("sessionId").asText());
-        assertEquals("gpt-5", wire.path("modelId").asText());
-        assertFalse(wire.has("reasoningEffort"), "Legacy null arguments must retain omission: " + wire);
-        assertEquals(legacy, mapper.treeToValue(wire, SessionModelSwitchToParams.class));
-    }
-
-    @ParameterizedTest
-    @ValueSource(strings = {"{\"modelId\":\"gpt-5\"}", "{\"modelId\":\"gpt-5\",\"reasoningEffort\":null}",
-            "{\"modelId\":\"gpt-5\",\"reasoningEffort\":\"high\"}"})
-    void modelSwitchPresenceSurvivesCodecLessStreamingParsers(String json) throws Exception {
-        var mapper = new ObjectMapper();
-        try (var parser = new JsonFactory().createParser(json)) {
-            assertNull(parser.getCodec());
-            var request = mapper.readValue(parser, SessionModelSwitchToParams.class);
-            assertEquals("gpt-5", request.modelId());
-            assertEquals(mapper.readTree(json), mapper.valueToTree(request));
-            assertNull(parser.getCodec());
-        }
-    }
-
-    @ParameterizedTest
-    @ValueSource(strings = {"{\"sessionId\":\"streaming-session\"}",
-            "{\"sessionId\":\"streaming-session\",\"includedBuiltinSkills\":null,\"sessionLimits\":null}",
-            "{\"sessionId\":\"streaming-session\",\"includedBuiltinSkills\":[\"code-review\"],"
-                    + "\"sessionLimits\":{\"maxAiCredits\":5.0}}"})
-    void optionPresenceSurvivesCodecLessStreamingParsers(String json) throws Exception {
-        var mapper = new ObjectMapper();
-        try (var parser = new JsonFactory().createParser(json)) {
-            assertNull(parser.getCodec());
-            var request = mapper.readValue(parser, SessionOptionsUpdateParams.class);
-            assertEquals("streaming-session", request.sessionId());
-            assertEquals(mapper.readTree(json), mapper.valueToTree(request));
-            assertNull(parser.getCodec());
-        }
-    }
-
-    @Test
-    void nullableRecordPropertiesUseReaderConfiguration() throws Exception {
-        var mapper = new ObjectMapper();
-        var reader = mapper.readerFor(SessionOptionsUpdateParams.class)
-                .with(DeserializationFeature.ACCEPT_SINGLE_VALUE_AS_ARRAY);
-        try (var parser = mapper.getFactory().createParser("{\"includedBuiltinSkills\":\"code-review\"}")) {
-            SessionOptionsUpdateParams request = reader.readValue(parser);
-            assertEquals(List.of("code-review"), request.includedBuiltinSkills());
-        }
     }
 
     @Test
@@ -808,7 +542,7 @@ class RpcWrappersTest {
         var stub = new StubCaller();
         var session = new SessionRpc(stub, "sess-select");
 
-        var selectParams = SessionAgentSelectParams.builder().sessionId(null).name("my-agent").build();
+        var selectParams = new SessionAgentSelectParams(null, "my-agent");
         session.agent.select(selectParams);
 
         assertEquals(1, stub.calls.size());
@@ -873,14 +607,13 @@ class RpcWrappersTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"list", "getCurrent", "select"})
-    void copilotSession_agent_methods_deserialize_scoped_hooks_and_plugin_ownership(String method) throws Exception {
+    void copilotSession_agent_methods_deserialize_scoped_hooks(String method) throws Exception {
         var mapper = JsonRpcClient.getObjectMapper();
         var agentJson = mapper.readTree("""
                 {
                   "name": "hook-agent",
                   "displayName": "Hook Agent",
                   "description": "Agent with scoped hooks",
-                  "pluginId": "mp:catalog::tools",
                   "hooks": {
                     "preToolUse": [{"type":"command","bash":"echo scoped-hook","timeoutSec":10}],
                     "sessionStart": [{"type":"command","bash":"echo started"}]
@@ -914,7 +647,6 @@ class RpcWrappersTest {
                 var agents = future.get(3, TimeUnit.SECONDS);
                 assertEquals(1, agents.size());
                 assertEquals("hook-agent", agents.get(0).getName());
-                assertEquals("mp:catalog::tools", agents.get(0).getPluginId());
                 assertNotNull(agents.get(0).getHooks());
                 assertEquals(agentJson.get("hooks"), mapper.valueToTree(agents.get(0).getHooks()));
             } finally {
@@ -1066,8 +798,8 @@ class RpcWrappersTest {
         var stub = new StubCaller();
         var session = new SessionRpc(stub, "sess-mcp");
 
-        var params = com.github.copilot.generated.rpc.SessionMcpAppsCallToolParams.builder().sessionId(null)
-                .serverName("my-server").toolName("my-tool").arguments(null).originServerName("my-origin").build();
+        var params = new com.github.copilot.generated.rpc.SessionMcpAppsCallToolParams(null, "my-server", "my-tool",
+                null, null);
         session.mcp.apps.callTool(params);
 
         assertEquals(1, stub.calls.size());
@@ -1079,8 +811,8 @@ class RpcWrappersTest {
         var stub = new StubCaller();
         var session = new SessionRpc(stub, "sess-ct-inject");
 
-        var params = com.github.copilot.generated.rpc.SessionMcpAppsCallToolParams.builder().sessionId(null)
-                .serverName("server1").toolName("tool1").arguments(null).originServerName("server-origin").build();
+        var params = new com.github.copilot.generated.rpc.SessionMcpAppsCallToolParams(null, "server1", "tool1", null,
+                null);
         session.mcp.apps.callTool(params);
 
         var sentParams = stub.calls.get(0).params();
@@ -1108,47 +840,6 @@ class RpcWrappersTest {
     }
 
     @Test
-    void sessionRpc_mcp_apps_callTool_keeps_null_map_entries() {
-        var stub = new StubCaller();
-        var session = new SessionRpc(stub, "sess-null-map");
-        var nested = new LinkedHashMap<String, Object>();
-        nested.put("inner", null);
-        nested.put("x", 2);
-        var arguments = new LinkedHashMap<String, Object>();
-        arguments.put("keep", 1);
-        arguments.put("explicitNull", null);
-        arguments.put("nested", nested);
-        var meta = new LinkedHashMap<String, Object>();
-        meta.put("k", null);
-
-        session.mcp.apps
-                .callTool(new com.github.copilot.generated.rpc.SessionMcpAppsCallToolRequest("server", "tool", "server")
-                        .setArguments(arguments).setMeta(meta));
-        // Exercise legacy wire omission independently of the builder's required-field
-        // checks.
-        session.mcp.apps.callTool(new ObjectMapper().convertValue(
-                Map.of("serverName", "server", "toolName", "tool", "arguments", arguments),
-                com.github.copilot.generated.rpc.SessionMcpAppsCallToolParams.class));
-
-        assertEquals(2, stub.calls.size());
-        for (var call : stub.calls) {
-            var node = (com.fasterxml.jackson.databind.node.ObjectNode) call.params();
-            var args = node.get("arguments");
-            assertEquals(1, args.get("keep").asInt());
-            assertTrue(args.has("explicitNull"), "a null map entry must be sent, got: " + node);
-            assertTrue(args.get("explicitNull").isNull());
-            assertTrue(args.get("nested").has("inner"), "a nested null map entry must be sent, got: " + node);
-            assertTrue(args.get("nested").get("inner").isNull());
-        }
-        var requestNode = (com.fasterxml.jackson.databind.node.ObjectNode) stub.calls.get(0).params();
-        assertTrue(requestNode.get("_meta").has("k"), "a null _meta entry must be sent, got: " + requestNode);
-        assertTrue(requestNode.get("_meta").get("k").isNull());
-        // Unset properties are still omitted.
-        var recordNode = (com.fasterxml.jackson.databind.node.ObjectNode) stub.calls.get(1).params();
-        assertFalse(recordNode.has("originServerName"), "an unset property must be omitted, got: " + recordNode);
-    }
-
-    @Test
     void sessionRpc_mcp_apps_callTool_returns_jsonNode_payload() throws Exception {
         var stub = new StubCaller();
         var mapper = new ObjectMapper();
@@ -1158,8 +849,8 @@ class RpcWrappersTest {
         stub.nextResult = expectedResult;
 
         var session = new SessionRpc(stub, "sess-payload");
-        var params = com.github.copilot.generated.rpc.SessionMcpAppsCallToolParams.builder().sessionId(null)
-                .serverName("echo-server").toolName("echo").arguments(null).originServerName("echo-origin").build();
+        var params = new com.github.copilot.generated.rpc.SessionMcpAppsCallToolParams(null, "echo-server", "echo",
+                null, null);
         var future = session.mcp.apps.callTool(params);
 
         var result = future.get();

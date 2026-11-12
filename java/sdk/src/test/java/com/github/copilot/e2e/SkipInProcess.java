@@ -17,8 +17,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
  * is set to {@code inprocess}.
  *
  * <p>
- * Use this for tests that require a child process rather than a runtime hosted
- * in the JVM. Per-client environment maps require a child-process transport.
+ * Use this for tests that rely on per-client process settings the in-process
+ * transport cannot honor — for example per-client environment variables, since
+ * the in-process runtime shares the host process's single environment (see
+ * {@link com.github.copilot.rpc.InProcessRuntimeConnection} and
+ * <a href="https://github.com/github/copilot-sdk/issues/1934">issue #1934</a>).
  * </p>
  *
  * <p>

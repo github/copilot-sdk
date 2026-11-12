@@ -784,57 +784,6 @@ public sealed partial class ClientSessionLifetimeTests
     }
 
     [Fact]
-    public async Task StructuredOutput_Dispatches_Queued_Events_Before_Judging_A_Closed_Transport()
-    {
-        await using var server = await FakeCopilotServer.StartAsync();
-        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
-        await using var session = await client.CreateSessionAsync(new SessionConfig());
-        var sendReplied = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        server.AfterResponseAsync = (request, _) =>
-        {
-            if (request.Method == "session.send")
-            {
-                sendReplied.TrySetResult();
-            }
-            return Task.CompletedTask;
-        };
-        using var release = new ManualResetEventSlim();
-        var handlerEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        using var slowHandler = session.On<AssistantMessageEvent>(_ =>
-        {
-            handlerEntered.TrySetResult();
-            // A slow handler holds the idle event in the session's dispatch queue.
-            release.Wait(TimeSpan.FromSeconds(10));
-        });
-        try
-        {
-            var task = session.SendAndWaitAsync<StructuredAnswer>("Answer", StructuredOutputJsonContext.Default.Options);
-            await sendReplied.Task.WaitAsync(TimeSpan.FromSeconds(5));
-            await server.SendSessionEventAsync(session.SessionId, "assistant.message", new()
-            {
-                ["messageId"] = "assistant-result",
-                ["originatingMessageId"] = "message-1",
-                ["content"] = """{"answer_text":"correct","count":42}""",
-            });
-            await handlerEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
-            await server.SendSessionEventAsync(session.SessionId, "session.idle", new());
-            server.CloseOutput();
-            // A request sent after the close fails only once the client has read to the end of the transport.
-            await Assert.ThrowsAnyAsync<IOException>(() => client.PingAsync().WaitAsync(TimeSpan.FromSeconds(5)));
-            // Give a wait that treats the closed transport as final the chance to fail while the handler still blocks.
-            await Task.WhenAny(task, Task.Delay(TimeSpan.FromSeconds(1)));
-            release.Set();
-            Assert.Equal("correct", (await task.WaitAsync(TimeSpan.FromSeconds(5))).Answer);
-        }
-        finally
-        {
-            release.Set();
-            // Graceful cleanup cannot wait for a peer whose transport was deliberately closed.
-            await client.ForceStopAsync();
-        }
-    }
-
-    [Fact]
     public async Task StructuredOutput_Timeout_Includes_Send_Acknowledgement()
     {
         await using var server = await FakeCopilotServer.StartAsync();

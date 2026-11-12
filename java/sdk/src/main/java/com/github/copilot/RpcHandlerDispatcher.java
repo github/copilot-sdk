@@ -7,7 +7,6 @@ package com.github.copilot;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -24,7 +23,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.copilot.generated.SessionEvent;
 import com.github.copilot.rpc.AutoModeSwitchRequest;
-import com.github.copilot.rpc.AutoModeRecoveryContext;
 import com.github.copilot.rpc.ExitPlanModeRequest;
 import com.github.copilot.rpc.BearerTokenProvider;
 import com.github.copilot.rpc.GitHubTokenProviderArgs;
@@ -35,11 +33,8 @@ import com.github.copilot.generated.rpc.GitHubTokenAcquireResultCancelled;
 import com.github.copilot.generated.rpc.GitHubTokenAcquireResultToken;
 import com.github.copilot.rpc.PermissionRequestResult;
 import com.github.copilot.rpc.PermissionRequestResultKind;
-import com.github.copilot.rpc.ShellAuthenticationRequest;
-import com.github.copilot.rpc.ShellAuthenticationResponse;
 import com.github.copilot.rpc.SessionLifecycleEvent;
 import com.github.copilot.rpc.SessionLifecycleEventMetadata;
-import com.github.copilot.rpc.StoredMemory;
 import com.github.copilot.rpc.ToolDefinition;
 import com.github.copilot.rpc.ToolInvocation;
 import com.github.copilot.rpc.ToolResultObject;
@@ -68,10 +63,7 @@ final class RpcHandlerDispatcher {
     private final LifecycleEventDispatcher lifecycleDispatcher;
     private final Executor executor;
     private final GitHubTokenProviderRegistry gitHubTokenProviders;
-    private final Map<Long, CompletableFuture<Void>> callbackCancellations = new ConcurrentHashMap<>();
-    // Open secret prompts by session and request ID. Tracked here rather than on a
-    // session, which a resume can replace while a prompt is open.
-    private final Map<String, CompletableFuture<Void>> shellAuthenticationCancellations = new ConcurrentHashMap<>();
+    private final Map<Long, CompletableFuture<Void>> skillProviderCancellations = new ConcurrentHashMap<>();
 
     /**
      * Creates a dispatcher with session registry and lifecycle dispatcher.
@@ -105,10 +97,6 @@ final class RpcHandlerDispatcher {
                 (requestId, params) -> handlePermissionRequest(rpc, requestId, params));
         rpc.registerMethodHandler("userInput.request",
                 (requestId, params) -> handleUserInputRequest(rpc, requestId, params));
-        rpc.registerMethodHandler("shellAuthentication.request",
-                (requestId, params) -> handleShellAuthenticationRequest(rpc, requestId, params));
-        rpc.registerMethodHandler("shellAuthentication.cancel",
-                (requestId, params) -> handleShellAuthenticationCancel(rpc, requestId, params));
         rpc.registerMethodHandler("exitPlanMode.request",
                 (requestId, params) -> handleExitPlanModeRequest(rpc, requestId, params));
         rpc.registerMethodHandler("autoModeSwitch.request",
@@ -124,80 +112,6 @@ final class RpcHandlerDispatcher {
                 (requestId, params) -> handleSkillProviderList(rpc, requestId, params));
         rpc.registerMethodHandler("skillProvider.read",
                 (requestId, params) -> handleSkillProviderRead(rpc, requestId, params));
-        rpc.registerMethodHandler("memoryStore.store",
-                (requestId, params) -> handleMemoryStore(rpc, requestId, params));
-    }
-
-    // Backs the experimental MemoryConfiguration store-memory callback. Callback
-    // failures map to a generic message so app error text never reaches the
-    // runtime.
-    private void handleMemoryStore(JsonRpcClient rpc, String requestId, JsonNode params) {
-        final long requestIdLong = parseRequestId(requestId, "memoryStore.store");
-        if (requestIdLong == -1) {
-            return;
-        }
-        // Registered on the reader thread so a later $/cancelRequest always finds it.
-        var cancellation = new CompletableFuture<Void>();
-        callbackCancellations.put(requestIdLong, cancellation);
-        runAsync(() -> {
-            String sessionId = textParam(params, "sessionId");
-            CopilotSession session = sessionId != null ? sessions.get(sessionId) : null;
-            var handler = session != null ? session.getMemoryStoreHandler() : null;
-            if (handler == null) {
-                callbackCancellations.remove(requestIdLong, cancellation);
-                sendMemoryStoreError(rpc, requestIdLong,
-                        session == null ? "Memory store owner is unavailable" : "No memory store is registered",
-                        sessionId, null);
-                return;
-            }
-            CompletableFuture<Void> future;
-            try {
-                future = cancellation.isDone()
-                        ? CompletableFuture.failedFuture(new CancellationException())
-                        : handler.apply(
-                                new StoredMemory(sessionId, textParam(params, "subject"), textParam(params, "fact"),
-                                        textParam(params, "citations"), textParam(params, "reason")));
-                if (future == null) {
-                    future = CompletableFuture
-                            .failedFuture(new IllegalStateException("storeMemory returned a null future"));
-                }
-            } catch (Throwable error) {
-                // An Error the callback throws (an AssertionError, say) is answered too, so the
-                // runtime does not wait out its timeout; only a fatal error is rethrown.
-                CopilotRequestHandler.rethrowFatalError(error);
-                future = CompletableFuture.failedFuture(error);
-            }
-            final CompletableFuture<Void> storeFuture = future;
-            cancellation.thenRun(() -> storeFuture.cancel(true));
-            storeFuture.whenComplete((value, error) -> {
-                callbackCancellations.remove(requestIdLong, cancellation);
-                if (cancellation.isDone()) {
-                    sendCallbackCancelled(rpc, requestIdLong);
-                    return;
-                }
-                if (error != null) {
-                    sendMemoryStoreError(rpc, requestIdLong, "Memory store callback failed", sessionId, error);
-                    return;
-                }
-                try {
-                    rpc.sendResponse(requestIdLong, null);
-                } catch (IOException sendError) {
-                    LOG.log(Level.SEVERE, "Error sending memoryStore.store response", sendError);
-                }
-            });
-        });
-    }
-
-    private void sendMemoryStoreError(JsonRpcClient rpc, long requestId, String message, String sessionId,
-            Throwable error) {
-        if (error != null) {
-            LOG.log(Level.WARNING, message + " (sessionId=" + sessionId + ")", error);
-        }
-        try {
-            rpc.sendErrorResponse(requestId, -32603, message);
-        } catch (IOException sendError) {
-            LOG.log(Level.SEVERE, "Error sending memoryStore.store error", sendError);
-        }
     }
 
     // The generated skillProvider.* records are package-private because the
@@ -237,7 +151,7 @@ final class RpcHandlerDispatcher {
         }
         // Registered on the reader thread so a later $/cancelRequest always finds it.
         var cancellation = new CompletableFuture<Void>();
-        callbackCancellations.put(requestIdLong, cancellation);
+        skillProviderCancellations.put(requestIdLong, cancellation);
         runAsync(() -> {
             String failure = "Skill provider " + operation + " failed";
             String sessionId = null;
@@ -245,7 +159,7 @@ final class RpcHandlerDispatcher {
                 sessionId = textParam(params, "sessionId");
                 SkillProvider provider = findSkillProvider(sessionId);
                 if (provider == null) {
-                    callbackCancellations.remove(requestIdLong, cancellation);
+                    skillProviderCancellations.remove(requestIdLong, cancellation);
                     sendSkillProviderError(rpc, requestIdLong, "No skill provider for session: " + sessionId, sessionId,
                             null);
                     return;
@@ -261,9 +175,9 @@ final class RpcHandlerDispatcher {
                 final String callSessionId = sessionId;
                 cancellation.thenRun(() -> providerFuture.cancel(true));
                 providerFuture.whenComplete((value, error) -> {
-                    callbackCancellations.remove(requestIdLong, cancellation);
+                    skillProviderCancellations.remove(requestIdLong, cancellation);
                     if (cancellation.isDone()) {
-                        sendCallbackCancelled(rpc, requestIdLong);
+                        sendSkillProviderCancelled(rpc, requestIdLong);
                     } else if (error != null) {
                         sendSkillProviderError(rpc, requestIdLong, failure, callSessionId, error);
                     } else {
@@ -272,132 +186,30 @@ final class RpcHandlerDispatcher {
                     }
                 });
             } catch (Exception error) {
-                callbackCancellations.remove(requestIdLong, cancellation);
+                skillProviderCancellations.remove(requestIdLong, cancellation);
                 sendSkillProviderError(rpc, requestIdLong, failure, sessionId, error);
             }
         });
     }
 
     /**
-     * Cancels the skill provider or memory store call named by a
-     * {@code $/cancelRequest} notification, if it is still in flight.
+     * Cancels the skill provider call named by a {@code $/cancelRequest}
+     * notification, if it is still in flight.
      */
     void handleCancelRequest(JsonNode params) {
         JsonNode id = params != null ? params.get("id") : null;
         if (id == null || !id.isIntegralNumber() || !id.canConvertToLong()) {
             return;
         }
-        CompletableFuture<Void> cancellation = callbackCancellations.get(id.asLong());
+        CompletableFuture<Void> cancellation = skillProviderCancellations.get(id.asLong());
         if (cancellation != null) {
             cancellation.complete(null);
         }
     }
 
-    /**
-     * Cancels every in-flight skill provider and memory store call when the
-     * connection closes.
-     */
-    void cancelCallbacks() {
-        callbackCancellations.values().forEach(cancellation -> cancellation.complete(null));
-    }
-
-    /**
-     * Handles a {@code shellAuthentication.request}: a shell command the agent runs
-     * asks for a password or another answer. Anything that isn't the handler's
-     * answer cancels the prompt. Never logs the params or the answer.
-     */
-    private void handleShellAuthenticationRequest(JsonRpcClient rpc, String requestId, JsonNode params) {
-        final long requestIdLong = parseRequestId(requestId, "shellAuthentication.request");
-        if (requestIdLong == -1) {
-            return;
-        }
-        String sessionId = textParam(params, "sessionId");
-        String secretRequestId = textParam(params, "requestId");
-        String program = textParam(params, "program");
-        String prompt = textParam(params, "prompt");
-        String inputKind = textParam(params, "inputKind");
-        CopilotSession session = sessionId != null ? sessions.get(sessionId) : null;
-        boolean knownKind = "secret".equals(inputKind) || "text".equals(inputKind) || "confirm".equals(inputKind);
-        if (session == null || secretRequestId == null || program == null || prompt == null || !knownKind) {
-            sendShellAuthenticationResponse(rpc, requestIdLong, ShellAuthenticationResponse.cancel());
-            return;
-        }
-        String key = shellAuthenticationKey(sessionId, secretRequestId);
-        // Registered on the reader thread so a later shellAuthentication.cancel always
-        // finds
-        // it.
-        var cancellation = new CompletableFuture<Void>();
-        if (shellAuthenticationCancellations.putIfAbsent(key, cancellation) != null) {
-            sendShellAuthenticationResponse(rpc, requestIdLong, ShellAuthenticationResponse.cancel());
-            return;
-        }
-        String command = textParam(params, "command");
-        String cwd = textParam(params, "cwd");
-        var request = new ShellAuthenticationRequest().setRequestId(secretRequestId).setProgram(program)
-                .setPrompt(prompt).setInputKind(inputKind).setCommand(command != null ? command : "")
-                .setCwd(cwd != null ? cwd : "");
-        runAsync(() -> session.handleShellAuthenticationRequest(request, cancellation)
-                .whenComplete((response, error) -> {
-                    shellAuthenticationCancellations.remove(key, cancellation);
-                    sendShellAuthenticationResponse(rpc, requestIdLong,
-                            error == null && response != null ? response : ShellAuthenticationResponse.cancel());
-                }));
-    }
-
-    /**
-     * Handles a {@code shellAuthentication.cancel}: the answer to an open prompt is
-     * no longer needed.
-     */
-    private void handleShellAuthenticationCancel(JsonRpcClient rpc, String requestId, JsonNode params) {
-        String sessionId = textParam(params, "sessionId");
-        String secretRequestId = textParam(params, "requestId");
-        if (sessionId != null && secretRequestId != null) {
-            CompletableFuture<Void> cancellation = shellAuthenticationCancellations
-                    .get(shellAuthenticationKey(sessionId, secretRequestId));
-            if (cancellation != null) {
-                completeShellAuthenticationCancellation(cancellation);
-            }
-        }
-        final long requestIdLong = parseRequestId(requestId, "shellAuthentication.cancel");
-        if (requestIdLong == -1) {
-            return;
-        }
-        try {
-            rpc.sendResponse(requestIdLong, Map.of());
-        } catch (IOException e) {
-            LOG.log(Level.WARNING, "Error sending shell authentication cancel response", e);
-        }
-    }
-
-    /** Cancels every open secret prompt when the connection closes. */
-    void cancelShellAuthenticationRequests() {
-        shellAuthenticationCancellations.values()
-                .forEach(RpcHandlerDispatcher::completeShellAuthenticationCancellation);
-    }
-
-    /**
-     * Completes a prompt's cancellation on its own thread. Completing it runs the
-     * app's continuations, which may wait on a call that only the connection's
-     * reader thread can answer, so they must not run on that thread or on an
-     * executor that could fall back to it.
-     */
-    private static void completeShellAuthenticationCancellation(CompletableFuture<Void> cancellation) {
-        Thread thread = new Thread(() -> cancellation.complete(null), "copilot-shell-authentication-cancel");
-        thread.setDaemon(true);
-        thread.start();
-    }
-
-    private static String shellAuthenticationKey(String sessionId, String requestId) {
-        return sessionId + '\u0000' + requestId;
-    }
-
-    private static void sendShellAuthenticationResponse(JsonRpcClient rpc, long requestId,
-            ShellAuthenticationResponse response) {
-        try {
-            rpc.sendSecretResponse(requestId, response);
-        } catch (IOException e) {
-            LOG.log(Level.WARNING, "Error sending shell authentication response", e);
-        }
+    /** Cancels every in-flight skill provider call when the connection closes. */
+    void cancelSkillProviderCalls() {
+        skillProviderCancellations.values().forEach(cancellation -> cancellation.complete(null));
     }
 
     private SkillProvider findSkillProvider(String sessionId) {
@@ -416,11 +228,11 @@ final class RpcHandlerDispatcher {
         }
     }
 
-    private void sendCallbackCancelled(JsonRpcClient rpc, long requestId) {
+    private void sendSkillProviderCancelled(JsonRpcClient rpc, long requestId) {
         try {
             rpc.sendErrorResponse(requestId, -32800, "Request cancelled");
         } catch (IOException error) {
-            LOG.log(Level.FINE, "Error sending callback cancellation", error);
+            LOG.log(Level.FINE, "Error sending skill provider cancellation", error);
         }
     }
 
@@ -486,11 +298,13 @@ final class RpcHandlerDispatcher {
                 return;
             }
             if (result.isCancelled()) {
-                rpc.sendResponse(requestId, GitHubTokenAcquireResultCancelled.builder().build());
+                rpc.sendResponse(requestId, new GitHubTokenAcquireResultCancelled());
                 return;
             }
-            var wireResult = GitHubTokenAcquireResultToken.builder().accessToken(result.getAccessToken())
-                    .expiresIn(result.getExpiresIn()).tokenType(result.getTokenType()).build();
+            var wireResult = new GitHubTokenAcquireResultToken();
+            wireResult.setAccessToken(result.getAccessToken());
+            wireResult.setExpiresIn(result.getExpiresIn());
+            wireResult.setTokenType(result.getTokenType());
             rpc.sendResponse(requestId, wireResult);
         } catch (IOException error) {
             LOG.log(Level.SEVERE, "Error sending GitHub token provider result", error);
@@ -693,13 +507,8 @@ final class RpcHandlerDispatcher {
                         String answer = response.getAnswer() != null ? response.getAnswer() : "";
                         LOG.fine("Sending userInput response: answer=" + answer + ", wasFreeform="
                                 + response.isWasFreeform());
-                        Map<String, Object> reply = new LinkedHashMap<>();
-                        reply.put("answer", answer);
-                        reply.put("wasFreeform", response.isWasFreeform());
-                        if (response.getDecisionContext() != null) {
-                            reply.put("decisionContext", response.getDecisionContext());
-                        }
-                        rpc.sendResponse(requestIdLong, reply);
+                        rpc.sendResponse(requestIdLong,
+                                Map.of("answer", answer, "wasFreeform", response.isWasFreeform()));
                     } catch (IOException e) {
                         LOG.log(Level.SEVERE, "Error sending user input response", e);
                     }
@@ -861,10 +670,6 @@ final class RpcHandlerDispatcher {
                 if (params.has("retryAfterSeconds") && !params.get("retryAfterSeconds").isNull()) {
                     request.setRetryAfterSeconds(params.get("retryAfterSeconds").asDouble());
                 }
-                if (params.hasNonNull("autoModeRecovery")) {
-                    request.setAutoModeRecovery(
-                            MAPPER.treeToValue(params.get("autoModeRecovery"), AutoModeRecoveryContext.class));
-                }
 
                 session.handleAutoModeSwitchRequest(request).thenAccept(response -> {
                     try {
@@ -883,11 +688,6 @@ final class RpcHandlerDispatcher {
                 });
             } catch (Exception e) {
                 LOG.log(Level.SEVERE, "Error handling auto mode switch request", e);
-                try {
-                    rpc.sendErrorResponse(requestIdLong, -32602, "Invalid auto mode switch request");
-                } catch (IOException responseError) {
-                    LOG.log(Level.SEVERE, "Error sending auto mode switch error", responseError);
-                }
             }
         });
     }

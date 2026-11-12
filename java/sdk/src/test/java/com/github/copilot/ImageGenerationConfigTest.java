@@ -25,21 +25,8 @@ class ImageGenerationConfigTest {
     @ParameterizedTest
     @NullSource
     @ValueSource(booleans = {true, false})
-    void protocolOptionsBuilderPreservesOmittedFields(Boolean enabled) {
-        var options = ProtocolImageGenerationOptions.builder().enabled(enabled).build();
-        assertProtocolOptionsOnlyContainEnabled(options, enabled);
-    }
-
-    @ParameterizedTest
-    @NullSource
-    @ValueSource(booleans = {true, false})
-    void protocolOptionsReleasedConstructorPreservesOmittedFields(Boolean enabled) {
+    void protocolOptionsPreserveOneArgumentConstructor(Boolean enabled) {
         var options = new ProtocolImageGenerationOptions(enabled);
-        assertProtocolOptionsOnlyContainEnabled(options, enabled);
-    }
-
-    private static void assertProtocolOptionsOnlyContainEnabled(ProtocolImageGenerationOptions options,
-            Boolean enabled) {
         assertEquals(enabled, options.enabled());
         assertNull(options.watermark());
         assertNull(options.saveToDisk());
@@ -56,7 +43,7 @@ class ImageGenerationConfigTest {
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
     void protocolOptionsForwardExplicitWatermark(boolean watermark) {
-        var options = ProtocolImageGenerationOptions.builder().enabled(null).watermark(watermark).build();
+        var options = new ProtocolImageGenerationOptions(null, watermark);
         assertEquals(watermark, options.watermark());
         assertNull(options.saveToDisk());
         JsonNode json = JsonRpcClient.getObjectMapper().valueToTree(options);
@@ -68,8 +55,7 @@ class ImageGenerationConfigTest {
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
     void protocolOptionsForwardExplicitSaveToDisk(boolean saveToDisk) {
-        var options = ProtocolImageGenerationOptions.builder().enabled(null).watermark(null).saveToDisk(saveToDisk)
-                .build();
+        var options = new ProtocolImageGenerationOptions(null, null, saveToDisk);
         assertEquals(saveToDisk, options.saveToDisk());
         JsonNode json = JsonRpcClient.getObjectMapper().valueToTree(options);
         assertEquals(saveToDisk, json.get("saveToDisk").booleanValue());

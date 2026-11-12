@@ -128,10 +128,7 @@ class ConfigCloneTest {
         original.setAskUserVariant(AskUserVariant.ELICITATION);
         original.setPluginDirectories(List.of("/plugins/a", "/plugins/b"));
         original.setDisabledMcpServers(List.of("local-files", "remote-github"));
-        original.setSandboxConfig(
-                SandboxConfig.builder().enabled(true).userPolicy(null).addCurrentWorkingDirectory(false)
-                        .sandboxMcpServers(true).sandboxLspServers(null).allowBypass(null).managedMcpRoutingLocked(null)
-                        .managedLspRoutingLocked(null).auth(null).credentials(null).allowDevToolAccess(null).build());
+        original.setSandboxConfig(new SandboxConfig(true, null, false, true, null, null, null, null, null, null, null));
         original.setLargeOutput(
                 new LargeToolOutputConfig().setEnabled(true).setMaxSizeBytes(1024L).setOutputDirectory("/tmp/out"));
         original.setMemory(new MemoryConfiguration().setEnabled(true));
@@ -156,9 +153,7 @@ class ConfigCloneTest {
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
     void sandboxConfigCloned(boolean enabled) {
-        var sandbox = SandboxConfig.builder().enabled(enabled).userPolicy(null).addCurrentWorkingDirectory(false)
-                .sandboxMcpServers(true).sandboxLspServers(null).allowBypass(null).managedMcpRoutingLocked(null)
-                .managedLspRoutingLocked(null).auth(null).credentials(null).allowDevToolAccess(null).build();
+        var sandbox = new SandboxConfig(enabled, null, false, true, null, null, null, null, null, null, null);
         var create = new SessionConfig();
         assertSame(create, create.setSandboxConfig(sandbox));
         assertSame(sandbox, create.clone().getSandboxConfig());
@@ -224,7 +219,7 @@ class ConfigCloneTest {
 
     @Test
     void sessionConfigSessionPolicyOptionsCloned() {
-        var sessionLimits = SessionLimitsConfig.builder().maxAiCredits(30.0).build();
+        var sessionLimits = new SessionLimitsConfig(30.0);
         var excludedAgents = new ArrayList<>(List.of("explore"));
         SessionConfig original = new SessionConfig().setExcludedBuiltInAgents(excludedAgents).setEnableCitations(true)
                 .setEnableFileChangeTracking(true).setSessionLimits(sessionLimits);
@@ -281,7 +276,7 @@ class ConfigCloneTest {
 
     @Test
     void resumeSessionConfigSessionPolicyOptionsCloned() {
-        var sessionLimits = SessionLimitsConfig.builder().maxAiCredits(30.0).build();
+        var sessionLimits = new SessionLimitsConfig(30.0);
         var excludedAgents = new ArrayList<>(List.of("explore"));
         ResumeSessionConfig original = new ResumeSessionConfig().setExcludedBuiltInAgents(excludedAgents)
                 .setEnableCitations(true).setEnableFileChangeTracking(true).setSessionLimits(sessionLimits);

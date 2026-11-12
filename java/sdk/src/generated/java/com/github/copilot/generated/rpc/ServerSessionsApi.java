@@ -9,7 +9,6 @@ package com.github.copilot.generated.rpc;
 
 import com.github.copilot.CopilotExperimental;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -149,19 +148,6 @@ public final class ServerSessionsApi {
     @CopilotExperimental
     public CompletableFuture<SessionsFindByPrefixResult> findByPrefix(SessionsFindByPrefixParams params) {
         return caller.invoke("sessions.findByPrefix", params, SessionsFindByPrefixResult.class);
-    }
-
-    /**
-     * Resolves a UUID prefix to a unique session ID, if exactly one session matches.
-     * <p>
-     * Accepts the extensible request, including inputs added after the params record.
-     *
-     * @apiNote This method is experimental and may change in a future version.
-     * @since 1.0.0
-     */
-    @CopilotExperimental
-    public CompletableFuture<SessionsFindByPrefixResult> findByPrefixWithOptions(SessionsFindByPrefixRequest request) {
-        return caller.invoke("sessions.findByPrefix", Objects.requireNonNull(request, "request"), SessionsFindByPrefixResult.class);
     }
 
     /**

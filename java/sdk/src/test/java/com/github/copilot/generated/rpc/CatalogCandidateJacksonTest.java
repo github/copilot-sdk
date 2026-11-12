@@ -75,7 +75,7 @@ class CatalogCandidateJacksonTest {
         assertInstanceOf(CatalogCandidateSourceEmbedded.class, skill.getSource());
 
         var serializedJson = MAPPER.writeValueAsString(result);
-        assertEquals(5, serializedJson.split("\"kind\"", -1).length - 1);
+        assertEquals(6, serializedJson.split("\"kind\"", -1).length - 1);
 
         var serializedTree = MAPPER.readTree(serializedJson);
         assertEquals("mcp-server", serializedTree.at("/candidates/0/kind").asText());

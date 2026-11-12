@@ -20,7 +20,7 @@ import javax.annotation.processing.Generated;
  *
  * @since 1.0.0
  */
-@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.EXISTING_PROPERTY, property = "kind", visible = true)
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "kind", visible = true)
 @JsonSubTypes({
     @JsonSubTypes.Type(value = GitHubFetchResultResponse.class, name = "response"),
     @JsonSubTypes.Type(value = GitHubFetchResultCircuitBreaker.class, name = "circuit-breaker"),

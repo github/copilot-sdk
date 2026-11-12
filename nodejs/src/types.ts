@@ -17,7 +17,6 @@ import type {
     AttachmentExtensionContext as GeneratedExtensionContextAttachment,
     AutoTier,
     ModelProviderRef,
-    PermissionMode,
     PermissionRequest as GeneratedPermissionRequest,
     PermissionRequestedData as GeneratedPermissionRequestedData,
     PermissionRequestedEvent as GeneratedPermissionRequestedEvent,
@@ -29,7 +28,6 @@ import type { CopilotSession } from "./session.js";
 import type { JsonValue } from "./workflow.js";
 import type {
     ExtensionLaunchProviderHandler as GeneratedExtensionLaunchProvider,
-    FusionTier,
     AutopilotOptions,
     GitHubTokenAcquireRequest,
     GitHubTokenAcquireResult,
@@ -39,26 +37,20 @@ import type {
     DiagnosticsConfiguration,
     LifecycleDiagnosticsConfiguration,
     OpenCanvasInstance,
-    NamedProviderConfig as GeneratedNamedProviderConfig,
-    ProviderConfigType,
     ProtocolExternalToolNamespace,
     CurrentToolMetadata,
-    NetworkAuthenticateBasicRequest,
-    NetworkAuthenticateBasicResult,
-    NetworkAuthenticateNegotiateRequest,
-    NetworkResolveProxyRequest,
-    NetworkScope,
+    KerberosAuthAcquireRequest,
+    KerberosAuthMode,
+    KerberosAuthScope,
     SandboxConfig,
     SessionManagementCreateHostRequest,
     SessionManagementCreateResult,
 } from "./generated/rpc.js";
 import type { ToolSet } from "./toolSet.js";
 export type {
-    NetworkAuthenticateBasicRequest,
-    NetworkAuthenticateBasicResult,
-    NetworkAuthenticateNegotiateRequest,
-    NetworkResolveProxyRequest,
-    NetworkScope,
+    KerberosAuthAcquireRequest,
+    KerberosAuthMode,
+    KerberosAuthScope,
 } from "./generated/rpc.js";
 export type { RemoteSessionMode } from "./generated/rpc.js";
 export type { AutopilotOptions } from "./generated/rpc.js";
@@ -143,9 +135,8 @@ export type GitHubTokenProviderResult = GitHubTokenAcquireResult;
 /**
  * Acquires a GitHub token for one session.
  *
- * A token result must include `expiresIn`: the number of seconds of remaining
- * lifetime when the callback completes. More than one hour must still remain
- * after the runtime validates the token. Production GitHub tokens
+ * A token result must include `expiresIn`: the positive number of seconds of
+ * remaining lifetime when the callback completes. Production GitHub tokens
  * typically last eight hours. Initial cancellation, callback errors, and
  * invalid token responses reject session creation or resume instead of falling
  * back to ambient authentication.
@@ -163,7 +154,6 @@ export type SessionEvent =
 export type { AutoTier, ReasoningSummary } from "./generated/session-events.js";
 export type {
     CurrentModel,
-    FusionTier,
     ModelSwitchAutoTierResult,
     ModelSwitchAutoTierStatus,
 } from "./generated/rpc.js";
@@ -218,8 +208,8 @@ export type TraceContextProvider = () => TraceContext | Promise<TraceContext>;
  * Configuration for OpenTelemetry instrumentation.
  *
  * When provided via {@link CopilotClientOptions.telemetry}, the SDK sets
- * the corresponding startup configuration on the owned runtime, including
- * in-process hosts, without changing the application's environment.
+ * the corresponding environment variables on the spawned CLI process so
+ * that the CLI's built-in OTel exporter is configured automatically.
  */
 export interface TelemetryConfig {
     /** OTLP HTTP endpoint URL for trace/metric export. Sets OTEL_EXPORTER_OTLP_ENDPOINT. */
@@ -279,10 +269,14 @@ export interface StdioRuntimeConnection extends ChildProcessRuntimeConnection {
  * {@link RuntimeConnection.forInProcess}.
  *
  * @experimental The in-process (FFI) transport is experimental and its behavior may
- * change. Typed authentication, {@link CopilotClientOptions.telemetry} and
- * {@link CopilotClientOptions.baseDirectory} are host-scoped.
- * `env` and `workingDirectory` are unsupported; use
- * per-session working directories.
+ * change. Per-client options that are lowered to environment variables — including
+ * {@link CopilotClientOptions.env}, {@link CopilotClientOptions.telemetry},
+ * {@link CopilotClientOptions.gitHubToken}, and
+ * {@link CopilotClientOptions.baseDirectory} — are **not** honored with this
+ * transport, because the native runtime loads into the shared host process and its
+ * worker inherits that process's ambient environment. To configure the in-process
+ * runtime, set the corresponding environment variables on the host process before
+ * constructing the client. See https://github.com/github/copilot-sdk/issues/1934.
  */
 export interface InProcessRuntimeConnection {
     readonly kind: "inprocess";
@@ -375,9 +369,11 @@ export const RuntimeConnection = {
     /**
      * Host the runtime in-process over the native runtime library's C ABI (FFI).
      *
-     * @experimental Runtime configuration from `gitHubToken`, `telemetry` and
-     * `baseDirectory` is scoped to this host, not the process environment.
-     * Client-level `env` and `workingDirectory` are unsupported.
+     * @experimental Per-client options lowered to environment variables (`env`,
+     * `telemetry`, `gitHubToken`, `baseDirectory`) are **not** honored in-process;
+     * the worker inherits the host process's ambient environment. Set the
+     * corresponding environment variables on the host process instead. See
+     * https://github.com/github/copilot-sdk/issues/1934.
      */
     forInProcess(
         options: Pick<InProcessRuntimeConnection, "runOnUiThread"> = {}
@@ -470,31 +466,7 @@ export interface EntraAuthOptions extends EntraAuthConfig {
     tokenProvider?: EntraTokenProvider;
 }
 
-/**
- * SDK test infrastructure only; not a supported production configuration API.
- * Supplied values override the runtime's startup environment without changing the host environment.
- * @internal
- */
-export interface InternalTestOptions {
-    /** Replay endpoint for Copilot API requests. */
-    copilotApiUrl?: string;
-    /** Replay endpoint for GitHub API requests, including startup authentication. */
-    githubApiUrl?: string;
-    /** HTTP/HTTPS interception proxy for the runtime and its subprocesses. */
-    proxyUrl?: string;
-    /** Comma-separated destinations that bypass the interception proxy. */
-    noProxy?: string;
-    /** PEM CA-bundle path trusted by the runtime and its subprocesses. */
-    caCertificatePath?: string;
-}
-
 export interface CopilotClientOptions {
-    /**
-     * SDK test infrastructure only; unsupported and subject to change.
-     * Applies only to runtimes owned by this client.
-     * @internal
-     */
-    internalTestOptions?: InternalTestOptions;
     /**
      * Host application's Microsoft Entra registration, shared by its sessions.
      * Required for built-in Entra sign-in and token renewal; other authentication methods remain available.
@@ -513,7 +485,9 @@ export interface CopilotClientOptions {
      * When set to `"empty"`, the SDK validates that the app has supplied the
      * required configuration ({@link CopilotClientOptions.baseDirectory} or
      * {@link CopilotClientOptions.sessionFs}, plus
-     * {@link SessionConfigBase.availableTools} on each session).
+     * {@link SessionConfigBase.availableTools} on each session) and translates
+     * session creation requests into runtime options that flip tool filter
+     * precedence to deny-wins so exclusions are expressible.
      *
      * @default "copilot-cli"
      */
@@ -528,7 +502,6 @@ export interface CopilotClientOptions {
     /**
      * Base directory for Copilot data (session state, config, etc.).
      * Sets the COPILOT_HOME environment variable on the spawned runtime.
-     * In-process hosts also keep their runtime cache in this directory's `cache` subdirectory.
      * When not set, the runtime defaults to ~/.copilot.
      * Ignored when connecting to an existing runtime via {@link RuntimeConnection.forUri}.
      */
@@ -551,11 +524,9 @@ export interface CopilotClientOptions {
     extensionLaunchProvider?: ExtensionLaunchProvider;
 
     /**
-     * Network callbacks through which the SDK host decides the runtime's proxies and supplies its
-     * Kerberos tokens. Registered before sessions start.
-     * @experimental
+     * Supplies Kerberos credentials from the SDK host. Registered before sessions start.
      */
-    network?: NetworkConfig;
+    kerberosAuth?: KerberosAuthConfig;
 
     /**
      * Connection-global human review for experimental installation operations.
@@ -572,7 +543,6 @@ export interface CopilotClientOptions {
 
     /**
      * Environment variables to pass to the runtime process. If not set, inherits process.env.
-     * Unsupported with {@link RuntimeConnection.forInProcess}; use typed client/session options.
      */
     env?: Record<string, string | undefined>;
 
@@ -601,9 +571,9 @@ export interface CopilotClientOptions {
     onListModels?: () => Promise<ModelInfo[]> | ModelInfo[];
 
     /**
-     * OpenTelemetry startup configuration for the owned runtime.
-     * Supports child-process and in-process hosts; omitted settings inherit
-     * the application environment and runtime policy still takes precedence.
+     * OpenTelemetry configuration for the runtime process.
+     * When provided, the corresponding OTel environment variables are set
+     * on the spawned runtime.
      */
     telemetry?: TelemetryConfig;
 
@@ -706,79 +676,30 @@ export interface CopilotClientOptions {
 /** Resolves launch profiles for extension entrypoints discovered by the runtime. */
 export type ExtensionLaunchProvider = GeneratedExtensionLaunchProvider;
 
-/**
- * Network callbacks through which the SDK host takes over parts of the runtime's networking, for
- * example when the runtime runs in WSL or a container and should use VS Code's proxy settings, proxy
- * credentials and the host's Kerberos tickets. Each registered callback replaces the runtime's own
- * handling for the traffic in {@link NetworkConfig.scope}; without it, the runtime handles that part
- * itself.
- *
- * Each callback receives a `signal` that aborts when the runtime stops waiting: it cancels the
- * request (for example when its wait times out) or the connection closes. The SDK then stops
- * awaiting the callback and ignores any later result.
- * @experimental
- */
-export interface NetworkConfig {
+/** Supplies Kerberos credentials from the SDK host for a requested service principal. */
+export interface KerberosAuthConfig {
+    /** `fallback` uses the callback only when native lookup fails; `always` never attempts native lookup. */
+    mode: KerberosAuthMode;
     /**
-     * `connection` (the default) serves only requests made for sessions this client creates or resumes;
-     * `runtime` also serves the runtime's shared background traffic. Only one connection at a time can
+     * `connection` (the default) authenticates only requests made for sessions this client creates or resumes;
+     * `runtime` also authenticates the runtime's shared background traffic. Only one connection at a time can
      * hold `runtime` scope, so startup fails if another client holds it. The registration ends when the
      * connection closes.
      */
-    scope?: NetworkScope;
+    scope?: KerberosAuthScope;
     /**
-     * Returns the proxies for `request.url` as a PAC-style list such as
-     * `PROXY proxy.example:8080; HTTPS proxy.example:443; DIRECT` (the format of Electron's
-     * `session.resolveProxy`); return `DIRECT` for a direct connection, or `undefined` to let the runtime
-     * resolve the proxy itself, as if no callback were registered. Entry types the runtime doesn't
-     * support, such as SOCKS and QUIC, are skipped.
-     * `request.url` is the request target as a PAC script sees it: without credentials or fragment, and for
-     * `https` and `wss` also without path and query.
-     *
-     * The callback decides every request that would otherwise follow ambient proxy settings: proxy
-     * environment variables, `NO_PROXY` and operating-system proxy settings are not consulted unless it
-     * returns `undefined`, and a failing callback fails the request rather than connecting directly.
-     * Requests to loopback targets, and requests with an explicitly configured proxy, never consult it. The
-     * runtime caches answers, including `undefined`, for a few seconds.
+     * Returns a fresh, single-use base64 SPNEGO token without the `Negotiate ` prefix, or `undefined` when unavailable.
+     * The SPN uses the platform-independent `service/host[@REALM]` form; validate it before issuing credentials.
+     * `signal` aborts when the runtime stops waiting: it cancels the request (for example when its wait times
+     * out) or the connection closes. The SDK then stops awaiting the callback and ignores any later result,
+     * so pass `signal` to credential lookups that support cancellation.
      */
-    resolveProxy?: (
-        request: NetworkResolveProxyRequest,
+    callback: (
+        request: KerberosAuthAcquireRequest,
         signal: AbortSignal
     ) => Promise<string | undefined>;
-    /**
-     * Returns a fresh, single-use base64 SPNEGO token without the `Negotiate ` prefix for a proxy's Negotiate
-     * challenge, or `undefined` when unavailable. The runtime then does not look up Kerberos credentials
-     * itself, so a missing token or a failing callback fails the request, unless the proxy also offers
-     * Basic and {@link NetworkConfig.authenticateBasic} supplies credentials.
-     * The SPN uses the platform-independent `service/host[@REALM]` form; validate it before issuing
-     * credentials. Never log or persist tokens.
-     */
-    authenticateNegotiate?: (
-        request: NetworkAuthenticateNegotiateRequest,
-        signal: AbortSignal
-    ) => Promise<string | undefined>;
-    /**
-     * Returns credentials for a proxy's Basic challenge, or `undefined` when unavailable, which fails the
-     * request with the proxy's challenge. Applies to requests the runtime tunnels through the proxy
-     * (`https` and `wss`). The runtime remembers the answer for that proxy and uses it for later
-     * connections, until the proxy rejects it; then it calls again with `request.previousRejected` set,
-     * so answer with different credentials, for example by asking the user, or with `undefined`. A later
-     * connection sends the answer without waiting for a challenge, unless the runtime may try Negotiate
-     * with that proxy first. A connection submits at most three sets of credentials. While a call is
-     * pending, other requests through that proxy wait for its answer.
-     * When a proxy offers both Negotiate and Basic, the runtime prefers Negotiate and answers with Basic
-     * when Negotiate is unavailable or the proxy rejects it.
-     * `request.realm` comes from the proxy, so treat it as untrusted text. An empty user name also counts
-     * as unavailable; the user name must not contain a colon, neither the user name nor the password may
-     * contain control characters, and an omitted password means an empty one. The runtime does not time
-     * the callback out: a request whose own deadline passes stops waiting, but the answer is still
-     * remembered. Never log or persist credentials.
-     */
-    authenticateBasic?: (
-        request: NetworkAuthenticateBasicRequest,
-        signal: AbortSignal
-    ) => Promise<NetworkAuthenticateBasicResult | undefined>;
 }
+
 /**
  * Configuration for creating a session
  */
@@ -996,7 +917,6 @@ export interface ResponseSchema<T = unknown> extends ZodSchema<T> {
  */
 export interface Tool<TArgs = unknown> {
     name: string;
-    title?: string;
     description?: string;
     parameters?: ZodSchema<TArgs> | Record<string, unknown>;
     handler?: ToolHandler<TArgs>;
@@ -1037,13 +957,6 @@ export interface Tool<TArgs = unknown> {
      */
     isTerminal?: boolean;
     /**
-     * When true, declares that repeating a call with the same arguments has no
-     * additional effect beyond the first call, as is true of any tool without
-     * side effects. The runtime may use this to decide that a call whose outcome
-     * was lost can be safely repeated. It does not affect permission checks.
-     */
-    idempotent?: boolean;
-    /**
      * Groups this tool with related tools for model tool discovery.
      *
      * On models and providers that support native tool namespaces, deferred
@@ -1075,7 +988,6 @@ export type ToolNamespace = ProtocolExternalToolNamespace;
 export function defineTool<T = unknown>(
     name: string,
     config: {
-        title?: string;
         description?: string;
         parameters?: ZodSchema<T> | Record<string, unknown>;
         handler?: ToolHandler<T>;
@@ -1084,7 +996,6 @@ export function defineTool<T = unknown>(
         defer?: "auto" | "never";
         metadata?: Record<string, unknown>;
         isTerminal?: boolean;
-        idempotent?: boolean;
         namespace?: ToolNamespace;
     }
 ): Tool<T> {
@@ -1213,8 +1124,6 @@ export interface SessionCapabilities {
         mcpApps?: boolean;
         /** Whether the host supports canvas rendering. */
         canvases?: boolean;
-        /** Whether the runtime acknowledges retained-request Auto recovery. Absence means unsupported. */
-        autoModeRecovery?: boolean;
     };
 }
 
@@ -1306,20 +1215,6 @@ export interface ElicitationResult {
 }
 
 /**
- * Result an {@link ElicitationHandler} returns: the {@link ElicitationResult},
- * optionally labeled with who answered (see {@link createAttributedResult}).
- */
-export interface ElicitationHandlerResult extends ElicitationResult {
-    /**
-     * Who answered and how. When it says a person answered interactively
-     * (`source: "human_response"`, `responseCapability: "interactive"`), the
-     * runtime counts the answer as the person's own authority for Assisted
-     * Permissions, but only from the session's owning connection.
-     */
-    decisionContext?: PermissionDecisionContext;
-}
-
-/**
  * Parameters for a raw elicitation request.
  */
 export interface ElicitationParams {
@@ -1350,11 +1245,11 @@ export interface ElicitationContext {
 
 /**
  * Handler invoked when the server dispatches an elicitation request to this client.
- * Return an {@link ElicitationHandlerResult} with the user's response.
+ * Return an {@link ElicitationResult} with the user's response.
  */
 export type ElicitationHandler = (
     context: ElicitationContext
-) => Promise<ElicitationHandlerResult> | ElicitationHandlerResult;
+) => Promise<ElicitationResult> | ElicitationResult;
 
 /**
  * Options for the `input()` convenience method.
@@ -1603,11 +1498,10 @@ export type PermissionRequestResult = PermissionDecisionRequest["result"] | { ki
 
 /**
  * A {@link PermissionRequestResult} annotated with the
- * {@link PermissionDecisionContext} describing who decided and how. When the
- * context says a person decided, the runtime records the decision as the
- * person's (`permission.completed.decisionSource = "human_response"`), but only
- * from the session's owning connection; an answer from any other connection
- * settles without that authority.
+ * {@link PermissionDecisionContext} describing how and where the decision was
+ * reached. The context is informational only — it never changes permission
+ * behavior. Supplying it lets the runtime attribute auto-approval telemetry to
+ * the responding surface.
  */
 export interface AttributedPermissionResult {
     kind: "attributed";
@@ -1625,11 +1519,12 @@ export function isAttributedPermissionResult(
 }
 
 /**
- * Pair a permission decision with the context describing who decided and how.
- * Equivalent to {@link createAttributedResult} for permission decisions.
+ * Pair a permission decision with the context describing how and where it was
+ * made, so the runtime can attribute auto-approval telemetry.
  *
  * Passing an already-attributed result replaces the previous context rather
- * than nesting it.
+ * than nesting it. The context is informational only and never changes
+ * permission behavior.
  */
 export function createAttributedPermissionResult(
     result: PermissionRequestResult | AttributedPermissionResult,
@@ -1640,69 +1535,11 @@ export function createAttributedPermissionResult(
 }
 
 /**
- * Label any prompt handler's result with who answered and how: a permission
- * decision, a user-input answer, a plan review, or an elicitation answer.
- *
- * Label a person's answer with `source: "human_response"` and
- * `responseCapability: "interactive"`, including when they decline or dismiss
- * the prompt, so the runtime can count it as their own authority for Assisted
- * Permissions. The runtime decides which answers carry authority, and accepts
- * the label only from the session's owning connection; any other answer still
- * settles, without it. Leave automated answers unlabeled or label them with a
- * non-human `source`.
- *
- * Passing an already-labeled result replaces the previous label.
- *
- * @example
- * ```typescript
- * onUserInputRequest: async (request) =>
- *     createAttributedResult(
- *         { answer: await askPerson(request.question), wasFreeform: true },
- *         { source: "human_response", responseCapability: "interactive", surface: "sdk", outcome: "prompted_user" }
- *     ),
- * ```
- */
-export function createAttributedResult(
-    result: PermissionRequestResult | AttributedPermissionResult,
-    decisionContext: PermissionDecisionContext
-): AttributedPermissionResult;
-export function createAttributedResult<
-    T extends UserInputResponse | ExitPlanModeResult | ElicitationHandlerResult,
->(result: T, decisionContext: PermissionDecisionContext): T & PromptDecisionLabel;
-export function createAttributedResult(
-    result:
-        | PermissionRequestResult
-        | AttributedPermissionResult
-        | UserInputResponse
-        | ExitPlanModeResult
-        | ElicitationHandlerResult,
-    decisionContext: PermissionDecisionContext
-): AttributedPermissionResult | (object & PromptDecisionLabel) {
-    if ("kind" in result && typeof result.kind === "string") {
-        return createAttributedPermissionResult(
-            result as PermissionRequestResult | AttributedPermissionResult,
-            decisionContext
-        );
-    }
-    return { ...result, decisionContext };
-}
-
-/** The label {@link createAttributedResult} adds to a non-permission prompt answer. */
-export interface PromptDecisionLabel {
-    decisionContext: PermissionDecisionContext;
-}
-
-/**
  * Context supplied with a permission request callback.
  */
 export interface PermissionHandlerInvocation {
     sessionId: string;
     managedSettingsEnabled?: boolean;
-    /**
-     * Program invocation owning this permission request; absent for ordinary requests.
-     * @experimental
-     */
-    programToolCallId?: string;
     /**
      * Canonical runtime-owned Assisted Permissions assessment.
      *
@@ -1798,14 +1635,6 @@ export interface UserInputResponse {
      * Whether the answer was freeform (not from choices)
      */
     wasFreeform: boolean;
-
-    /**
-     * Who answered and how (see {@link createAttributedResult}). When it says a
-     * person answered interactively, the runtime counts the answer as the
-     * person's own authority for Assisted Permissions, but only from the
-     * session's owning connection.
-     */
-    decisionContext?: PermissionDecisionContext;
 }
 
 /**
@@ -1815,49 +1644,6 @@ export type UserInputHandler = (
     request: UserInputRequest,
     invocation: { sessionId: string }
 ) => Promise<UserInputResponse> | UserInputResponse;
-
-/**
- * A password or other answer that a shell command run by the agent asks for,
- * for example `sudo -A`, `ssh`, or `git` over HTTPS. The answer goes only to
- * the program that asked: it is not shown to the model and is not recorded in
- * session events.
- */
-export interface ShellAuthenticationRequest {
-    /** Identifies the request. A cancellation for it carries the same id. */
-    requestId: string;
-    /** The program that asked: `sudo`, `ssh`, or `git`. */
-    program: string;
-    /** The prompt text the program supplied. */
-    prompt: string;
-    /**
-     * `secret` for a password or passphrase (mask the input), `text` for a
-     * visible answer such as a user name, or `confirm` for a yes/no question
-     * such as an ssh host-key check.
-     */
-    inputKind: "secret" | "text" | "confirm";
-    /** The shell command that triggered the prompt. */
-    command: string;
-    /** The command's working directory. */
-    cwd: string;
-}
-
-/**
- * Answer to a {@link ShellAuthenticationRequest}. Answer a `confirm` request with
- * `"yes"`, or cancel it to decline.
- */
-export type ShellAuthenticationResponse =
-    | { action: "accept"; value: string }
-    | { action: "cancel" };
-
-/**
- * Handler for shell authentication requests. `signal` aborts when the answer is no
- * longer needed, for example because the command ended or the prompt timed
- * out; close the input when it does.
- */
-export type ShellAuthenticationHandler = (
-    request: ShellAuthenticationRequest,
-    invocation: { sessionId: string; signal: AbortSignal }
-) => Promise<ShellAuthenticationResponse> | ShellAuthenticationResponse;
 
 /**
  * Request to exit plan mode and continue with a selected action.
@@ -1889,13 +1675,6 @@ export interface ExitPlanModeResult {
     selectedAction?: string;
     /** Optional feedback provided by the user. */
     feedback?: string;
-    /**
-     * Who answered and how (see {@link createAttributedResult}). When it says a
-     * person answered interactively, the runtime counts the review as the
-     * person's own for Assisted Permissions, but only from the session's
-     * owning connection.
-     */
-    decisionContext?: PermissionDecisionContext;
 }
 
 /**
@@ -1907,27 +1686,13 @@ export type ExitPlanModeHandler = (
 ) => Promise<ExitPlanModeResult> | ExitPlanModeResult;
 
 /**
- * Context for an offer to recover the active request using Auto.
- */
-export interface AutoModeRecoveryContext {
-    requestId: string;
-    originalModel: string;
-    /** Whether this offer permits remembering consent. Currently true only for per-model rate limits. */
-    allowAlways: boolean;
-    interactionId?: string;
-    originatingMessageId?: string;
-}
-
-/**
- * Request to switch to Auto after a rate limit or recover an eligible active request.
+ * Request to switch to auto mode after an eligible rate limit.
  */
 export interface AutoModeSwitchRequest {
-    /** The upstream error code that triggered the request. */
+    /** The rate-limit error code that triggered the request. */
     errorCode?: string;
     /** Seconds until the rate limit resets, when known. */
     retryAfterSeconds?: number;
-    /** Present only for retained-request recovery, not legacy future-message switching. */
-    autoModeRecovery?: AutoModeRecoveryContext;
 }
 
 /**
@@ -2018,9 +1783,7 @@ export interface PreMcpToolCallHookOutput {
      * Hook-controlled metadata to use for the outgoing MCP request.
      * - undefined/absent: preserve the current request `_meta`
      * - object: use this object as request `_meta`
-     * - null: drop hook-controlled `_meta`; the runtime still sends its own keys,
-     *   `com.github.copilot/toolCallId` and `com.github.copilot/turnId` (present only
-     *   when the turn was started with a `clientTurnId`)
+     * - null: omit `_meta`
      */
     metaToUse?: Record<string, unknown> | null;
 }
@@ -2600,48 +2363,6 @@ export interface MemoryConfiguration {
      * @experimental This option may change or be removed in a future release.
      */
     mode?: "system-prompt" | "user-prompt";
-    /**
-     * Stores memories in the app instead of the built-in memory backends.
-     *
-     * The runtime validates the memory, filters secrets and requests approval,
-     * then calls this callback. `store_memory` succeeds only after the returned
-     * promise resolves; a rejection fails the tool call with a generic message
-     * and nothing is stored elsewhere. `options.signal` aborts when the runtime
-     * stops waiting, for example after its 60-second timeout. While set, the
-     * runtime retrieves no memories and `vote_memory` is unavailable, so supply
-     * recall yourself, for example through `systemMessage`.
-     * @experimental This option may change or be removed in a future release.
-     */
-    storeMemory?: (memory: StoredMemory, options: MemoryStoreCallOptions) => Promise<void>;
-}
-
-/**
- * Per-call options passed to {@link MemoryConfiguration.storeMemory}.
- * @experimental This type may change or be removed in a future release.
- */
-export interface MemoryStoreCallOptions {
-    /**
-     * Aborted when the runtime cancels the call, for example when it times out
-     * or the session disconnects. The runtime ignores any later result.
-     */
-    signal: AbortSignal;
-}
-
-/**
- * A memory the agent asked to store, after validation, secret filtering and approval.
- * @experimental This type may change or be removed in a future release.
- */
-export interface StoredMemory {
-    /** ID of the session that stored the memory. */
-    sessionId: string;
-    /** Short topic the memory is about. */
-    subject: string;
-    /** The fact to remember. */
-    fact: string;
-    /** Sources supporting the fact, such as file paths with line numbers. */
-    citations: string;
-    /** Why the agent considers the fact worth remembering. */
-    reason: string;
 }
 
 /**
@@ -2660,8 +2381,7 @@ export interface LargeToolOutputConfig {
 
     /**
      * Maximum size in bytes before output is written to a temp file.
-     * Uses the runtime's configured threshold when unset.
-     * @default 20480
+     * @default 51200
      */
     maxSizeBytes?: number;
 
@@ -2814,32 +2534,8 @@ export interface CapiSessionOptions {
      *
      * To change the preference on a live session, call
      * {@link CopilotSession.setAutoTier} instead.
-     *
-     * For Copilot Fusion, prefer {@link fusionTier}. The `balance`,
-     * `hydrafusion` and `hydrafusion-max` identifiers it replaces remain
-     * accepted but are deprecated.
      */
     autoTier?: AutoTier;
-
-    /**
-     * Copilot Fusion tier used when the session model is `fusion` or `auto`,
-     * matching the CLI's `--fusion-tier`: `standard`, `high` or `max`.
-     *
-     * The runtime resolves the tier to the Auto routing preference it stands
-     * for, using the same runtime-owned bindings as the CLI, and then applies it
-     * exactly like {@link autoTier}, so `session.rpc.model.getCurrent()` and
-     * `session.model_change` events report that preference as `autoTier`;
-     * `getCurrent()` also reports the resolved tier as `fusionTier` once the
-     * session's Auto tier metadata is known.
-     * Cannot be combined with {@link autoTier}.
-     *
-     * To change the tier on a live session, call
-     * {@link CopilotSession.setFusionTier} instead.
-     *
-     * @experimental Part of an experimental Auto routing surface and may
-     * change or be removed in a future release.
-     */
-    fusionTier?: FusionTier;
 
     /**
      * Whether to use the WebSocket transport for the CAPI Responses API.
@@ -3037,12 +2733,6 @@ export interface SkillProviderCallOptions {
  * an existing one).
  */
 export interface SessionConfigBase {
-    /**
-     * Whether the model may request multiple tool calls per response. Defaults to true.
-     * False sends a provider hint, not an execution guarantee: all returned calls
-     * are still handled and handlers may run concurrently. Re-supply on cold resume.
-     */
-    allowMultipleToolCalls?: boolean;
     /** Exact model IDs allowed by the host. Omission preserves runtime policy. */
     allowedModels?: string[];
     /**
@@ -3243,15 +2933,6 @@ export interface SessionConfigBase {
     excludedBuiltinAgents?: string[];
 
     /**
-     * Built-in subagent names to allow, subject to availability and
-     * {@link excludedBuiltinAgents}. An empty array disables all built-in
-     * subagents; custom agents remain available, including same-name agents.
-     * Omission uses defaults on create or cold resume and preserves the current
-     * allowlist on warm resume. Not persisted; re-supply on resume after restart.
-     */
-    includedBuiltinAgents?: string[];
-
-    /**
      * Built-in skill names to include in the session. In `mode: "empty"`,
      * omitting this option excludes all runtime-bundled skills; specifying names
      * opts those built-ins back in. Skills from other sources remain eligible.
@@ -3397,14 +3078,6 @@ export interface SessionConfigBase {
     onUserInputRequest?: UserInputHandler;
 
     /**
-     * Handler for passwords and other answers that shell commands run by the
-     * agent ask for. When provided, `sudo -A`, `ssh`, and `git` prompts reach
-     * this handler instead of failing for lack of a terminal. Cancel requests
-     * when nobody can answer, for example in autopilot.
-     */
-    onShellAuthenticationRequest?: ShellAuthenticationHandler;
-
-    /**
      * Selects the model-facing shape of the built-in `ask_user` tool.
      *
      * The default is `"legacy"`. To use `"elicitation"`, also provide
@@ -3467,16 +3140,6 @@ export interface SessionConfigBase {
      * When provided, enables `autoModeSwitch.request` callbacks.
      */
     onAutoModeSwitchRequest?: AutoModeSwitchHandler;
-
-    /**
-     * Opt in to runtime-owned recovery of an eligible active request using Auto.
-     * Requires `onAutoModeSwitchRequest` and a runtime acknowledgment in
-     * `session.capabilities.ui.autoModeRecovery`; unsupported enrollment rejects
-     * create/resume and detaches the session. Re-supply when resuming.
-     * Consent has no runtime deadline. The handler must not resend or rewind.
-     * @default false
-     */
-    autoModeRecovery?: boolean;
 
     /**
      * Hook handlers for intercepting session lifecycle events.
@@ -3724,17 +3387,6 @@ export interface SessionConfigBase {
     interactiveUser?: boolean;
 
     /**
-     * Permission mode applied before the session's first turn: before
-     * `createSession` returns, and before a resume continues pending work.
-     * Uses the same checks as `session.rpc.permissions.setMode`; a mode that
-     * managed policy or session capabilities refuse leaves the current mode in
-     * place. `session.permissionModeResult` reports whether it was applied and
-     * the authoritative mode. Omit to keep the default mode on create, or the
-     * restored mode on resume. Not supported for cloud sessions.
-     */
-    permissionMode?: PermissionMode;
-
-    /**
      * Host-injected enterprise managed settings for this session.
      *
      * Unlike {@link SessionConfigBase.enableManagedSettings} — which asks the
@@ -3919,11 +3571,6 @@ export interface ResumeSessionConfig extends SessionConfigBase {
      * caller-supplied results via the corresponding low-level RPC methods. Resuming
      * does not re-emit restored permission requests or re-invoke permission handlers
      * or already-dispatched external tool callbacks.
-     * If a pending call was recorded as SDK-handler-backed and resume registers a
-     * handler for that tool, the abandoned callback is interrupted, never replayed.
-     * Handlerless calls remain pending. To supply an abandoned callback's result
-     * manually, resume without a handler for it. Older requests without recorded
-     * callback ownership also remain pending.
      * @default false
      */
     continuePendingWork?: boolean;
@@ -4021,7 +3668,7 @@ export interface ProviderConfig {
     /**
      * Provider type. Defaults to "openai" for generic OpenAI-compatible APIs.
      */
-    type?: ProviderConfigType;
+    type?: "openai" | "azure" | "anthropic";
 
     /**
      * API format (openai/azure only). Defaults to "completions".
@@ -4041,7 +3688,9 @@ export interface ProviderConfig {
 
     /**
      * Product serving the model, such as "ollama" or "lm_studio", reported in
-     * telemetry as `model_provider`. Only affects telemetry.
+     * telemetry as `model_provider`. "azure_openai" also omits explicit
+     * prompt-cache breakpoints, which limit cross-turn cache reuse on Azure; set
+     * it for a proxy or custom domain in front of Azure OpenAI.
      */
     modelProvider?: ProviderConfigModelProvider;
 
@@ -4151,12 +3800,7 @@ export interface NamedProviderConfig {
     /**
      * Provider type. Defaults to "openai" for generic OpenAI-compatible APIs.
      */
-    type?: ProviderConfigType;
-
-    /**
-     * Runtime options for a local model. The SDK forwards these options unchanged.
-     */
-    localModel?: GeneratedNamedProviderConfig["localModel"];
+    type?: "openai" | "azure" | "anthropic";
 
     /**
      * Wire API format (openai/azure only). Defaults to "completions".
@@ -4165,7 +3809,9 @@ export interface NamedProviderConfig {
 
     /**
      * Product serving this provider's models, such as "ollama" or "lm_studio",
-     * reported in telemetry as `model_provider`. Only affects telemetry.
+     * reported in telemetry as `model_provider`. "azure_openai" also omits
+     * explicit prompt-cache breakpoints, which limit cross-turn cache reuse on
+     * Azure; set it for a proxy or custom domain in front of Azure OpenAI.
      */
     modelProvider?: ProviderConfigModelProvider;
 
@@ -4213,7 +3859,7 @@ export interface NamedProviderConfig {
     /**
      * Custom HTTP headers to include in all outbound requests to the provider.
      */
-    headers?: GeneratedNamedProviderConfig["headers"];
+    headers?: Record<string, string>;
 }
 
 /**
@@ -4233,16 +3879,6 @@ export interface NamedProviderConfig {
  * and may change or be removed in future SDK or CLI releases.
  */
 export interface ProviderModelConfig {
-    /**
-     * Forward-compatible persisted on-device Auto annotation.
-     */
-    autoLocal?: JsonValue;
-
-    /**
-     * Provider-published model metadata, including live Auto routing annotations.
-     */
-    metadata?: Record<string, JsonValue | undefined>;
-
     /**
      * Provider-local model id, unique within its provider. The session-wide
      * selection id is the provider-qualified `provider/id`.
@@ -4295,7 +3931,7 @@ export interface ProviderModelConfig {
 /**
  * Message provenance, independent of delivery mode.
  */
-export type MessageSource = "user" | "system" | `agent-${string}` | `automation-${string}`;
+export type MessageSource = "user" | "system" | `agent-${string}`;
 
 /** Structured context contributed by an extension. */
 export type ExtensionContextAttachment = GeneratedExtensionContextAttachment;
@@ -4308,11 +3944,8 @@ export interface MessageOptions {
 
     /**
      * Optional message provenance. Omitted by default to preserve the runtime's
-     * default for user messages. Use "system" for application-generated context,
-     * `agent-${id}` for messages originating from an identified agent, or
-     * `automation-${id}` for turns sent on behalf of an automation the user
-     * configured, with a non-empty ID. An automation turn defines the session's
-     * task like a user message but carries no human authority.
+     * default for user messages. Use "system" for application-generated context
+     * or `agent-${id}` for messages originating from an identified agent.
      */
     source?: MessageSource;
 
@@ -4371,17 +4004,6 @@ export interface MessageOptions {
      * If provided, this is shown in the timeline instead of `prompt`.
      */
     displayPrompt?: string;
-
-    /**
-     * Opaque caller-chosen ID for the turn this message starts. The runtime copies it unchanged
-     * into `_meta["com.github.copilot/turnId"]` on every MCP `tools/call` made while serving that
-     * turn, including calls from sub-agents and Autopilot continuations. When a running turn
-     * consumes the message as visible user steering, the value (or its absence) replaces the
-     * turn's ID from the next model call onward. The `user.message` event for the message echoes
-     * it as `clientTurnId` and is persisted like other events; the value stamped on MCP calls is
-     * held in memory only and is not restored on resume.
-     */
-    clientTurnId?: string;
 
     /**
      * JSON Schema or a Zod schema for this run's output, including requests after tool calls.

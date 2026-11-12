@@ -10,6 +10,6 @@ package(default_visibility = ["//visibility:public"])
 
 alias(
     name = "openssl",
-    actual = "@sdk_vendor__openssl-0.10.82//:openssl",
+    actual = "@sdk_vendor__openssl-0.10.81//:openssl",
     tags = ["manual"],
 )

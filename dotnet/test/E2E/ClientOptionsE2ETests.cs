@@ -16,24 +16,41 @@ namespace GitHub.Copilot.Test.E2E;
 public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     : E2ETestBase(fixture, "client_options", output)
 {
-    [Fact]
-    public async Task Should_Fail_When_Configured_Tcp_Port_Is_In_Use()
+    [Theory]
+    [InlineData("", "fallback.ghe.example", "https://fallback.ghe.example")]
+    [InlineData("tenant.ghe.example", "fallback.ghe.example", "https://tenant.ghe.example")]
+    [InlineData("", "", "https://github.com")]
+    public async Task Should_Use_Configured_GitHub_Host_For_Authentication(string copilotHost, string ghHost, string expectedHost)
     {
-        var listener = new TcpListener(IPAddress.Loopback, 0) { ExclusiveAddressUse = true };
-        listener.Start();
-        try
-        {
-            var port = ((IPEndPoint)listener.LocalEndpoint).Port;
-            await using var client = Ctx.CreateClient(
-                options: new CopilotClientOptions { Connection = RuntimeConnection.ForTcp(port: port) });
+        var environment = Ctx.GetEnvironment();
+        environment["COPILOT_GH_HOST"] = copilotHost;
+        environment["GH_HOST"] = ghHost;
 
-            var ex = await Assert.ThrowsAsync<IOException>(() => client.StartAsync());
-            Assert.Contains($"failed to bind TCP server at 127.0.0.1:{port}:", ex.Message, StringComparison.Ordinal);
-        }
-        finally
-        {
-            listener.Stop();
-        }
+        await using var client = Ctx.CreateClient(
+            options: new CopilotClientOptions
+            {
+                GitHubToken = environment["GITHUB_TOKEN"],
+                UseLoggedInUser = false,
+            },
+            environment: environment);
+
+        var status = await client.GetAuthStatusAsync();
+        Assert.True(status.IsAuthenticated, status.StatusMessage);
+        Assert.Equal(expectedHost, status.Host);
+    }
+
+    [Fact]
+    public async Task Should_Listen_On_Configured_Tcp_Port()
+    {
+        var port = GetAvailableTcpPort();
+        await using var client = Ctx.CreateClient(
+            options: new CopilotClientOptions { Connection = RuntimeConnection.ForTcp(port: port) });
+
+        await client.StartAsync();
+        Assert.Equal(port, client.RuntimePort);
+
+        var response = await client.PingAsync("fixed-port");
+        Assert.Equal("pong: fixed-port", response.Message);
     }
 
     [Fact]

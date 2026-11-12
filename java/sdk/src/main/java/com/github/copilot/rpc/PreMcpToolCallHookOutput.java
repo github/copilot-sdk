@@ -16,10 +16,7 @@ import com.fasterxml.jackson.databind.JsonNode;
  * <li>Return {@code null} from the hook handler: preserve existing
  * {@code _meta} (no-op).</li>
  * <li>Return a {@code PreMcpToolCallHookOutput} with {@code metaToUse} left as
- * {@code null}: drop hook-controlled {@code _meta}; the runtime still sends its
- * own keys, {@code com.github.copilot/toolCallId} and
- * {@code com.github.copilot/turnId} (present only when the turn was started
- * with a {@code clientTurnId}).</li>
+ * {@code null}: remove {@code _meta} from the request.</li>
  * <li>Return a {@code PreMcpToolCallHookOutput} with {@code metaToUse} set to a
  * JSON object: replace {@code _meta} with that object.</li>
  * </ul>
@@ -65,10 +62,7 @@ public class PreMcpToolCallHookOutput {
     }
 
     /**
-     * Creates a hook output that removes hook-controlled metadata from the MCP
-     * request. The runtime still sends its own keys,
-     * {@code com.github.copilot/toolCallId} and {@code com.github.copilot/turnId}
-     * (present only when the turn was started with a {@code clientTurnId}).
+     * Creates a hook output that removes metadata from the MCP request.
      *
      * @return the hook output with {@code null} metaToUse
      */

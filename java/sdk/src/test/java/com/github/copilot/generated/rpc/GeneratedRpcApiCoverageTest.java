@@ -32,24 +32,6 @@ class GeneratedRpcApiCoverageTest {
 
     @Test
     @AllowCopilotExperimental
-    void permission_requirements_preserve_original_constructor_and_provider_identity() throws Exception {
-        var legacy = new SessionPermissionsSetRequiredParams("session", true);
-        assertNull(legacy.providerId());
-        assertEquals(legacy, SessionPermissionsSetRequiredParams.class.getConstructor(String.class, Boolean.class)
-                .newInstance("session", true));
-        var mapper = new ObjectMapper();
-        assertEquals(mapper.readTree("""
-                {"sessionId":"session","required":true}
-                """), mapper.valueToTree(legacy));
-        var provider = SessionPermissionsSetRequiredParams.builder().sessionId("session").required(false)
-                .providerId("provider").build();
-        assertEquals(mapper.readTree("""
-                {"sessionId":"session","required":false,"providerId":"provider"}
-                """), mapper.valueToTree(provider));
-    }
-
-    @Test
-    @AllowCopilotExperimental
     void managedSettings_get_and_recheck_share_result_type() throws Exception {
         var stub = new StubCaller();
         var snapshot = new ObjectMapper().readValue("{}", SessionManagedSettingsGetResult.class);
@@ -64,110 +46,6 @@ class GeneratedRpcApiCoverageTest {
         for (var call : stub.calls) {
             assertEquals(SessionManagedSettingsGetResult.class, call.resultType());
             assertEquals(Map.of("sessionId", "policy-session"), call.params());
-        }
-    }
-
-    @Test
-    @AllowCopilotExperimental
-    void builtin_agent_flag_overrides_uses_schema_named_result() {
-        var stub = new StubCaller();
-        var session = new SessionRpc(stub, "bound-session");
-        session.tools.getBuiltinAgentFlagOverrides().join();
-
-        assertEquals(1, stub.calls.size());
-        var call = stub.calls.get(0);
-        assertEquals("session.tools.getBuiltinAgentFlagOverrides", call.method());
-        assertEquals(Map.of("sessionId", "bound-session"), call.params());
-        assertEquals("ToolsGetBuiltinAgentFlagOverridesResult", call.resultType().getSimpleName());
-    }
-
-    @Test
-    @AllowCopilotExperimental
-    void additional_directories_list_uses_schema_named_result() {
-        var stub = new StubCaller();
-        var expected = PermissionsAdditionalDirectoriesListResult.builder().directories(List.of("/workspace/shared"))
-                .build();
-        stub.nextResult = expected;
-        var session = new SessionRpc(stub, "bound-session");
-        CompletableFuture<PermissionsAdditionalDirectoriesListResult> result = session.permissions.additionalDirectories
-                .list();
-
-        assertSame(expected, result.join());
-        assertEquals(List.of("/workspace/shared"), result.join().directories());
-        assertEquals(1, stub.calls.size());
-        var call = stub.calls.get(0);
-        assertEquals("session.permissions.additionalDirectories.list", call.method());
-        assertEquals(Map.of("sessionId", "bound-session"), call.params());
-        assertEquals(PermissionsAdditionalDirectoriesListResult.class, call.resultType());
-    }
-
-    @Test
-    @AllowCopilotExperimental
-    void sessions_open_preserves_original_result_constructor_and_construction_plan() throws Exception {
-        var mapper = new ObjectMapper();
-        var metadata = mapper.readValue("{\"sessionId\":\"remote\"}", RemoteSessionMetadataValue.class);
-        var sessionApi = Map.of("api", "legacy");
-        var startupPrompts = List.of("startup");
-        var progress = List.<SessionsOpenProgress>of();
-        var legacy = new SessionsOpenResult(SessionsOpenStatus.CREATED, "legacy", sessionApi, startupPrompts, "remote",
-                metadata, progress);
-
-        assertNull(legacy.nativeConstructionPlan());
-        assertEquals(legacy,
-                SessionsOpenResult.class.getConstructor(SessionsOpenStatus.class, String.class, Object.class,
-                        List.class, String.class, RemoteSessionMetadataValue.class, List.class)
-                        .newInstance(SessionsOpenStatus.CREATED, "legacy", sessionApi, startupPrompts, "remote",
-                                metadata, progress));
-        assertEquals(mapper.readTree("""
-                {"status":"created","sessionId":"legacy","sessionApi":{"api":"legacy"},
-                 "startupPrompts":["startup"],"remoteSessionId":"remote",
-                 "metadata":{"sessionId":"remote"},"progress":[]}
-                """), mapper.valueToTree(legacy));
-        assertEquals(legacy, mapper.readValue(mapper.writeValueAsString(legacy), SessionsOpenResult.class));
-
-        var plan = Map.of("sessionId", "native");
-        var withPlan = SessionsOpenResult.builder().nativeConstructionPlan(plan).status(legacy.status())
-                .sessionId(legacy.sessionId()).sessionApi(legacy.sessionApi()).startupPrompts(legacy.startupPrompts())
-                .remoteSessionId(legacy.remoteSessionId()).metadata(legacy.metadata()).progress(legacy.progress())
-                .build();
-        var expectedWithPlan = (ObjectNode) mapper.valueToTree(legacy);
-        expectedWithPlan.set("nativeConstructionPlan", mapper.valueToTree(plan));
-        assertEquals(expectedWithPlan, mapper.valueToTree(withPlan));
-        assertEquals(withPlan, mapper.readValue(mapper.writeValueAsString(withPlan), SessionsOpenResult.class));
-    }
-
-    @Test
-    @AllowCopilotExperimental
-    void sessions_close_preserves_original_constructor_and_detach_option() throws Exception {
-        var legacy = new SessionsCloseParams("legacy");
-        assertNull(legacy.detachSessionEndHooks());
-        assertEquals(legacy, SessionsCloseParams.class.getConstructor(String.class).newInstance("legacy"));
-
-        var params = List.of(legacy, new SessionsCloseParams("explicit-null", null),
-                SessionsCloseParams.builder().sessionId("detached").detachSessionEndHooks(true).build(),
-                SessionsCloseParams.builder().sessionId("inline").detachSessionEndHooks(false).build());
-        var expected = List.of("""
-                {"sessionId":"legacy"}
-                """, """
-                {"sessionId":"explicit-null"}
-                """, """
-                {"sessionId":"detached","detachSessionEndHooks":true}
-                """, """
-                {"sessionId":"inline","detachSessionEndHooks":false}
-                """);
-        var stub = new StubCaller();
-        var server = new ServerRpc(stub);
-        for (var request : params) {
-            server.sessions.close(request).join();
-        }
-
-        assertEquals(params.size(), stub.calls.size());
-        var mapper = new ObjectMapper();
-        for (int index = 0; index < params.size(); index++) {
-            var call = stub.calls.get(index);
-            assertEquals("sessions.close", call.method());
-            assertEquals(Void.class, call.resultType());
-            assertEquals(mapper.readTree(expected.get(index)), mapper.valueToTree(call.params()));
         }
     }
 
@@ -205,188 +83,184 @@ class GeneratedRpcApiCoverageTest {
     }
 
     static Stream<Arguments> newRpcDispatches() {
-        return Stream.of(dispatch("session.mcp.list", SessionMcpListResult.class, """
-                {"sessionId":"bound-session"}
-                """, (server, session) -> session.mcp.list()),
-                dispatch("session.mcp.listConfigured", SessionMcpListConfiguredResult.class, """
+        return Stream
+                .of(dispatch("session.mcp.list", SessionMcpListResult.class, """
                         {"sessionId":"bound-session"}
-                        """, (server, session) -> session.mcp.listConfigured()),
-                dispatch("catalog.select", CatalogSelectionResult.class, """
-                        {"contract":{"protocolVersion":3,"requiredCapabilities":["catalog-selection"]},
-                         "sessionId":"catalog-session","selectionRef":"selection-1","outcome":"selected"}
-                        """,
-                        (server, session) -> server.catalog.select(CatalogSelectParams.builder()
-                                .contract(CatalogClientContract.builder().protocolVersion(3L)
-                                        .requiredCapabilities(List.of("catalog-selection")).build())
-                                .sessionId("catalog-session").selectionRef("selection-1")
-                                .outcome(CatalogSelectionDecision.SELECTED).build())),
-                dispatch("session.managedSettings.get", SessionManagedSettingsGetResult.class, """
-                        {"sessionId":"bound-session"}
-                        """, (server, session) -> session.managedSettings.get()),
-                dispatch("session.instructions.reload", SessionInstructionsGetSourcesResult.class, """
-                        {"sessionId":"bound-session"}
-                        """, (server, session) -> session.instructions.reload()),
-                dispatch("session.customizations.reload", CustomizationsReloadResult.class, """
-                        {"sessionId":"bound-session"}
-                        """, (server, session) -> session.customizations.reload()),
-                dispatch("session.plugins.install", SessionPluginsInstallResult.class, """
-                        {"sessionId":"bound-session","source":"plugin@market"}
-                        """,
-                        (server, session) -> session.plugins.install(SessionPluginsInstallParams.builder()
-                                .sessionId("foreign-session").source("plugin@market").build())),
-                dispatch("session.plugins.uninstall", Void.class, """
-                        {"sessionId":"bound-session","name":"plugin","directSourceId":"source-1"}
-                        """,
-                        (server, session) -> session.plugins.uninstall(SessionPluginsUninstallParams.builder()
-                                .sessionId("foreign-session").name("plugin").directSourceId("source-1").build())),
-                dispatch("session.plugins.update", SessionPluginsUpdateResult.class, """
-                        {"sessionId":"bound-session","name":"plugin@market"}
-                        """,
-                        (server, session) -> session.plugins.update(SessionPluginsUpdateParams.builder()
-                                .sessionId("foreign-session").name("plugin@market").build())),
-                dispatch("session.plugins.enable", Void.class, """
-                        {"sessionId":"bound-session","names":["first@market","second@market"]}
-                        """,
-                        (server, session) -> session.plugins.enable(SessionPluginsEnableParams.builder()
-                                .sessionId("foreign-session").names(List.of("first@market", "second@market")).build())),
-                dispatch("session.plugins.disable", Void.class, """
-                        {"sessionId":"bound-session","names":["plugin@market"]}
-                        """,
-                        (server, session) -> session.plugins.disable(SessionPluginsDisableParams.builder()
-                                .sessionId("foreign-session").names(List.of("plugin@market")).build())),
-                dispatch("session.plugins.marketplaces.list", SessionPluginsMarketplacesListResult.class, """
-                        {"sessionId":"bound-session"}
-                        """, (server, session) -> session.plugins.marketplaces.list()),
-                dispatch("session.plugins.marketplaces.add", SessionPluginsMarketplacesAddResult.class, """
-                        {"sessionId":"bound-session","source":"./market","workingDirectory":"/workspace"}
-                        """,
-                        (server, session) -> session.plugins.marketplaces
-                                .add(SessionPluginsMarketplacesAddParams.builder().sessionId("foreign-session")
-                                        .source("./market").workingDirectory("/workspace").build())),
-                dispatch("session.plugins.marketplaces.remove", SessionPluginsMarketplacesRemoveResult.class, """
-                        {"sessionId":"bound-session","name":"market","force":true}
-                        """,
-                        (server, session) -> session.plugins.marketplaces.remove(SessionPluginsMarketplacesRemoveParams
-                                .builder().sessionId("foreign-session").name("market").force(true).build())),
-                dispatch("session.plugins.marketplaces.browse", SessionPluginsMarketplacesBrowseResult.class, """
-                        {"sessionId":"bound-session","name":"market"}
-                        """,
-                        (server, session) -> session.plugins.marketplaces.browse(SessionPluginsMarketplacesBrowseParams
-                                .builder().sessionId("foreign-session").name("market").build())),
-                dispatch("session.plugins.marketplaces.refresh", SessionPluginsMarketplacesRefreshResult.class, """
-                        {"sessionId":"bound-session","name":"market"}
-                        """, (server,
-                        session) -> session.plugins.marketplaces.refresh(SessionPluginsMarketplacesRefreshParams
-                                .builder().sessionId("foreign-session").name("market").build())),
-                dispatch("session.plugins.marketplaces.refresh", SessionPluginsMarketplacesRefreshResult.class, """
-                        {"sessionId":"bound-session"}
-                        """, (server, session) -> session.plugins.marketplaces.refresh(null)),
-                dispatch("session.queue.withdrawMessage", SessionQueueWithdrawMessageResult.class, """
-                        {"sessionId":"bound-session","messageId":"message-1","expectedPrompt":"original"}
-                        """,
-                        (server, session) -> session.queue.withdrawMessage(
-                                SessionQueueWithdrawMessageParams.builder().sessionId("foreign-session")
-                                        .messageId("message-1").expectedPrompt("original").build())),
-                dispatch("session.queue.appendSteering", SessionQueueAppendSteeringResult.class, """
-                        {"sessionId":"bound-session","messageId":"message-1","expectedPrompt":"original",
-                         "agentMode":"interactive","prompt":"more","displayPrompt":"preview","attachments":[]}
-                        """,
-                        (server, session) -> session.queue.appendSteering(SessionQueueAppendSteeringParams.builder()
-                                .sessionId("foreign-session").messageId("message-1").expectedPrompt("original")
-                                .agentMode(SendAgentMode.INTERACTIVE).prompt("more").displayPrompt("preview")
-                                .attachments(List.of()).build())),
-                dispatch("session.workflow.run", SessionWorkflowRunResult.class, """
-                        {"sessionId":"bound-session","name":"workflow-1","args":{"topic":"input"}}
-                        """, (server,
-                        session) -> session.workflow.run(SessionWorkflowRunParams.builder().sessionId("foreign-session")
-                                .name("workflow-1").args(Map.of("topic", "input")).options(null).build())),
-                dispatch("session.workflow.resume", SessionWorkflowResumeResult.class, """
-                        {"sessionId":"bound-session","runId":"run-1","notifyOnComplete":true,"logPhaseNames":false}
-                        """,
-                        (server, session) -> session.workflow.resume(
-                                SessionWorkflowResumeParams.builder().sessionId("foreign-session").runId("run-1")
-                                        .limits(null).notifyOnComplete(true).logPhaseNames(false).build())),
-                dispatch("session.workflow.runFromTool", WorkflowRunResult.class, """
-                        {"sessionId":"bound-session","name":"workflow-1","args":{"topic":"input"},"toolCallId":"tool-1"}
-                        """,
-                        (server, session) -> session.workflow.runFromTool(SessionWorkflowRunFromToolParams.builder()
-                                .sessionId("foreign-session").name("workflow-1").args(Map.of("topic", "input"))
-                                .options(null).toolCallId("tool-1").build())),
-                dispatch("session.workflow.resumeFromTool", WorkflowResumeResult.class, """
-                        {"sessionId":"bound-session","runId":"run-1","toolCallId":"tool-1"}
-                        """,
-                        (server, session) -> session.workflow.resumeFromTool(
-                                SessionWorkflowResumeFromToolParams.builder().sessionId("foreign-session")
-                                        .runId("run-1").limits(null).toolCallId("tool-1").build())),
-                dispatch("session.workflow.getRun", SessionWorkflowGetRunResult.class, """
-                        {"sessionId":"bound-session","runId":"run-1"}
-                        """,
-                        (server, session) -> session.workflow.getRun(SessionWorkflowGetRunParams.builder()
-                                .sessionId("foreign-session").runId("run-1").build())),
-                dispatch("session.workflow.listRuns", SessionWorkflowListRunsResult.class, """
-                        {"sessionId":"bound-session","afterSeq":2,"limit":5}
-                        """,
-                        (server, session) -> session.workflow.listRuns(SessionWorkflowListRunsParams.builder()
-                                .sessionId("foreign-session").afterSeq(2L).beforeSeq(null).limit(5L).build())),
-                dispatch("session.workflow.getRunDetail", SessionWorkflowGetRunDetailResult.class, """
-                        {"sessionId":"bound-session","runId":"run-1"}
-                        """,
-                        (server, session) -> session.workflow.getRunDetail(SessionWorkflowGetRunDetailParams.builder()
-                                .sessionId("foreign-session").runId("run-1").build())),
-                dispatch("session.workflow.getRunProgress", SessionWorkflowGetRunProgressResult.class, """
-                        {"sessionId":"bound-session","runId":"run-1","phaseId":"phase-1","afterSeq":2,"limit":5}
-                        """,
-                        (server, session) -> session.workflow.getRunProgress(SessionWorkflowGetRunProgressParams
-                                .builder().sessionId("foreign-session").runId("run-1").phaseId("phase-1").afterSeq(2L)
-                                .beforeSeq(null).limit(5L).build())),
-                dispatch("session.workflow.cancel", SessionWorkflowCancelResult.class, """
-                        {"sessionId":"bound-session","runId":"run-1"}
-                        """,
-                        (server, session) -> session.workflow.cancel(SessionWorkflowCancelParams.builder()
-                                .sessionId("foreign-session").runId("run-1").build())),
-                dispatch("session.workflow.pause", SessionWorkflowPauseResult.class, """
-                        {"sessionId":"bound-session","runId":"run-1"}
-                        """,
-                        (server, session) -> session.workflow.pause(SessionWorkflowPauseParams.builder()
-                                .sessionId("foreign-session").runId("run-1").build())),
-                dispatch("session.workflow.pauseAtCheckpoint", WorkflowPauseCheckpointResult.class,
-                        """
-                                {"sessionId":"bound-session","runId":"run-1","executionToken":"execution-1","key":"checkpoint-1"}
+                        """, (server, session) -> session.mcp.list()),
+                        dispatch("session.mcp.listConfigured", SessionMcpListConfiguredResult.class, """
+                                {"sessionId":"bound-session"}
+                                """, (server, session) -> session.mcp.listConfigured()),
+                        dispatch("catalog.select", CatalogSelectionResult.class, """
+                                {"contract":{"protocolVersion":3,"requiredCapabilities":["catalog-selection"]},
+                                 "sessionId":"catalog-session","selectionRef":"selection-1","outcome":"selected"}
                                 """,
-                        (server, session) -> session.workflow.pauseAtCheckpoint(
-                                SessionWorkflowPauseAtCheckpointParams.builder().sessionId("foreign-session")
-                                        .runId("run-1").executionToken("execution-1").key("checkpoint-1").build())),
-                dispatch("session.workflow.log", Void.class, """
-                        {"sessionId":"bound-session","runId":"run-1","executionToken":"execution-1",
-                         "lines":[{"seq":1,"kind":"log","text":"progress"}]}
-                        """,
-                        (server, session) -> session.workflow.log(SessionWorkflowLogParams.builder()
-                                .sessionId("foreign-session").runId("run-1").executionToken("execution-1")
-                                .lines(List.of(WorkflowLogLine.builder().seq(1L).kind(WorkflowLogLineKind.LOG)
-                                        .text("progress").build()))
-                                .build())),
-                dispatch("session.workflow.agent", SessionWorkflowAgentResult.class,
-                        """
-                                {"sessionId":"bound-session","workflowRunId":"run-1","executionToken":"execution-1","prompt":"inspect","opts":{}}
+                                (server, session) -> server.catalog.select(new CatalogSelectParams(
+                                        new CatalogClientContract(3L, List.of("catalog-selection")), "catalog-session",
+                                        "selection-1", CatalogSelectionDecision.SELECTED))),
+                        dispatch("session.managedSettings.get", SessionManagedSettingsGetResult.class, """
+                                {"sessionId":"bound-session"}
+                                """, (server, session) -> session.managedSettings.get()),
+                        dispatch("session.instructions.reload", SessionInstructionsGetSourcesResult.class, """
+                                {"sessionId":"bound-session"}
+                                """, (server, session) -> session.instructions.reload()),
+                        dispatch("session.customizations.reload", CustomizationsReloadResult.class, """
+                                {"sessionId":"bound-session"}
+                                """, (server, session) -> session.customizations.reload()),
+                        dispatch("session.plugins.install", SessionPluginsInstallResult.class, """
+                                {"sessionId":"bound-session","source":"plugin@market"}
+                                """,
+                                (server, session) -> session.plugins
+                                        .install(new SessionPluginsInstallParams("foreign-session", "plugin@market"))),
+                        dispatch("session.plugins.uninstall", Void.class, """
+                                {"sessionId":"bound-session","name":"plugin","directSourceId":"source-1"}
+                                """,
+                                (server, session) -> session.plugins.uninstall(
+                                        new SessionPluginsUninstallParams("foreign-session", "plugin", "source-1"))),
+                        dispatch("session.plugins.update", SessionPluginsUpdateResult.class, """
+                                {"sessionId":"bound-session","name":"plugin@market"}
+                                """,
+                                (server, session) -> session.plugins
+                                        .update(new SessionPluginsUpdateParams("foreign-session", "plugin@market"))),
+                        dispatch("session.plugins.enable", Void.class, """
+                                {"sessionId":"bound-session","names":["first@market","second@market"]}
+                                """,
+                                (server, session) -> session.plugins.enable(new SessionPluginsEnableParams(
+                                        "foreign-session", List.of("first@market", "second@market")))),
+                        dispatch("session.plugins.disable", Void.class, """
+                                {"sessionId":"bound-session","names":["plugin@market"]}
+                                """,
+                                (server, session) -> session.plugins.disable(
+                                        new SessionPluginsDisableParams("foreign-session", List.of("plugin@market")))),
+                        dispatch("session.plugins.marketplaces.list", SessionPluginsMarketplacesListResult.class, """
+                                {"sessionId":"bound-session"}
+                                """, (server, session) -> session.plugins.marketplaces.list()),
+                        dispatch("session.plugins.marketplaces.add", SessionPluginsMarketplacesAddResult.class, """
+                                {"sessionId":"bound-session","source":"./market","workingDirectory":"/workspace"}
+                                """, (server, session) -> session.plugins.marketplaces.add(
+                                new SessionPluginsMarketplacesAddParams("foreign-session", "./market", "/workspace"))),
+                        dispatch("session.plugins.marketplaces.remove", SessionPluginsMarketplacesRemoveResult.class,
+                                """
+                                        {"sessionId":"bound-session","name":"market","force":true}
                                         """,
-                        (server, session) -> session.workflow
-                                .agent(SessionWorkflowAgentParams.builder().sessionId("foreign-session")
-                                        .workflowRunId("run-1").executionToken("execution-1").prompt("inspect")
-                                        .opts(com.github.copilot.generated.rpc.WorkflowAgentOptions.builder().build())
-                                        .build())),
-                dispatch("session.workflow.journal.get", SessionWorkflowJournalGetResult.class, """
-                        {"sessionId":"bound-session","runId":"run-1","executionToken":"execution-1","key":"journal-1"}
-                        """,
-                        (server, session) -> session.workflow.journal
-                                .get(SessionWorkflowJournalGetParams.builder().sessionId("foreign-session")
-                                        .runId("run-1").executionToken("execution-1").key("journal-1").build())),
-                dispatch("session.workflow.journal.put", Void.class, """
-                        {"sessionId":"bound-session","runId":"run-1","executionToken":"execution-1","key":"journal-1",
-                         "resultJson":{"answer":42}}
-                        """,
-                        (server, session) -> session.workflow.journal.put(SessionWorkflowJournalPutParams.builder()
-                                .sessionId("foreign-session").runId("run-1").executionToken("execution-1")
-                                .key("journal-1").resultJson(Map.of("answer", 42)).build())));
+                                (server, session) -> session.plugins.marketplaces.remove(
+                                        new SessionPluginsMarketplacesRemoveParams("foreign-session", "market", true))),
+                        dispatch("session.plugins.marketplaces.browse", SessionPluginsMarketplacesBrowseResult.class,
+                                """
+                                        {"sessionId":"bound-session","name":"market"}
+                                        """,
+                                (server, session) -> session.plugins.marketplaces.browse(
+                                        new SessionPluginsMarketplacesBrowseParams("foreign-session", "market"))),
+                        dispatch("session.plugins.marketplaces.refresh", SessionPluginsMarketplacesRefreshResult.class,
+                                """
+                                        {"sessionId":"bound-session","name":"market"}
+                                        """,
+                                (server, session) -> session.plugins.marketplaces.refresh(
+                                        new SessionPluginsMarketplacesRefreshParams("foreign-session", "market"))),
+                        dispatch(
+                                "session.plugins.marketplaces.refresh", SessionPluginsMarketplacesRefreshResult.class,
+                                """
+                                        {"sessionId":"bound-session"}
+                                        """, (server, session) -> session.plugins.marketplaces.refresh(null)),
+                        dispatch("session.queue.withdrawMessage", SessionQueueWithdrawMessageResult.class, """
+                                {"sessionId":"bound-session","messageId":"message-1","expectedPrompt":"original"}
+                                """, (server,
+                                session) -> session.queue.withdrawMessage(new SessionQueueWithdrawMessageParams(
+                                        "foreign-session", "message-1", "original"))),
+                        dispatch("session.queue.appendSteering", SessionQueueAppendSteeringResult.class, """
+                                {"sessionId":"bound-session","messageId":"message-1","expectedPrompt":"original",
+                                 "agentMode":"interactive","prompt":"more","displayPrompt":"preview","attachments":[]}
+                                """,
+                                (server, session) -> session.queue.appendSteering(
+                                        new SessionQueueAppendSteeringParams("foreign-session", "message-1", "original",
+                                                SendAgentMode.INTERACTIVE, "more", "preview", List.of()))),
+                        dispatch("session.workflow.run", SessionWorkflowRunResult.class, """
+                                {"sessionId":"bound-session","name":"workflow-1","args":{"topic":"input"}}
+                                """,
+                                (server, session) -> session.workflow.run(new SessionWorkflowRunParams(
+                                        "foreign-session", "workflow-1", Map.of("topic", "input"), null))),
+                        dispatch(
+                                "session.workflow.resume", SessionWorkflowResumeResult.class,
+                                """
+                                        {"sessionId":"bound-session","runId":"run-1","notifyOnComplete":true,"logPhaseNames":false}
+                                        """,
+                                (server, session) -> session.workflow.resume(new SessionWorkflowResumeParams(
+                                        "foreign-session", "run-1", null, true, false))),
+                        dispatch(
+                                "session.workflow.runFromTool", WorkflowRunResult.class,
+                                """
+                                        {"sessionId":"bound-session","name":"workflow-1","args":{"topic":"input"},"toolCallId":"tool-1"}
+                                        """,
+                                (server, session) -> session.workflow.runFromTool(new SessionWorkflowRunFromToolParams(
+                                        "foreign-session", "workflow-1", Map.of("topic", "input"), null, "tool-1"))),
+                        dispatch("session.workflow.resumeFromTool", WorkflowResumeResult.class, """
+                                {"sessionId":"bound-session","runId":"run-1","toolCallId":"tool-1"}
+                                """, (server, session) -> session.workflow.resumeFromTool(
+                                new SessionWorkflowResumeFromToolParams("foreign-session", "run-1", null, "tool-1"))),
+                        dispatch("session.workflow.getRun", SessionWorkflowGetRunResult.class, """
+                                {"sessionId":"bound-session","runId":"run-1"}
+                                """,
+                                (server, session) -> session.workflow
+                                        .getRun(new SessionWorkflowGetRunParams("foreign-session", "run-1"))),
+                        dispatch("session.workflow.listRuns", SessionWorkflowListRunsResult.class, """
+                                {"sessionId":"bound-session","afterSeq":2,"limit":5}
+                                """,
+                                (server, session) -> session.workflow
+                                        .listRuns(new SessionWorkflowListRunsParams("foreign-session", 2L, null, 5L))),
+                        dispatch("session.workflow.getRunDetail", SessionWorkflowGetRunDetailResult.class, """
+                                {"sessionId":"bound-session","runId":"run-1"}
+                                """,
+                                (server, session) -> session.workflow.getRunDetail(
+                                        new SessionWorkflowGetRunDetailParams("foreign-session", "run-1"))),
+                        dispatch("session.workflow.getRunProgress", SessionWorkflowGetRunProgressResult.class, """
+                                {"sessionId":"bound-session","runId":"run-1","phaseId":"phase-1","afterSeq":2,"limit":5}
+                                """, (server,
+                                session) -> session.workflow.getRunProgress(new SessionWorkflowGetRunProgressParams(
+                                        "foreign-session", "run-1", "phase-1", 2L, null, 5L))),
+                        dispatch("session.workflow.cancel", SessionWorkflowCancelResult.class, """
+                                {"sessionId":"bound-session","runId":"run-1"}
+                                """,
+                                (server, session) -> session.workflow
+                                        .cancel(new SessionWorkflowCancelParams("foreign-session", "run-1"))),
+                        dispatch("session.workflow.pause", SessionWorkflowPauseResult.class, """
+                                {"sessionId":"bound-session","runId":"run-1"}
+                                """,
+                                (server, session) -> session.workflow
+                                        .pause(new SessionWorkflowPauseParams("foreign-session", "run-1"))),
+                        dispatch(
+                                "session.workflow.pauseAtCheckpoint", WorkflowPauseCheckpointResult.class,
+                                """
+                                        {"sessionId":"bound-session","runId":"run-1","executionToken":"execution-1","key":"checkpoint-1"}
+                                        """,
+                                (server, session) -> session.workflow
+                                        .pauseAtCheckpoint(new SessionWorkflowPauseAtCheckpointParams("foreign-session",
+                                                "run-1", "execution-1", "checkpoint-1"))),
+                        dispatch("session.workflow.log", Void.class, """
+                                {"sessionId":"bound-session","runId":"run-1","executionToken":"execution-1",
+                                 "lines":[{"seq":1,"kind":"log","text":"progress"}]}
+                                """,
+                                (server, session) -> session.workflow.log(new SessionWorkflowLogParams(
+                                        "foreign-session", "run-1", "execution-1",
+                                        List.of(new WorkflowLogLine(1L, WorkflowLogLineKind.LOG, "progress"))))),
+                        dispatch("session.workflow.agent", SessionWorkflowAgentResult.class,
+                                """
+                                        {"sessionId":"bound-session","workflowRunId":"run-1","executionToken":"execution-1","prompt":"inspect"}
+                                        """,
+                                (server, session) -> session.workflow.agent(new SessionWorkflowAgentParams(
+                                        "foreign-session", "run-1", "execution-1", "inspect", null))),
+                        dispatch("session.workflow.journal.get", SessionWorkflowJournalGetResult.class,
+                                """
+                                        {"sessionId":"bound-session","runId":"run-1","executionToken":"execution-1","key":"journal-1"}
+                                        """,
+                                (server, session) -> session.workflow.journal.get(new SessionWorkflowJournalGetParams(
+                                        "foreign-session", "run-1", "execution-1", "journal-1"))),
+                        dispatch("session.workflow.journal.put", Void.class,
+                                """
+                                        {"sessionId":"bound-session","runId":"run-1","executionToken":"execution-1","key":"journal-1",
+                                         "resultJson":{"answer":42}}
+                                        """,
+                                (server, session) -> session.workflow.journal
+                                        .put(new SessionWorkflowJournalPutParams("foreign-session", "run-1",
+                                                "execution-1", "journal-1", Map.of("answer", 42)))));
     }
 
     private static Arguments dispatch(String method, Class<?> resultType, String expectedParams,
@@ -401,7 +275,7 @@ class GeneratedRpcApiCoverageTest {
         var stub = new StubCaller();
         var server = new ServerRpc(stub);
 
-        var params = ToolsListParams.builder().model("gpt-5").build();
+        var params = new ToolsListParams("gpt-5");
         server.tools.list(params);
 
         assertEquals(1, stub.calls.size());
@@ -414,8 +288,7 @@ class GeneratedRpcApiCoverageTest {
         var stub = new StubCaller();
         var server = new ServerRpc(stub);
 
-        var params = SessionFsSetProviderParams.builder().initialCwd("/workspace").sessionStatePath("/state")
-                .conventions(SessionFsSetProviderConventions.POSIX).capabilities(null).build();
+        var params = new SessionFsSetProviderParams("/workspace", "/state", null, null);
         server.sessionFs.setProvider(params);
 
         assertEquals(1, stub.calls.size());
@@ -428,7 +301,7 @@ class GeneratedRpcApiCoverageTest {
         var stub = new StubCaller();
         var server = new ServerRpc(stub);
 
-        var params = SessionsForkParams.builder().sessionId("parent-session-id").toEventId(null).name(null).build();
+        var params = new SessionsForkParams("parent-session-id", null, null);
         server.sessions.fork(params);
 
         assertEquals(1, stub.calls.size());
@@ -441,7 +314,7 @@ class GeneratedRpcApiCoverageTest {
         var stub = new StubCaller();
         var server = new ServerRpc(stub);
 
-        var params = McpConfigUpdateParams.builder().name("myServer").config("new-config").build();
+        var params = new McpConfigUpdateParams("myServer", "new-config");
         server.mcp.config.update(params);
 
         assertEquals(1, stub.calls.size());
@@ -454,7 +327,7 @@ class GeneratedRpcApiCoverageTest {
         var stub = new StubCaller();
         var server = new ServerRpc(stub);
 
-        var params = McpConfigRemoveParams.builder().name("myServer").authClientIdMetadataUrl(null).build();
+        var params = new McpConfigRemoveParams("myServer", null);
         server.mcp.config.remove(params);
 
         assertEquals(1, stub.calls.size());
@@ -469,11 +342,9 @@ class GeneratedRpcApiCoverageTest {
         var stub = new StubCaller();
         var session = new SessionRpc(stub, "sess-model-policy");
         var allowedModels = List.of("gpt-5", "azure/gpt-5");
-        var expectedResult = SessionModelSetAllowedModelsResult.builder().allowedModels(allowedModels)
-                .effectiveAllowedModels(List.of("gpt-5")).fallbackModel("gpt-5").modelId("gpt-5").build();
+        var expectedResult = new SessionModelSetAllowedModelsResult(allowedModels, List.of("gpt-5"), "gpt-5", "gpt-5");
         stub.nextResult = expectedResult;
-        var request = SessionModelSetAllowedModelsParams.builder().sessionId("ignored-session")
-                .allowedModels(allowedModels).build();
+        var request = new SessionModelSetAllowedModelsParams("ignored-session", allowedModels);
 
         assertSame(expectedResult, session.model.setAllowedModels(request).join());
 
@@ -490,29 +361,11 @@ class GeneratedRpcApiCoverageTest {
     }
 
     @Test
-    void sessionRpc_model_setAllowedModels_sends_null_to_clear_host_restriction() {
+    void sessionRpc_model_setAllowedModels_omits_cleared_host_restriction() {
         var stub = new StubCaller();
         var session = new SessionRpc(stub, "sess-model-policy");
 
-        session.model
-                .setAllowedModels(
-                        SessionModelSetAllowedModelsParams.builder().sessionId(null).allowedModels(null).build())
-                .join();
-
-        assertEquals(1, stub.calls.size());
-        assertEquals("session.model.setAllowedModels", stub.calls.get(0).method());
-        var params = assertInstanceOf(ObjectNode.class, stub.calls.get(0).params());
-        assertEquals("sess-model-policy", params.get("sessionId").asText());
-        assertTrue(params.has("allowedModels"));
-        assertTrue(params.get("allowedModels").isNull());
-    }
-
-    @Test
-    void sessionRpc_model_setAllowedModels_omits_untouched_host_restriction() {
-        var stub = new StubCaller();
-        var session = new SessionRpc(stub, "sess-model-policy");
-
-        session.model.setAllowedModels(SessionModelSetAllowedModelsParams.builder().build()).join();
+        session.model.setAllowedModels(new SessionModelSetAllowedModelsParams(null, null)).join();
 
         assertEquals(1, stub.calls.size());
         assertEquals("session.model.setAllowedModels", stub.calls.get(0).method());
@@ -526,10 +379,7 @@ class GeneratedRpcApiCoverageTest {
         var stub = new StubCaller();
         var session = new SessionRpc(stub, "sess-model-policy");
 
-        session.model
-                .setAllowedModels(
-                        SessionModelSetAllowedModelsParams.builder().sessionId(null).allowedModels(List.of()).build())
-                .join();
+        session.model.setAllowedModels(new SessionModelSetAllowedModelsParams(null, List.of())).join();
 
         assertEquals(1, stub.calls.size());
         assertEquals("session.model.setAllowedModels", stub.calls.get(0).method());
@@ -560,10 +410,8 @@ class GeneratedRpcApiCoverageTest {
         var stub = new StubCaller();
         var session = new SessionRpc(stub, "sess-mode-set");
 
-        var modeParams = SessionModeSetParams.builder().sessionId(null).mode(SessionMode.INTERACTIVE).expectedMode(null)
-                .inheritPlanBaseFromSessionId(null).planModelConfigured(null).planModel(null).planModelProviderId(null)
-                .planReasoningEffort(null).planContextTier(null).compactionDecision(null).restorePlanModel(null)
-                .persistPlanSelection(null).pickerSettingsContext(null).planExitAction(null).build();
+        var modeParams = new SessionModeSetParams(null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null);
         session.mode.set(modeParams);
 
         assertEquals(1, stub.calls.size());
@@ -592,7 +440,7 @@ class GeneratedRpcApiCoverageTest {
         var stub = new StubCaller();
         var session = new SessionRpc(stub, "sess-plan-upd");
 
-        var planParams = SessionPlanUpdateParams.builder().sessionId(null).content("# My Plan").build();
+        var planParams = new SessionPlanUpdateParams(null, "# My Plan");
         session.plan.update(planParams);
 
         assertEquals(1, stub.calls.size());
@@ -634,7 +482,7 @@ class GeneratedRpcApiCoverageTest {
         var stub = new StubCaller();
         var session = new SessionRpc(stub, "sess-ws-rf");
 
-        var rfParams = SessionWorkspacesReadFileParams.builder().sessionId(null).path("/src/Main.java").build();
+        var rfParams = new SessionWorkspacesReadFileParams(null, "/src/Main.java");
         session.workspaces.readFile(rfParams);
 
         assertEquals(1, stub.calls.size());
@@ -649,8 +497,7 @@ class GeneratedRpcApiCoverageTest {
         var stub = new StubCaller();
         var session = new SessionRpc(stub, "sess-ws-cf");
 
-        var cfParams = SessionWorkspacesCreateFileParams.builder().sessionId(null).path("/new/file.txt")
-                .content("content").build();
+        var cfParams = new SessionWorkspacesCreateFileParams(null, "/new/file.txt", "content");
         session.workspaces.createFile(cfParams);
 
         assertEquals(1, stub.calls.size());
@@ -666,8 +513,7 @@ class GeneratedRpcApiCoverageTest {
         var stub = new StubCaller();
         var session = new SessionRpc(stub, "sess-fleet");
 
-        var fleetParams = SessionFleetStartParams.builder().sessionId(null).prompt("fix all bugs").attachments(null)
-                .billable(null).wait_(null).build();
+        var fleetParams = new SessionFleetStartParams(null, "fix all bugs", null, null, null);
         session.fleet.start(fleetParams);
 
         assertEquals(1, stub.calls.size());
@@ -697,7 +543,7 @@ class GeneratedRpcApiCoverageTest {
         var stub = new StubCaller();
         var session = new SessionRpc(stub, "sess-skills-en");
 
-        var enableParams = SessionSkillsEnableParams.builder().sessionId(null).name("my-skill").build();
+        var enableParams = new SessionSkillsEnableParams(null, "my-skill");
         session.skills.enable(enableParams);
 
         assertEquals(1, stub.calls.size());
@@ -712,7 +558,7 @@ class GeneratedRpcApiCoverageTest {
         var stub = new StubCaller();
         var session = new SessionRpc(stub, "sess-skills-dis");
 
-        var disableParams = SessionSkillsDisableParams.builder().sessionId(null).name("my-skill").build();
+        var disableParams = new SessionSkillsDisableParams(null, "my-skill");
         session.skills.disable(disableParams);
 
         assertEquals(1, stub.calls.size());
@@ -755,7 +601,7 @@ class GeneratedRpcApiCoverageTest {
         var stub = new StubCaller();
         var session = new SessionRpc(stub, "sess-mcp-en");
 
-        var enableParams = SessionMcpEnableParams.builder().sessionId(null).serverName("my-mcp-server").build();
+        var enableParams = new SessionMcpEnableParams(null, "my-mcp-server");
         session.mcp.enable(enableParams);
 
         assertEquals(1, stub.calls.size());
@@ -770,7 +616,7 @@ class GeneratedRpcApiCoverageTest {
         var stub = new StubCaller();
         var session = new SessionRpc(stub, "sess-mcp-dis");
 
-        var disableParams = SessionMcpDisableParams.builder().sessionId(null).serverName("my-mcp-server").build();
+        var disableParams = new SessionMcpDisableParams(null, "my-mcp-server");
         session.mcp.disable(disableParams);
 
         assertEquals(1, stub.calls.size());
@@ -828,7 +674,7 @@ class GeneratedRpcApiCoverageTest {
         var stub = new StubCaller();
         var session = new SessionRpc(stub, "sess-ext-en");
 
-        var enableParams = SessionExtensionsEnableParams.builder().sessionId(null).id("github.ext-id").build();
+        var enableParams = new SessionExtensionsEnableParams(null, "github.ext-id");
         session.extensions.enable(enableParams);
 
         assertEquals(1, stub.calls.size());
@@ -843,7 +689,7 @@ class GeneratedRpcApiCoverageTest {
         var stub = new StubCaller();
         var session = new SessionRpc(stub, "sess-ext-dis");
 
-        var disableParams = SessionExtensionsDisableParams.builder().sessionId(null).id("github.ext-id").build();
+        var disableParams = new SessionExtensionsDisableParams(null, "github.ext-id");
         session.extensions.disable(disableParams);
 
         assertEquals(1, stub.calls.size());
@@ -872,8 +718,7 @@ class GeneratedRpcApiCoverageTest {
         var stub = new StubCaller();
         var session = new SessionRpc(stub, "sess-tools");
 
-        var toolParams = SessionToolsHandlePendingToolCallParams.builder().sessionId(null).requestId("req-123")
-                .result("ok").error(null).build();
+        var toolParams = new SessionToolsHandlePendingToolCallParams(null, "req-123", "ok", null);
         session.tools.handlePendingToolCall(toolParams);
 
         assertEquals(1, stub.calls.size());
@@ -890,8 +735,7 @@ class GeneratedRpcApiCoverageTest {
         var stub = new StubCaller();
         var session = new SessionRpc(stub, "sess-cmds");
 
-        var cmdParams = SessionCommandsHandlePendingCommandParams.builder().sessionId(null).requestId("req-cmd-456")
-                .error(null).build();
+        var cmdParams = new SessionCommandsHandlePendingCommandParams(null, "req-cmd-456", null);
         session.commands.handlePendingCommand(cmdParams);
 
         assertEquals(1, stub.calls.size());
@@ -908,10 +752,7 @@ class GeneratedRpcApiCoverageTest {
         var stub = new StubCaller();
         var session = new SessionRpc(stub, "sess-ui");
 
-        var uiParams = SessionUiElicitationParams.builder().sessionId(null).mode(null).message("Please provide info")
-                .requestedSchema(com.github.copilot.generated.rpc.UIElicitationSchema.builder().type("object")
-                        .properties(Map.of()).required(List.of()).build())
-                .meta(null).task(null).build();
+        var uiParams = new SessionUiElicitationParams(null, null, "Please provide info", null, null, null);
         session.ui.elicitation(uiParams);
 
         assertEquals(1, stub.calls.size());
@@ -919,7 +760,6 @@ class GeneratedRpcApiCoverageTest {
         var params = (com.fasterxml.jackson.databind.node.ObjectNode) stub.calls.get(0).params();
         assertEquals("sess-ui", params.get("sessionId").asText());
         assertEquals("Please provide info", params.get("message").asText());
-        assertEquals("object", params.path("requestedSchema").path("type").asText());
     }
 
     @Test
@@ -927,10 +767,7 @@ class GeneratedRpcApiCoverageTest {
         var stub = new StubCaller();
         var session = new SessionRpc(stub, "sess-ui-elicit");
 
-        var elicitParams = SessionUiHandlePendingElicitationParams.builder().sessionId(null).requestId("req-elicit-789")
-                .result(com.github.copilot.generated.rpc.UIElicitationResponse.builder()
-                        .action(UIElicitationResponseAction.ACCEPT).content(Map.of()).build())
-                .build();
+        var elicitParams = new SessionUiHandlePendingElicitationParams(null, "req-elicit-789", null);
         session.ui.handlePendingElicitation(elicitParams);
 
         assertEquals(1, stub.calls.size());
@@ -938,7 +775,6 @@ class GeneratedRpcApiCoverageTest {
         var params = (com.fasterxml.jackson.databind.node.ObjectNode) stub.calls.get(0).params();
         assertEquals("sess-ui-elicit", params.get("sessionId").asText());
         assertEquals("req-elicit-789", params.get("requestId").asText());
-        assertEquals("accept", params.path("result").path("action").asText());
     }
 
     // ── SessionRpc.permissions ─────────────────────────────────────────────
@@ -948,8 +784,7 @@ class GeneratedRpcApiCoverageTest {
         var stub = new StubCaller();
         var session = new SessionRpc(stub, "sess-perm");
 
-        var permParams = SessionPermissionsHandlePendingPermissionRequestParams.builder().sessionId(null)
-                .requestId("req-perm-1").result("allow").decisionContext(null).build();
+        var permParams = new SessionPermissionsHandlePendingPermissionRequestParams(null, "req-perm-1", "allow", null);
         session.permissions.handlePendingPermissionRequest(permParams);
 
         assertEquals(1, stub.calls.size());
@@ -966,8 +801,7 @@ class GeneratedRpcApiCoverageTest {
         var stub = new StubCaller();
         var session = new SessionRpc(stub, "sess-shell");
 
-        var shellParams = SessionShellExecParams.builder().sessionId(null).command("ls -la").cwd("/workspace")
-                .timeout(null).build();
+        var shellParams = new SessionShellExecParams(null, "ls -la", "/workspace", null);
         session.shell.exec(shellParams);
 
         assertEquals(1, stub.calls.size());
@@ -982,7 +816,7 @@ class GeneratedRpcApiCoverageTest {
         var stub = new StubCaller();
         var session = new SessionRpc(stub, "sess-shell-kill");
 
-        var killParams = SessionShellKillParams.builder().sessionId(null).processId("proc-123").signal(null).build();
+        var killParams = new SessionShellKillParams(null, "proc-123", null);
         session.shell.kill(killParams);
 
         assertEquals(1, stub.calls.size());
@@ -1012,7 +846,7 @@ class GeneratedRpcApiCoverageTest {
         var stub = new StubCaller();
         var session = new SessionRpc(stub, "sess-hist-trunc");
 
-        var truncParams = SessionHistoryTruncateParams.builder().sessionId(null).eventId("event-id-abc").build();
+        var truncParams = new SessionHistoryTruncateParams(null, "event-id-abc");
         session.history.truncate(truncParams);
 
         assertEquals(1, stub.calls.size());
@@ -1085,8 +919,7 @@ class GeneratedRpcApiCoverageTest {
         var stub = new StubCaller();
         var session = new SessionRpc(stub, "sess-log");
 
-        var logParams = SessionLogParams.builder().sessionId(null).message("Hello from test").level(null).type(null)
-                .ephemeral(null).url(null).tip(null).build();
+        var logParams = new SessionLogParams(null, "Hello from test", null, null, null, null, null);
         session.log(logParams);
 
         assertEquals(1, stub.calls.size());
@@ -1102,17 +935,16 @@ class GeneratedRpcApiCoverageTest {
 
     @Test
     void serverRpc_sessionFs_setProvider_params_record() {
-        var params = SessionFsSetProviderParams.builder().initialCwd("/workspace").sessionStatePath("/state")
-                .conventions(SessionFsSetProviderConventions.POSIX).capabilities(null).build();
+        var params = new SessionFsSetProviderParams("/workspace", "/state", null, null);
         assertEquals("/workspace", params.initialCwd());
         assertEquals("/state", params.sessionStatePath());
-        assertEquals(SessionFsSetProviderConventions.POSIX, params.conventions());
+        assertNull(params.conventions());
         assertNull(params.capabilities());
     }
 
     @Test
     void sessionsForkParams_record() {
-        var params = SessionsForkParams.builder().sessionId("parent-id").toEventId("event-123").name(null).build();
+        var params = new SessionsForkParams("parent-id", "event-123", null);
         assertEquals("parent-id", params.sessionId());
         assertEquals("event-123", params.toEventId());
     }

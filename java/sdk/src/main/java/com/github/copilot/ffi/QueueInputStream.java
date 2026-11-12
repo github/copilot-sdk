@@ -99,10 +99,6 @@ public class QueueInputStream extends InputStream {
         int toCopy = Math.min(available, len);
         System.arraycopy(currentChunk, currentOffset, b, off, toCopy);
         currentOffset += toCopy;
-        if (currentOffset == currentChunk.length) {
-            currentChunk = null;
-            currentOffset = 0;
-        }
         return toCopy;
     }
 

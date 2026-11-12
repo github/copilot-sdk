@@ -11,7 +11,6 @@ import (
 )
 
 func TestGeneratedRPCRoundTrip(t *testing.T) {
-	t.Parallel()
 	client := testharness.NewTestContext(t).NewClient()
 	t.Cleanup(client.ForceStop)
 	if err := client.Start(t.Context()); err != nil {

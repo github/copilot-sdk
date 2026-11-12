@@ -11,33 +11,8 @@ namespace GitHub.Copilot.Test.Unit;
 public class SessionEventSerializationTests
 {
     [Theory]
-    [InlineData("ide.selection_changed", """{"selection":null}""")]
-    [InlineData("ide.selection_changed", """{"selection":{"filePath":"/workspace/file.rs","fileUrl":"file:///workspace/file.rs","text":"selected","selection":{"start":{"line":0,"character":0},"end":{"line":0,"character":8},"isEmpty":false}}}""")]
-    [InlineData("ide.add_file_reference", """{"reference":{"filePath":"/workspace/file.rs","fileUrl":"file:///workspace/file.rs","selection":null,"selectedText":null}}""")]
-    public void IdeEvent_PreservesRequiredNullableFields(string eventType, string data)
-    {
-        var wire = $$"""
-            {
-                "id":"11111111-1111-1111-1111-111111111111",
-                "timestamp":"2026-09-18T22:00:00+00:00",
-                "parentId":"22222222-2222-2222-2222-222222222222",
-                "type":"{{eventType}}",
-                "data":{{data}}
-            }
-            """;
-
-        var decoded = SessionEvent.FromJson(wire);
-
-        Assert.Equal(eventType, decoded.Type);
-        Assert.True(JsonNode.DeepEquals(JsonNode.Parse(wire), JsonNode.Parse(decoded.ToJson())));
-        Assert.True(JsonNode.DeepEquals(JsonNode.Parse(wire), JsonNode.Parse(SessionEvent.FromJson(decoded.ToJson()).ToJson())));
-    }
-
-    [Theory]
     [InlineData("session.idle", "{}")]
     [InlineData("user.message", """{"content":"hello"}""")]
-    [InlineData("external_tool.requested", """{"requestId":"request-1","sessionId":"session-1","toolCallId":"call-1","toolName":"lookup","hasHandler":true}""")]
-    [InlineData("external_tool.requested", """{"requestId":"request-1","sessionId":"session-1","toolCallId":"call-1","toolName":"approval","hasHandler":false}""")]
     public void ObjectEvent_PreservesCompleteEnvelope(string eventType, string data)
     {
         var wire = $$"""
@@ -66,7 +41,7 @@ public class SessionEventSerializationTests
     [InlineData("sandbox.decision", "bypass_decided", """{"source":"user_prompted","deniedResource":"/example"}""")]
     [InlineData("sandbox.decision", "permissive_retry_decided", """{"source":"model_requested","command":"echo test"}""")]
     [InlineData("sandbox.decision", "permissive_retry_completed", """{"processName":"example","command":"echo test"}""")]
-    public void UnionEvent_PreservesCompleteEnvelopeIncludingLegacyTypes(string eventType, string kind, string fields)
+    public void UnionEvent_PreservesCompleteEnvelope(string eventType, string kind, string fields)
     {
         var data = eventType == "sandbox.decision"
             ? JsonNode.Parse("""{"control":"process","outcome":"resolved","platform":"macos","enforcementPoint":"shell","toolCallId":"tool-1"}""")!.AsObject()

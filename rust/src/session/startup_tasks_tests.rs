@@ -68,9 +68,7 @@ async fn check_aborted_nested_dispatches(nested_first: bool) {
         user_input: None,
         exit_plan_mode: None,
         auto_mode_switch: None,
-        shell_authentication: None,
         skill_provider: None,
-        memory_store: None,
         session_creation: Arc::default(),
         tools: Arc::new(Default::default()),
     };
@@ -108,7 +106,6 @@ async fn check_aborted_nested_dispatches(nested_first: bool) {
             &handlers,
             &Arc::new(Default::default()),
             notification,
-            false,
             &Arc::new(parking_lot::Mutex::new(Default::default())),
             &Arc::new(Default::default()),
             &Arc::new(parking_lot::RwLock::new(Default::default())),
@@ -220,7 +217,6 @@ async fn deferred_callback_after_guard_drop_cannot_register_or_replace_retry() {
             stash.clone(),
             tokio_util::sync::CancellationToken::new(),
             tokio_util::sync::CancellationToken::new(),
-            false,
         );
 
         // The reader owns the dequeued callback, but has not run it when the caller drops.

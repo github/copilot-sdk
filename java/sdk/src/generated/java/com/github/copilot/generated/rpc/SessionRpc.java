@@ -8,7 +8,6 @@
 package com.github.copilot.generated.rpc;
 
 import com.github.copilot.CopilotExperimental;
-import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -44,16 +43,10 @@ public final class SessionRpc {
     public final SessionDebugApi debug;
     /** API methods for the {@code canvas} namespace. */
     public final SessionCanvasApi canvas;
-    /** API methods for the {@code canvasSource} namespace. */
-    final SessionCanvasSourceApi canvasSource;
     /** API methods for the {@code workflow} namespace. */
     public final SessionWorkflowApi workflow;
     /** API methods for the {@code model} namespace. */
     public final SessionModelApi model;
-    /** API methods for the {@code featureFlags} namespace. */
-    public final SessionFeatureFlagsApi featureFlags;
-    /** API methods for the {@code dynamicContext} namespace. */
-    public final SessionDynamicContextApi dynamicContext;
     /** API methods for the {@code mode} namespace. */
     public final SessionModeApi mode;
     /** API methods for the {@code name} namespace. */
@@ -153,11 +146,8 @@ public final class SessionRpc {
         this.accounts = new SessionAccountsApi(caller, sessionId);
         this.debug = new SessionDebugApi(caller, sessionId);
         this.canvas = new SessionCanvasApi(caller, sessionId);
-        this.canvasSource = new SessionCanvasSourceApi(caller, sessionId);
         this.workflow = new SessionWorkflowApi(caller, sessionId);
         this.model = new SessionModelApi(caller, sessionId);
-        this.featureFlags = new SessionFeatureFlagsApi(caller, sessionId);
-        this.dynamicContext = new SessionDynamicContextApi(caller, sessionId);
         this.mode = new SessionModeApi(caller, sessionId);
         this.name = new SessionNameApi(caller, sessionId);
         this.plan = new SessionPlanApi(caller, sessionId);
@@ -229,21 +219,6 @@ public final class SessionRpc {
     }
 
     /**
-     * Sends a user message to the session and returns its message ID.
-     * <p>
-     * Accepts the extensible request, including inputs added after the params record.
-     *
-     * @apiNote This method is experimental and may change in a future version.
-     * @since 1.0.0
-     */
-    @CopilotExperimental
-    public CompletableFuture<SessionSendResult> send(SessionSendRequest request) {
-        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(Objects.requireNonNull(request, "request"));
-        _p.put("sessionId", this.sessionId);
-        return caller.invoke("session.send", _p, SessionSendResult.class);
-    }
-
-    /**
      * Submits one message through normal admission and waits for its request-owned completion. Returns the exact root assistant event, or an explicit aborted/no-response outcome. Cancelling or timing out the wait does not abort agent work. Unsupported execution hosts reject the method before admitting the message.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
@@ -260,21 +235,6 @@ public final class SessionRpc {
     }
 
     /**
-     * Submits one message through normal admission and waits for its request-owned completion. Returns the exact root assistant event, or an explicit aborted/no-response outcome. Cancelling or timing out the wait does not abort agent work. Unsupported execution hosts reject the method before admitting the message.
-     * <p>
-     * Accepts the extensible request, including inputs added after the params record.
-     *
-     * @apiNote This method is experimental and may change in a future version.
-     * @since 1.0.0
-     */
-    @CopilotExperimental
-    CompletableFuture<SendAndWaitResult> sendAndWait(SessionSendAndWaitRequest request) {
-        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(Objects.requireNonNull(request, "request"));
-        _p.put("sessionId", this.sessionId);
-        return caller.invoke("session.sendAndWait", _p, SendAndWaitResult.class);
-    }
-
-    /**
      * Sends zero or more user messages to the session in a single turn and returns their message IDs. All provided messages are appended to the conversation in order, then exactly one agent turn runs over the resulting history. When the list is empty, one turn runs over the existing history with no new user message. Remote-backed (Mission Control) sessions do not support this method and will return an error.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
@@ -286,21 +246,6 @@ public final class SessionRpc {
     @CopilotExperimental
     public CompletableFuture<SessionSendMessagesResult> sendMessages(SessionSendMessagesParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
-        _p.put("sessionId", this.sessionId);
-        return caller.invoke("session.sendMessages", _p, SessionSendMessagesResult.class);
-    }
-
-    /**
-     * Sends zero or more user messages to the session in a single turn and returns their message IDs. All provided messages are appended to the conversation in order, then exactly one agent turn runs over the resulting history. When the list is empty, one turn runs over the existing history with no new user message. Remote-backed (Mission Control) sessions do not support this method and will return an error.
-     * <p>
-     * Accepts the extensible request, including inputs added after the params record.
-     *
-     * @apiNote This method is experimental and may change in a future version.
-     * @since 1.0.0
-     */
-    @CopilotExperimental
-    public CompletableFuture<SessionSendMessagesResult> sendMessages(SessionSendMessagesRequest request) {
-        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(Objects.requireNonNull(request, "request"));
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.sendMessages", _p, SessionSendMessagesResult.class);
     }

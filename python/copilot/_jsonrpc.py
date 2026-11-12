@@ -72,11 +72,6 @@ class _IncomingRequestCancellation:
         for callback in callbacks:
             callback()
 
-    @property
-    def cancelled(self) -> bool:
-        with self._lock:
-            return self._cancelled
-
     def bind_event(self, loop: asyncio.AbstractEventLoop) -> asyncio.Event:
         event = asyncio.Event()
 
@@ -125,7 +120,7 @@ class JsonRpcClient:
     Uses threads for blocking IO but provides async interface.
     """
 
-    def __init__(self, process, *, process_exit_error: Callable[[], str] | None = None):
+    def __init__(self, process):
         """
         Create client from subprocess.Popen with stdin/stdout pipes
 
@@ -133,7 +128,6 @@ class JsonRpcClient:
             process: subprocess.Popen with stdin=PIPE, stdout=PIPE
         """
         self.process = process
-        self._process_exit_error_provider = process_exit_error
         self.pending_requests: dict[str, asyncio.Future] = {}
         self._pending_inline_callbacks: dict[str, Callable[[Any], None]] = {}
         self.notification_handler: Callable[[str, dict], None] | None = None
@@ -191,12 +185,8 @@ class JsonRpcClient:
             return "".join(self._stderr_output).strip()
 
     async def stop(self):
-        """Stop listening and fail outstanding requests."""
+        """Stop listening and clean up"""
         self._running = False
-        with self._pending_lock:
-            incoming = list(self._incoming_request_cancellations.values())
-        for signal in incoming:
-            signal.cancel()
         cancellations = list(self._completion_cancellations)
         for task in cancellations:
             task.cancel()
@@ -205,10 +195,6 @@ class JsonRpcClient:
             self._read_thread.join(timeout=1.0)
         if self._stderr_thread:
             self._stderr_thread.join(timeout=1.0)
-        # Intentional closure must not wait for a still-live process to exit.
-        with self._pending_lock:
-            error_msg = self._process_exit_error or "JSON-RPC client stopped"
-        self._fail_pending_requests(error_msg)
 
     async def request(
         self,
@@ -266,15 +252,7 @@ class JsonRpcClient:
         }
 
         completion_cancellation = (
-            _CompletionCancellation()
-            if method
-            in (
-                "session.sendAndWait",
-                "session.featureFlags.read",
-                "localModels.watch",
-                "taskAnalytics.classifyTrajectory",
-            )
-            else None
+            _CompletionCancellation() if method == "session.sendAndWait" else None
         )
         try:
             if completion_cancellation is None:
@@ -431,10 +409,9 @@ class JsonRpcClient:
                 self.process.stdin.flush()
 
             with self._write_lock:
-                with self._pending_lock:
-                    transport_closed = self._transport_closed
-                    error_msg = self._process_exit_error
-                if transport_closed:
+                if self._transport_closed:
+                    with self._pending_lock:
+                        error_msg = self._process_exit_error
                     raise ProcessExitedError(error_msg or self._get_process_exit_error())
                 try:
                     write_frame(message)
@@ -478,36 +455,24 @@ class JsonRpcClient:
             if self.on_close is not None:
                 self.on_close()
 
-    def _fail_pending_requests(self, error_msg: str | None = None):
+    def _fail_pending_requests(self):
         """Latch transport closure and fail all pending requests."""
-        # A writer can hold _write_lock until the owner closes the transport.
-        with self._pending_lock:
+        with self._write_lock:
             self._transport_closed = True
-        if error_msg is None:
-            error_msg = self._get_process_exit_error()
-
-        def fail_if_pending(future: asyncio.Future) -> None:
-            # Responses, cancellation, or another stop may have settled it meanwhile.
-            if not future.done():
-                future.set_exception(ProcessExitedError(error_msg))
+        error_msg = self._get_process_exit_error()
 
         # Fail all pending requests
         with self._pending_lock:
             # Prevent requests from registering after this final failure sweep.
             self._process_exit_error = error_msg
-            # No response can reach the peer, so stop in-flight cancellable handlers.
-            incoming = list(self._incoming_request_cancellations.values())
-            for future in self.pending_requests.values():
-                future.get_loop().call_soon_threadsafe(fail_if_pending, future)
-            self.pending_requests.clear()
-            self._pending_inline_callbacks.clear()
-        for signal in incoming:
-            signal.cancel()
+            for request_id, future in list(self.pending_requests.items()):
+                if not future.done():
+                    exc = ProcessExitedError(error_msg)
+                    loop = future.get_loop()
+                    loop.call_soon_threadsafe(future.set_exception, exc)
 
     def _get_process_exit_error(self) -> str:
         """Build an error message after the process and stderr readers finish."""
-        if self._process_exit_error_provider is not None:
-            return self._process_exit_error_provider()
         if self._stderr_thread and self._stderr_thread is not threading.current_thread():
             self._stderr_thread.join(timeout=1.0)
 
@@ -584,14 +549,6 @@ class JsonRpcClient:
             if future is not None:
                 loop = future.get_loop()
 
-                def complete_response(result: Any = None, error: Exception | None = None) -> None:
-                    if future.done():
-                        return
-                    if error is not None:
-                        future.set_exception(error)
-                    else:
-                        future.set_result(result)
-
                 if "error" in message:
                     error = message["error"]
                     if isinstance(error, dict):
@@ -602,7 +559,7 @@ class JsonRpcClient:
                         )
                     else:
                         exc = ValueError("Invalid JSON-RPC error response: expected an object")
-                    loop.call_soon_threadsafe(complete_response, None, exc)
+                    loop.call_soon_threadsafe(future.set_exception, exc)
                 elif "result" in message:
                     result = message["result"]
                     # Invoke the inline callback synchronously in the reader
@@ -617,12 +574,12 @@ class JsonRpcClient:
                                 message["id"],
                                 exc_info=True,
                             )
-                            loop.call_soon_threadsafe(complete_response, None, exc)
+                            loop.call_soon_threadsafe(future.set_exception, exc)
                             return
-                    loop.call_soon_threadsafe(complete_response, result)
+                    loop.call_soon_threadsafe(future.set_result, result)
                 else:
                     exc = ValueError("Invalid JSON-RPC response")
-                    loop.call_soon_threadsafe(complete_response, None, exc)
+                    loop.call_soon_threadsafe(future.set_exception, exc)
                 return
 
         # Check if it's a notification from the server
@@ -786,8 +743,7 @@ class JsonRpcClient:
             await self._send_response(message["id"], outcome)
         except _RequestCancelledError:
             logger.debug("JSON-RPC method %s cancelled", message.get("method", ""))
-            if not self._transport_closed:
-                await self._send_error_response(message["id"], -32800, "Request cancelled", None)
+            await self._send_error_response(message["id"], -32800, "Request cancelled", None)
         except JsonRpcError as exc:
             logger.debug(
                 "Error handling JSON-RPC method %s: %s", message.get("method", ""), exc.message
@@ -812,16 +768,7 @@ class JsonRpcClient:
             signal = self._incoming_request_cancellations.get(cancellation_id)
         if signal is None or self._loop is None:
             return await outcome
-
-        async def run() -> Any:
-            # A cancel can arrive before the task first runs; don't start the handler then.
-            if signal.cancelled:
-                if inspect.iscoroutine(outcome):
-                    outcome.close()
-                raise _RequestCancelledError()
-            return await outcome
-
-        task = asyncio.ensure_future(run())
+        task = asyncio.ensure_future(outcome)
         waiter = asyncio.ensure_future(signal.bind_event(self._loop).wait())
         try:
             await asyncio.wait({task, waiter}, return_when=asyncio.FIRST_COMPLETED)
@@ -830,14 +777,10 @@ class JsonRpcClient:
             raise
         finally:
             waiter.cancel()
-        # The request's cancellation wins over a result that completed with it.
-        if task.done() and not signal.cancelled:
+        if task.done():
             return task.result()
         task.cancel()
         await asyncio.wait({task})
-        if not task.cancelled():
-            # Retrieve the discarded failure, so it is not reported as unhandled.
-            task.exception()
         raise _RequestCancelledError()
 
     async def _send_response(self, request_id: str, result: Any):

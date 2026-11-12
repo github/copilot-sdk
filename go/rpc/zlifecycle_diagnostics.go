@@ -136,8 +136,6 @@ type RuntimeLifecycleProgressTiming struct {
 // Experimental, observational-only state of runtime progress and the lifecycle operations that block it. Observation and delivery never control runtime or model behavior. Process death, diagnostic projection loss, transport loss, or serialization failure can prevent external delivery.
 // Experimental: RuntimeLifecycleProgressStateData is part of an experimental API and may change or be removed.
 type RuntimeLifecycleProgressStateData struct {
-	// Agent that owns this progress. Absent for the primary agent and progress without an agent owner.
-	AgentID *string `json:"agentId,omitempty"`
 	// Complete dependency blocker set after this progress change.
 	Blockers []RuntimeLifecycleBlocker `json:"blockers"`
 	// How the progress record ended. Absent while it remains active.

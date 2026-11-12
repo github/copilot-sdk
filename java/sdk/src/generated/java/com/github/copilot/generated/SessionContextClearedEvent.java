@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Session event "session.context_cleared". Context-cleared details emitted when the conversation is cleared (the session.history.clearContext RPC, or the runtime starting a fresh context window)
+ * Session event "session.context_cleared". Context-cleared details emitted when the host clears the conversation (the session.history.clearContext RPC / Session.clearContextMessages)
  * @since 1.0.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -39,62 +39,5 @@ public final class SessionContextClearedEvent extends SessionEvent {
         /** Number of conversation messages that were cleared */
         @JsonProperty("messagesCleared") Long messagesCleared
     ) {
-
-        /**
-         * Creates a record positionally.
-         * @deprecated Use {@link #builder()} for named construction.
-         */
-        @Deprecated(since = "2.0.0", forRemoval = false)
-        public SessionContextClearedEventData {}
-
-        /**
-         * Returns a named builder.
-         * @return a new builder
-         * @since 2.0.0
-         */
-        public static Builder builder() { return new Builder(); }
-
-        /**
-         * Named construction for this record.
-         * @since 2.0.0
-         */
-        public static final class Builder {
-            private Builder() {}
-            private String initialMessage;
-            private Long messagesCleared;
-
-            /**
-             * Sets the {@code initialMessage} property.
-             * @param value the property value
-             * @return this builder
-             * @since 2.0.0
-             */
-            public Builder initialMessage(String value) {
-                this.initialMessage = value;
-                return this;
-            }
-
-            /**
-             * Sets the {@code messagesCleared} property.
-             * @param value the property value
-             * @return this builder
-             * @since 2.0.0
-             */
-            public Builder messagesCleared(Long value) {
-                this.messagesCleared = value;
-                return this;
-            }
-
-            /**
-             * Builds a record after checking required property presence.
-             * @return a new record
-             * @throws IllegalStateException if a required property is missing
-             * @since 2.0.0
-             */
-            public SessionContextClearedEventData build() {
-                if (messagesCleared == null) throw new IllegalStateException("Missing required property: messagesCleared");
-                return new SessionContextClearedEventData(initialMessage, messagesCleared);
-            }
-        }
     }
 }

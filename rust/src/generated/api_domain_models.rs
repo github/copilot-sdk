@@ -12,72 +12,19 @@ pub(crate) use lifecycle_diagnostics::LifecycleDiagnosticEvent;
 use serde::{Deserialize, Serialize};
 pub use session_events::{
     AbortReason, AgentModelPolicy, AssistedApprovalAssessment, AutoTier, BlockedPermissionAction,
-    ContextTier, IdeConnectedInfo, IdeSelection, IndexedSearchState, ManagedPermissionsContext,
-    ManagedSettingsResolvedSource, McpOauthHttpResponse, McpOauthWWWAuthenticateParams,
-    McpServerMetadata, McpServerSource, McpServerStatus, McpSkillOrigin, ModelChangeSource,
-    ModelProviderKind, ModelProviderRef, OmittedBinaryOmittedReason, PermissionDecisionSource,
-    PermissionMode, PermissionPromptRequest, PermissionRule, PolicyHelperCapabilities,
-    PolicyHelperFailure, ProviderQuotaState, ReasoningSummary, RemediationAction,
-    SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskBlocker,
-    TaskCompletionOutcome, UsageGetMetricsResult, UserToolSessionApproval, Verbosity,
+    ContextTier, IndexedSearchState, ManagedPermissionsContext, ManagedSettingsResolvedSource,
+    McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource,
+    McpServerStatus, McpSkillOrigin, ModelChangeSource, ModelProviderKind, ModelProviderRef,
+    OmittedBinaryOmittedReason, PermissionDecisionSource, PermissionMode, PermissionPromptRequest,
+    PermissionRule, PolicyHelperCapabilities, PolicyHelperFailure, ProviderQuotaState,
+    ReasoningSummary, RemediationAction, SessionLimitsConfig, SessionMode, ShutdownType,
+    SkillSource, TaskBlocker, TaskCompletionOutcome, UsageGetMetricsResult,
+    UserToolSessionApproval, Verbosity,
 };
 
 use super::sdk_api_shared::*;
 use crate::generated::{lifecycle_diagnostics, session_events};
 use crate::types::{RequestId, SessionEvent, SessionId};
-
-/// Request limits for one decision model.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DecisionModelLimits {
-    /// Token budget for the context plus any one question, when the model has one.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub context_plus_question_tokens: Option<i64>,
-    /// Maximum nesting depth of JSON context.
-    pub max_json_depth: i64,
-    /// Maximum levels per score question.
-    pub max_levels: i64,
-    /// Maximum options per choice question.
-    pub max_options: i64,
-    /// Maximum questions per request.
-    pub max_questions: i64,
-    /// Maximum size of the serialized request, in bytes.
-    pub max_request_bytes: i64,
-    /// Minimum levels per score question.
-    pub min_levels: i64,
-    /// Minimum options per choice question.
-    pub min_options: i64,
-}
-
-/// One callable decision model.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DecisionModelInfo {
-    /// Model id to pass as `model` to `decisions.ask`.
-    pub id: String,
-    /// Whether `decisions.ask` uses this model when `model` is omitted.
-    pub is_default: bool,
-    /// Effective limits callers can rely on: the stricter of the backend's and the runtime's.
-    pub limits: DecisionModelLimits,
-    /// Display name.
-    pub name: String,
-    /// Whether the backend can refuse individual questions.
-    pub supports_refusals: bool,
-}
 
 /// Default-tier text and image token prices reported for an image model, in AI credits per billing batch. Missing rates remain absent; these are not per-image quotes or actual billed usage.
 ///
@@ -277,16 +224,6 @@ pub struct ModelList {
     /// when CAPI returned Auto metadata; same shape and semantics as `SessionModelList.auto`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub auto: Option<AutoTierMetadata>,
-    /// Decision models the resolved account can call with `decisions.ask`, separate from conversation models, with each model's effective limits. Absent when the `DECISIONS_API` feature flag is off or the runtime does not expose this catalog; empty when the account has none. These entries must not be selected as chat models.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This type is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases.
-    ///
-    /// </div>
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub decision_models: Option<Vec<DecisionModelInfo>>,
     /// The runtime's default image model, separate from conversation models, with its availability for the resolved account. The default is reported even when unavailable; clients choose whether to display it. These entries must not be selected as chat models. Absent on runtimes that do not expose this catalog.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub image_models: Option<Vec<ImageToolModel>>,
@@ -343,40 +280,6 @@ pub struct ModelPickerPersistenceRequest {
 pub struct ModelProviderAdapterCatalog {
     /// Available provider adapters ordered by adapterId.
     pub providers: Vec<ModelProviderAdapterDescriptor>,
-}
-
-/// Reads current cached availability without fetching a remote model catalog.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ModelProviderAvailabilityRequest {
-    /// Optional provider identity used to disambiguate a selection.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub provider_id: Option<String>,
-    /// Provider-qualified model selection identifier.
-    pub selection_id: String,
-}
-
-/// Action-boundary availability of a registered provider model.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ModelProviderAvailabilityResult {
-    /// True for a selectable model, false for a blocked model, absent for a missing row.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub available: Option<bool>,
 }
 
 /// Provider configuration prepared from a discovered model. Preparing a plan changes nothing: it neither registers the model with the session nor writes durable configuration. To apply it, pass `provider` and `model` to `session.provider.add`, omitting whichever the dispositions report as already configured.
@@ -564,7 +467,7 @@ pub struct ModelSetReasoningEffortRequest {
     pub reasoning_effort: String,
 }
 
-/// Update the session's reasoning effort without changing the selected model. Use `switchTo` instead when you also need to change the model. The runtime applies the effort to the next new model request, including tool continuations, without changing retries of an already-started request.
+/// Update the session's reasoning effort without changing the selected model. Use `switchTo` instead when you also need to change the model. The runtime stores the effort on the session and applies it to subsequent turns.
 ///
 /// <div class="warning">
 ///
@@ -601,47 +504,6 @@ pub struct ModelsListRequest {
     pub streamer_mode: Option<bool>,
 }
 
-/// Options for a host's startup model admission check.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ModelStartupAdmissionRequest {
-    /// Claims the session's one-time enablement prompt only when its catalog is ready.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub claim_enablement: Option<bool>,
-}
-
-/// A cached startup model snapshot and an optional one-time enablement prompt. This check never resolves credentials or fetches a catalog.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ModelStartupAdmissionResult {
-    /// Whether the session already has a resolved Copilot catalog.
-    pub catalog_ready: bool,
-    /// Whether this call consumed the session's startup enablement claim.
-    pub claimed_enablement: bool,
-    /// The selected model to enable, only for the first successful prompt claim.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub model_to_enable: Option<String>,
-    /// Whether the cached selected model currently requires enablement.
-    pub requires_enablement: bool,
-    /// The selected model, when the session has one.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub selected_model: Option<String>,
-}
-
 /// An Auto preference request for the session. This updates Auto configuration only; it does not change the selected model to `auto`.
 ///
 /// <div class="warning">
@@ -653,7 +515,7 @@ pub struct ModelStartupAdmissionResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelSwitchAutoTierRequest {
-    /// Auto preference to activate when a future user turn using the `auto` model safely mints a replacement model and token pair. Pass null to return to provider-default Auto routing. For Copilot Fusion, prefer `fusionTier`: the `balance`, `hydrafusion` and `hydrafusion-max` identifiers it replaces remain accepted but are deprecated.
+    /// Auto preference to activate when a future user turn using the `auto` model safely mints a replacement model and token pair. Pass null to return to provider-default Auto routing.
     pub auto_tier: Option<AutoTier>,
     /// Origin to record on the effective `session.model_change` event. Defaults to `sdk` when omitted.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -677,38 +539,14 @@ pub struct ModelSwitchAutoTierResult {
     /// Auto preference currently committed for the session.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub effective_auto_tier: Option<AutoTier>,
-    /// Copilot Fusion tier that effectiveAutoTier serves, resolved from the session's Auto tier metadata. An open string: known values include `standard`, `high`, and `max`; other provider-defined values may appear. Omitted when no Auto preference is committed, it is not a Fusion tier, or Auto metadata has not been discovered (for example after cold resume, before session.model.list). Fusion fields cover only effective and pending preferences; resolve activatingAutoTier and supersededAutoTier against auto.tiers[].fusionTier from session.model.list.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub effective_fusion_tier: Option<String>,
     /// Latest unclaimed Auto preference waiting for a future user turn.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pending_auto_tier: Option<AutoTier>,
-    /// Copilot Fusion tier that pendingAutoTier serves, resolved from the session's Auto tier metadata. An open string: known values include `standard`, `high`, and `max`; other provider-defined values may appear. Omitted when no preference is pending, it is not a Fusion tier, or Auto metadata has not been discovered (for example after cold resume, before session.model.list).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub pending_fusion_tier: Option<String>,
     /// Immediate request status. `pending` means accepted but not committed.
     pub status: ModelSwitchAutoTierStatus,
     /// Earlier unclaimed preference replaced by this request. This can be present with either status, including when selecting the effective preference cancels pending work.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub superseded_auto_tier: Option<AutoTier>,
-}
-
-/// A Copilot Fusion tier request for the session, named as the CLI's `--fusion-tier` names it. The runtime resolves the tier to the Auto routing preference it stands for and requests that preference exactly as `switchAutoTier` does. This updates Auto configuration only; it does not change the selected model to `auto`.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ModelSwitchFusionTierRequest {
-    /// Copilot Fusion tier to activate when a future user turn using the `auto` model safely mints a replacement model and token pair. Use `switchAutoTier` to return to provider-default Auto routing.
-    pub fusion_tier: FusionTier,
-    /// Origin to record on the effective `session.model_change` event. Defaults to `sdk` when omitted.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub source: Option<ModelChangeSource>,
 }
 
 /// Target model identifier and optional reasoning effort, summary, capability overrides, and context tier.
@@ -722,7 +560,7 @@ pub struct ModelSwitchFusionTierRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelSwitchToRequest {
-    /// Optional Auto routing preference to stage atomically with selecting `auto`. Pass null to return to provider-default Auto routing. This field is rejected when `modelId` is not `auto`. For Copilot Fusion, prefer `fusionTier`: the `balance`, `hydrafusion` and `hydrafusion-max` identifiers it replaces remain accepted but are deprecated.
+    /// Optional Auto routing preference to stage atomically with selecting `auto`. Pass null to return to provider-default Auto routing. This field is rejected when `modelId` is not `auto`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub auto_tier: Option<AutoTier>,
     /// Explicit response to a model-switch compaction preflight. Omit to request a confirmation projection when compaction is necessary.
@@ -786,8 +624,6 @@ pub struct ModelSwitchToOptions {
     legacy: ModelSwitchToRequest,
     #[serde(skip_serializing_if = "Option::is_none")]
     provider_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    fusion_tier: Option<FusionTier>,
 }
 
 impl ModelSwitchToOptions {
@@ -812,11 +648,10 @@ impl ModelSwitchToOptions {
                 picker_persistence: None,
             },
             provider_id: None,
-            fusion_tier: None,
         }
     }
 
-    /// Optional Auto routing preference to stage atomically with selecting `auto`. Pass null to return to provider-default Auto routing. This field is rejected when `modelId` is not `auto`. For Copilot Fusion, prefer `fusionTier`: the `balance`, `hydrafusion` and `hydrafusion-max` identifiers it replaces remain accepted but are deprecated.
+    /// Optional Auto routing preference to stage atomically with selecting `auto`. Pass null to return to provider-default Auto routing. This field is rejected when `modelId` is not `auto`.
     pub fn auto_tier(mut self, value: AutoTier) -> Self {
         self.legacy.auto_tier = Some(value);
         self
@@ -903,12 +738,6 @@ impl ModelSwitchToOptions {
     /// Provider id from the selected list entry's provider reference. Selects this exact provider/model pair; an unavailable pair fails rather than using another provider. Omit for deterministic legacy bare-model selection.
     pub fn provider_id(mut self, value: impl Into<String>) -> Self {
         self.provider_id = Some(value.into());
-        self
-    }
-
-    /// Optional Copilot Fusion tier to stage atomically with selecting `fusion` or `auto`, matching the CLI's `--fusion-tier`. The runtime resolves it to the Auto routing preference it stands for and stages that preference exactly like `autoTier`. Cannot be combined with `autoTier`, and is rejected when `modelId` is not `fusion` or `auto`.
-    pub fn fusion_tier(mut self, value: FusionTier) -> Self {
-        self.fusion_tier = Some(value);
         self
     }
 }
@@ -1205,16 +1034,6 @@ pub struct ModelsListResult {
     /// when CAPI returned Auto metadata; same shape and semantics as `SessionModelList.auto`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub auto: Option<AutoTierMetadata>,
-    /// Decision models the resolved account can call with `decisions.ask`, separate from conversation models, with each model's effective limits. Absent when the `DECISIONS_API` feature flag is off or the runtime does not expose this catalog; empty when the account has none. These entries must not be selected as chat models.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This type is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases.
-    ///
-    /// </div>
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub decision_models: Option<Vec<DecisionModelInfo>>,
     /// The runtime's default image model, separate from conversation models, with its availability for the resolved account. The default is reported even when unavailable; clients choose whether to display it. These entries must not be selected as chat models. Absent on runtimes that do not expose this catalog.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub image_models: Option<Vec<ImageToolModel>>,
@@ -1250,36 +1069,6 @@ pub struct ModelsGetBuiltInCatalogResult {
 pub struct ModelsListTokenPriceUnitsResult {
     /// One entry per model that publishes token prices, in catalog order. A model with no published prices is omitted.
     pub units: Vec<ModelTokenPriceUnit>,
-}
-
-/// Result of adding a model to the saved provider configuration.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ProvidersConfigAddModelResult {
-    /// Whether the provider was created along with the model.
-    pub provider_added: bool,
-}
-
-/// Result of adding a model to the saved provider configuration.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ProvidersSourceAddModelResult {
-    /// Whether the provider was created along with the model.
-    pub provider_added: bool,
 }
 
 /// A bearer token supplied by the SDK client for a BYOK provider. The runtime sets it as `Authorization: Bearer <token>` on the outbound request and does no caching; the SDK consumer owns token caching and refresh.

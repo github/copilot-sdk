@@ -80,7 +80,19 @@ public class CommandsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             ],
         });
 
-        await WaitForClientCommandAsync(session, "deploy");
+        await TestHelper.WaitForConditionAsync(
+            async () =>
+            {
+                var commands = await session.Rpc.Commands.ListAsync(new SessionCommandsListRequest
+                {
+                    IncludeBuiltins = false,
+                    IncludeClientCommands = true,
+                    IncludeSkills = false,
+                });
+                return commands.Commands.Any(c => IsCommand(c, "deploy", SlashCommandKind.Client));
+            },
+            timeout: TimeSpan.FromSeconds(30),
+            timeoutMessage: "Timed out waiting for registered command to be listed.");
 
         var result = await session.Rpc.Commands.ExecuteAsync("deploy", "production");
 
@@ -93,50 +105,6 @@ public class CommandsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
 
         await session.DisposeAsync();
     }
-
-    [Fact]
-    public async Task Session_Commands_Execute_Reports_Error_When_Handler_Is_Canceled()
-    {
-        // The handler's own cancellation, such as an HttpClient timeout, is a handler failure:
-        // the SDK must still answer, or the pending command never completes.
-        var session = await CreateSessionAsync(new SessionConfig
-        {
-            Commands =
-            [
-                new CommandDefinition
-                {
-                    Name = "deploy",
-                    Description = "Deploy the app",
-                    Handler = _ => Task.FromCanceled(new CancellationToken(canceled: true)),
-                },
-            ],
-        });
-
-        await WaitForClientCommandAsync(session, "deploy");
-
-        var result = await session.Rpc.Commands.ExecuteAsync("deploy", "production")
-            .WaitAsync(TimeSpan.FromSeconds(30));
-
-        Assert.NotNull(result.Error);
-        Assert.Contains("A task was canceled.", result.Error);
-
-        await session.DisposeAsync();
-    }
-
-    private static Task WaitForClientCommandAsync(CopilotSession session, string name)
-        => TestHelper.WaitForConditionAsync(
-            async () =>
-            {
-                var commands = await session.Rpc.Commands.ListAsync(new SessionCommandsListRequest
-                {
-                    IncludeBuiltins = false,
-                    IncludeClientCommands = true,
-                    IncludeSkills = false,
-                });
-                return commands.Commands.Any(c => IsCommand(c, name, SlashCommandKind.Client));
-            },
-            timeout: TimeSpan.FromSeconds(30),
-            timeoutMessage: "Timed out waiting for registered command to be listed.");
 
     [Fact]
     public async Task Session_With_Commands_Creates_Successfully()

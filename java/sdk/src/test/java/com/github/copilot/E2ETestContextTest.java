@@ -33,23 +33,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.github.copilot.rpc.CopilotClientOptions;
-import com.github.copilot.rpc.RuntimeConnection;
 
 class E2ETestContextTest {
-
-    @Test
-    void pathlessChildConnectionsUseThePreparedExecutable() throws Exception {
-        try (E2ETestContext ctx = E2ETestContext.create()) {
-            var stdio = RuntimeConnection.forStdio();
-            var tcp = RuntimeConnection.forTcp();
-            for (RuntimeConnection connection : List.of(stdio, tcp)) {
-                try (var client = ctx.createClient(new CopilotClientOptions().setConnection(connection))) {
-                    assertEquals(ctx.getCliPath(), connection == stdio ? stdio.getPath() : tcp.getPath());
-                }
-            }
-        }
-    }
 
     @Test
     void replyWaitRetainsTheResultPublishedAtItsTimeoutBoundary() throws Exception {

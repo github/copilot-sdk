@@ -21,11 +21,7 @@ public enum ProviderConfigType {
     /** The {@code azure} variant. */
     AZURE("azure"),
     /** The {@code anthropic} variant. */
-    ANTHROPIC("anthropic"),
-    /** The {@code google} variant. */
-    GOOGLE("google"),
-    /** The {@code winml} variant. */
-    WINML("winml");
+    ANTHROPIC("anthropic");
 
     private final String value;
     ProviderConfigType(String value) { this.value = value; }

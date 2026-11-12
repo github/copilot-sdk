@@ -11,114 +11,6 @@ namespace GitHub.Copilot.Test.Unit;
 
 public sealed partial class ClientSessionLifetimeTests
 {
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Mcp_StartServer_Accepts_Typed_Local_Config_Without_Changing_Caller_Data(bool includeHeaders)
-    {
-        await using var server = await FakeCopilotServer.StartAsync();
-        server.ResponseFactory = McpCompatibilityResponse;
-        await using var client = new CopilotClient(new CopilotClientOptions
-        {
-            Connection = RuntimeConnection.ForUri(server.Url)
-        });
-        await using var session = await client.CreateSessionAsync(new SessionConfig());
-        server.ClearRequests();
-        var config = new McpServerConfigLocal
-        {
-            Type = McpServerConfigLocalType.LocalHttp,
-            SocketPath = "/runtime/ide.sock",
-            Headers = includeHeaders ? new Dictionary<string, string> { ["Authorization"] = "Bearer local" } : null,
-            Ide = new McpIdeConfig
-            {
-                IdeName = "VS Code",
-                WorkspaceFolder = "/workspace",
-                Pid = 42,
-                LockFilePath = "/runtime/ide.lock",
-                ClientVersion = "1.0",
-                ClientPid = 43,
-                ParentPid = 44,
-            },
-        };
-
-        await session.Rpc.Mcp.StartServerAsync("ide", config);
-
-        var request = Assert.Single(server.Requests);
-        Assert.Equal("session.mcp.startServer", request.Method);
-        Assert.Equal(session.SessionId, request.Params.GetProperty("sessionId").GetString());
-        var payload = request.Params.GetProperty("config");
-        Assert.Equal("local-http", payload.GetProperty("type").GetString());
-        Assert.Equal("/runtime/ide.sock", payload.GetProperty("socketPath").GetString());
-        if (includeHeaders)
-            Assert.Equal("Bearer local", payload.GetProperty("headers").GetProperty("Authorization").GetString());
-        else
-            Assert.False(payload.TryGetProperty("headers", out _));
-        Assert.Equal("VS Code", payload.GetProperty("ide").GetProperty("ideName").GetString());
-        Assert.Equal(42, payload.GetProperty("ide").GetProperty("pid").GetInt64());
-        Assert.Equal("/runtime/ide.sock", config.SocketPath);
-        if (includeHeaders)
-            Assert.Equal("Bearer local", config.Headers!["Authorization"]);
-        else
-            Assert.Null(config.Headers);
-        Assert.Equal(42, config.Ide.Pid);
-    }
-
-    [Theory]
-    [InlineData("anonymous")]
-    [InlineData("poco")]
-    [InlineData("dictionary")]
-    [InlineData("json")]
-    [InlineData("null")]
-    public async Task Mcp_CallTool_Serializes_Caller_Defined_Arguments(string shape)
-    {
-        await using var server = await FakeCopilotServer.StartAsync();
-        server.ResponseFactory = McpCompatibilityResponse;
-        await using var client = new CopilotClient(new CopilotClientOptions
-        {
-            Connection = RuntimeConnection.ForUri(server.Url)
-        });
-        await using var session = await client.CreateSessionAsync(new SessionConfig());
-        server.ClearRequests();
-        using var json = JsonDocument.Parse("""{ "path": "/tmp/x", "count": 3, "value": null }""");
-        object? arguments = shape switch
-        {
-            "json" => json.RootElement,
-            "null" => null,
-            "anonymous" => new { path = "/tmp/x", count = 3, value = (string?)null },
-            "poco" => new NullableMcpArguments("/tmp/x", 3, null),
-            "dictionary" => new Dictionary<string, object?> { ["path"] = "/tmp/x", ["count"] = 3, ["value"] = null },
-            _ => throw new ArgumentOutOfRangeException(nameof(shape)),
-        };
-
-        if (!JsonSerializer.IsReflectionEnabledByDefault && shape is "anonymous" or "poco")
-        {
-            await Assert.ThrowsAsync<NotSupportedException>(() => session.Rpc.Mcp.CallToolAsync("ide", "inspect", arguments));
-            Assert.Empty(server.Requests);
-            return;
-        }
-
-        await session.Rpc.Mcp.CallToolAsync("ide", "inspect", arguments);
-
-        var request = Assert.Single(server.Requests);
-        Assert.Equal("session.mcp.callTool", request.Method);
-        Assert.Equal(session.SessionId, request.Params.GetProperty("sessionId").GetString());
-        Assert.Equal("ide", request.Params.GetProperty("serverName").GetString());
-        Assert.Equal("inspect", request.Params.GetProperty("toolName").GetString());
-        var payload = request.Params.GetProperty("arguments");
-        if (shape == "null")
-        {
-            Assert.Equal(JsonValueKind.Null, payload.ValueKind);
-        }
-        else
-        {
-            Assert.Equal("/tmp/x", payload.GetProperty("path").GetString());
-            Assert.Equal(3, payload.GetProperty("count").GetInt32());
-            Assert.Equal(JsonValueKind.Null, payload.GetProperty("value").ValueKind);
-        }
-    }
-
-    private sealed record NullableMcpArguments(string Path, int Count, string? Value);
-
     [Fact]
     public void Existing_Mcp_Overload_Signatures_And_Defaults_Are_Preserved()
     {
@@ -290,7 +182,7 @@ public sealed partial class ClientSessionLifetimeTests
                 ["status"] = "failed",
                 ["error"] = "SDK wire fixture",
             },
-            "session.mcp.callTool" or "session.mcp.oauth.login" or "session.mcp.startServer" or "session.mcp.restartServer"
+            "session.mcp.oauth.login" or "session.mcp.startServer" or "session.mcp.restartServer"
                 or "session.mcp.stopServer" or "session.mcp.enable" or "session.mcp.disable" =>
                 new Dictionary<string, object?>(),
             _ => throw new InvalidOperationException($"Unexpected MCP compatibility request '{request.Method}'."),

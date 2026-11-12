@@ -6,7 +6,7 @@ Use a specific CLI binary instead of the SDK's automatic CLI management. This is
 
 ## How it works
 
-By default, the Node.js and .NET SDKs include their own CLI dependency, and the Python SDK downloads one on first use (see [Default Setup](./bundled-cli.md)). If you need to override this—for example, to use a system-installed CLI—you can use the `Connection` option.
+By default, the Node.js, Python, and .NET SDKs include their own CLI dependency (see [Default Setup](./bundled-cli.md)). If you need to override this—for example, to use a system-installed CLI—you can use the `Connection` option.
 
 ```mermaid
 flowchart LR
@@ -41,7 +41,7 @@ const client = new CopilotClient({
     connection: RuntimeConnection.forStdio({ path: "/usr/local/bin/copilot" }),
 });
 
-const session = await client.createSession({ model: "auto" });
+const session = await client.createSession({ model: "gpt-5.4" });
 const response = await session.sendAndWait({ prompt: "Hello!" });
 console.log(response?.data.content);
 
@@ -63,7 +63,7 @@ client = CopilotClient(
 )
 await client.start()
 
-session = await client.create_session(on_permission_request=PermissionHandler.approve_all, model="auto")
+session = await client.create_session(on_permission_request=PermissionHandler.approve_all, model="gpt-5.4")
 response = await session.send_and_wait("Hello!")
 if response:
     match response.data:
@@ -79,7 +79,7 @@ await client.stop()
 <summary><strong>Go</strong></summary>
 
 > [!NOTE]
-> The Go SDK does not ship a CLI automatically, and it does not look up `copilot` on `PATH`. Set the `COPILOT_CLI_PATH` environment variable, embed a CLI with the [bundler tool](../../go/README.md#distributing-your-application-with-an-embedded-github-copilot-cli), or point `StdioConnection.Path` at an installed binary.
+> The Go SDK does not ship a CLI automatically. Install `copilot` on `PATH`, set the `COPILOT_CLI_PATH` environment variable, embed a CLI with the [bundler tool](../../go/README.md#distributing-your-application-with-an-embedded-github-copilot-cli), or point `StdioConnection.Path` at an installed binary.
 
 <!-- docs-validate: hidden -->
 ```go
@@ -103,7 +103,7 @@ func main() {
 	}
 	defer client.Stop()
 
-	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{Model: "auto"})
+	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{Model: "gpt-5.4"})
 	response, _ := session.SendAndWait(ctx, copilot.MessageOptions{Prompt: "Hello!"})
 	if response != nil {
 		if d, ok := response.Data.(*copilot.AssistantMessageData); ok {
@@ -123,7 +123,7 @@ if err := client.Start(ctx); err != nil {
 }
 defer client.Stop()
 
-session, _ := client.CreateSession(ctx, &copilot.SessionConfig{Model: "auto"})
+session, _ := client.CreateSession(ctx, &copilot.SessionConfig{Model: "gpt-5.4"})
 response, _ := session.SendAndWait(ctx, copilot.MessageOptions{Prompt: "Hello!"})
 if response != nil {
     if d, ok := response.Data.(*copilot.AssistantMessageData); ok {
@@ -144,7 +144,7 @@ var client = new CopilotClient(new CopilotClientOptions
 });
 
 await using var session = await client.CreateSessionAsync(
-    new SessionConfig { Model = "auto" });
+    new SessionConfig { Model = "gpt-5.4" });
 
 var response = await session.SendAndWaitAsync(
     new MessageOptions { Prompt = "Hello!" });
@@ -156,8 +156,6 @@ Console.WriteLine(response?.Data.Content);
 ## Additional options
 
 ```typescript
-import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
-
 const client = new CopilotClient({
     connection: RuntimeConnection.forStdio({
         path: "/usr/local/bin/copilot",
@@ -189,14 +187,14 @@ The SDK picks these up automatically—no code changes needed.
 
 ## Managing sessions
 
-A session is saved to disk once it handles a message and can be resumed by its ID. To choose the ID instead of using the generated one, provide your own session ID:
+Sessions default to ephemeral. To create resumable sessions, provide your own session ID:
 
 <!-- docs-validate: strict -->
 ```typescript
 // Create a named session
 const session = await client.createSession({
     sessionId: "my-project-analysis",
-    model: "auto",
+    model: "gpt-5.4",
 });
 
 // Later, resume it

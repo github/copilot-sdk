@@ -6,28 +6,16 @@ package com.github.copilot.ffi;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -36,16 +24,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
-import org.junit.jupiter.params.provider.ValueSource;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.copilot.rpc.CopilotClientMode;
 import com.github.copilot.rpc.CopilotClientOptions;
-import com.github.copilot.rpc.InternalTestOptions;
-import com.github.copilot.rpc.TelemetryConfig;
 import com.sun.jna.Memory;
 import com.sun.jna.Pointer;
 
@@ -65,10 +48,8 @@ class FfiRuntimeHostTest {
         }
     }
 
-    @ParameterizedTest
-    @ValueSource(booleans = {false, true})
-    void startBuildsExpectedArgvAndEnvJson(boolean captureContent) throws Exception {
-        var before = Map.copyOf(System.getenv());
+    @Test
+    void startBuildsExpectedArgvAndEnvJson() throws Exception {
         class RecordingBinding extends TestBinding {
             byte[] argv;
             byte[] env;
@@ -106,13 +87,7 @@ class FfiRuntimeHostTest {
         CopilotClientOptions options = new CopilotClientOptions().setLogLevel("debug").setGitHubToken("gh-token")
                 .setCopilotHome("/tmp/copilot-home").setUseLoggedInUser(false).setSessionIdleTimeoutSeconds(42)
                 .setRemote(true).setMode(CopilotClientMode.EMPTY).setCliArgs(new String[]{"--extra-flag"});
-        options.setTelemetry(new TelemetryConfig().setOtlpEndpoint("http://collector:4318")
-                .setOtlpProtocol("http/protobuf").setFilePath("/telemetry.jsonl").setExporterType("file")
-                .setSourceName("inprocess-sdk").setCaptureContent(captureContent));
 
-        options.setInternalTestOptions(
-                new InternalTestOptions().setCopilotApiUrl("http://typed-replay").setGitHubApiUrl("http://typed-github")
-                        .setProxyUrl("http://typed-proxy").setNoProxy("").setCaCertificatePath("/test/ca.pem"));
         FfiRuntimeHost host = new FfiRuntimeHost(binding, "/tmp/runtime.node");
         host.start("/tmp/entrypoint.js", "octocat/Hello-World", options);
 
@@ -133,53 +108,18 @@ class FfiRuntimeHostTest {
 
         Map<String, String> env = MAPPER.readValue(binding.env, new TypeReference<Map<String, String>>() {
         });
-        if ("win32".equals(PlatformDetector.detectOs())) {
-            assertEquals((long) env.size(),
-                    env.keySet().stream().map(key -> key.toLowerCase(Locale.ROOT)).distinct().count(),
-                    "The FFI payload must not contain case-colliding Windows environment names");
-            var caseInsensitiveEnv = new TreeMap<String, String>(String.CASE_INSENSITIVE_ORDER);
-            caseInsensitiveEnv.putAll(env);
-            env = caseInsensitiveEnv;
-        } else {
-            assertEquals("http://typed-proxy", env.get("http_proxy"));
-            assertEquals("http://typed-proxy", env.get("https_proxy"));
-        }
         assertEquals("gh-token", env.get("COPILOT_SDK_AUTH_TOKEN"));
         assertEquals("/tmp/copilot-home", env.get("COPILOT_HOME"));
-        assertEquals(java.nio.file.Path.of("/tmp/copilot-home", "cache").toString(), env.get("COPILOT_CACHE_HOME"));
         assertEquals("1", env.get("COPILOT_DISABLE_KEYTAR"));
-        assertEquals("http://typed-replay", env.get("COPILOT_API_URL"));
-        assertEquals("http://typed-github", env.get("COPILOT_DEBUG_GITHUB_API_URL"));
-        assertEquals("http://typed-proxy", env.get("HTTP_PROXY"));
-        assertEquals("http://typed-proxy", env.get("HTTPS_PROXY"));
-        assertEquals("", env.get("NO_PROXY"));
-        for (String key : List.of("NODE_EXTRA_CA_CERTS", "SSL_CERT_FILE", "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE",
-                "GIT_SSL_CAINFO")) {
-            assertEquals("/test/ca.pem", env.get(key), key);
-        }
-        assertEquals(null, options.getEnvironment());
-        assertEquals("true", env.get("COPILOT_OTEL_ENABLED"));
-        assertEquals("http://collector:4318", env.get("OTEL_EXPORTER_OTLP_ENDPOINT"));
-        assertEquals("http/protobuf", env.get("OTEL_EXPORTER_OTLP_PROTOCOL"));
-        assertEquals("/telemetry.jsonl", env.get("COPILOT_OTEL_FILE_EXPORTER_PATH"));
-        assertEquals("file", env.get("COPILOT_OTEL_EXPORTER_TYPE"));
-        assertEquals("inprocess-sdk", env.get("COPILOT_OTEL_SOURCE_NAME"));
-        assertEquals(captureContent ? "SPAN_ONLY" : "NO_CONTENT",
-                env.get("OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT"));
-        assertEquals(String.valueOf(captureContent), env.get("OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"));
-        assertEquals(before, System.getenv());
-        host.close();
     }
 
     @Test
     void startWithoutEntrypointPassesOnlyRuntimeOptions() throws Exception {
         AtomicReference<byte[]> argvJson = new AtomicReference<>();
-        AtomicReference<byte[]> envJson = new AtomicReference<>();
         NativeBinding binding = new TestBinding() {
             @Override
             public int hostStart(byte[] argv, int argvLen, byte[] env, int envLen) {
                 argvJson.set(argv);
-                envJson.set(env);
                 return 11;
             }
 
@@ -212,13 +152,6 @@ class FfiRuntimeHostTest {
         List<String> argv = MAPPER.readValue(argvJson.get(), new TypeReference<List<String>>() {
         });
         assertEquals(List.of("--log-level", "debug"), argv);
-        Map<String, String> expectedEnvironment = "win32".equals(PlatformDetector.detectOs())
-                ? new TreeMap<>(String.CASE_INSENSITIVE_ORDER)
-                : new HashMap<>();
-        expectedEnvironment.putAll(System.getenv());
-        expectedEnvironment.remove("NODE_DEBUG");
-        assertEquals(expectedEnvironment, MAPPER.readValue(envJson.get(), new TypeReference<Map<String, String>>() {
-        }), "Without an explicit map, pass the effective inherited environment to the runtime");
     }
 
     @Test
@@ -346,72 +279,6 @@ class FfiRuntimeHostTest {
             assertDoesNotThrow(() -> nextHost.start("/tmp/entrypoint", new CopilotClientOptions()));
         }
         assertEquals(2, shutdowns.get(), "the sequential host must also shut down cleanly");
-    }
-
-    @ParameterizedTest
-    @CsvSource({"true, 11", "true, 0", "false, 11"})
-    void abandonedStartupReleasesLateHost(boolean interrupt, int hostHandle) throws Exception {
-        var nativeStarted = new CompletableFuture<Thread>();
-        var nativeResult = new CompletableFuture<Integer>();
-        AtomicBoolean interrupted = new AtomicBoolean();
-        AtomicInteger shutdowns = new AtomicInteger();
-        NativeBinding binding = mock(NativeBinding.class);
-        when(binding.hostStart(any(), anyInt(), any(), anyInt())).thenAnswer(invocation -> {
-            nativeStarted.complete(Thread.currentThread());
-            // Native startup cannot be cancelled by interrupting its Java worker.
-            return nativeResult.join();
-        });
-        when(binding.hostShutdown(anyInt())).thenAnswer(invocation -> {
-            shutdowns.incrementAndGet();
-            return true;
-        });
-
-        ExecutorService executor = Executors.newSingleThreadExecutor();
-        FfiRuntimeHost host = new FfiRuntimeHost(binding, "test-lib");
-        try {
-            var starting = executor.submit(() -> {
-                try {
-                    host.start(null, new CopilotClientOptions());
-                } finally {
-                    interrupted.set(Thread.currentThread().isInterrupted());
-                }
-            });
-            Thread nativeWorker = nativeStarted.get(5, TimeUnit.SECONDS);
-            if (interrupt) {
-                executor.shutdownNow();
-                var failure = assertThrows(ExecutionException.class, () -> starting.get(5, TimeUnit.SECONDS));
-                assertInstanceOf(IllegalStateException.class, failure.getCause());
-                assertInstanceOf(InterruptedException.class, failure.getCause().getCause());
-                assertTrue(interrupted.get(), "startup must preserve the caller's interrupt status");
-            } else {
-                host.close();
-            }
-
-            nativeResult.complete(hostHandle);
-            if (!interrupt) {
-                var failure = assertThrows(ExecutionException.class, () -> starting.get(5, TimeUnit.SECONDS));
-                assertEquals("FfiRuntimeHost was closed during startup.", failure.getCause().getMessage());
-            }
-            nativeWorker.join(5000);
-            assertFalse(nativeWorker.isAlive(), "native startup and its cleanup must finish");
-            assertEquals(hostHandle == 0 ? 0 : 1, shutdowns.get(), "abandoned startup must release its late host");
-        } finally {
-            nativeResult.complete(hostHandle);
-            host.close();
-            executor.shutdownNow();
-            assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS), "startup caller must terminate");
-            Thread nativeWorker = nativeStarted.getNow(null);
-            if (nativeWorker != null) {
-                nativeWorker.join(5000);
-                assertFalse(nativeWorker.isAlive(), "native startup worker must terminate");
-            }
-        }
-
-        verify(binding).hostStart(any(), anyInt(), any(), anyInt());
-        if (hostHandle != 0) {
-            verify(binding).hostShutdown(hostHandle);
-        }
-        verifyNoMoreInteractions(binding);
     }
 
     @Test

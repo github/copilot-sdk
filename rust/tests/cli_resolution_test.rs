@@ -15,22 +15,18 @@ use std::path::PathBuf;
     all(not(feature = "bundled-cli"), has_extracted_cli)
 ))]
 use github_copilot_sdk::ErrorKind;
-#[cfg(all(feature = "bundled-cli", has_bundled_cli))]
-use github_copilot_sdk::SessionConfig;
 use github_copilot_sdk::{
-    CliProgram, Client, ClientOptions, HAS_BUNDLED_CLI, Transport, install_bundled_cli,
+    CliProgram, Client, ClientOptions, HAS_BUNDLED_CLI, install_bundled_cli,
     install_bundled_runtime,
 };
+#[cfg(all(feature = "bundled-cli", has_bundled_cli))]
+use github_copilot_sdk::{SessionConfig, Transport};
 use serial_test::serial;
 
 #[cfg(all(not(feature = "bundled-cli"), has_extracted_cli))]
 #[allow(dead_code)]
 #[path = "../src/platform_dirs/mod.rs"]
 mod platform_dirs;
-
-#[cfg(all(not(feature = "bundled-cli"), has_extracted_cli))]
-#[path = "../src/cache_paths.rs"]
-mod cache_paths;
 
 fn unset_env(key: &str) {
     // SAFETY: these tests are serialized with #[serial(copilot_cli_path)]
@@ -66,9 +62,7 @@ async fn env_override_resolves_to_pointed_file() {
         "COPILOT_CLI_PATH",
         path.to_str().expect("utf-8 tempfile path"),
     );
-    let opts = ClientOptions::default()
-        .with_program(CliProgram::Resolve)
-        .with_transport(Transport::Stdio);
+    let opts = ClientOptions::default().with_program(CliProgram::Resolve);
 
     // `Client::start` reads the env var via resolve.rs. We don't want to
     // actually launch a subprocess against our empty temp file, so go
@@ -105,9 +99,7 @@ async fn env_override_resolves_to_pointed_file() {
 #[serial(copilot_cli_path)]
 async fn stale_env_override_falls_through() {
     set_env("COPILOT_CLI_PATH", "/definitely/does/not/exist/copilot");
-    let opts = ClientOptions::default()
-        .with_program(CliProgram::Resolve)
-        .with_transport(Transport::Stdio);
+    let opts = ClientOptions::default().with_program(CliProgram::Resolve);
     let result = Client::start(opts).await;
     unset_env("COPILOT_CLI_PATH");
 
@@ -123,13 +115,12 @@ async fn stale_env_override_falls_through() {
 }
 
 /// With `bundled-cli` off, `build.rs` extracts the runtime wrapper into the
-/// protected cache and the runtime resolver recomputes its location from
+/// per-user cache and the runtime resolver recomputes its location from
 /// `COPILOT_SDK_CLI_CACHE_ID` + the OS-derived binary name. This test
 /// mirrors that convention and asserts the file is on disk where the
 /// resolver expects to find it.
 #[cfg(all(not(feature = "bundled-cli"), has_extracted_cli))]
 #[test]
-#[serial(copilot_cli_path)]
 fn extracted_binary_present_at_conventional_path() {
     let cache_identity = env!("COPILOT_SDK_CLI_CACHE_ID");
     let binary = if cfg!(windows) {
@@ -137,14 +128,29 @@ fn extracted_binary_present_at_conventional_path() {
     } else {
         "copilot-runtime"
     };
-    let path = cache_paths::extracted_runtime_install_dir(cache_identity)
-        .expect("protected extraction directory")
+    let sanitized = sanitize_cache_identity_for_test(cache_identity);
+    let path = platform_dirs::cache_dir()
+        .unwrap_or_else(std::env::temp_dir)
+        .join("github-copilot-sdk")
+        .join("runtime")
+        .join(sanitized)
         .join(binary);
     assert!(
         path.is_file(),
         "expected build.rs to extract the CLI to {} (`bundled-cli` off)",
         path.display()
     );
+}
+
+#[cfg(all(not(feature = "bundled-cli"), has_extracted_cli))]
+fn sanitize_cache_identity_for_test(cache_identity: &str) -> String {
+    cache_identity
+        .chars()
+        .map(|c| match c {
+            'a'..='z' | 'A'..='Z' | '0'..='9' | '.' | '-' | '_' => c,
+            _ => '_',
+        })
+        .collect()
 }
 
 /// With `bundled-cli` off, the resolver locates the build-time-extracted
@@ -158,9 +164,7 @@ async fn unbundled_resolver_finds_extracted_binary() {
     unset_env("COPILOT_CLI_PATH");
     unset_env("COPILOT_CLI_EXTRACT_DIR");
 
-    let opts = ClientOptions::default()
-        .with_program(CliProgram::Resolve)
-        .with_transport(Transport::Stdio);
+    let opts = ClientOptions::default().with_program(CliProgram::Resolve);
     let result = Client::start(opts).await;
     if let Err(e) = result {
         assert!(
@@ -193,9 +197,7 @@ async fn extract_dir_runtime_override_is_honored() {
         tmp.path().to_str().expect("utf-8 tempdir path"),
     );
 
-    let opts = ClientOptions::default()
-        .with_program(CliProgram::Resolve)
-        .with_transport(Transport::Stdio);
+    let opts = ClientOptions::default().with_program(CliProgram::Resolve);
     let result = Client::start(opts).await;
 
     unset_env("COPILOT_CLI_EXTRACT_DIR");

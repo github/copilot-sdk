@@ -793,11 +793,19 @@ var localEmbeddedCopilotRuntimeAssets []byte
 		RuntimeAssetsHash:     mustDecodeBase64(%q),`, runtimeHashBase64, runtimeHashBase64, wrapperHashBase64, assetsHashBase64)
 		runtimeReader = `
 func runtimeLibReader() io.Reader {
-	return newZstdReader(localEmbeddedCopilotRuntimeLib)
+	r, err := zstd.NewReader(bytes.NewReader(localEmbeddedCopilotRuntimeLib))
+	if err != nil {
+		panic("failed to create zstd reader: " + err.Error())
+	}
+	return r
 }
 
 func runtimeExecutableReader() io.Reader {
-	return newZstdReader(localEmbeddedCopilotRuntimeExecutable)
+	r, err := zstd.NewReader(bytes.NewReader(localEmbeddedCopilotRuntimeExecutable))
+	if err != nil {
+		panic("failed to create zstd reader: " + err.Error())
+	}
+	return r
 }
 `
 	}
@@ -840,15 +848,27 @@ var localEmbeddedCopilotRuntimeAssetsLinuxMusl []byte
 		LinuxMuslRuntimeAssetsHash:     mustDecodeBase64(%q),`, muslBinaryHashBase64, muslRuntimeHashBase64, muslRuntimeHashBase64, muslWrapperHashBase64, muslAssetsHashBase64)
 		muslReaders = `
 func linuxMuslCLIReader() io.Reader {
-	return newZstdReader(localEmbeddedCopilotCLILinuxMusl)
+	r, err := zstd.NewReader(bytes.NewReader(localEmbeddedCopilotCLILinuxMusl))
+	if err != nil {
+		panic("failed to create zstd reader: " + err.Error())
+	}
+	return r
 }
 
 func linuxMuslRuntimeLibReader() io.Reader {
-	return newZstdReader(localEmbeddedCopilotRuntimeLibLinuxMusl)
+	r, err := zstd.NewReader(bytes.NewReader(localEmbeddedCopilotRuntimeLibLinuxMusl))
+	if err != nil {
+		panic("failed to create zstd reader: " + err.Error())
+	}
+	return r
 }
 
 func linuxMuslRuntimeExecutableReader() io.Reader {
-	return newZstdReader(localEmbeddedCopilotRuntimeExecutableLinuxMusl)
+	r, err := zstd.NewReader(bytes.NewReader(localEmbeddedCopilotRuntimeExecutableLinuxMusl))
+	if err != nil {
+		panic("failed to create zstd reader: " + err.Error())
+	}
+	return r
 }
 `
 	}
@@ -863,7 +883,6 @@ import (
 	"bytes"
 	"encoding/base64"
 	_ "embed"
-	"errors"
 	"io"
 
 	"github.com/github/copilot-sdk/go/embeddedcli"
@@ -888,33 +907,14 @@ func init() {
 }
 
 func cliReader() io.Reader {
-	return newZstdReader(localEmbeddedCopilotCLI)
-}
-%s
-%s
-// zstdReader decompresses an embedded artifact. Seek(0, io.SeekStart) restarts
-// it, so an installation that fails part-way can be retried without keeping the
-// decompressed artifact in memory.
-type zstdReader struct {
-	*zstd.Decoder
-	compressed []byte
-}
-
-func newZstdReader(compressed []byte) io.Reader {
-	decoder, err := zstd.NewReader(bytes.NewReader(compressed))
+	r, err := zstd.NewReader(bytes.NewReader(localEmbeddedCopilotCLI))
 	if err != nil {
 		panic("failed to create zstd reader: " + err.Error())
 	}
-	return &zstdReader{Decoder: decoder, compressed: compressed}
+	return r
 }
-
-func (r *zstdReader) Seek(offset int64, whence int) (int64, error) {
-	if offset != 0 || whence != io.SeekStart {
-		return 0, errors.New("only Seek(0, io.SeekStart) is supported")
-	}
-	return 0, r.Decoder.Reset(bytes.NewReader(r.compressed))
-}
-
+%s
+%s
 func mustDecodeBase64(s string) []byte {
 	b, err := base64.StdEncoding.DecodeString(s)
 	if err != nil {

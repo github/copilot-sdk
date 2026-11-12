@@ -99,8 +99,6 @@ public class ProviderConfig {
      * <ul>
      * <li>"openai" - OpenAI API</li>
      * <li>"azure" - Azure OpenAI Service</li>
-     * <li>"anthropic" - Anthropic API</li>
-     * <li>"google" - Google Gemini Interactions API (experimental)</li>
      * </ul>
      *
      * @param type
@@ -173,8 +171,10 @@ public class ProviderConfig {
     /**
      * Sets the product serving the model, reported in telemetry as
      * {@code model_provider}. Allowed values are "openai", "anthropic",
-     * "azure_openai", "ollama", "lm_studio", "foundry_local", and "llama_cpp"; only
-     * affects telemetry.
+     * "azure_openai", "ollama", "lm_studio", "foundry_local", and "llama_cpp".
+     * "azure_openai" also omits explicit prompt-cache breakpoints, which limit
+     * cross-turn cache reuse on Azure; set it for a proxy or custom domain in front
+     * of Azure OpenAI.
      *
      * @param modelProvider
      *            the model provider

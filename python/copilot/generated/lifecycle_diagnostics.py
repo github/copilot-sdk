@@ -165,7 +165,6 @@ class RuntimeLifecycleProgressStateData:
     revision: int
     session_id: str
     timing: RuntimeLifecycleProgressTiming
-    agent_id: str | None = None
     disposition: RuntimeLifecycleDisposition | None = None
     origin: RuntimeLifecycleProgressOrigin | None = None
 
@@ -180,7 +179,6 @@ class RuntimeLifecycleProgressStateData:
         revision = from_int(obj.get("revision"))
         session_id = from_str(obj.get("sessionId"))
         timing = RuntimeLifecycleProgressTiming.from_dict(obj.get("timing"))
-        agent_id = from_union([from_none, lambda x: from_str(x)], obj.get("agentId"))
         disposition = from_union([from_none, lambda x: parse_enum(RuntimeLifecycleDisposition, x)], obj.get("disposition"))
         origin = from_union([from_none, lambda x: RuntimeLifecycleProgressOrigin.from_dict(x)], obj.get("origin"))
         return RuntimeLifecycleProgressStateData(
@@ -192,7 +190,6 @@ class RuntimeLifecycleProgressStateData:
             revision=revision,
             session_id=session_id,
             timing=timing,
-            agent_id=agent_id,
             disposition=disposition,
             origin=origin,
         )
@@ -207,8 +204,6 @@ class RuntimeLifecycleProgressStateData:
         result["revision"] = to_int(self.revision)
         result["sessionId"] = from_str(self.session_id)
         result["timing"] = to_class(RuntimeLifecycleProgressTiming, self.timing)
-        if self.agent_id is not None:
-            result["agentId"] = from_union([from_none, lambda x: from_str(x)], self.agent_id)
         if self.disposition is not None:
             result["disposition"] = from_union([from_none, lambda x: to_enum(RuntimeLifecycleDisposition, x)], self.disposition)
         if self.origin is not None:

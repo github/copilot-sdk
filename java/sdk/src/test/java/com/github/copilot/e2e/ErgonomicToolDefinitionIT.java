@@ -20,6 +20,7 @@ import com.github.copilot.E2ETestContext;
 import com.github.copilot.generated.AssistantMessageEvent;
 import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.PermissionHandler;
+import com.github.copilot.rpc.SessionConfig;
 import com.github.copilot.rpc.ToolDefinition;
 import com.github.copilot.rpc.ToolSet;
 import com.github.copilot.tool.Param;
@@ -60,7 +61,7 @@ class ErgonomicToolDefinitionIT {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
                             .setAvailableTools(new ToolSet().addCustom("*").addBuiltIn("web_fetch")).setTools(toolDefs))
                     .get(30, TimeUnit.SECONDS);
 
@@ -92,7 +93,7 @@ class ErgonomicToolDefinitionIT {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
                             .setAvailableTools(new ToolSet().addCustom("*")).setTools(toolDefs))
                     .get(30, TimeUnit.SECONDS);
 
@@ -120,7 +121,7 @@ class ErgonomicToolDefinitionIT {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
                             .setAvailableTools(new ToolSet().addCustom("*")).setTools(toolDefs))
                     .get(30, TimeUnit.SECONDS);
 
@@ -148,7 +149,7 @@ class ErgonomicToolDefinitionIT {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
                             .setAvailableTools(new ToolSet().addCustom("*")).setTools(List.of(getStatus)))
                     .get(30, TimeUnit.SECONDS);
 
@@ -177,7 +178,7 @@ class ErgonomicToolDefinitionIT {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
                             .setAvailableTools(new ToolSet().addCustom("*")).setTools(List.of(combineValues)))
                     .get(30, TimeUnit.SECONDS);
 
@@ -218,7 +219,7 @@ class ErgonomicToolDefinitionIT {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
                             .setAvailableTools(new ToolSet().addCustom("*").addBuiltIn("web_fetch"))
                             .setTools(List.of(setCurrentPhase, searchItems)))
                     .get(30, TimeUnit.SECONDS);

@@ -9,7 +9,7 @@ require (
 
 require (
 	github.com/coder/websocket v1.8.15
-	github.com/ebitengine/purego v0.11.3
+	github.com/ebitengine/purego v0.11.2
 	github.com/google/uuid v1.6.0
 	go.opentelemetry.io/otel v1.47.0
 	go.opentelemetry.io/otel/trace v1.47.0

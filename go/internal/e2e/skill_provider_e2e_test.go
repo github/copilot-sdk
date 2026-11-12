@@ -104,7 +104,6 @@ func (p *blockingSkillProvider) ReadSkill(context.Context, string) (string, erro
 }
 
 func TestSkillProviderE2E(t *testing.T) {
-	t.Parallel()
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })

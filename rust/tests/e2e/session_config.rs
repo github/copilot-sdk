@@ -46,22 +46,31 @@ async fn send_and_get_next_exchange(
     exchanges[existing_count].clone()
 }
 
-async fn assert_session_limits_applied(
-    session: &github_copilot_sdk::session::Session,
-    max_ai_credits: f64,
-) {
-    let snapshot = session
-        .rpc()
-        .metadata()
-        .snapshot()
-        .await
-        .expect("metadata snapshot");
-    assert_eq!(
-        snapshot
-            .session_limits
-            .and_then(|limits| limits.max_ai_credits),
-        Some(max_ai_credits)
-    );
+fn assert_session_limits_status(exchange: &Value, expected_remaining: &str) {
+    let messages = exchange["request"]["messages"]
+        .as_array()
+        .expect("request messages");
+    for message in messages {
+        if message["role"] != "user" {
+            continue;
+        }
+        let Some(content) = message["content"].as_str() else {
+            continue;
+        };
+        if !content.contains("<session_limits_status>") {
+            continue;
+        }
+        assert!(
+            content.contains(&format!("Remaining session limits: {expected_remaining}.")),
+            "expected session limits status to include remaining {expected_remaining:?}, got {content:?}"
+        );
+        assert!(
+            content.contains("Be frugal; avoid optional exploration and unnecessary tool calls."),
+            "expected session limits status to include frugality instruction, got {content:?}"
+        );
+        return;
+    }
+    panic!("expected session limits status message");
 }
 
 fn task_agent_types(exchange: &Value) -> Vec<String> {
@@ -100,13 +109,13 @@ async fn should_apply_session_limits_on_create() {
                     .await
                     .expect("create session");
 
-                send_and_get_next_exchange(
+                let exchange = send_and_get_next_exchange(
                     ctx,
                     &session,
                     "Acknowledge the current session limits.",
                 )
                 .await;
-                assert_session_limits_applied(&session, 30.0).await;
+                assert_session_limits_status(&exchange, "30 AI credits");
 
                 session.disconnect().await.expect("disconnect session");
                 client.stop().await.expect("stop client");
@@ -140,13 +149,13 @@ async fn should_apply_session_limits_on_resume() {
                     .await
                     .expect("resume session");
 
-                send_and_get_next_exchange(
+                let exchange = send_and_get_next_exchange(
                     ctx,
                     &session2,
                     "Acknowledge the current session limits.",
                 )
                 .await;
-                assert_session_limits_applied(&session2, 30.0).await;
+                assert_session_limits_status(&exchange, "30 AI credits");
 
                 session2
                     .disconnect()
@@ -523,7 +532,7 @@ async fn should_enable_citations_for_anthropic_file_attachments_on_create() {
         Box::pin(async move {
             ctx.set_default_copilot_user();
             let handler = RecordingHandler::default();
-            let client = ctx.start_llm_client(handler.clone()).await;
+            let client = ctx.start_llm_client(handler.clone(), &[]).await;
             let session = client
                 .create_session(
                     SessionConfig::default()

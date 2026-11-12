@@ -1,6 +1,6 @@
 # Streaming session events
 
-Every action the Copilot agent takes—thinking, writing code, running tools—is emitted as a **session event** you can subscribe to. This guide is a field-level reference for the event types applications most often handle, so you know exactly what data to expect without reading the SDK source. It does not cover every event type: the session event types each SDK generates (for example, the `SessionEvent` union in Node.js) list every event the runtime can emit.
+Every action the Copilot agent takes—thinking, writing code, running tools—is emitted as a **session event** you can subscribe to. This guide is a field-level reference for each event type so you know exactly what data to expect without reading the SDK source.
 
 ## Overview
 
@@ -45,7 +45,7 @@ sequenceDiagram
 | **Ephemeral event** | Transient; streamed in real time but **not** persisted to the session log. Not replayed on session resume. |
 | **Persisted event** | Saved to the session event log on disk. Replayed when resuming a session. |
 | **Delta event** | An ephemeral streaming chunk (text or reasoning). Accumulate deltas to build the complete content. |
-| **`parentId` chain** | Each persisted event's `parentId` points to the persisted event before it, forming a chain you can walk. An ephemeral event's `parentId` points to the most recent persisted event, and no event's `parentId` points to an ephemeral event, so walking the chain visits only persisted events. |
+| **`parentId` chain** | Each event's `parentId` points to the previous event, forming a linked list you can walk. |
 
 ## Event envelope
 
@@ -55,7 +55,7 @@ Every session event, regardless of type, includes these fields:
 |-------|------|-------------|
 | `id` | `string` (UUID v4) | Unique event identifier |
 | `timestamp` | `string` (ISO 8601) | When the event was created |
-| `parentId` | `string \| null` | ID of the most recent persisted event when this event was emitted; `null` if there was none yet |
+| `parentId` | `string \| null` | ID of the previous event in the chain; `null` for the first event |
 | `agentId` | `string?` | Sub-agent instance ID for sub-agent-originated events; absent for root/main agent and session-level events |
 | `ephemeral` | `boolean?` | `true` for transient events; absent or `false` for persisted events |
 | `type` | `string` | Event type discriminator (see tables below) |
@@ -85,15 +85,18 @@ session.on("assistant.message_delta", (event) => {
 
 <!-- docs-validate: hidden -->
 ```python
-from copilot.session import CopilotSession
+from copilot import CopilotClient
 from copilot.session_events import SessionEventType
+
+client = CopilotClient()
+
+session = None  # assume session is created elsewhere
 
 def handle(event):
     if event.type == SessionEventType.ASSISTANT_MESSAGE_DELTA:
         print(event.data.delta_content, end="", flush=True)
 
-def register(session: CopilotSession):
-    session.on(handle)
+# session.on(handle)
 ```
 <!-- /docs-validate: hidden -->
 
@@ -128,7 +131,7 @@ func main() {
 	client := copilot.NewClient(nil)
 
 	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
-		Model:     "auto",
+		Model:     "gpt-5.4",
 		Streaming: copilot.Bool(true),
 		OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
 			return &rpc.PermissionDecisionApproveOnce{}, nil
@@ -158,6 +161,26 @@ session.On(func(event copilot.SessionEvent) {
 <details>
 <summary><strong>.NET</strong></summary>
 
+<!-- docs-validate: hidden -->
+```csharp
+using GitHub.Copilot;
+
+public static class StreamingEventsExample
+{
+    public static async Task Example(CopilotSession session)
+    {
+        session.On<SessionEvent>(evt =>
+        {
+            if (evt is AssistantMessageDeltaEvent delta)
+            {
+                Console.Write(delta.Data.DeltaContent);
+            }
+        });
+    }
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```csharp
 session.On<SessionEvent>(evt =>
 {
@@ -173,24 +196,7 @@ session.On<SessionEvent>(evt =>
 <details>
 <summary><strong>Java</strong></summary>
 
-<!-- docs-validate: hidden -->
-```java
-import com.github.copilot.*;
-import com.github.copilot.generated.*;
-
-public class SubscribingToEventsExample {
-    static void subscribe(CopilotSession session) {
-        // All events
-        session.on(event -> System.out.println(event.getType()));
-
-        // Specific event type — data is narrowed to the matching class
-        session.on(AssistantMessageDeltaEvent.class, event ->
-            System.out.print(event.getData().deltaContent())
-        );
-    }
-}
-```
-<!-- /docs-validate: hidden -->
+<!-- docs-validate: skip -->
 ```java
 // All events
 session.on(event -> System.out.println(event.getType()));
@@ -399,9 +405,6 @@ Emitted when the agent begins processing a turn.
 |------------|------|----------|-------------|
 | `turnId` | `string` | ✅ | Turn identifier (typically a stringified turn number) |
 | `interactionId` | `string` | | CAPI interaction ID for telemetry correlation |
-| `agentMode` | `"interactive" \| "plan" \| "autopilot"` | | Agent mode whose tools this turn was offered; absent on historical events and sub-agent turns |
-| `model` | `string` | | Model identifier used for this turn, when known |
-| `parentToolCallId` | `string` | | Parent task tool call ID when this turn belongs to a sub-agent |
 
 ### `assistant.intent`
 
@@ -472,8 +475,6 @@ Emitted when the agent finishes a turn (all tool executions complete, final resp
 | Data Field | Type | Required | Description |
 |------------|------|----------|-------------|
 | `turnId` | `string` | ✅ | Matches the corresponding `assistant.turn_start` event |
-| `model` | `string` | | Model identifier used for this turn, when known |
-| `parentToolCallId` | `string` | | Parent task tool call ID when this turn belongs to a sub-agent |
 
 ### `assistant.usage`
 
@@ -481,7 +482,7 @@ Ephemeral. Token usage and cost information for an individual API call.
 
 | Data Field | Type | Required | Description |
 |------------|------|----------|-------------|
-| `model` | `string` | ✅ | Model identifier (e.g., `"claude-sonnet-5"`) |
+| `model` | `string` | ✅ | Model identifier (e.g., `"gpt-5.4"`) |
 | `inputTokens` | `number` | | Total input tokens for this call, including `cacheReadTokens` and `cacheWriteTokens` |
 | `outputTokens` | `number` | | Output tokens produced |
 | `reasoningTokens` | `number` | | Output tokens used for reasoning/chain-of-thought (subset of `outputTokens`) |
@@ -498,7 +499,7 @@ Ephemeral. Token usage and cost information for an individual API call.
 | `initiator` | `string` | | What triggered this call (e.g., `"sub-agent"`); absent for user-initiated |
 | `apiCallId` | `string` | | Completion ID from the provider (e.g., `chatcmpl-abc123`) |
 | `serviceRequestId` | `string` | | Copilot service request ID (`x-copilot-service-request-id`) for CAPI log correlation |
-| `apiEndpoint` | `"/chat/completions" \| "/v1/messages" \| "/responses" \| "ws:/responses" \| "/interactions"` | | API endpoint used for the model call; useful for observability and cost attribution. `ws:/responses` is the websocket variant of the responses API; `/interactions` is the native Gemini Interactions API, served by CAPI or by a BYOK `google` provider |
+| `apiEndpoint` | `"/chat/completions" \| "/v1/messages" \| "/responses" \| "ws:/responses"` | | API endpoint used for the model call; useful for observability and cost attribution. `ws:/responses` is the websocket variant of the responses API |
 | `providerCallId` | `string` | | GitHub request tracing ID (`x-github-request-id`) |
 | `parentToolCallId` | `string` | | Deprecated. Use envelope-level `agentId` for sub-agent attribution |
 | `quotaSnapshots` | `Record<string, QuotaSnapshot>` | | Per-quota resource usage, keyed by quota identifier |
@@ -610,7 +611,6 @@ Ephemeral. The agent has finished all processing and is ready for the next messa
 | Data Field | Type | Required | Description |
 |------------|------|----------|-------------|
 | `aborted` | `boolean` | | True when the preceding turn was cancelled via abort signal |
-| `mode` | `"interactive" \| "plan" \| "autopilot"` | | Session mode the agent was in when it went idle; absent when the mode is unknown |
 
 ### `session.error`
 
@@ -675,10 +675,6 @@ Ephemeral. Context window utilization snapshot.
 | `tokenLimit` | `number` | ✅ | Maximum tokens for the model's context window |
 | `currentTokens` | `number` | ✅ | Current tokens in the context window |
 | `messagesLength` | `number` | ✅ | Current message count in the conversation |
-| `systemTokens` | `number` | | Tokens used by system messages |
-| `conversationTokens` | `number` | | Tokens used by non-system messages (user, assistant, tool) |
-| `toolDefinitionsTokens` | `number` | | Tokens used by tool definitions |
-| `isInitial` | `boolean` | | Whether this is the session's first `session.usage_info` event |
 
 ### `session.session_limits_changed`
 
@@ -731,7 +727,7 @@ The agent needs permission to perform an action (run a command, write a file, et
 
 | Data Field | Type | Required | Description |
 |------------|------|----------|-------------|
-| `requestId` | `string` | ✅ | Pass this as the `requestId` of the `session.permissions.handlePendingPermissionRequest` RPC to respond |
+| `requestId` | `string` | ✅ | Use this to respond via `session.respondToPermission()` |
 | `permissionRequest` | `PermissionRequest` | ✅ | Details of the permission being requested |
 
 The `permissionRequest` is a discriminated union on `kind`:
@@ -767,11 +763,10 @@ Ephemeral. The agent is asking the user a question.
 
 | Data Field | Type | Required | Description |
 |------------|------|----------|-------------|
-| `requestId` | `string` | ✅ | Pass this as the `requestId` of the `session.ui.handlePendingUserInput` RPC to respond |
+| `requestId` | `string` | ✅ | Use this to respond via `session.respondToUserInput()` |
 | `question` | `string` | ✅ | The question to present to the user |
 | `choices` | `string[]` | | Predefined choices for the user |
 | `allowFreeform` | `boolean` | | Whether free-form text input is allowed |
-| `toolCallId` | `string` | | The tool call that asked the question, for correlating the request with it |
 
 ### `user_input.completed`
 
@@ -780,8 +775,6 @@ Ephemeral. A user input request was resolved.
 | Data Field | Type | Required | Description |
 |------------|------|----------|-------------|
 | `requestId` | `string` | ✅ | Matches the corresponding `user_input.requested` |
-| `answer` | `string` | | The user's answer |
-| `wasFreeform` | `boolean` | | Whether the answer was typed as free-form text rather than selected from `choices` |
 
 ### `elicitation.requested`
 
@@ -789,14 +782,11 @@ Ephemeral. The agent needs input from the user, either as structured form fields
 
 | Data Field | Type | Required | Description |
 |------------|------|----------|-------------|
-| `requestId` | `string` | ✅ | Pass this as the `requestId` of the `session.ui.handlePendingElicitation` RPC to respond |
+| `requestId` | `string` | ✅ | Use this to respond via `session.respondToElicitation()` |
 | `message` | `string` | ✅ | Description of what information is needed |
 | `mode` | `"form" \| "url"` | | Elicitation mode: structured form or browser URL |
 | `requestedSchema` | `{ type: "object", properties, required? }` | | JSON Schema describing the form fields (form mode only) |
 | `url` | `string` | | URL to open in the user's browser (url mode only) |
-| `elicitationSource` | `string` | | The MCP server that initiated the request; absent when the agent initiated it |
-| `elicitationSourceDisplayName` | `string` | | Display label for a connector-owned MCP server; `elicitationSource` remains its identity |
-| `toolCallId` | `string` | | The tool call that triggered the request, for correlating the request with it |
 
 ### `elicitation.completed`
 
@@ -805,8 +795,6 @@ Ephemeral. An elicitation request was resolved.
 | Data Field | Type | Required | Description |
 |------------|------|----------|-------------|
 | `requestId` | `string` | ✅ | Matches the corresponding `elicitation.requested` |
-| `action` | `"accept" \| "decline" \| "cancel"` | | The user's choice: submitted the form, explicitly refused, or dismissed |
-| `content` | `Record<string, JsonValue>` | | The submitted form values when `action` is `"accept"`; keys match the `requestedSchema` fields |
 
 ## Sub-agent and skill events
 
@@ -911,8 +899,6 @@ A system or developer prompt was injected into the conversation.
 | `role` | `"system" \| "developer"` | ✅ | Message role |
 | `name` | `string` | | Source identifier |
 | `metadata` | `{ promptVersion?, variables? }` | | Prompt template metadata |
-| `contentBlocks` | `{ content, cacheBreakpoint?, isStatic? }[]` | | Ordered structured blocks corresponding to `content`, retained to restore the prompt-cache layout |
-| `interactionId` | `string` | | Interaction identifier of the model run receiving this prompt |
 
 ### `external_tool.requested`
 
@@ -920,7 +906,7 @@ The agent wants to invoke an external tool (one provided by the SDK consumer).
 
 | Data Field | Type | Required | Description |
 |------------|------|----------|-------------|
-| `requestId` | `string` | ✅ | Pass this as the `requestId` of the `session.tools.handlePendingToolCall` RPC to respond |
+| `requestId` | `string` | ✅ | Use this to respond via `session.respondToExternalTool()` |
 | `sessionId` | `string` | ✅ | Session this request belongs to |
 | `toolCallId` | `string` | ✅ | Tool call ID for this invocation |
 | `toolName` | `string` | ✅ | Name of the external tool |
@@ -940,7 +926,7 @@ Ephemeral. The agent has created a plan and wants to exit plan mode.
 
 | Data Field | Type | Required | Description |
 |------------|------|----------|-------------|
-| `requestId` | `string` | ✅ | Pass this as the `requestId` of the `session.ui.handlePendingExitPlanMode` RPC to respond |
+| `requestId` | `string` | ✅ | Use this to respond via `session.respondToExitPlanMode()` |
 | `summary` | `string` | ✅ | Summary of the plan |
 | `planContent` | `string` | ✅ | Full plan file content |
 | `actions` | `("exit_only" \| "interactive" \| "autopilot" \| "autopilot_fleet")[]` | ✅ | Available user actions |
@@ -961,13 +947,12 @@ Ephemeral. An exit plan mode request was resolved.
 
 ### `command.queued`
 
-Ephemeral. `scheduled: true` requires checking scheduling eligibility before execution.
+Ephemeral. A slash command was queued for execution.
 
 | Data Field | Type | Required | Description |
 |------------|------|----------|-------------|
-| `requestId` | `string` | ✅ | Pass this as the `requestId` of the `session.commands.respondToQueuedCommand` RPC to respond |
+| `requestId` | `string` | ✅ | Use this to respond via `session.respondToQueuedCommand()` |
 | `command` | `string` | ✅ | The slash command text (e.g., `/help`, `/clear`) |
-| `scheduled` | `boolean` | | Whether a schedule dispatched this command; absent for ordinary queued commands |
 
 ### `command.completed`
 
@@ -1025,9 +1010,9 @@ assistant.turn_end            → Turn complete
 session.idle                  → Ready for next message (ephemeral)
 ```
 
-## Documented event types at a glance
+## All event types at a glance
 
-This table lists every event type documented on this page with its key `data` payload fields. Common envelope fields are documented above.
+This table lists key `data` payload fields. Common envelope fields are documented above.
 
 | Event Type | Ephemeral | Category | Key Data Fields |
 |------------|-----------|----------|-----------------|
@@ -1046,7 +1031,7 @@ This table lists every event type documented on this page with its key `data` pa
 | `tool.shell_output` | ✅ | Tool | `toolCallId`, `text`, `stream?`, `sequence` |
 | `tool.execution_progress` | ✅ | Tool | `toolCallId`, `progressMessage` |
 | `tool.execution_complete` | | Tool | `toolCallId`, `success`, `result?`, `error?` |
-| `session.idle` | ✅ | Session | `aborted?`, `mode?` |
+| `session.idle` | ✅ | Session | `aborted?` |
 | `session.error` | | Session | `errorType`, `message`, `statusCode?` |
 | `session.compaction_start` | | Session | *(empty)* |
 | `session.compaction_complete` | | Session | `success`, `preCompactionTokens?`, `summaryContent?` |
@@ -1060,9 +1045,9 @@ This table lists every event type documented on this page with its key `data` pa
 | `permission.requested` | | Permission | `requestId`, `permissionRequest` |
 | `permission.completed` | | Permission | `requestId`, `result.kind` |
 | `user_input.requested` | ✅ | User Input | `requestId`, `question`, `choices?` |
-| `user_input.completed` | ✅ | User Input | `requestId`, `answer?` |
+| `user_input.completed` | ✅ | User Input | `requestId` |
 | `elicitation.requested` | ✅ | User Input | `requestId`, `message`, `mode?`, `requestedSchema?`, `url?` |
-| `elicitation.completed` | ✅ | User Input | `requestId`, `action?`, `content?` |
+| `elicitation.completed` | ✅ | User Input | `requestId` |
 | `subagent.started` | | Sub-Agent | `toolCallId`, `agentName`, `agentDisplayName`, `model?` |
 | `subagent.completed` | | Sub-Agent | `toolCallId`, `agentName`, `agentDisplayName`, `model?`, `durationMs?`, `totalTokens?`, `totalToolCalls?` |
 | `subagent.failed` | | Sub-Agent | `toolCallId`, `agentName`, `error`, `model?`, `durationMs?`, `totalTokens?`, `totalToolCalls?` |
@@ -1074,7 +1059,7 @@ This table lists every event type documented on this page with its key `data` pa
 | `system.message` | | System | `content`, `role` |
 | `external_tool.requested` | | External Tool | `requestId`, `toolName`, `arguments?` |
 | `external_tool.completed` | | External Tool | `requestId` |
-| `command.queued` | ✅ | Command | `requestId`, `command`, `scheduled?` |
+| `command.queued` | ✅ | Command | `requestId`, `command` |
 | `command.completed` | ✅ | Command | `requestId` |
 | `session_limits_exhausted.requested` | ✅ | Session | `requestId`, `maxAiCredits`, `usedAiCredits` |
 | `session_limits_exhausted.completed` | ✅ | Session | `requestId`, `response.action` |
