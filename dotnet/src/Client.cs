@@ -1167,7 +1167,10 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// an empty list, but callers can explicitly allow selected runtime-bundled
     /// skills. In copilot-cli mode only explicitly-set fields are forwarded.
     /// </summary>
-    private async Task UpdateSessionOptionsForModeAsync(CopilotSession session, SessionConfigBase config, CancellationToken cancellationToken)
+    /// <returns>
+    /// The settings that only this patch carries, or <see langword="null"/> when no patch was sent.
+    /// </returns>
+    private async Task<AppliedSessionOptions?> UpdateSessionOptionsForModeAsync(CopilotSession session, SessionConfigBase config, CancellationToken cancellationToken)
     {
         var hasAnyPatch = false;
         bool? skipCustomInstructions = null;
@@ -1196,7 +1199,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             if (config.IncludedBuiltinSkills is not null) { includedBuiltinSkills = config.IncludedBuiltinSkills; hasAnyPatch = true; }
         }
 
-        if (!hasAnyPatch) return;
+        if (!hasAnyPatch) return null;
 
         try
         {
@@ -1227,7 +1230,10 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             }
             throw;
         }
+        return new AppliedSessionOptions(skipCustomInstructions, coauthorEnabled, manageScheduleEnabled);
     }
+
+    private sealed record AppliedSessionOptions(bool? SkipCustomInstructions, bool? CoauthorEnabled, bool? ManageScheduleEnabled);
 
     /// <summary>
     /// Creates a new Copilot session with the specified configuration.
@@ -1500,8 +1506,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             session.PermissionModeResult = response.PermissionModeResult;
             session.SetOpenCanvases(response.OpenCanvases);
 
-            await UpdateSessionOptionsForModeAsync(session, config, cancellationToken).ConfigureAwait(false);
-            CaptureAhpSession(session, request, ClientJsonContext.Default.CreateSessionRequest);
+            var appliedOptions = await UpdateSessionOptionsForModeAsync(session, config, cancellationToken).ConfigureAwait(false);
+            CaptureAhpSession(session, request, ClientJsonContext.Default.CreateSessionRequest, appliedOptions);
             if (registrationId is not null)
             {
                 session.SetGitHubTokenProviderRegistration(registrationId);
@@ -1815,8 +1821,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 await session.Rpc.EventLog.RegisterInterestAsync("mcp.oauth_required", cancellationToken);
             }
 
-            await UpdateSessionOptionsForModeAsync(session, config, cancellationToken).ConfigureAwait(false);
-            CaptureAhpSession(session, request, ClientJsonContext.Default.ResumeSessionRequest);
+            var appliedOptions = await UpdateSessionOptionsForModeAsync(session, config, cancellationToken).ConfigureAwait(false);
+            CaptureAhpSession(session, request, ClientJsonContext.Default.ResumeSessionRequest, appliedOptions);
             if (registrationId is not null)
             {
                 session.SetGitHubTokenProviderRegistration(registrationId);

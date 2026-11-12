@@ -468,6 +468,12 @@ public sealed partial class ClientSessionLifetimeTests
     [InlineData("enableMcpApps", true)]
     [InlineData("suppressResumeEvent", false)]
     [InlineData("suppressResumeEvent", true)]
+    [InlineData("skipCustomInstructions", false)]
+    [InlineData("skipCustomInstructions", true)]
+    [InlineData("coauthorEnabled", false)]
+    [InlineData("coauthorEnabled", true)]
+    [InlineData("manageScheduleEnabled", false)]
+    [InlineData("manageScheduleEnabled", true)]
     public async Task Ahp_Rejects_Changed_Boolean_Settings(string setting, bool expected)
     {
         await using var server = await FakeCopilotServer.StartAsync();
@@ -483,6 +489,9 @@ public sealed partial class ClientSessionLifetimeTests
                     case "streaming": request.Config.Streaming = !expected; break;
                     case "enableMcpApps": request.Config.EnableMcpApps = !expected; break;
                     case "suppressResumeEvent": request.Config.SuppressResumeEvent = !expected; break;
+                    case "skipCustomInstructions": request.Config.SkipCustomInstructions = !expected; break;
+                    case "coauthorEnabled": request.Config.CoauthorEnabled = !expected; break;
+                    case "manageScheduleEnabled": request.Config.ManageScheduleEnabled = !expected; break;
                 }
                 return client.ResumeSessionAsync(request.SessionId, request.Config);
             }
@@ -496,6 +505,43 @@ public sealed partial class ClientSessionLifetimeTests
             ["config"] = new Dictionary<string, object?> { ["sessionId"] = "changed", [setting] = expected }
         }));
         Assert.Contains("preserve", error.Message);
+    }
+
+    [Theory]
+    [InlineData(false, "skipCustomInstructions", false)]
+    [InlineData(false, "skipCustomInstructions", true)]
+    [InlineData(false, "coauthorEnabled", false)]
+    [InlineData(false, "coauthorEnabled", true)]
+    [InlineData(false, "manageScheduleEnabled", false)]
+    [InlineData(false, "manageScheduleEnabled", true)]
+    [InlineData(true, "skipCustomInstructions", false)]
+    [InlineData(true, "skipCustomInstructions", true)]
+    [InlineData(true, "coauthorEnabled", false)]
+    [InlineData(true, "coauthorEnabled", true)]
+    [InlineData(true, "manageScheduleEnabled", false)]
+    [InlineData(true, "manageScheduleEnabled", true)]
+    public async Task Ahp_Factories_Preserve_Settings_Applied_After_Creation(bool resume, string setting, bool expected)
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new() { Connection = RuntimeConnection.ForUri(server.Url) });
+        var host = await client.StartAhpHostAsync(new()
+        {
+            Authentication = new AhpHostAuthentication.GitHub(),
+            LocalServer = new(),
+            CreateSession = request => client.CreateSessionAsync(request.Config),
+            ResumeSession = request => client.ResumeSessionAsync(request.SessionId, request.Config)
+        });
+        var result = await server.SendRequestAsync("host.materializeSession", new()
+        {
+            ["hostId"] = host.HostId,
+            ["handoffId"] = "applied",
+            ["authentication"] = new Dictionary<string, object?> { ["mode"] = "github", ["identity"] = "123" },
+            ["resume"] = resume,
+            ["config"] = new Dictionary<string, object?> { ["sessionId"] = "applied", [setting] = expected }
+        });
+        Assert.Equal("applied", result.GetProperty("sessionId").GetString());
+        var update = Assert.Single(server.Requests, request => request.Method == "session.options.update");
+        Assert.Equal(expected, update.Params.GetProperty(setting).GetBoolean());
     }
 
     [Fact]

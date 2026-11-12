@@ -316,10 +316,22 @@ class _AhpHostManager:
         self._tasks: set[asyncio.Task[Any]] = set()
         self._authentications: dict[str, _Authentication] = {}
 
-    def capture(self, session: CopilotSession, config: dict[str, Any]) -> None:
+    def capture(
+        self,
+        session: CopilotSession,
+        config: dict[str, Any],
+        options_patch: dict[str, Any] | None,
+    ) -> None:
+        # These settings are sent by the post-create options patch, never in
+        # the create or resume payload, so record the values that patch applied.
+        applied = {
+            key: options_patch[key]
+            for key in ("skipCustomInstructions", "coauthorEnabled", "manageScheduleEnabled")
+            if options_patch is not None and key in options_patch
+        }
         for entry in self._handoffs.values():
             if entry.session_id == session.session_id:
-                entry.configs[session] = copy.deepcopy(config)
+                entry.configs[session] = copy.deepcopy({**config, **applied})
 
     async def start(self, rpc: JsonRpcClient, options: AhpHostOptions) -> AhpHost:
         _validate_options(options)

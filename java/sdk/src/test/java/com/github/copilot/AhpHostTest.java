@@ -444,7 +444,9 @@ class AhpHostTest {
 
     @ParameterizedTest
     @CsvSource({"streaming,false", "streaming,true", "enableMcpApps,false", "enableMcpApps,true",
-            "suppressResumeEvent,false", "suppressResumeEvent,true"})
+            "suppressResumeEvent,false", "suppressResumeEvent,true", "skipCustomInstructions,false",
+            "skipCustomInstructions,true", "coauthorEnabled,false", "coauthorEnabled,true",
+            "manageScheduleEnabled,false", "manageScheduleEnabled,true"})
     void rejectsChangedBooleanSettings(String setting, boolean expected) throws Exception {
         try (var server = new FakeRuntime(); var client = server.client()) {
             var host = await(client.startAhpHost(localOptions().setResumeSession(request -> {
@@ -452,6 +454,9 @@ class AhpHostTest {
                     case "streaming" -> request.config().setStreaming(!expected);
                     case "enableMcpApps" -> request.config().setEnableMcpApps(!expected);
                     case "suppressResumeEvent" -> request.config().setDisableResume(!expected);
+                    case "skipCustomInstructions" -> request.config().setSkipCustomInstructions(!expected);
+                    case "coauthorEnabled" -> request.config().setCoauthorEnabled(!expected);
+                    case "manageScheduleEnabled" -> request.config().setManageScheduleEnabled(!expected);
                     default -> throw new AssertionError(setting);
                 }
                 return client.resumeSession(request.sessionId(),
@@ -460,6 +465,28 @@ class AhpHostTest {
             var error = assertThrows(Exception.class, () -> await(
                     server.materialize(host, "changed", true, Map.of("sessionId", "changed", setting, expected))));
             assertTrue(error.getMessage().contains("config."));
+            await(host.dispose());
+        }
+    }
+
+    @ParameterizedTest
+    @CsvSource({"false,skipCustomInstructions,false", "false,skipCustomInstructions,true",
+            "false,coauthorEnabled,false", "false,coauthorEnabled,true", "false,manageScheduleEnabled,false",
+            "false,manageScheduleEnabled,true", "true,skipCustomInstructions,false", "true,skipCustomInstructions,true",
+            "true,coauthorEnabled,false", "true,coauthorEnabled,true", "true,manageScheduleEnabled,false",
+            "true,manageScheduleEnabled,true"})
+    void preservesSettingsAppliedAfterCreation(boolean resume, String setting, boolean expected) throws Exception {
+        try (var server = new FakeRuntime(); var client = server.client()) {
+            var host = await(client.startAhpHost(localOptions()
+                    .setCreateSession(request -> client
+                            .createSession(request.config().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)))
+                    .setResumeSession(request -> client.resumeSession(request.sessionId(),
+                            request.config().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)))));
+            assertEquals("applied", await(
+                    server.materialize(host, "applied", resume, Map.of("sessionId", "applied", setting, expected)))
+                    .get("sessionId").asText());
+            assertEquals(1, server.optionsRequests.size());
+            assertEquals(expected, server.optionsRequests.get(0).get(setting).booleanValue());
             await(host.dispose());
         }
     }
@@ -608,6 +635,7 @@ class AhpHostTest {
         final ServerSocket listener = new ServerSocket(0, 1, InetAddress.getByName("127.0.0.1"));
         final CompletableFuture<JsonRpcClient> connected = new CompletableFuture<>();
         final CopyOnWriteArrayList<JsonNode> sessionRequests = new CopyOnWriteArrayList<>();
+        final CopyOnWriteArrayList<JsonNode> optionsRequests = new CopyOnWriteArrayList<>();
         final CopyOnWriteArrayList<JsonNode> unpublicationRequests = new CopyOnWriteArrayList<>();
         final AtomicInteger disposals = new AtomicInteger();
         final CompletableFuture<String> startEntered = new CompletableFuture<>();
@@ -635,9 +663,12 @@ class AhpHostTest {
                                         params.path("sessionId").asText(UUID.randomUUID().toString())));
                             });
                         }
-                        for (String method : List.of("session.disconnect", "session.options.update")) {
-                            transport.registerMethodHandler(method, (id, params) -> respond(transport, id, Map.of()));
-                        }
+                        transport.registerMethodHandler("session.disconnect",
+                                (id, params) -> respond(transport, id, Map.of()));
+                        transport.registerMethodHandler("session.options.update", (id, params) -> {
+                            optionsRequests.add(params);
+                            respond(transport, id, Map.of());
+                        });
                         transport.registerMethodHandler("host.start", (id, params) -> {
                             startEntered.complete(params.get("hostId").asText());
                             startRequest.complete(params);

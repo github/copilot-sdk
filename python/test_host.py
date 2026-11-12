@@ -32,6 +32,8 @@ def client_fixture():
             return {"sessions": []}
         if method in ("session.create", "session.resume"):
             return {"sessionId": params["sessionId"]}
+        if method == "session.options.update":
+            return {"success": True}
         return {}
 
     rpc = Mock(request=AsyncMock(side_effect=request))
@@ -273,6 +275,63 @@ async def test_factories_preserve_configuration_and_release_exact_original_once(
     assert cancellations[0].is_set()
     released.assert_called_once_with(originals[0])
     assert client._get_session("session") is originals[0]
+
+
+OPTIONS_PATCH_SETTINGS = {
+    "skipCustomInstructions": "skip_custom_instructions",
+    "coauthorEnabled": "coauthor_enabled",
+    "manageScheduleEnabled": "manage_schedule_enabled",
+}
+
+
+@pytest.mark.parametrize("resume", [False, True])
+@pytest.mark.parametrize("setting", list(OPTIONS_PATCH_SETTINGS))
+@pytest.mark.parametrize("value", [False, True])
+async def test_factories_preserve_settings_applied_after_creation(resume, setting, value):
+    client, rpc = client_fixture()
+
+    async def create(request):
+        return await client.create_session(**request.config)
+
+    async def restore(request):
+        return await client.resume_session(request.session_id, **request.config)
+
+    host = await client.start_ahp_host(
+        AhpHostOptions(
+            authentication=AhpHostAuthentication("none"),
+            local_server=HostLocalServerOptions(),
+            create_session=create,
+            resume_session=restore,
+        )
+    )
+    result = await client._ahp_hosts.materialize(handoff(host, resume=resume, **{setting: value}))
+    assert result == {"sessionId": "session"}
+    updates = [
+        call.args[1]
+        for call in rpc.request.call_args_list
+        if call.args[0] == "session.options.update"
+    ]
+    assert [update[setting] for update in updates] == [value]
+
+
+@pytest.mark.parametrize("setting", list(OPTIONS_PATCH_SETTINGS))
+@pytest.mark.parametrize("expected", [False, True])
+async def test_changed_settings_applied_after_creation_are_rejected(setting, expected):
+    client, _ = client_fixture()
+
+    async def create(request):
+        config = {**request.config, OPTIONS_PATCH_SETTINGS[setting]: not expected}
+        return await client.create_session(**config)
+
+    host = await client.start_ahp_host(
+        AhpHostOptions(
+            authentication=AhpHostAuthentication("none"),
+            local_server=HostLocalServerOptions(),
+            create_session=create,
+        )
+    )
+    with pytest.raises(ValueError, match="AHP callback must preserve"):
+        await client._ahp_hosts.materialize(handoff(host, **{setting: expected}))
 
 
 async def test_resume_can_return_a_retained_original_without_reconfiguration():

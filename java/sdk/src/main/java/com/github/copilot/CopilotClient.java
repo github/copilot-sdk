@@ -1452,7 +1452,7 @@ public final class CopilotClient implements AutoCloseable {
                                                     config.getCoauthorEnabled().orElse(null),
                                                     config.getManageScheduleEnabled().orElse(null),
                                                     config.getIncludedBuiltinSkills());
-                                        }).thenApply(v -> {
+                                        }).thenApply(optionsPatch -> {
                                             if (tokenRegistration != null) {
                                                 tokenRegistration.claim(session.getSessionId());
                                             } else {
@@ -1462,7 +1462,7 @@ public final class CopilotClient implements AutoCloseable {
                                                     "CopilotClient.createSession complete. Elapsed={Elapsed}, SessionId="
                                                             + session.getSessionId(),
                                                     totalNanos);
-                                            ahpHosts.capture(session, request);
+                                            ahpHosts.capture(session, request, optionsPatch);
                                             return session;
                                         });
                                     }).exceptionallyCompose(error -> useServerGeneratedId
@@ -1811,7 +1811,8 @@ public final class CopilotClient implements AutoCloseable {
                                                                     config.getCustomAgentsLocalOnly().orElse(null),
                                                                     config.getCoauthorEnabled().orElse(null),
                                                                     config.getManageScheduleEnabled().orElse(null),
-                                                                    config.getIncludedBuiltinSkills()).thenApply(v -> {
+                                                                    config.getIncludedBuiltinSkills())
+                                                                    .thenApply(optionsPatch -> {
                                                                         LoggingHelpers.logTiming(LOG, Level.FINE,
                                                                                 "CopilotClient.resumeSession complete. Elapsed={Elapsed}, SessionId="
                                                                                         + sessionId,
@@ -1823,7 +1824,8 @@ public final class CopilotClient implements AutoCloseable {
                                                                             gitHubTokenProviders
                                                                                     .retire(session.getSessionId());
                                                                         }
-                                                                        ahpHosts.capture(session, request);
+                                                                        ahpHosts.capture(session, request,
+                                                                                optionsPatch);
                                                                         if (mappedReturnedId[0] != null) {
                                                                             sessions.remove(resolvedSessionId, session);
                                                                         }
@@ -1927,8 +1929,9 @@ public final class CopilotClient implements AutoCloseable {
         return false;
     }
 
-    CompletableFuture<Void> updateSessionOptionsForMode(CopilotSession session, Boolean skipCustomInstructions,
-            Boolean customAgentsLocalOnly, Boolean coauthorEnabled, Boolean manageScheduleEnabled) {
+    CompletableFuture<SessionOptionsUpdateParams> updateSessionOptionsForMode(CopilotSession session,
+            Boolean skipCustomInstructions, Boolean customAgentsLocalOnly, Boolean coauthorEnabled,
+            Boolean manageScheduleEnabled) {
         return updateSessionOptionsForMode(session, skipCustomInstructions, customAgentsLocalOnly, coauthorEnabled,
                 manageScheduleEnabled, null);
     }
@@ -1957,11 +1960,12 @@ public final class CopilotClient implements AutoCloseable {
      * @param includedBuiltinSkills
      *            caller-supplied built-in skill allowlist, or {@code null} if not
      *            set
-     * @return a future that completes when the patch has been applied
+     * @return a future that completes with the applied patch, or {@code null} when
+     *         no patch was sent
      */
-    CompletableFuture<Void> updateSessionOptionsForMode(CopilotSession session, Boolean skipCustomInstructions,
-            Boolean customAgentsLocalOnly, Boolean coauthorEnabled, Boolean manageScheduleEnabled,
-            List<String> includedBuiltinSkills) {
+    CompletableFuture<SessionOptionsUpdateParams> updateSessionOptionsForMode(CopilotSession session,
+            Boolean skipCustomInstructions, Boolean customAgentsLocalOnly, Boolean coauthorEnabled,
+            Boolean manageScheduleEnabled, List<String> includedBuiltinSkills) {
 
         Boolean patchSkip = null;
         Boolean patchAgents = null;
@@ -2014,9 +2018,9 @@ public final class CopilotClient implements AutoCloseable {
         }
         var params = builder.build();
 
-        return session.getRpc().options.update(params).<Void>thenCompose(result -> {
+        return session.getRpc().options.update(params).<SessionOptionsUpdateParams>thenCompose(result -> {
             LOG.fine("session.options.update applied for session " + session.getSessionId());
-            return CompletableFuture.completedFuture(null);
+            return CompletableFuture.completedFuture(params);
         }).exceptionally(ex -> {
             // The runtime session exists but the post-create options patch failed.
             // Best-effort disconnect so we don't leak it (in empty mode it would

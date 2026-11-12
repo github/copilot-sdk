@@ -4012,7 +4012,7 @@ class CopilotClient:
                 )
             session._workspace_path = response.get("workspacePath")
             session.permission_mode_result = _permission_mode_result(response)
-            await self._apply_post_create_options_patch(
+            options_patch = await self._apply_post_create_options_patch(
                 session,
                 mode,
                 skip_custom_instructions,
@@ -4025,7 +4025,7 @@ class CopilotClient:
             self._commit_github_token_provider(
                 session.session_id, github_token_provider_registration_id
             )
-            self._ahp_hosts.capture(session, payload)
+            self._ahp_hosts.capture(session, payload, options_patch)
         except BaseException as exc:
             with inline_state_lock:
                 request_failed = True
@@ -5020,7 +5020,7 @@ class CopilotClient:
                     "session.eventLog.registerInterest",
                     {"sessionId": session.session_id, "eventType": "mcp.oauth_required"},
                 )
-            await self._apply_post_create_options_patch(
+            options_patch = await self._apply_post_create_options_patch(
                 session,
                 mode,
                 skip_custom_instructions,
@@ -5030,7 +5030,7 @@ class CopilotClient:
                 included_builtin_skills,
             )
             self._commit_github_token_provider(session_id, github_token_provider_registration_id)
-            self._ahp_hosts.capture(session, payload)
+            self._ahp_hosts.capture(session, payload, options_patch)
         except BaseException as exc:
             # The runtime keeps the resident session's bindings when a resume
             # fails, except when a successful resume was rejected only because
@@ -6300,12 +6300,13 @@ class CopilotClient:
         included_builtin_skills: list[str] | None = None,
         *,
         delete_on_failure: bool = False,
-    ) -> None:
+    ) -> dict[str, Any] | None:
         """Apply empty-mode safe defaults (or caller-supplied overrides in
         copilot-cli mode) via ``session.options.update`` after create/resume.
 
         If the patch is rejected, tear the session down so empty-mode callers
         never end up with a permissive session.
+        Returns the applied patch, or ``None`` if none was sent.
         """
         from .generated.rpc import SessionInstalledPlugin, SessionUpdateOptionsParams
 
@@ -6318,7 +6319,7 @@ class CopilotClient:
             included_builtin_skills,
         )
         if patch is None:
-            return
+            return None
 
         params = SessionUpdateOptionsParams()
         if "skipCustomInstructions" in patch:
@@ -6354,6 +6355,7 @@ class CopilotClient:
                 )
                 raise error from cleanup_error
             raise
+        return patch
 
     async def _set_session_fs_provider(self) -> None:
         if not self._session_fs_config or not self._client:
