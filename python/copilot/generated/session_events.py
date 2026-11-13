@@ -9213,6 +9213,7 @@ class PermissionRecoveryAttempt:
     relation: PermissionRecoveryAttemptRelation
     request_fingerprint: str
     tool_call_id: str | None = None
+    review_incomplete: bool | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "PermissionRecoveryAttempt":
@@ -9225,6 +9226,7 @@ class PermissionRecoveryAttempt:
         relation = parse_enum(PermissionRecoveryAttemptRelation, obj.get("relation"))
         request_fingerprint = from_str(obj.get("requestFingerprint"))
         tool_call_id = from_union([from_none, from_str], obj.get("toolCallId"))
+        review_incomplete = from_union([from_none, from_bool], obj.get("reviewIncomplete"))
         return PermissionRecoveryAttempt(
             attempt_id=attempt_id,
             disposition=disposition,
@@ -9234,6 +9236,7 @@ class PermissionRecoveryAttempt:
             relation=relation,
             request_fingerprint=request_fingerprint,
             tool_call_id=tool_call_id,
+            review_incomplete=review_incomplete,
         )
 
     def to_dict(self) -> dict:
@@ -9247,6 +9250,8 @@ class PermissionRecoveryAttempt:
         result["requestFingerprint"] = from_str(self.request_fingerprint)
         if self.tool_call_id is not None:
             result["toolCallId"] = from_union([from_none, from_str], self.tool_call_id)
+        if self.review_incomplete is not None:
+            result["reviewIncomplete"] = from_union([from_none, from_bool], self.review_incomplete)
         return result
 
 

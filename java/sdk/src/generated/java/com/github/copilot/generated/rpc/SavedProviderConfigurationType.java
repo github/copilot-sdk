@@ -10,7 +10,7 @@ package com.github.copilot.generated.rpc;
 import javax.annotation.processing.Generated;
 
 /**
- * Provider families supported by saved configuration.
+ * Provider families supported by saved configuration, including managed local models.
  *
  * @since 1.0.0
  */

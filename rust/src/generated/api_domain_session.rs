@@ -5042,6 +5042,12 @@ pub struct SessionOpenResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TeamPluginMarketplaceSource {
+    /// Folder in the repository that holds the marketplace. Absent means the repository root.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    /// Branch or tag the marketplace is read from. Absent means the default branch.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub r#ref: Option<String>,
     /// GitHub repository in owner/name form.
     pub repo: String,
     /// Marketplace source discriminator. Currently only github is supported.
@@ -14036,6 +14042,36 @@ pub struct SessionProviderAddResult {
     pub models: Vec<serde_json::Value>,
 }
 
+/// Request to update one provider's connection settings in a single session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionProviderUpdateProviderParams {
+    /// Replacement provider settings. Credentials and custom headers are not accepted in this session update.
+    pub provider: SavedProviderConfigurationProviderInput,
+}
+
+/// Request to update one provider-local model in a single session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionProviderUpdateModelParams {
+    /// Replacement model definition. Its provider and id identify the session row to replace.
+    pub model: ProviderModelConfig,
+}
+
 /// The selectable model entries and selection ids synthesized for the synchronized BYOK models.
 ///
 /// <div class="warning">
@@ -15836,7 +15872,7 @@ pub struct SessionMetadataSetWorkingDirectoryResult {
     pub working_directory: String,
 }
 
-/// Re-tokenize the session's existing messages against `modelId` and return the token totals. Useful for hosts that want an initial estimate of context usage on session resume, before the next agent turn fires `session.context_info_changed` events. Returns zeros for an empty session.
+/// Re-tokenize the session's existing messages against `modelId` and return the token totals. Useful for hosts that want an initial estimate of context usage on session resume, before the next agent turn fires `session.usage_info` events. Returns zeros for an empty session.
 ///
 /// <div class="warning">
 ///

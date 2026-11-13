@@ -41,7 +41,7 @@ public final class SkillContextDeliveredEvent extends SessionEvent {
     public record SkillContextDeliveredEventData(
         /** Exact model-facing skill wrapper, including its invocation-time file context */
         @JsonProperty("content") String content,
-        /** Unmodified injection provenance, in the form skill-<invocation-name> */
+        /** Unmodified injection provenance, in the form skill-&lt;invocation-name> */
         @JsonProperty("source") String source,
         /** Interaction that delivered this context, when known */
         @JsonProperty("interactionId") String interactionId

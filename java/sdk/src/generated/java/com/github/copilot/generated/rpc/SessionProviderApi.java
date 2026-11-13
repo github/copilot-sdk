@@ -76,6 +76,38 @@ public final class SessionProviderApi {
     }
 
     /**
+     * Updates one provider's connection settings in this session's BYOK registry while preserving its saved credential and sibling models.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<Void> updateProvider(SessionProviderUpdateProviderParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.provider.updateProvider", _p, Void.class);
+    }
+
+    /**
+     * Updates one model in this session's BYOK registry without replacing sibling models or unrelated provider registrations.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<Void> updateModel(SessionProviderUpdateModelParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.provider.updateModel", _p, Void.class);
+    }
+
+    /**
      * Atomically updates the session's BYOK provider and model registry by applying the supplied snapshot, replacing existing entries, updating models, or removing entries absent from the snapshot.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden

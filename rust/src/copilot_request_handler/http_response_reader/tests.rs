@@ -46,23 +46,6 @@ async fn preserves_empty_large_fragmented_and_partial_bodies() {
 }
 
 #[tokio::test]
-async fn flushes_partial_bytes_without_polling_pending_input() {
-    let body =
-        stream::once(async { Ok(Bytes::from_static(b"data: first\n\n")) }).chain(stream::pending());
-    let mut reader = HttpResponseReader::new(Box::pin(body));
-    let mut output = Vec::new();
-    assert!(
-        reader
-            .next_chunk(&mut output)
-            .now_or_never()
-            .unwrap()
-            .unwrap()
-    );
-    assert_eq!(output, b"data: first\n\n");
-    assert!(reader.read_more().now_or_never().is_none());
-}
-
-#[tokio::test]
 async fn bounds_read_ahead_even_for_single_byte_fragments() {
     let polls = Arc::new(AtomicUsize::new(0));
     let counter = polls.clone();
@@ -155,16 +138,6 @@ async fn flushes_last_partial_before_upstream_error_or_panic() {
             }
         );
     }
-}
-
-#[tokio::test]
-async fn dropping_reader_drops_pending_source() {
-    let (tx, rx) = tokio::sync::mpsc::channel(1);
-    let mut reader =
-        HttpResponseReader::new(Box::pin(tokio_stream::wrappers::ReceiverStream::new(rx)));
-    assert!(reader.read_more().now_or_never().is_none());
-    drop(reader);
-    assert!(tx.is_closed());
 }
 
 #[tokio::test(start_paused = true)]

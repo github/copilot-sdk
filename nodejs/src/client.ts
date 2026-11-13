@@ -14,9 +14,17 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { spawn, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { accessSync, constants, existsSync, statSync } from "node:fs";
+import {
+    accessSync,
+    constants,
+    existsSync,
+    lstatSync,
+    readlinkSync,
+    realpathSync,
+    statSync,
+} from "node:fs";
 import { isIPv6, Socket } from "node:net";
-import { dirname, isAbsolute, join, resolve, win32 } from "node:path";
+import { basename, dirname, isAbsolute, join, resolve, sep, win32 } from "node:path";
 import {
     type CancellationToken,
     CancellationTokenSource,
@@ -759,6 +767,53 @@ class TeardownResilientStreamMessageWriter extends StreamMessageWriter {
             }
         }
     }
+}
+
+/**
+ * The physical path of an existing directory, as a POSIX child that enters it sees
+ * it. Native realpath needs procfs on some musl versions, so without it the path is
+ * walked one component at a time the way the kernel does: a symlink target is read
+ * before any `..` that follows it is applied. Node's portable `realpathSync` is not
+ * a substitute, because it collapses `alias/..` in a target without reading `alias`.
+ */
+function physicalDirectory(directory: string): string {
+    try {
+        return realpathSync.native(directory);
+    } catch {
+        return walkPhysicalPath(resolve(directory));
+    }
+}
+
+const MAX_SYMLINKS = 40;
+
+function walkPhysicalPath(absolutePath: string): string {
+    let resolved = "/";
+    const pending = absolutePath.split("/");
+    let links = 0;
+    while (pending.length > 0) {
+        const part = pending.shift()!;
+        if (part === "" || part === ".") {
+            continue;
+        }
+        if (part === "..") {
+            resolved = dirname(resolved);
+            continue;
+        }
+        const next = join(resolved, part);
+        if (!lstatSync(next).isSymbolicLink()) {
+            resolved = next;
+            continue;
+        }
+        if (++links > MAX_SYMLINKS) {
+            throw new Error(`Too many levels of symbolic links in ${absolutePath}`);
+        }
+        const target = readlinkSync(next);
+        if (target.startsWith("/")) {
+            resolved = "/";
+        }
+        pending.unshift(...target.split("/"));
+    }
+    return resolved;
 }
 
 export class CopilotClient {
@@ -4178,10 +4233,28 @@ export class CopilotClient {
                 );
             }
 
-            // Verify CLI exists before attempting to spawn
-            if (!existsSync(this.resolvedCliPath)) {
+            // Verify CLI exists before attempting to spawn. The child starts in the
+            // working directory, and both spawn (for an executable) and node (for a
+            // script) resolve a relative path from there, so check that file. Node
+            // normalizes script paths after entering the working directory (physical on POSIX);
+            // native executable paths keep their traversal.
+            // A bare name keeps its existing lookup.
+            const cliPath = this.resolvedCliPath;
+            const workingDirectory = this.options.workingDirectory;
+            const launchedCliPath =
+                isAbsolute(cliPath) || basename(cliPath) === cliPath
+                    ? cliPath
+                    : cliPath.endsWith(".js")
+                      ? join(
+                            process.platform !== "win32" && existsSync(workingDirectory)
+                                ? physicalDirectory(workingDirectory)
+                                : workingDirectory,
+                            cliPath
+                        )
+                      : `${workingDirectory}${sep}${cliPath}`;
+            if (!existsSync(launchedCliPath)) {
                 throw new Error(
-                    `Copilot CLI not found at ${this.resolvedCliPath}. Set COPILOT_CLI_PATH to use a custom installation.`
+                    `Copilot CLI not found at ${launchedCliPath}. Set COPILOT_CLI_PATH to use a custom installation.`
                 );
             }
 
@@ -4189,7 +4262,6 @@ export class CopilotClient {
             // directory as the executable failing (spawn <cli> ENOENT or EACCES), and in
             // stdio mode only after this promise has resolved, so the caller would
             // see an unrelated write error instead.
-            const workingDirectory = this.options.workingDirectory;
             let workingDirectoryProblem: string | undefined;
             try {
                 workingDirectoryProblem = statSync(workingDirectory).isDirectory()

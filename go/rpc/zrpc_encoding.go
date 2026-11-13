@@ -708,6 +708,35 @@ func (r ProtocolMarkerSectionOverrideTransform) MarshalJSON() ([]byte, error) {
 	})
 }
 
+func matchesProtocolSectionOverrideProtocolStaticSectionOverride(data []byte) bool {
+	var rawObject map[string]json.RawMessage
+	if err := json.Unmarshal(data, &rawObject); err != nil {
+		return false
+	}
+	if _, ok := rawObject["action"]; !ok {
+		return false
+	}
+	for key := range rawObject {
+		switch key {
+		case "action", "content":
+		default:
+			return false
+		}
+	}
+	if rawAction, ok := rawObject["action"]; ok {
+		var rawActionString string
+		if err := json.Unmarshal(rawAction, &rawActionString); err != nil {
+			return false
+		}
+		switch rawActionString {
+		case "append", "prepend", "remove", "replace":
+		default:
+			return false
+		}
+	}
+	return true
+}
+
 func (r ProtocolSectionOverride) MarshalJSON() ([]byte, error) {
 	if r.ProtocolMarkerSectionOverride != nil {
 		return json.Marshal(r.ProtocolMarkerSectionOverride)
@@ -723,17 +752,18 @@ func (r *ProtocolSectionOverride) UnmarshalJSON(data []byte) error {
 		*r = ProtocolSectionOverride{}
 		return nil
 	}
+	if matchesProtocolSectionOverrideProtocolStaticSectionOverride(data) {
+		var value ProtocolStaticSectionOverride
+		if err := json.Unmarshal(data, &value); err != nil {
+			return err
+		}
+		*r = ProtocolSectionOverride{ProtocolStaticSectionOverride: &value}
+		return nil
+	}
 	{
 		value, err := unmarshalProtocolMarkerSectionOverride(data)
 		if err == nil {
 			*r = ProtocolSectionOverride{ProtocolMarkerSectionOverride: value}
-			return nil
-		}
-	}
-	{
-		var value ProtocolStaticSectionOverride
-		if err := json.Unmarshal(data, &value); err == nil {
-			*r = ProtocolSectionOverride{ProtocolStaticSectionOverride: &value}
 			return nil
 		}
 	}

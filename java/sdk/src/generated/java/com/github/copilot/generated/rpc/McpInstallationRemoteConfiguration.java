@@ -17,8 +17,8 @@ import javax.annotation.processing.Generated;
 /**
  * Final remote configuration, not a template. The producer refuses external-value
 expansion before presenting this review. Receipt-owned secrets appear only as
-`${installation-secret:<id>}` references whose `<id>` matches a reviewed
-`${secret:<id>}` placeholder; values are never included.
+`${installation-secret:&lt;id>}` references whose `&lt;id>` matches a reviewed
+`${secret:&lt;id>}` placeholder; values are never included.
  *
  * @since 1.0.0
  */

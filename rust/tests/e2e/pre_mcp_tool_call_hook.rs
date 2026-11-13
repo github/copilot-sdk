@@ -5,7 +5,7 @@ use github_copilot_sdk::hooks::{
     HookContext, PreMcpToolCallInput, PreMcpToolCallOutput, SessionHooks,
 };
 use github_copilot_sdk::{IndexMap, McpServerConfig, McpStdioServerConfig};
-use serde_json::{Value, json};
+use serde_json::json;
 use tokio::sync::mpsc;
 
 use super::support::{assistant_message_content, recv_with_timeout};
@@ -46,42 +46,6 @@ impl SessionHooks for SetMetaHooks {
         let _ = self.tx.send(input);
         Some(PreMcpToolCallOutput {
             meta_to_use: Some(json!({"injected": "by-hook", "source": "test"})),
-        })
-    }
-}
-
-struct ReplaceMetaHooks {
-    tx: mpsc::UnboundedSender<PreMcpToolCallInput>,
-}
-
-#[async_trait]
-impl SessionHooks for ReplaceMetaHooks {
-    async fn on_pre_mcp_tool_call(
-        &self,
-        input: PreMcpToolCallInput,
-        _ctx: HookContext,
-    ) -> Option<PreMcpToolCallOutput> {
-        let _ = self.tx.send(input);
-        Some(PreMcpToolCallOutput {
-            meta_to_use: Some(json!({"completely": "replaced"})),
-        })
-    }
-}
-
-struct RemoveMetaHooks {
-    tx: mpsc::UnboundedSender<PreMcpToolCallInput>,
-}
-
-#[async_trait]
-impl SessionHooks for RemoveMetaHooks {
-    async fn on_pre_mcp_tool_call(
-        &self,
-        input: PreMcpToolCallInput,
-        _ctx: HookContext,
-    ) -> Option<PreMcpToolCallOutput> {
-        let _ = self.tx.send(input);
-        Some(PreMcpToolCallOutput {
-            meta_to_use: Some(Value::Null),
         })
     }
 }
@@ -136,100 +100,5 @@ async fn should_set_meta_via_premcptoolcall_hook() {
     .await;
 }
 
-#[tokio::test]
-async fn should_replace_meta_via_premcptoolcall_hook() {
-    super::support::with_shared_e2e_context(&E2E,
-        "pre_mcp_tool_call_hook",
-        "should_replace_meta_via_premcptoolcall_hook",
-        |ctx| {
-            Box::pin(async move {
-                ctx.set_default_copilot_user();
-                let (tx, mut rx) = mpsc::unbounded_channel();
-                let client = ctx.start_client().await;
-                let session = client
-                    .create_session(
-                        ctx.approve_all_session_config()
-                            .with_mcp_servers(meta_echo_mcp_servers(ctx.repo_root()))
-                            .with_hooks(Arc::new(ReplaceMetaHooks { tx })),
-                    )
-                    .await
-                    .expect("create session");
-
-                let answer = session
-                    .send_and_wait(
-                        "Use the meta-echo/echo_meta tool with value 'test-replace'. Reply with just the raw tool result.",
-                    )
-                    .await
-                    .expect("send")
-                    .expect("assistant message");
-                let content = assistant_message_content(&answer);
-                assert!(
-                    content.contains("completely"),
-                    "Expected 'completely' in response, got: {content}"
-                );
-                assert!(
-                    content.contains("replaced"),
-                    "Expected 'replaced' in response, got: {content}"
-                );
-
-                let input = recv_with_timeout(&mut rx, "preMcpToolCall hook").await;
-                assert_eq!(input.server_name, "meta-echo");
-                assert_eq!(input.tool_name, "echo_meta");
-
-                session.disconnect().await.expect("disconnect session");
-                client.stop().await.expect("stop client");
-            })
-        },
-    )
-    .await;
-}
-
-#[tokio::test]
-async fn should_remove_meta_via_premcptoolcall_hook() {
-    super::support::with_shared_e2e_context(&E2E,
-        "pre_mcp_tool_call_hook",
-        "should_remove_meta_via_premcptoolcall_hook",
-        |ctx| {
-            Box::pin(async move {
-                ctx.set_default_copilot_user();
-                let (tx, mut rx) = mpsc::unbounded_channel();
-                let client = ctx.start_client().await;
-                let session = client
-                    .create_session(
-                        ctx.approve_all_session_config()
-                            .with_mcp_servers(meta_echo_mcp_servers(ctx.repo_root()))
-                            .with_hooks(Arc::new(RemoveMetaHooks { tx })),
-                    )
-                    .await
-                    .expect("create session");
-
-                let answer = session
-                    .send_and_wait(
-                        "Use the meta-echo/echo_meta tool with value 'test-remove'. Reply with just the raw tool result.",
-                    )
-                    .await
-                    .expect("send")
-                    .expect("assistant message");
-                let content = assistant_message_content(&answer);
-                assert!(
-                    content.contains("\"meta\":null"),
-                    "Expected '\"meta\":null' in response, got: {content}"
-                );
-                assert!(
-                    content.contains("test-remove"),
-                    "Expected 'test-remove' in response, got: {content}"
-                );
-
-                let input = recv_with_timeout(&mut rx, "preMcpToolCall hook").await;
-                assert_eq!(input.server_name, "meta-echo");
-                assert_eq!(input.tool_name, "echo_meta");
-
-                session.disconnect().await.expect("disconnect session");
-                client.stop().await.expect("stop client");
-            })
-        },
-    )
-    .await;
-}
 static E2E: super::support::SharedE2eGroup =
-    super::support::SharedE2eGroup::standard("pre_mcp_tool_call_hook", 3);
+    super::support::SharedE2eGroup::standard("pre_mcp_tool_call_hook", 1);

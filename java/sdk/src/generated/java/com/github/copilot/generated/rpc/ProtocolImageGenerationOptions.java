@@ -32,7 +32,7 @@ cold resume. Does not enable image generation or enforce enterprise policy. */
     @CopilotExperimental
     @JsonProperty("watermark") Boolean watermark,
     /** Experimental. Save each generated or edited image under the session-state
-directory's `images` folder and add a `saved_to: <path>` line per image to
+directory's `images` folder and add a `saved_to: &lt;path>` line per image to
 the tool result the model sees. Defaults to true; set false to opt out.
 Subagents follow their
 parent's value unless they set their own. A failed save still returns the

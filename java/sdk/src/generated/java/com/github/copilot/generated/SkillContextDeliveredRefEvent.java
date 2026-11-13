@@ -39,13 +39,13 @@ public final class SkillContextDeliveredRefEvent extends SessionEvent {
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record SkillContextDeliveredRefEventData(
-        /** Content identifier of an earlier inline skill event in this session, in the prefixed form `sha256:<lowercase hex digest>` over the UTF-8 bytes of that event's `content` */
+        /** Content identifier of an earlier inline skill event in this session, in the prefixed form `sha256:&lt;lowercase hex digest>` over the UTF-8 bytes of that event's `content` */
         @JsonProperty("contentId") String contentId,
         /** Exact text preceding the referenced content in the delivered wrapper */
         @JsonProperty("prefix") String prefix,
         /** Exact text following the referenced content in the delivered wrapper */
         @JsonProperty("suffix") String suffix,
-        /** Unmodified injection provenance, in the form skill-<invocation-name> */
+        /** Unmodified injection provenance, in the form skill-&lt;invocation-name> */
         @JsonProperty("source") String source,
         /** Interaction that delivered this context, when known */
         @JsonProperty("interactionId") String interactionId

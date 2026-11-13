@@ -26,7 +26,7 @@ import javax.annotation.processing.Generated;
 record UserSettingsSetHookDisabledParams(
     /** Path of the settings.json to rewrite. */
     @JsonProperty("settingsPath") String settingsPath,
-    /** Durable content-hash key of the hook, as `hooks.loadResources` reports it. */
+    /** Durable content-hash key of the hook, as `hooks.discover` reports it in `disableKey`. */
     @JsonProperty("disableKey") String disableKey,
     /** True adds the key to `disabledHooks`, false removes it. */
     @JsonProperty("disabled") Boolean disabled

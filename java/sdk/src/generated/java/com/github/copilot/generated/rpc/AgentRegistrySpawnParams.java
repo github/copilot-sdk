@@ -30,7 +30,7 @@ public record AgentRegistrySpawnParams(
     @JsonProperty("agentName") String agentName,
     /** Model identifier to apply to the new session */
     @JsonProperty("model") String model,
-    /** Friendly session name. Must satisfy validateSessionName: non-empty, no leading/trailing whitespace, <=100 chars, no control chars, no double quotes. */
+    /** Friendly session name. Must satisfy validateSessionName: non-empty, no leading/trailing whitespace, &lt;=100 chars, no control chars, no double quotes. */
     @JsonProperty("name") String name,
     /** Permission posture for the new session. 'yolo' requires the controller-local session to currently be in allow-all mode. */
     @JsonProperty("permissionMode") AgentRegistrySpawnPermissionMode permissionMode,

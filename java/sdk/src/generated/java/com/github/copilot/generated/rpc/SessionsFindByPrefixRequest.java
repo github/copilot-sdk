@@ -26,7 +26,7 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public final class SessionsFindByPrefixRequest {
 
-    /** UUID prefix (>=7 hex chars, <36 chars). Returns the unique session ID, or undefined when there is no match or the prefix matches multiple sessions. */
+    /** UUID prefix (>=7 hex chars, &lt;36 chars). Returns the unique session ID, or undefined when there is no match or the prefix matches multiple sessions. */
     @JsonProperty("prefix")
     private final String prefix;
 
@@ -37,7 +37,7 @@ public final class SessionsFindByPrefixRequest {
     /**
      * Creates a request with its required inputs.
      *
-     * @param prefix UUID prefix (>=7 hex chars, <36 chars). Returns the unique session ID, or undefined when there is no match or the prefix matches multiple sessions.
+     * @param prefix UUID prefix (>=7 hex chars, &lt;36 chars). Returns the unique session ID, or undefined when there is no match or the prefix matches multiple sessions.
      */
     public SessionsFindByPrefixRequest(String prefix) {
         this.prefix = Objects.requireNonNull(prefix, "prefix");
@@ -46,7 +46,7 @@ public final class SessionsFindByPrefixRequest {
     /**
      * Returns the {@code prefix} property.
      *
-     * @return UUID prefix (>=7 hex chars, <36 chars). Returns the unique session ID, or undefined when there is no match or the prefix matches multiple sessions.
+     * @return UUID prefix (>=7 hex chars, &lt;36 chars). Returns the unique session ID, or undefined when there is no match or the prefix matches multiple sessions.
      */
     public String getPrefix() {
         return prefix;

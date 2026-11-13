@@ -19,17 +19,56 @@ pub(super) fn sha256(data: &[u8]) -> [u8; 32] {
 
 #[cfg(target_os = "macos")]
 pub(super) fn sha256(data: &[u8]) -> [u8; 32] {
-    // Reuse the downloader's existing AWS-LC SHA-256 provider.
-    let digest = rustls::crypto::aws_lc_rs::cipher_suite::TLS13_AES_128_GCM_SHA256
-        .tls13()
-        .expect("AES-128-GCM-SHA256 is a TLS 1.3 cipher suite")
-        .common
-        .hash_provider
-        .hash(data);
+    use std::ffi::{c_int, c_void};
+
+    // CommonCrypto's public CC_SHA256_CTX ABI (CommonCrypto/CommonDigest.h).
+    // libSystem supplies the implementation; no bundled crypto or Swift bridge
+    // is needed by this standalone SDK build script.
+    #[repr(C)]
+    struct Sha256Context {
+        count: [u32; 2],
+        hash: [u32; 8],
+        wbuf: [u32; 16],
+    }
+
+    #[link(name = "System")]
+    unsafe extern "C" {
+        fn CC_SHA256_Init(context: *mut Sha256Context) -> c_int;
+        fn CC_SHA256_Update(context: *mut Sha256Context, data: *const c_void, len: u32) -> c_int;
+        fn CC_SHA256_Final(digest: *mut u8, context: *mut Sha256Context) -> c_int;
+    }
+
+    let mut context = Sha256Context {
+        count: [0; 2],
+        hash: [0; 8],
+        wbuf: [0; 16],
+    };
+    let mut digest = [0; 32];
+    // SAFETY: context has the public C layout, is exclusively owned, and lives
+    // through finalization. Each input slice is valid for its supplied length;
+    // the output has CC_SHA256_DIGEST_LENGTH bytes. None of these calls retain
+    // pointers. CommonDigest.h specifies a success return of 1 for all three.
+    unsafe {
+        assert_eq!(
+            CC_SHA256_Init(&mut context),
+            1,
+            "Cannot verify Copilot archive SHA256: CC_SHA256_Init failed"
+        );
+        // CC_LONG is 32-bit even on 64-bit hosts. Do not truncate larger inputs.
+        for chunk in data.chunks(u32::MAX as usize) {
+            assert_eq!(
+                CC_SHA256_Update(&mut context, chunk.as_ptr().cast(), chunk.len() as u32),
+                1,
+                "Cannot verify Copilot archive SHA256: CC_SHA256_Update failed"
+            );
+        }
+        assert_eq!(
+            CC_SHA256_Final(digest.as_mut_ptr(), &mut context),
+            1,
+            "Cannot verify Copilot archive SHA256: CC_SHA256_Final failed"
+        );
+    }
     digest
-        .as_ref()
-        .try_into()
-        .expect("AWS-LC SHA256 produces a 32-byte digest")
 }
 
 #[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]

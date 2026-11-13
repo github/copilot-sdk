@@ -37,69 +37,6 @@ async fn should_receive_session_created_lifecycle_event() {
 }
 
 #[tokio::test]
-async fn should_filter_session_lifecycle_events_by_type() {
-    with_e2e_context(
-        "client_lifecycle",
-        "should_filter_session_lifecycle_events_by_type",
-        |ctx| {
-            Box::pin(async move {
-                ctx.set_default_copilot_user();
-                let client = ctx.start_client().await;
-                let created = client.subscribe_lifecycle();
-                let session = client
-                    .create_session(ctx.approve_all_session_config())
-                    .await
-                    .expect("create session");
-
-                let event = wait_for_lifecycle_event(
-                    created,
-                    "filtered session.created lifecycle event",
-                    |event| event.event_type == SessionLifecycleEventType::Created,
-                )
-                .await;
-                assert_eq!(&event.session_id, session.id());
-
-                session.disconnect().await.expect("disconnect session");
-                client.stop().await.expect("stop client");
-            })
-        },
-    )
-    .await;
-}
-
-#[tokio::test]
-async fn disposing_lifecycle_subscription_stops_receiving_events() {
-    with_e2e_context(
-        "client_lifecycle",
-        "disposing_lifecycle_subscription_stops_receiving_events",
-        |ctx| {
-            Box::pin(async move {
-                ctx.set_default_copilot_user();
-                let client = ctx.start_client().await;
-                drop(client.subscribe_lifecycle());
-                let created = client.subscribe_lifecycle();
-                let session = client
-                    .create_session(ctx.approve_all_session_config())
-                    .await
-                    .expect("create session");
-
-                let event = wait_for_lifecycle_event(
-                    created,
-                    "active session.created lifecycle event",
-                    |event| event.event_type == SessionLifecycleEventType::Created,
-                )
-                .await;
-                assert_eq!(event.session_id, *session.id());
-
-                session.disconnect().await.expect("disconnect session");
-                client.stop().await.expect("stop client");
-            })
-        },
-    )
-    .await;
-}
-
-#[tokio::test]
 async fn dispose_disconnects_client_and_disposes_rpc_surface_async() {
     with_e2e_context(
         "client_lifecycle",

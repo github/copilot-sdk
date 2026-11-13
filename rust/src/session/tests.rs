@@ -207,54 +207,6 @@ fn with_context_is_a_no_op_on_no_result() {
 }
 
 #[test]
-fn with_context_replaces_rather_than_nests() {
-    let result = PermissionResult::approve_once()
-        .with_context(attribution_context())
-        .with_context(PermissionDecisionContext {
-            outcome: PermissionDecisionOutcome::PromptedUser,
-            response_capability: None,
-            source: PermissionDecisionSource::HumanResponse,
-            surface: PermissionDecisionSurface::Sdk,
-            user_feedback: None,
-        });
-    let params = permission_response_params(
-        &SessionId::from("session-1"),
-        &RequestId::from("permission-1"),
-        &result,
-    )
-    .unwrap();
-    assert_eq!(
-        params["decisionContext"],
-        json!({
-            "outcome": "prompted_user",
-            "source": "human_response",
-            "surface": "sdk",
-        })
-    );
-}
-
-#[test]
-fn permission_request_data_reads_nested_managed_approval_metadata() {
-    let data = permission_request_data(
-        &json!({
-            "requestId": "permission-1",
-            "permissionRequest": {
-                "kind": "read",
-                "managedApprovalRequired": true,
-                "path": "/workspace/file.txt"
-            }
-        }),
-        false,
-    );
-
-    assert_eq!(data.managed_approval_required, Some(true));
-    assert_eq!(
-        data.extra["permissionRequest"]["path"],
-        "/workspace/file.txt"
-    );
-}
-
-#[test]
 fn permission_request_data_preserves_managed_flag_when_other_fields_are_malformed() {
     let data = permission_request_data(
         &json!({

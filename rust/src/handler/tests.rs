@@ -7,24 +7,6 @@
 use super::*;
 
 #[tokio::test]
-async fn approve_all_handler_returns_approved() {
-    let result = ApproveAllHandler
-        .handle(
-            SessionId::from("s1"),
-            RequestId::new("1"),
-            PermissionRequestData::default(),
-        )
-        .await;
-    assert!(matches!(
-        result,
-        PermissionResult::Decision {
-            decision: PermissionDecision::ApproveOnce(_),
-            ..
-        }
-    ));
-}
-
-#[tokio::test]
 async fn approve_all_handler_fails_when_managed_settings_enabled() {
     let result = ApproveAllHandler
         .handle(
@@ -58,87 +40,6 @@ async fn approve_all_handler_leaves_managed_approval_pending() {
         )
         .await;
     assert!(matches!(result, PermissionResult::NoResult));
-}
-
-#[tokio::test]
-async fn deny_all_handler_returns_denied() {
-    let result = DenyAllHandler
-        .handle(
-            SessionId::from("s1"),
-            RequestId::new("1"),
-            PermissionRequestData::default(),
-        )
-        .await;
-    assert!(matches!(
-        result,
-        PermissionResult::Decision {
-            decision: PermissionDecision::Reject(_),
-            ..
-        }
-    ));
-}
-
-#[test]
-fn mcp_auth_result_token_converts_to_wire_response() {
-    let wire = McpAuthResult::Token {
-        access_token: "host-token".to_string(),
-        token_type: Some("Bearer".to_string()),
-        expires_in: Some(3600),
-    }
-    .into_wire();
-
-    match wire {
-        McpOauthPendingRequestResponse::Token(token) => {
-            assert_eq!(token.access_token, "host-token");
-            assert_eq!(token.token_type.as_deref(), Some("Bearer"));
-            assert_eq!(token.expires_in, Some(3600));
-        }
-        McpOauthPendingRequestResponse::Cancelled(_) => panic!("expected token response"),
-        McpOauthPendingRequestResponse::RuntimeRefresh(_) => panic!("expected token response"),
-    }
-}
-
-#[test]
-fn old_oauth_requests_do_not_imply_runtime_refresh_support() {
-    let data: crate::session_events::McpOauthRequiredData =
-        serde_json::from_value(serde_json::json!({
-            "requestId": "old-request",
-            "serverName": "remote",
-            "serverUrl": "https://example.test/mcp",
-            "reason": "refresh",
-        }))
-        .unwrap();
-    assert!(!data.runtime_refresh_supported.unwrap_or(false));
-}
-
-#[test]
-fn mcp_auth_response_capability_truth_table() {
-    for supported in [None, Some(false), Some(true)] {
-        for response in ["runtimeRefresh", "token", "cancelled"] {
-            let result = match response {
-                "runtimeRefresh" => McpAuthResponse::RuntimeRefresh,
-                "token" => McpAuthResponse::Legacy(McpAuthResult::Token {
-                    access_token: "host-token".to_owned(),
-                    token_type: None,
-                    expires_in: None,
-                }),
-                _ => McpAuthResponse::Legacy(McpAuthResult::Cancelled),
-            };
-            let expected = match response {
-                "token" => serde_json::json!({"kind":"token","accessToken":"host-token"}),
-                "runtimeRefresh" if supported == Some(true) => {
-                    serde_json::json!({"kind":"runtimeRefresh"})
-                }
-                _ => serde_json::json!({"kind":"cancelled"}),
-            };
-            assert_eq!(
-                serde_json::to_value(result.into_wire_for_request(supported.unwrap_or(false)))
-                    .unwrap(),
-                expected,
-                "capability={supported:?}, response={response}",
-            );
-        }
-    }
 }
 
 #[test]

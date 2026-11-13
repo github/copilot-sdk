@@ -5872,9 +5872,26 @@ class CopilotClient:
 
         cli_path = conn.path
         assert cli_path is not None  # resolved in __init__
+        cwd = opts.working_directory or os.getcwd()
 
-        # Verify CLI exists
-        if not os.path.exists(cli_path):
+        # Verify CLI exists. The child starts in cwd, and node resolves a relative
+        # script from there, as POSIX does a relative program, so check that file.
+        # Node normalizes script paths after entering cwd (physical on POSIX);
+        # native executable paths keep their traversal.
+        # Windows resolves a relative program from this process's directory, as does
+        # the check below. A bare name keeps its PATH lookup.
+        if (
+            os.path.dirname(cli_path)
+            and not os.path.isabs(cli_path)
+            and (cli_path.endswith(".js") or sys.platform != "win32")
+        ):
+            launched_cli_path = os.path.join(cwd, cli_path)
+            if cli_path.endswith(".js"):
+                script_cwd = os.path.realpath(cwd) if sys.platform != "win32" else cwd
+                launched_cli_path = os.path.abspath(os.path.join(script_cwd, cli_path))
+            if not os.path.exists(launched_cli_path):
+                raise RuntimeError(f"Copilot CLI not found at {launched_cli_path}")
+        elif not os.path.exists(cli_path):
             original_path = cli_path
             if (cli_path := shutil.which(cli_path)) is None:
                 raise RuntimeError(f"Copilot CLI not found at {original_path}")
@@ -5952,8 +5969,6 @@ class CopilotClient:
 
         # On Windows, hide the console window to avoid distracting users in GUI apps
         creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
-
-        cwd = opts.working_directory or os.getcwd()
 
         # Choose transport mode
         spawn_start = time.perf_counter()

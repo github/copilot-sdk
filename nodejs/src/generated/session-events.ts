@@ -6183,6 +6183,10 @@ export interface PermissionRecoveryAttempt {
    */
   requestFingerprint: string;
   /**
+   * Whether this deferral happened because the automatic permission review ended without a verdict (timeout, empty or unparseable reply). Such a deferral assesses nothing: it does not make a later identical request a repeated attempt or count toward the attempt limit. Older runtimes ignore it.
+   */
+  reviewIncomplete?: boolean;
+  /**
    * Tool-call identifier associated with this attempt, when available
    */
   toolCallId?: string;

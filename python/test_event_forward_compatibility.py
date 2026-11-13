@@ -30,6 +30,10 @@ from copilot.session_events import (
     ManagedSettingsResolvedSource,
     PermissionApprovalEvaluationReasonCode,
     PermissionPromptRequestMemory,
+    PermissionRecoveryAttempt,
+    PermissionRecoveryAttemptDisposition,
+    PermissionRecoveryAttemptReason,
+    PermissionRecoveryAttemptRelation,
     PermissionRequestedData,
     PermissionRequestMemory,
     PermissionRequestMemoryAction,
@@ -115,6 +119,23 @@ class TestEventForwardCompatibility:
         owned = ExternalToolRequestedData.from_dict({**data.to_dict(), "hasHandler": True})
         assert owned.provider_id == "provider"
         assert owned.to_dict()["hasHandler"] is True
+
+    def test_permission_recovery_attempt_preserves_positional_tool_call_id(self):
+        # reviewIncomplete was added after this dataclass was published.
+        attempt = PermissionRecoveryAttempt(
+            "attempt-1",
+            PermissionRecoveryAttemptDisposition.DEFERRED,
+            1,
+            "shell",
+            PermissionRecoveryAttemptReason.PERMISSION_REQUIRED,
+            PermissionRecoveryAttemptRelation.INITIAL,
+            "fingerprint",
+            "call-1",
+        )
+        assert attempt.tool_call_id == "call-1"
+        assert attempt.review_incomplete is None
+        wire = {**attempt.to_dict(), "reviewIncomplete": True}
+        assert PermissionRecoveryAttempt.from_dict(wire).to_dict() == wire
 
     def test_error_data_preserves_legacy_positional_constructor(self):
         data = SessionErrorData(

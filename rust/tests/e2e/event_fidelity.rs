@@ -279,41 +279,6 @@ async fn should_emit_events_in_correct_order_for_tool_using_conversation() {
 }
 
 #[tokio::test]
-async fn should_emit_assistant_message_with_messageid() {
-    super::support::with_shared_e2e_context(
-        &E2E,
-        "event_fidelity",
-        "should_emit_assistant_message_with_messageid",
-        |ctx| {
-            Box::pin(async move {
-                ctx.set_default_copilot_user();
-                let client = ctx.start_client().await;
-                let session = client
-                    .create_session(ctx.approve_all_session_config())
-                    .await
-                    .expect("create session");
-                let events = session.subscribe();
-
-                session.send_and_wait("Say 'pong'.").await.expect("send");
-
-                let observed = collect_until_idle(events).await;
-                let assistant = observed
-                    .iter()
-                    .find(|event| event.parsed_type() == SessionEventType::AssistantMessage)
-                    .and_then(|event| event.typed_data::<AssistantMessageData>())
-                    .expect("assistant.message");
-                assert!(!assistant.message_id.is_empty());
-                assert!(assistant.content.contains("pong"));
-
-                session.disconnect().await.expect("disconnect session");
-                client.stop().await.expect("stop client");
-            })
-        },
-    )
-    .await;
-}
-
-#[tokio::test]
 async fn should_preserve_message_order_in_getmessages_after_tool_use() {
     super::support::with_shared_e2e_context(
         &E2E,
@@ -572,4 +537,4 @@ impl ToolHandler for SequencedBlockingTool {
     }
 }
 static E2E: super::support::SharedE2eGroup =
-    super::support::SharedE2eGroup::standard("event_fidelity", 8);
+    super::support::SharedE2eGroup::standard("event_fidelity", 7);

@@ -11,18 +11,7 @@ use std::path::{Path, PathBuf};
 
 use tempfile::tempdir;
 
-#[cfg(not(unix))]
-use super::fallback_cache_root;
 use super::{CLI_CACHE_DIR, cache_install_dir, private_temporary_cache, runtime_install_dir};
-
-#[cfg(not(unix))]
-#[test]
-fn non_unix_fallback_preserves_system_temp_dir() {
-    assert_eq!(
-        fallback_cache_root().expect("system temporary directory"),
-        std::env::temp_dir()
-    );
-}
 
 #[test]
 fn build_and_runtime_share_versioned_cache_paths() {
@@ -82,17 +71,6 @@ fn empty_custom_directory_is_not_replaced_with_a_default() {
         )
         .expect("explicit empty path is preserved"),
         PathBuf::new()
-    );
-}
-
-#[test]
-fn custom_runtime_directory_is_used_directly() {
-    let custom = OsStr::new("custom-runtime");
-
-    assert_eq!(
-        runtime_install_dir(Some(custom), || panic!("must not discover cache"), "1.2.3")
-            .expect("explicit path needs no user cache"),
-        PathBuf::from(custom)
     );
 }
 

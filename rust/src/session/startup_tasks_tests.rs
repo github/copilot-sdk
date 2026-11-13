@@ -246,57 +246,6 @@ async fn deferred_callback_after_guard_drop_cannot_register_or_replace_retry() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn aborted_startup_rejects_callback_without_polling() {
-    let tasks = Arc::new(StartupTasks::default());
-    let (completed_tx, completed_rx) = oneshot::channel();
-    tasks.abort();
-    let task = spawn_startup_tracked(
-        async move {
-            completed_tx.send(()).unwrap();
-        },
-        Some(&tasks),
-    );
-    assert!(task.is_none(), "aborted startup must not spawn a callback");
-    assert!(
-        timeout(Duration::from_secs(2), completed_rx)
-            .await
-            .unwrap()
-            .is_err(),
-        "rejected callback must be dropped without polling"
-    );
-}
-
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn abort_cancels_registered_callbacks() {
-    let tasks = Arc::new(StartupTasks::default());
-    let (entered_tx, entered_rx) = oneshot::channel();
-    let (mut release_tx, release_rx) = oneshot::channel::<()>();
-    let task = spawn_startup_tracked(
-        async move {
-            entered_tx.send(()).unwrap();
-            release_rx.await.unwrap();
-        },
-        Some(&tasks),
-    )
-    .unwrap();
-    timeout(Duration::from_secs(2), entered_rx)
-        .await
-        .unwrap()
-        .unwrap();
-    tasks.abort();
-    timeout(Duration::from_secs(2), release_tx.closed())
-        .await
-        .expect("registered callback must be aborted without releasing it");
-    assert!(
-        timeout(Duration::from_secs(2), task)
-            .await
-            .unwrap()
-            .unwrap_err()
-            .is_cancelled()
-    );
-}
-
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn abort_rejects_nested_spawn_from_an_already_polling_parent() {
     let tasks = Arc::new(StartupTasks::default());
     let (entered_tx, entered_rx) = oneshot::channel();

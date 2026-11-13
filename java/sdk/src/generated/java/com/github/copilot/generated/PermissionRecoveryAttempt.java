@@ -31,7 +31,9 @@ public record PermissionRecoveryAttempt(
     /** Controlled reason for the attempt disposition */
     @JsonProperty("reason") PermissionRecoveryAttemptReason reason,
     /** One-based position of this attempt in the episode */
-    @JsonProperty("ordinal") Long ordinal
+    @JsonProperty("ordinal") Long ordinal,
+    /** Whether this deferral happened because the automatic permission review ended without a verdict (timeout, empty or unparseable reply). Such a deferral assesses nothing: it does not make a later identical request a repeated attempt or count toward the attempt limit. Older runtimes ignore it. */
+    @JsonProperty("reviewIncomplete") Boolean reviewIncomplete
 ) {
 
     /**
@@ -62,6 +64,7 @@ public record PermissionRecoveryAttempt(
         private PermissionRecoveryAttemptDisposition disposition;
         private PermissionRecoveryAttemptReason reason;
         private Long ordinal;
+        private Boolean reviewIncomplete;
 
         /**
          * Sets the {@code attemptId} property.
@@ -152,6 +155,17 @@ public record PermissionRecoveryAttempt(
         }
 
         /**
+         * Sets the {@code reviewIncomplete} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder reviewIncomplete(Boolean value) {
+            this.reviewIncomplete = value;
+            return this;
+        }
+
+        /**
          * Builds a record after checking required property presence.
          * @return a new record
          * @throws IllegalStateException if a required property is missing
@@ -165,7 +179,33 @@ public record PermissionRecoveryAttempt(
             if (disposition == null) throw new IllegalStateException("Missing required property: disposition");
             if (reason == null) throw new IllegalStateException("Missing required property: reason");
             if (ordinal == null) throw new IllegalStateException("Missing required property: ordinal");
-            return new PermissionRecoveryAttempt(attemptId, toolCallId, permissionKind, requestFingerprint, relation, disposition, reason, ordinal);
+            return new PermissionRecoveryAttempt(attemptId, toolCallId, permissionKind, requestFingerprint, relation, disposition, reason, ordinal, reviewIncomplete);
         }
+    }
+
+    /**
+     * Creates a record with the components it had before later optional fields were added.
+     * @deprecated Use named construction via {@link #builder()}.
+     * @param attemptId Unique identifier for this attempt record
+     * @param toolCallId Tool-call identifier associated with this attempt, when available
+     * @param permissionKind Controlled permission request kind, such as shell, path, URL, or tool
+     * @param requestFingerprint SHA-256 fingerprint of normalized request data; raw permission arguments are not included
+     * @param relation Relationship between this attempt and earlier attempts in the episode
+     * @param disposition How the runtime handled this attempt
+     * @param reason Controlled reason for the attempt disposition
+     * @param ordinal One-based position of this attempt in the episode
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public PermissionRecoveryAttempt(
+        String attemptId,
+        String toolCallId,
+        String permissionKind,
+        String requestFingerprint,
+        PermissionRecoveryAttemptRelation relation,
+        PermissionRecoveryAttemptDisposition disposition,
+        PermissionRecoveryAttemptReason reason,
+        Long ordinal
+    ) {
+        this(attemptId, toolCallId, permissionKind, requestFingerprint, relation, disposition, reason, ordinal, null);
     }
 }

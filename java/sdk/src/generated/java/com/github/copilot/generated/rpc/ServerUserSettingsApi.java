@@ -39,7 +39,7 @@ public final class ServerUserSettingsApi {
     }
 
     /**
-     * Reads the user's settings document exactly as `user.settings.load` does, but from a caller-supplied configuration directory instead of the one the server resolved for itself. Use this when a consumer scopes a session to its own Copilot home — the SDK's per-session `configDir` override — so the settings read match the directory that session actually uses. An absent or empty `configDir` resolves the server's own home, making this identical to `user.settings.load`. Hook-validation relaxations are deliberately not caller-supplied: they continue to come from the server's environment, so a consumer cannot widen the host's hook policy through this method.
+     * Reads the user's settings document as `user.settings.loadWithWarning` does, without its warning, but from a caller-supplied configuration directory instead of the one the server resolved for itself. Use this when a consumer scopes a session to its own Copilot home — the SDK's per-session `configDir` override — so the settings read match the directory that session actually uses. An absent or empty `configDir` resolves the server's own home, making this identical to the `settings` that `user.settings.loadWithWarning` returns. Hook-validation relaxations are deliberately not caller-supplied: they continue to come from the server's environment, so a consumer cannot widen the host's hook policy through this method.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -50,7 +50,7 @@ public final class ServerUserSettingsApi {
     }
 
     /**
-     * Reads a repository's checked-in settings document as stored, normalized, together with any diagnostic raised while reading it. This is the repository half of the layering `user.settings.get` reports: `user.settings.load` reads the user's own document, and this reads the one a repository checks in to govern the keys `user.settings.governanceKeys` lists as repo-governable. A document that fails to parse, or that sets a key a repository may not govern, is reported through `warning` while the settings that did load are still returned, so a consumer surfaces the diagnostic and continues rather than failing the session. When `repoRoot` is the user's home directory the Claude-compatible configuration is skipped, so a home-directory session does not inherit a personal config as repository policy.
+     * Reads a repository's checked-in settings document as stored, normalized, together with any diagnostic raised while reading it. This is the repository half of the layering `user.settings.get` reports: `user.settings.loadWithWarning` reads the user's own document, and this reads the one a repository checks in to govern the keys `user.settings.listGovernanceKeys` lists as repo-governable. A document that fails to parse, or that sets a key a repository may not govern, is reported through `warning` while the settings that did load are still returned, so a consumer surfaces the diagnostic and continues rather than failing the session. When `repoRoot` is the user's home directory the Claude-compatible configuration is skipped, so a home-directory session does not inherit a personal config as repository policy.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -72,7 +72,7 @@ public final class ServerUserSettingsApi {
     }
 
     /**
-     * Reports the on-disk path of the settings document `user.settings.load` and `user.settings.set` read and write. Resolved the same way those methods resolve it, so a host that shows or opens the settings file names the file the runtime actually uses, including the extensionless legacy `settings` file when that is what is present.
+     * Reports the on-disk path of the settings document `user.settings.loadWithWarning` and `user.settings.set` read and write. Resolved the same way those methods resolve it, so a host that shows or opens the settings file names the file the runtime actually uses, including the extensionless legacy `settings` file when that is what is present.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -83,7 +83,7 @@ public final class ServerUserSettingsApi {
     }
 
     /**
-     * Reads the user's stored settings together with the diagnostic raised while reading them. This is `user.settings.load` plus the reason part of the document was ignored: that one answers the document alone, so a caller cannot tell a clean read from a salvaged one. Read this when the caller is about to write the file back, where accepting a partial parse would discard every value the loader could not read. The settings that did load are still reported alongside the warning, so a consumer may surface it and continue instead of failing.
+     * Reads the user's stored settings together with the diagnostic raised while reading them. This is `user.settings.loadForConfigDir` without a `configDir` plus the reason part of the document was ignored: that one answers the document alone, so a caller cannot tell a clean read from a salvaged one. Read this when the caller is about to write the file back, where accepting a partial parse would discard every value the loader could not read. The settings that did load are still reported alongside the warning, so a consumer may surface it and continue instead of failing.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -171,7 +171,7 @@ public final class ServerUserSettingsApi {
     }
 
     /**
-     * Runs the one-time cleanup that removes obsolete CLI-owned settings and legacy rubber-duck keys from the user's settings document, and reports what it did. Idempotent and safe to call on every startup: with nothing obsolete left it reports `unchanged` and writes nothing. The cleanup preserves every key it does not recognize, so a setting written by a newer host is never dropped by an older one, and a document that fails to parse is reported `invalid` and left untouched rather than rewritten from a partial read. The cleaned document is not returned: it is written before this replies, so `user.settings.load` reads it authoritatively. A host that surfaces unrecognized keys through `user.settings.unknownKeys` wants this first, because the keys this retires would otherwise be shown to the user as if they were misspelled settings.
+     * Runs the one-time cleanup that removes obsolete CLI-owned settings and legacy rubber-duck keys from the user's settings document, and reports what it did. Idempotent and safe to call on every startup: with nothing obsolete left it reports `unchanged` and writes nothing. The cleanup preserves every key it does not recognize, so a setting written by a newer host is never dropped by an older one, and a document that fails to parse is reported `invalid` and left untouched rather than rewritten from a partial read. The cleaned document is not returned: it is written before this replies, so `user.settings.loadWithWarning` reads it authoritatively. A host that surfaces unrecognized keys through `user.settings.getUnknownKeysWarning` wants this first, because the keys this retires would otherwise be shown to the user as if they were misspelled settings.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
@@ -193,7 +193,7 @@ public final class ServerUserSettingsApi {
     }
 
     /**
-     * Resolves the on-disk locations of the settings files this runtime reads, so a consumer can show or open them. The user path is the same file `user.settings.get`, `user.settings.load`, and `user.settings.set` operate on. Supply `repoRoot` to also resolve that repository's checked-in and local settings paths. A path is reported whether or not the file exists.
+     * Resolves the on-disk locations of the settings files this runtime reads, so a consumer can show or open them. The user path is the same file `user.settings.get`, `user.settings.loadWithWarning`, and `user.settings.set` operate on. Supply `repoRoot` to also resolve that repository's checked-in and local settings paths. A path is reported whether or not the file exists.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

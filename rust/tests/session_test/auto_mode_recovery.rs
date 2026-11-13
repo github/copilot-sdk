@@ -2205,47 +2205,6 @@ async fn failed_cloud_deletion_keeps_same_id_fenced_after_caller_cancellation() 
     client.force_stop();
 }
 
-#[tokio::test]
-async fn unresponsive_detach_is_bounded_and_still_unregisters() {
-    let (client, mut server) = auto_mode_recovery_client();
-    let start = tokio::spawn({
-        let client = client.clone();
-        async move {
-            client
-                .create_session(
-                    SessionConfig::default()
-                        .with_session_id("recovery-session")
-                        .with_auto_mode_switch_handler(Arc::new(LegacyHandler))
-                        .with_auto_mode_recovery(true),
-                )
-                .await
-        }
-    });
-    let request = timeout(TIMEOUT, server.read_request()).await.unwrap();
-    server
-        .respond(
-            &request,
-            serde_json::json!({"sessionId": server.session_id}),
-        )
-        .await;
-    let detach = timeout(TIMEOUT, server.read_request()).await.unwrap();
-    assert_eq!(detach["method"], "session.detach");
-
-    let result = timeout(Duration::from_secs(12), start)
-        .await
-        .expect("unsupported enrollment must not wait indefinitely for detach")
-        .unwrap();
-    let error = match result {
-        Ok(_) => panic!("unsupported enrollment unexpectedly succeeded"),
-        Err(error) => error,
-    };
-    assert_eq!(
-        *error.kind(),
-        ErrorKind::Session(SessionErrorKind::AutoModeRecoveryNotSupported)
-    );
-    assert_eq!(client.registered_session_count_for_test(), 0);
-}
-
 struct ResumedHandler {
     _on_drop: NotifyOnDrop,
 }

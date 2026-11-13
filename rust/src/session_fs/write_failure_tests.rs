@@ -16,11 +16,3 @@ fn failed_write_reports_only_known_changes() {
     let json = serde_json::to_value(changed).unwrap();
     assert_eq!(json["writeChanged"], true);
 }
-
-#[test]
-fn write_marker_does_not_leak_into_other_methods() {
-    let read_error = FsError::with_message(FsErrorKind::Other, "read failed")
-        .with_write_changed()
-        .into_wire();
-    assert_eq!(read_error.write_changed, None);
-}

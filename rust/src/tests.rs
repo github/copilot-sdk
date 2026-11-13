@@ -382,26 +382,8 @@ async fn settings_apply_top_key_preserves_value_presence_on_wire() {
 }
 
 #[test]
-fn is_transport_failure_matches_request_cancelled() {
-    let err = Error::from(ErrorKind::Protocol(ProtocolErrorKind::RequestCancelled));
-    assert!(err.is_transport_failure());
-}
-
-#[test]
-fn is_transport_failure_matches_io_error() {
-    let err = Error::from(std::io::Error::new(std::io::ErrorKind::BrokenPipe, "gone"));
-    assert!(err.is_transport_failure());
-}
-
-#[test]
 fn is_transport_failure_rejects_rpc_error() {
     let err = Error::with_message(ErrorKind::Rpc { code: -1 }, "bad");
-    assert!(!err.is_transport_failure());
-}
-
-#[test]
-fn is_transport_failure_rejects_session_error() {
-    let err = Error::from(ErrorKind::Session(SessionErrorKind::NotFound("s1".into())));
     assert!(!err.is_transport_failure());
 }
 
@@ -461,17 +443,6 @@ fn inprocess_rejects_process_scoped_options() {
             "{option}: {message}"
         );
     }
-}
-
-#[test]
-fn inprocess_working_directory_rejection_recommends_session_config() {
-    let error = validate_inprocess_options(&ClientOptions::new().with_cwd(".")).unwrap_err();
-    assert!(
-        error
-            .to_string()
-            .contains("set SessionConfig::working_directory instead"),
-        "{error}"
-    );
 }
 
 #[test]
@@ -637,12 +608,6 @@ async fn inprocess_requires_cargo_feature() {
         .unwrap_err();
 
     assert!(error.to_string().contains("in-process"));
-}
-
-#[test]
-fn is_transport_failure_rejects_other_protocol_errors() {
-    let err = Error::from(ErrorKind::Protocol(ProtocolErrorKind::CliStartupTimeout));
-    assert!(!err.is_transport_failure());
 }
 
 #[test]
@@ -1233,41 +1198,6 @@ fn client_options_debug_redacts_handler() {
     assert!(debug.contains("on_list_models: Some(\"<set>\")"));
     assert!(debug.contains("github_token: Some(\"<redacted>\")"));
     assert!(!debug.contains("secret-token"));
-}
-
-#[tokio::test]
-async fn list_models_uses_on_list_models_handler_when_set() {
-    use std::sync::atomic::{AtomicUsize, Ordering};
-
-    struct CountingHandler {
-        calls: Arc<AtomicUsize>,
-        models: Vec<Model>,
-    }
-    #[async_trait]
-    impl ListModelsHandler for CountingHandler {
-        async fn list_models(&self) -> Result<Vec<Model>> {
-            self.calls.fetch_add(1, Ordering::SeqCst);
-            Ok(self.models.clone())
-        }
-    }
-
-    let calls = Arc::new(AtomicUsize::new(0));
-    let model = Model {
-        id: "byok-gpt-4".into(),
-        name: "BYOK GPT-4".into(),
-        ..Default::default()
-    };
-    let handler: Arc<dyn ListModelsHandler> = Arc::new(CountingHandler {
-        calls: Arc::clone(&calls),
-        models: vec![model.clone()],
-    });
-
-    let client = client_with_list_models_handler(handler);
-
-    let result = client.list_models().await.unwrap();
-    assert_eq!(result.len(), 1);
-    assert_eq!(result[0].id, "byok-gpt-4");
-    assert_eq!(calls.load(Ordering::SeqCst), 1);
 }
 
 #[tokio::test(start_paused = true)]

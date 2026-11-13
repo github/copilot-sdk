@@ -9,6 +9,7 @@ import inspect
 import json
 import os
 import subprocess
+import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import fields
@@ -583,6 +584,204 @@ class TestClientStartup:
             assert client._state == "error"
         finally:
             await client.force_stop()
+
+
+class TestRelativeCliPath:
+    """The process starts in one directory and the runtime in another.
+
+    The child resolves a relative CLI path from its working directory (node for a
+    script everywhere, the OS for a program on POSIX), so that is the file to check.
+    """
+
+    FORMS = ["script"] if sys.platform == "win32" else ["script", "executable"]
+
+    @staticmethod
+    def _layout(tmp_path, monkeypatch):
+        process_dir, working_dir = tmp_path / "process", tmp_path / "working"
+        process_dir.mkdir()
+        working_dir.mkdir()
+        monkeypatch.chdir(process_dir)
+        return process_dir, working_dir, tmp_path / "ran"
+
+    @staticmethod
+    def _write_stand_in(parent, owner, form, ran, name="runtime") -> str:
+        """Write a stand-in that records which copy ran, then exits; return its file name."""
+        parent.mkdir(parents=True, exist_ok=True)
+        if form == "script":
+            (parent / f"{name}.js").write_text(
+                f"require('node:fs').appendFileSync({json.dumps(str(ran))}, {json.dumps(owner)});"
+            )
+            return f"{name}.js"
+        (parent / name).write_text(f"#!/bin/sh\nprintf {owner} >> '{ran}'\n")
+        (parent / name).chmod(0o755)
+        return name
+
+    def _write_runtime(self, directory, owner, form, ran) -> str:
+        return os.path.join("cli", self._write_stand_in(directory / "cli", owner, form, ran))
+
+    @staticmethod
+    def _client(source, cli_path, working_dir) -> CopilotClient:
+        if source == "path":
+            return CopilotClient(
+                connection=RuntimeConnection.for_stdio(path=cli_path),
+                working_directory=str(working_dir),
+            )
+        return CopilotClient(
+            connection=RuntimeConnection.for_stdio(),
+            env={**os.environ, "COPILOT_CLI_PATH": cli_path},
+            working_directory=str(working_dir),
+        )
+
+    @staticmethod
+    async def _start_and_wait(client) -> None:
+        try:
+            await client._start_cli_server()
+            await asyncio.to_thread(client._process.wait, 10)
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.parametrize("form", FORMS)
+    @pytest.mark.parametrize("source", ["path", "env"])
+    async def test_runtime_only_under_working_directory_is_started(
+        self, tmp_path, monkeypatch, source, form
+    ):
+        _, working_dir, ran = self._layout(tmp_path, monkeypatch)
+        relative_path = self._write_runtime(working_dir, "working", form, ran)
+
+        await self._start_and_wait(self._client(source, relative_path, working_dir))
+
+        assert ran.read_text() == "working"
+
+    @pytest.mark.parametrize("form", FORMS)
+    @pytest.mark.parametrize("source", ["path", "env"])
+    async def test_runtime_under_both_directories_starts_working_directory_copy(
+        self, tmp_path, monkeypatch, source, form
+    ):
+        process_dir, working_dir, ran = self._layout(tmp_path, monkeypatch)
+        self._write_runtime(process_dir, "process", form, ran)
+        relative_path = self._write_runtime(working_dir, "working", form, ran)
+
+        await self._start_and_wait(self._client(source, relative_path, working_dir))
+
+        assert ran.read_text() == "working"
+
+    @pytest.mark.parametrize("form", FORMS)
+    @pytest.mark.parametrize("source", ["path", "env"])
+    async def test_runtime_only_under_process_directory_names_working_directory_path(
+        self, tmp_path, monkeypatch, source, form
+    ):
+        process_dir, working_dir, ran = self._layout(tmp_path, monkeypatch)
+        relative_path = self._write_runtime(process_dir, "process", form, ran)
+        client = self._client(source, relative_path, working_dir)
+
+        try:
+            with pytest.raises(RuntimeError) as error:
+                await client._start_cli_server()
+        finally:
+            await client.force_stop()
+
+        assert str(error.value) == (
+            f"Copilot CLI not found at {os.path.join(str(working_dir), relative_path)}"
+        )
+        assert not ran.exists()
+
+    @pytest.mark.parametrize("form", FORMS)
+    @pytest.mark.parametrize("source", ["path", "env"])
+    async def test_absolute_path_is_started_as_given(self, tmp_path, monkeypatch, source, form):
+        process_dir, working_dir, ran = self._layout(tmp_path, monkeypatch)
+        self._write_runtime(working_dir, "working", form, ran)
+        absolute_path = str(process_dir / self._write_runtime(process_dir, "process", form, ran))
+
+        await self._start_and_wait(self._client(source, absolute_path, working_dir))
+
+        assert ran.read_text() == "process"
+
+    @pytest.mark.parametrize("source", ["path", "env"])
+    async def test_script_normalizes_traversal_through_missing_directory(
+        self, tmp_path, monkeypatch, source
+    ):
+        process_dir, working_dir, ran = self._layout(tmp_path, monkeypatch)
+        (process_dir / "cli").mkdir()
+        self._write_stand_in(process_dir, "process", "script", ran)
+        name = self._write_stand_in(working_dir, "working", "script", ran)
+        relative_path = os.path.join("cli", "..", name)
+
+        await self._start_and_wait(self._client(source, relative_path, working_dir))
+
+        assert ran.read_text() == "working"
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="POSIX working directory symlink")
+    @pytest.mark.parametrize("source", ["path", "env"])
+    async def test_script_normalizes_traversal_after_entering_linked_working_directory(
+        self, tmp_path, monkeypatch, source
+    ):
+        self._layout(tmp_path, monkeypatch)
+        target = tmp_path / "target"
+        project = target / "project"
+        project.mkdir(parents=True)
+        link = tmp_path / "link"
+        link.symlink_to(project, target_is_directory=True)
+        name = self._write_stand_in(target, "target", "script", tmp_path / "ran")
+
+        await self._start_and_wait(self._client(source, f"cli/../../{name}", link))
+
+        assert (tmp_path / "ran").read_text() == "target"
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="POSIX executable path resolution")
+    @pytest.mark.parametrize("source", ["path", "env"])
+    async def test_executable_does_not_normalize_traversal_through_missing_directory(
+        self, tmp_path, monkeypatch, source
+    ):
+        _, working_dir, ran = self._layout(tmp_path, monkeypatch)
+        self._write_stand_in(working_dir, "working", "executable", ran)
+        relative_path = os.path.join("cli", "..", "runtime")
+        client = self._client(source, relative_path, working_dir)
+        try:
+            with pytest.raises(RuntimeError, match="Copilot CLI not found at "):
+                await client._start_cli_server()
+        finally:
+            await client.force_stop()
+
+        assert not ran.exists()
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="POSIX shell stand-in")
+    @pytest.mark.parametrize("source", ["path", "env"])
+    async def test_bare_command_name_keeps_its_path_lookup(self, tmp_path, monkeypatch, source):
+        _, working_dir, ran = self._layout(tmp_path, monkeypatch)
+        bin_dir = tmp_path / "bin"
+        name = self._write_stand_in(bin_dir, "path", "executable", ran, "copilot-stand-in")
+        monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
+
+        await self._start_and_wait(self._client(source, name, working_dir))
+
+        assert ran.read_text() == "path"
+
+    @pytest.mark.skipif(sys.platform != "win32", reason="Windows resolution of a relative program")
+    @pytest.mark.parametrize("source", ["path", "env"])
+    async def test_windows_relative_program_is_checked_from_process_directory(
+        self, tmp_path, monkeypatch, source
+    ):
+        # CreateProcess resolves a relative program from this process's directory,
+        # not from cwd, so the check looks there and the path is passed on as given.
+        process_dir, working_dir, _ = self._layout(tmp_path, monkeypatch)
+        relative_path = os.path.join("cli", "runtime.exe")
+        (process_dir / "cli").mkdir()
+        (process_dir / relative_path).write_bytes(b"")
+        launched = []
+
+        def record(args, **kwargs):
+            launched.append((args[0], kwargs["cwd"]))
+            raise OSError("not launched")
+
+        monkeypatch.setattr(client_module.subprocess, "Popen", record)
+        client = self._client(source, relative_path, working_dir)
+        try:
+            with pytest.raises(OSError, match="not launched"):
+                await client._start_cli_server()
+        finally:
+            await client.force_stop()
+
+        assert launched == [(relative_path, str(working_dir))]
 
 
 class TestClientShutdown:

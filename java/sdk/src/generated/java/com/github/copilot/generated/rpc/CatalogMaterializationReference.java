@@ -31,9 +31,9 @@ public record CatalogMaterializationReference(
     @JsonProperty("revisionId") String revisionId,
     /** Materialisation descriptor schema version, currently `1.0.0`. */
     @JsonProperty("schemaVersion") String schemaVersion,
-    /** Expected `sha256:<lowercase hex>` digest of the canonical descriptor. */
+    /** Expected `sha256:&lt;lowercase hex>` digest of the canonical descriptor. */
     @JsonProperty("descriptorDigest") String descriptorDigest,
-    /** Expected `sha256:<lowercase hex>` digest of the descriptor's bundle manifest. */
+    /** Expected `sha256:&lt;lowercase hex>` digest of the descriptor's bundle manifest. */
     @JsonProperty("bundleDigest") String bundleDigest
 ) {
 

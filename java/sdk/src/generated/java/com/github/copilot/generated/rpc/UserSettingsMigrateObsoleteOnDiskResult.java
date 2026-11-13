@@ -21,7 +21,7 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 record UserSettingsMigrateObsoleteOnDiskResult(
-    /** What the cleanup did. Only `changed` rewrote the document. The cleaned settings are not returned here: the document is written before this replies, so `user.settings.load` reads it authoritatively. */
+    /** What the cleanup did. Only `changed` rewrote the document. The cleaned settings are not returned here: the document is written before this replies, so `user.settings.loadWithWarning` reads it authoritatively. */
     @JsonProperty("status") UserSettingsMigrateObsoleteOnDiskStatus status
 ) {
 

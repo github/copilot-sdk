@@ -275,6 +275,624 @@ internal sealed class ConnectRequest
     public string? Token { get; set; }
 }
 
+/// <summary>Vision-specific limits.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class ModelCapabilitiesOverrideLimitsVision
+{
+    /// <summary>Maximum image size in bytes.</summary>
+    [JsonPropertyName("max_prompt_image_size")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public long? MaxPromptImageSize { get; set; }
+
+    /// <summary>Maximum number of images per prompt.</summary>
+    [JsonPropertyName("max_prompt_images")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public long? MaxPromptImages { get; set; }
+
+    /// <summary>MIME types the model accepts.</summary>
+    [JsonPropertyName("supported_media_types")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IList<string>? SupportedMediaTypes { get; set; }
+}
+
+/// <summary>Token limits for prompts, outputs, and context window.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class ModelCapabilitiesOverrideLimits
+{
+    /// <summary>Maximum total context window size in tokens.</summary>
+    [JsonPropertyName("max_context_window_tokens")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public long? MaxContextWindowTokens { get; set; }
+
+    /// <summary>Maximum number of output/completion tokens.</summary>
+    [JsonPropertyName("max_output_tokens")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public long? MaxOutputTokens { get; set; }
+
+    /// <summary>Maximum number of prompt/input tokens.</summary>
+    [JsonPropertyName("max_prompt_tokens")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public long? MaxPromptTokens { get; set; }
+
+    /// <summary>Vision-specific limits.</summary>
+    [JsonPropertyName("vision")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ModelCapabilitiesOverrideLimitsVision? Vision { get; set; }
+}
+
+/// <summary>Feature flags indicating what the model supports.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class ModelCapabilitiesOverrideSupports
+{
+    /// <summary>Resolved Anthropic adaptive-thinking capability — unsupported / optional / required / adaptive_only. 'required' models reject thinking.type='enabled' with HTTP 400 but still accept 'disabled' (e.g. opus-4.7/4.8/5, sonnet-5); 'adaptive_only' models accept nothing but 'adaptive' (e.g. fable, mythos).</summary>
+    [JsonPropertyName("adaptive_thinking")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public AdaptiveThinkingSupport? AdaptiveThinking { get; set; }
+
+    /// <summary>Whether this model supports reasoning effort configuration.</summary>
+    [JsonPropertyName("reasoningEffort")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? ReasoningEffort { get; set; }
+
+    /// <summary>Whether this model supports canonical tool calling.</summary>
+    [JsonPropertyName("toolCalls")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? ToolCalls { get; set; }
+
+    /// <summary>Whether this model supports vision/image input.</summary>
+    [JsonPropertyName("vision")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? Vision { get; set; }
+}
+
+/// <summary>Optional capability overrides (vision, tool_calls, reasoning, etc.).</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class ModelCapabilitiesOverride
+{
+    /// <summary>Token limits for prompts, outputs, and context window.</summary>
+    [JsonPropertyName("limits")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ModelCapabilitiesOverrideLimits? Limits { get; set; }
+
+    /// <summary>Feature flags indicating what the model supports.</summary>
+    [JsonPropertyName("supports")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ModelCapabilitiesOverrideSupports? Supports { get; set; }
+}
+
+/// <summary>RPC data type for ProtocolSystemMessageAppendConfig operations.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class ProtocolSystemMessageAppendConfig
+{
+    /// <summary>Text appended to the standard system prompt.</summary>
+    [JsonPropertyName("content")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Content { get; set; }
+
+    /// <summary>Append-mode discriminator. Omission also selects append mode.</summary>
+    [JsonPropertyName("mode")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ProtocolAppendMode? Mode { get; set; }
+}
+
+/// <summary>RPC data type for SystemMessageBlock operations.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class SystemMessageBlock
+{
+    /// <summary>Whether providers with explicit prompt caching should place a cache breakpoint after this block.</summary>
+    [JsonPropertyName("cacheBreakpoint")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? CacheBreakpoint { get; set; }
+
+    /// <summary>Text content for this system-message block.</summary>
+    [JsonPropertyName("content")]
+    public string Content { get; set; } = string.Empty;
+
+    /// <summary>Whether the block is static and may be cached independently of dynamic prompt content.</summary>
+    [JsonPropertyName("isStatic")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? IsStatic { get; set; }
+}
+
+/// <summary>RPC data type for ProtocolSystemMessageReplaceConfig operations.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class ProtocolSystemMessageReplaceConfig
+{
+    /// <summary>Complete replacement system-message text.</summary>
+    [JsonPropertyName("content")]
+    public string Content { get; set; } = string.Empty;
+
+    /// <summary>Optional structured blocks corresponding to the replacement content.</summary>
+    [JsonPropertyName("contentBlocks")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IList<SystemMessageBlock>? ContentBlocks { get; set; }
+
+    /// <summary>Replace-mode discriminator.</summary>
+    [JsonPropertyName("mode")]
+    public ProtocolReplaceMode Mode { get; set; }
+}
+
+/// <summary>RPC data type for ProtocolStaticSectionOverride operations.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class ProtocolStaticSectionOverride
+{
+    /// <summary>Declarative operation applied to the section.</summary>
+    [JsonPropertyName("action")]
+    public ProtocolStaticSectionAction Action { get; set; }
+
+    /// <summary>Optional content used by replace, append, and prepend operations.</summary>
+    [JsonPropertyName("content")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Content { get; set; }
+}
+
+/// <summary>Polymorphic base type discriminated by <c>action</c>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "action",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(ProtocolMarkerSectionOverrideTransform), "transform")]
+[JsonDerivedType(typeof(ProtocolMarkerSectionOverridePreserve), "preserve")]
+public partial class ProtocolMarkerSectionOverride
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("action")]
+    public virtual string Action { get; set; } = string.Empty;
+}
+
+
+/// <summary>The <c>transform</c> variant of <see cref="ProtocolMarkerSectionOverride"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class ProtocolMarkerSectionOverrideTransform : ProtocolMarkerSectionOverride
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Action => "transform";
+}
+
+/// <summary>The <c>preserve</c> variant of <see cref="ProtocolMarkerSectionOverride"/>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class ProtocolMarkerSectionOverridePreserve : ProtocolMarkerSectionOverride
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Action => "preserve";
+}
+
+/// <summary>JSON union data type for <c>ProtocolSectionOverride</c>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+public sealed partial class ProtocolSectionOverride
+{
+    /// <summary>Gets the value when this instance contains <see cref="ProtocolStaticSectionOverride"/>.</summary>
+    public ProtocolStaticSectionOverride? ProtocolStaticSectionOverride { get; }
+
+    /// <summary>Gets the value when this instance contains <see cref="ProtocolMarkerSectionOverride"/>.</summary>
+    public ProtocolMarkerSectionOverride? ProtocolMarkerSectionOverride { get; }
+
+    /// <summary>Initializes a new instance of the <see cref="ProtocolSectionOverride"/> class from <see cref="ProtocolStaticSectionOverride"/>.</summary>
+    public ProtocolSectionOverride(ProtocolStaticSectionOverride value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        ProtocolStaticSectionOverride = value;
+    }
+
+    /// <summary>Converts <see cref="ProtocolStaticSectionOverride"/> to <see cref="ProtocolSectionOverride"/>.</summary>
+    public static implicit operator ProtocolSectionOverride(ProtocolStaticSectionOverride value) => new(value);
+
+    /// <summary>Initializes a new instance of the <see cref="ProtocolSectionOverride"/> class from <see cref="ProtocolMarkerSectionOverride"/>.</summary>
+    public ProtocolSectionOverride(ProtocolMarkerSectionOverride value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        ProtocolMarkerSectionOverride = value;
+    }
+
+    /// <summary>Converts <see cref="ProtocolMarkerSectionOverride"/> to <see cref="ProtocolSectionOverride"/>.</summary>
+    public static implicit operator ProtocolSectionOverride(ProtocolMarkerSectionOverride value) => new(value);
+
+    /// <summary>Provides a <see cref="JsonConverter{ProtocolSectionOverride}"/> for serializing <see cref="ProtocolSectionOverride"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ProtocolSectionOverride>
+    {
+        /// <inheritdoc />
+        public override ProtocolSectionOverride Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType == JsonTokenType.Null)
+            {
+                throw new JsonException("Expected JSON object for ProtocolSectionOverride.");
+            }
+
+            using var document = JsonDocument.ParseValue(ref reader);
+            var element = document.RootElement;
+            if (element.ValueKind == JsonValueKind.Object && (element.TryGetProperty("action", out _) && element.GetProperty("action").ValueKind == JsonValueKind.String && (element.GetProperty("action").GetString() == "replace" || element.GetProperty("action").GetString() == "remove" || element.GetProperty("action").GetString() == "append" || element.GetProperty("action").GetString() == "prepend")))
+            {
+                var protocolStaticSectionOverride = JsonSerializer.Deserialize(element, RpcJsonContext.Default.ProtocolStaticSectionOverride);
+                return protocolStaticSectionOverride is null ? throw new JsonException("Expected ProtocolStaticSectionOverride value.") : new ProtocolSectionOverride(protocolStaticSectionOverride);
+            }
+            if ((element.ValueKind == JsonValueKind.Object && (element.TryGetProperty("action", out _) && element.GetProperty("action").ValueKind == JsonValueKind.String && (element.GetProperty("action").GetString() == "transform")) || element.ValueKind == JsonValueKind.Object && (element.TryGetProperty("action", out _) && element.GetProperty("action").ValueKind == JsonValueKind.String && (element.GetProperty("action").GetString() == "preserve"))))
+            {
+                var protocolMarkerSectionOverride = JsonSerializer.Deserialize(element, RpcJsonContext.Default.ProtocolMarkerSectionOverride);
+                return protocolMarkerSectionOverride is null ? throw new JsonException("Expected ProtocolMarkerSectionOverride value.") : new ProtocolSectionOverride(protocolMarkerSectionOverride);
+            }
+
+            throw new JsonException("JSON value did not match any ProtocolSectionOverride variant.");
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ProtocolSectionOverride value, JsonSerializerOptions options)
+        {
+            if (value.ProtocolStaticSectionOverride is { } protocolStaticSectionOverride)
+            {
+                JsonSerializer.Serialize(writer, protocolStaticSectionOverride, RpcJsonContext.Default.ProtocolStaticSectionOverride);
+                return;
+            }
+            if (value.ProtocolMarkerSectionOverride is { } protocolMarkerSectionOverride)
+            {
+                JsonSerializer.Serialize(writer, protocolMarkerSectionOverride, RpcJsonContext.Default.ProtocolMarkerSectionOverride);
+                return;
+            }
+
+            throw new JsonException("No ProtocolSectionOverride variant value is set.");
+        }
+    }
+}
+
+/// <summary>RPC data type for ProtocolSystemMessageCustomizeConfig operations.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class ProtocolSystemMessageCustomizeConfig
+{
+    /// <summary>Text appended after the customized sections.</summary>
+    [JsonPropertyName("content")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Content { get; set; }
+
+    /// <summary>Customize-mode discriminator.</summary>
+    [JsonPropertyName("mode")]
+    public ProtocolCustomizeMode Mode { get; set; }
+
+    /// <summary>Named standard-prompt section overrides.</summary>
+    [JsonPropertyName("sections")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IDictionary<string, ProtocolSectionOverride>? Sections { get; set; }
+}
+
+/// <summary>JSON union data type for <c>ProtocolSystemMessageConfig</c>.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+public sealed partial class ProtocolSystemMessageConfig
+{
+    /// <summary>Gets the value when this instance contains <see cref="ProtocolSystemMessageAppendConfig"/>.</summary>
+    public ProtocolSystemMessageAppendConfig? ProtocolSystemMessageAppendConfig { get; }
+
+    /// <summary>Gets the value when this instance contains <see cref="ProtocolSystemMessageReplaceConfig"/>.</summary>
+    public ProtocolSystemMessageReplaceConfig? ProtocolSystemMessageReplaceConfig { get; }
+
+    /// <summary>Gets the value when this instance contains <see cref="ProtocolSystemMessageCustomizeConfig"/>.</summary>
+    public ProtocolSystemMessageCustomizeConfig? ProtocolSystemMessageCustomizeConfig { get; }
+
+    /// <summary>Initializes a new instance of the <see cref="ProtocolSystemMessageConfig"/> class from <see cref="ProtocolSystemMessageAppendConfig"/>.</summary>
+    public ProtocolSystemMessageConfig(ProtocolSystemMessageAppendConfig value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        ProtocolSystemMessageAppendConfig = value;
+    }
+
+    /// <summary>Converts <see cref="ProtocolSystemMessageAppendConfig"/> to <see cref="ProtocolSystemMessageConfig"/>.</summary>
+    public static implicit operator ProtocolSystemMessageConfig(ProtocolSystemMessageAppendConfig value) => new(value);
+
+    /// <summary>Initializes a new instance of the <see cref="ProtocolSystemMessageConfig"/> class from <see cref="ProtocolSystemMessageReplaceConfig"/>.</summary>
+    public ProtocolSystemMessageConfig(ProtocolSystemMessageReplaceConfig value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        ProtocolSystemMessageReplaceConfig = value;
+    }
+
+    /// <summary>Converts <see cref="ProtocolSystemMessageReplaceConfig"/> to <see cref="ProtocolSystemMessageConfig"/>.</summary>
+    public static implicit operator ProtocolSystemMessageConfig(ProtocolSystemMessageReplaceConfig value) => new(value);
+
+    /// <summary>Initializes a new instance of the <see cref="ProtocolSystemMessageConfig"/> class from <see cref="ProtocolSystemMessageCustomizeConfig"/>.</summary>
+    public ProtocolSystemMessageConfig(ProtocolSystemMessageCustomizeConfig value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        ProtocolSystemMessageCustomizeConfig = value;
+    }
+
+    /// <summary>Converts <see cref="ProtocolSystemMessageCustomizeConfig"/> to <see cref="ProtocolSystemMessageConfig"/>.</summary>
+    public static implicit operator ProtocolSystemMessageConfig(ProtocolSystemMessageCustomizeConfig value) => new(value);
+
+    /// <summary>Provides a <see cref="JsonConverter{ProtocolSystemMessageConfig}"/> for serializing <see cref="ProtocolSystemMessageConfig"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ProtocolSystemMessageConfig>
+    {
+        /// <inheritdoc />
+        public override ProtocolSystemMessageConfig Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType == JsonTokenType.Null)
+            {
+                throw new JsonException("Expected JSON object for ProtocolSystemMessageConfig.");
+            }
+
+            using var document = JsonDocument.ParseValue(ref reader);
+            var element = document.RootElement;
+            if (element.ValueKind == JsonValueKind.Object && (!element.TryGetProperty("mode", out _) || (element.TryGetProperty("mode", out _) && element.GetProperty("mode").ValueKind == JsonValueKind.String && (element.GetProperty("mode").GetString() == "append"))))
+            {
+                var protocolSystemMessageAppendConfig = JsonSerializer.Deserialize(element, RpcJsonContext.Default.ProtocolSystemMessageAppendConfig);
+                return protocolSystemMessageAppendConfig is null ? throw new JsonException("Expected ProtocolSystemMessageAppendConfig value.") : new ProtocolSystemMessageConfig(protocolSystemMessageAppendConfig);
+            }
+            if (element.ValueKind == JsonValueKind.Object && (element.TryGetProperty("mode", out _) && element.GetProperty("mode").ValueKind == JsonValueKind.String && (element.GetProperty("mode").GetString() == "replace")))
+            {
+                var protocolSystemMessageReplaceConfig = JsonSerializer.Deserialize(element, RpcJsonContext.Default.ProtocolSystemMessageReplaceConfig);
+                return protocolSystemMessageReplaceConfig is null ? throw new JsonException("Expected ProtocolSystemMessageReplaceConfig value.") : new ProtocolSystemMessageConfig(protocolSystemMessageReplaceConfig);
+            }
+            if (element.ValueKind == JsonValueKind.Object && (element.TryGetProperty("mode", out _) && element.GetProperty("mode").ValueKind == JsonValueKind.String && (element.GetProperty("mode").GetString() == "customize")))
+            {
+                var protocolSystemMessageCustomizeConfig = JsonSerializer.Deserialize(element, RpcJsonContext.Default.ProtocolSystemMessageCustomizeConfig);
+                return protocolSystemMessageCustomizeConfig is null ? throw new JsonException("Expected ProtocolSystemMessageCustomizeConfig value.") : new ProtocolSystemMessageConfig(protocolSystemMessageCustomizeConfig);
+            }
+
+            throw new JsonException("JSON value did not match any ProtocolSystemMessageConfig variant.");
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ProtocolSystemMessageConfig value, JsonSerializerOptions options)
+        {
+            if (value.ProtocolSystemMessageAppendConfig is { } protocolSystemMessageAppendConfig)
+            {
+                JsonSerializer.Serialize(writer, protocolSystemMessageAppendConfig, RpcJsonContext.Default.ProtocolSystemMessageAppendConfig);
+                return;
+            }
+            if (value.ProtocolSystemMessageReplaceConfig is { } protocolSystemMessageReplaceConfig)
+            {
+                JsonSerializer.Serialize(writer, protocolSystemMessageReplaceConfig, RpcJsonContext.Default.ProtocolSystemMessageReplaceConfig);
+                return;
+            }
+            if (value.ProtocolSystemMessageCustomizeConfig is { } protocolSystemMessageCustomizeConfig)
+            {
+                JsonSerializer.Serialize(writer, protocolSystemMessageCustomizeConfig, RpcJsonContext.Default.ProtocolSystemMessageCustomizeConfig);
+                return;
+            }
+
+            throw new JsonException("No ProtocolSystemMessageConfig variant value is set.");
+        }
+    }
+}
+
+/// <summary>A BYOK model definition referencing a named provider.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class ProviderModelConfig
+{
+    /// <summary>Forward-compatible persisted on-device Auto annotation. The live counterpart is metadata.autoLocal.</summary>
+    [JsonPropertyName("autoLocal")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? AutoLocal { get; set; }
+
+    /// <summary>Optional capability overrides (vision, tool_calls, reasoning, etc.).</summary>
+    [JsonPropertyName("capabilities")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ModelCapabilitiesOverride? Capabilities { get; set; }
+
+    /// <summary>Provider-local model id, unique within its provider. The session-wide selection id (shown in the model list and passed to switchTo) is the provider-qualified `provider/id`.</summary>
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>Maximum context window tokens for the model.</summary>
+    [JsonPropertyName("maxContextWindowTokens")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? MaxContextWindowTokens { get; set; }
+
+    /// <summary>Maximum output tokens for the model.</summary>
+    [JsonPropertyName("maxOutputTokens")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? MaxOutputTokens { get; set; }
+
+    /// <summary>Maximum prompt/input tokens for the model.</summary>
+    [JsonPropertyName("maxPromptTokens")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? MaxPromptTokens { get; set; }
+
+    /// <summary>Provider-published model metadata, preserved verbatim as the public Model.metadata object.</summary>
+    [JsonPropertyName("metadata")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IDictionary<string, JsonElement>? Metadata { get; set; }
+
+    /// <summary>Well-known base model id used for behavior/capability/config lookup. Defaults to `id`.</summary>
+    [JsonPropertyName("modelId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ModelId { get; set; }
+
+    /// <summary>Display name for model pickers. Defaults to the provider-qualified selection id (`provider/id`).</summary>
+    [JsonPropertyName("name")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Name { get; set; }
+
+    /// <summary>Name of the configured provider that serves this model.</summary>
+    [JsonPropertyName("provider")]
+    public string Provider { get; set; } = string.Empty;
+
+    /// <summary>System-message configuration used when the runtime builds the standard prompt for this provider-qualified model, including general-purpose subagents. It uses the same object hierarchy as session-level systemMessage configuration, except transform actions are rejected because the current callback protocol is not model-scoped. When present, it overrides the session-wide configuration on those prompt paths. Selected custom-agent and specialized-subagent prompts remain authoritative.</summary>
+    [JsonPropertyName("systemMessage")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ProtocolSystemMessageConfig? SystemMessage { get; set; }
+
+    /// <summary>The model name sent to the provider API for inference. Defaults to `id`.</summary>
+    [JsonPropertyName("wireModel")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? WireModel { get; set; }
+}
+
+/// <summary>Azure-specific provider options.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class ProviderConfigAzure
+{
+    /// <summary>API version. When set, uses the versioned deployment route. When omitted, uses the GA versionless v1 route.</summary>
+    [JsonPropertyName("apiVersion")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ApiVersion { get; set; }
+}
+
+/// <summary>Editable provider settings, without credential values or custom headers.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class SavedProviderConfigurationProviderInput
+{
+    /// <summary>Safe Azure connection settings, including API version.</summary>
+    [JsonPropertyName("azure")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ProviderConfigAzure? Azure { get; set; }
+
+    /// <summary>Provider endpoint.</summary>
+    [JsonPropertyName("baseUrl")]
+    public string BaseUrl { get; set; } = string.Empty;
+
+    /// <summary>Non-secret local model runtime options, such as the WinML device.</summary>
+    [JsonPropertyName("localModel")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? LocalModel { get; set; }
+
+    /// <summary>Serving product used for attribution.</summary>
+    [JsonPropertyName("modelProvider")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ProviderConfigModelProvider? ModelProvider { get; set; }
+
+    /// <summary>Provider name used to qualify model selection ids.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>HTTP or WebSocket transport.</summary>
+    [JsonPropertyName("transport")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ProviderConfigTransport? Transport { get; set; }
+
+    /// <summary>Provider protocol family.</summary>
+    [JsonPropertyName("type")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SavedProviderConfigurationType? Type { get; set; }
+
+    /// <summary>OpenAI-compatible wire API.</summary>
+    [JsonPropertyName("wireApi")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ProviderConfigWireApi? WireApi { get; set; }
+}
+
+/// <summary>A saved provider's editable settings and credential status, never secret values.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class SavedProviderConfigurationProvider
+{
+    /// <summary>Credential availability without disclosing its value.</summary>
+    [JsonPropertyName("credentialStatus")]
+    public SavedProviderCredentialStatus CredentialStatus { get; set; }
+
+    /// <summary>Safe connection settings; commands, headers, credentials, and internal storage metadata are omitted.</summary>
+    [JsonPropertyName("provider")]
+    public SavedProviderConfigurationProviderInput Provider { get => field ??= new(); set; }
+}
+
+/// <summary>Saved configuration. Reading does not activate, select, or load a model.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class ProvidersConfigReadResult
+{
+    /// <summary>Saved model definitions in file order.</summary>
+    [JsonPropertyName("models")]
+    public IList<ProviderModelConfig> Models { get => field ??= []; set; }
+
+    /// <summary>Providers in saved order.</summary>
+    [JsonPropertyName("providers")]
+    public IList<SavedProviderConfigurationProvider> Providers { get => field ??= []; set; }
+}
+
+/// <summary>Result of updating shared saved provider settings.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class ProvidersConfigUpdateProviderResult
+{
+    /// <summary>Name of the provider whose settings were updated.</summary>
+    [JsonPropertyName("providerName")]
+    public string ProviderName { get; set; } = string.Empty;
+}
+
+/// <summary>Request to replace shared settings for one saved provider.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class ProvidersConfigUpdateProviderRequest
+{
+    /// <summary>Optional replacement API key. Stored in the OS keychain and never returned.</summary>
+    [JsonPropertyName("credential")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Credential { get; set; }
+
+    /// <summary>Replacement provider settings. Existing credentials and custom headers are retained; omitted local-model settings are retained.</summary>
+    [JsonPropertyName("provider")]
+    public SavedProviderConfigurationProviderInput Provider { get => field ??= new(); set; }
+}
+
+/// <summary>Result of updating one saved provider model.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class ProvidersConfigUpdateModelResult
+{
+    /// <summary>Provider-local id of the updated model.</summary>
+    [JsonPropertyName("modelId")]
+    public string ModelId { get; set; } = string.Empty;
+
+    /// <summary>Name of the provider that owns the updated model.</summary>
+    [JsonPropertyName("providerName")]
+    public string ProviderName { get; set; } = string.Empty;
+}
+
+/// <summary>Request to replace one saved provider-local model definition.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class ProvidersConfigUpdateModelRequest
+{
+    /// <summary>Replacement model definition. Its provider and id identify the saved row to replace.</summary>
+    [JsonPropertyName("model")]
+    public ProviderModelConfig Model { get => field ??= new(); set; }
+}
+
+/// <summary>Result of removing one saved provider model.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class ProvidersConfigRemoveModelResult
+{
+    /// <summary>True when removing the final model also removed its provider and managed credential.</summary>
+    [JsonPropertyName("providerRemoved")]
+    public bool ProviderRemoved { get; set; }
+}
+
+/// <summary>Request to remove one saved provider-local model definition.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class ProvidersConfigRemoveModelRequest
+{
+    /// <summary>Provider-local model id to remove.</summary>
+    [JsonPropertyName("modelId")]
+    public string ModelId { get; set; } = string.Empty;
+
+    /// <summary>Name of the provider that owns the model.</summary>
+    [JsonPropertyName("providerName")]
+    public string ProviderName { get; set; } = string.Empty;
+}
+
+/// <summary>Result of adding a model to the saved provider configuration.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class ProvidersConfigAddModelResult
+{
+    /// <summary>True when this operation created the provider row.</summary>
+    [JsonPropertyName("providerAdded")]
+    public bool ProviderAdded { get; set; }
+}
+
+/// <summary>Request to add a model to the server-owned saved provider configuration.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class ProvidersConfigAddModelRequest
+{
+    /// <summary>Optional replacement API key. Stored in the OS keychain and never returned.</summary>
+    [JsonPropertyName("credential")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Credential { get; set; }
+
+    /// <summary>Model to add to the provider.</summary>
+    [JsonPropertyName("model")]
+    public ProviderModelConfig Model { get => field ??= new(); set; }
+
+    /// <summary>Provider settings to create when this provider is not already saved.</summary>
+    [JsonPropertyName("provider")]
+    public SavedProviderConfigurationProviderInput Provider { get => field ??= new(); set; }
+}
+
 /// <summary>A message for a host's activity view.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class LocalModelTimelineMessage
@@ -1638,7 +2256,7 @@ internal sealed class UserSettingsSetHookDisabledRequest
     [JsonPropertyName("disabled")]
     public bool Disabled { get; set; }
 
-    /// <summary>Durable content-hash key of the hook, as `hooks.loadResources` reports it.</summary>
+    /// <summary>Durable content-hash key of the hook, as `hooks.discover` reports it in `disableKey`.</summary>
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
     [MinLength(1)]
     [JsonPropertyName("disableKey")]
@@ -1933,7 +2551,7 @@ internal sealed class UserSettingsMigrateStaffLogLevelOnceRequest
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 internal sealed class UserSettingsMigrateObsoleteOnDiskResult
 {
-    /// <summary>What the cleanup did. Only `changed` rewrote the document. The cleaned settings are not returned here: the document is written before this replies, so `user.settings.load` reads it authoritatively.</summary>
+    /// <summary>What the cleanup did. Only `changed` rewrote the document. The cleaned settings are not returned here: the document is written before this replies, so `user.settings.loadWithWarning` reads it authoritatively.</summary>
     [JsonPropertyName("status")]
     public UserSettingsMigrateObsoleteOnDiskStatus Status { get; set; }
 }
@@ -1988,7 +2606,7 @@ internal sealed class UserSettingsGetPathsResult
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? RepoSettings { get; set; }
 
-    /// <summary>The user settings file: `settings.json` under the resolved Copilot home. This is the file `user.settings.get`, `user.settings.load`, and `user.settings.set` read and write.</summary>
+    /// <summary>The user settings file: `settings.json` under the resolved Copilot home. This is the file `user.settings.get`, `user.settings.loadWithWarning`, and `user.settings.set` read and write.</summary>
     [JsonPropertyName("userSettings")]
     public string UserSettings { get; set; } = string.Empty;
 }
@@ -5433,461 +6051,6 @@ public sealed class AzureMlRegistrationResult
     public string Path { get; set; } = string.Empty;
 }
 
-/// <summary>Vision-specific limits.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class ModelCapabilitiesOverrideLimitsVision
-{
-    /// <summary>Maximum image size in bytes.</summary>
-    [JsonPropertyName("max_prompt_image_size")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public long? MaxPromptImageSize { get; set; }
-
-    /// <summary>Maximum number of images per prompt.</summary>
-    [JsonPropertyName("max_prompt_images")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public long? MaxPromptImages { get; set; }
-
-    /// <summary>MIME types the model accepts.</summary>
-    [JsonPropertyName("supported_media_types")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public IList<string>? SupportedMediaTypes { get; set; }
-}
-
-/// <summary>Token limits for prompts, outputs, and context window.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class ModelCapabilitiesOverrideLimits
-{
-    /// <summary>Maximum total context window size in tokens.</summary>
-    [JsonPropertyName("max_context_window_tokens")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public long? MaxContextWindowTokens { get; set; }
-
-    /// <summary>Maximum number of output/completion tokens.</summary>
-    [JsonPropertyName("max_output_tokens")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public long? MaxOutputTokens { get; set; }
-
-    /// <summary>Maximum number of prompt/input tokens.</summary>
-    [JsonPropertyName("max_prompt_tokens")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public long? MaxPromptTokens { get; set; }
-
-    /// <summary>Vision-specific limits.</summary>
-    [JsonPropertyName("vision")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ModelCapabilitiesOverrideLimitsVision? Vision { get; set; }
-}
-
-/// <summary>Feature flags indicating what the model supports.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class ModelCapabilitiesOverrideSupports
-{
-    /// <summary>Resolved Anthropic adaptive-thinking capability — unsupported / optional / required / adaptive_only. 'required' models reject thinking.type='enabled' with HTTP 400 but still accept 'disabled' (e.g. opus-4.7/4.8/5, sonnet-5); 'adaptive_only' models accept nothing but 'adaptive' (e.g. fable, mythos).</summary>
-    [JsonPropertyName("adaptive_thinking")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public AdaptiveThinkingSupport? AdaptiveThinking { get; set; }
-
-    /// <summary>Whether this model supports reasoning effort configuration.</summary>
-    [JsonPropertyName("reasoningEffort")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public bool? ReasoningEffort { get; set; }
-
-    /// <summary>Whether this model supports canonical tool calling.</summary>
-    [JsonPropertyName("toolCalls")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public bool? ToolCalls { get; set; }
-
-    /// <summary>Whether this model supports vision/image input.</summary>
-    [JsonPropertyName("vision")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public bool? Vision { get; set; }
-}
-
-/// <summary>Optional capability overrides (vision, tool_calls, reasoning, etc.).</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class ModelCapabilitiesOverride
-{
-    /// <summary>Token limits for prompts, outputs, and context window.</summary>
-    [JsonPropertyName("limits")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ModelCapabilitiesOverrideLimits? Limits { get; set; }
-
-    /// <summary>Feature flags indicating what the model supports.</summary>
-    [JsonPropertyName("supports")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ModelCapabilitiesOverrideSupports? Supports { get; set; }
-}
-
-/// <summary>RPC data type for ProtocolSystemMessageAppendConfig operations.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class ProtocolSystemMessageAppendConfig
-{
-    /// <summary>Text appended to the standard system prompt.</summary>
-    [JsonPropertyName("content")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? Content { get; set; }
-
-    /// <summary>Append-mode discriminator. Omission also selects append mode.</summary>
-    [JsonPropertyName("mode")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ProtocolAppendMode? Mode { get; set; }
-}
-
-/// <summary>RPC data type for SystemMessageBlock operations.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class SystemMessageBlock
-{
-    /// <summary>Whether providers with explicit prompt caching should place a cache breakpoint after this block.</summary>
-    [JsonPropertyName("cacheBreakpoint")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public bool? CacheBreakpoint { get; set; }
-
-    /// <summary>Text content for this system-message block.</summary>
-    [JsonPropertyName("content")]
-    public string Content { get; set; } = string.Empty;
-
-    /// <summary>Whether the block is static and may be cached independently of dynamic prompt content.</summary>
-    [JsonPropertyName("isStatic")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public bool? IsStatic { get; set; }
-}
-
-/// <summary>RPC data type for ProtocolSystemMessageReplaceConfig operations.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class ProtocolSystemMessageReplaceConfig
-{
-    /// <summary>Complete replacement system-message text.</summary>
-    [JsonPropertyName("content")]
-    public string Content { get; set; } = string.Empty;
-
-    /// <summary>Optional structured blocks corresponding to the replacement content.</summary>
-    [JsonPropertyName("contentBlocks")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public IList<SystemMessageBlock>? ContentBlocks { get; set; }
-
-    /// <summary>Replace-mode discriminator.</summary>
-    [JsonPropertyName("mode")]
-    public ProtocolReplaceMode Mode { get; set; }
-}
-
-/// <summary>RPC data type for ProtocolStaticSectionOverride operations.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class ProtocolStaticSectionOverride
-{
-    /// <summary>Declarative operation applied to the section.</summary>
-    [JsonPropertyName("action")]
-    public ProtocolStaticSectionAction Action { get; set; }
-
-    /// <summary>Optional content used by replace, append, and prepend operations.</summary>
-    [JsonPropertyName("content")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? Content { get; set; }
-}
-
-/// <summary>Polymorphic base type discriminated by <c>action</c>.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-[JsonPolymorphic(
-    TypeDiscriminatorPropertyName = "action",
-    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
-[JsonDerivedType(typeof(ProtocolMarkerSectionOverrideTransform), "transform")]
-[JsonDerivedType(typeof(ProtocolMarkerSectionOverridePreserve), "preserve")]
-public partial class ProtocolMarkerSectionOverride
-{
-    /// <summary>The type discriminator.</summary>
-    [JsonPropertyName("action")]
-    public virtual string Action { get; set; } = string.Empty;
-}
-
-
-/// <summary>The <c>transform</c> variant of <see cref="ProtocolMarkerSectionOverride"/>.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public partial class ProtocolMarkerSectionOverrideTransform : ProtocolMarkerSectionOverride
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Action => "transform";
-}
-
-/// <summary>The <c>preserve</c> variant of <see cref="ProtocolMarkerSectionOverride"/>.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public partial class ProtocolMarkerSectionOverridePreserve : ProtocolMarkerSectionOverride
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Action => "preserve";
-}
-
-/// <summary>JSON union data type for <c>ProtocolSectionOverride</c>.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-public sealed partial class ProtocolSectionOverride
-{
-    /// <summary>Gets the value when this instance contains <see cref="ProtocolStaticSectionOverride"/>.</summary>
-    public ProtocolStaticSectionOverride? ProtocolStaticSectionOverride { get; }
-
-    /// <summary>Gets the value when this instance contains <see cref="ProtocolMarkerSectionOverride"/>.</summary>
-    public ProtocolMarkerSectionOverride? ProtocolMarkerSectionOverride { get; }
-
-    /// <summary>Initializes a new instance of the <see cref="ProtocolSectionOverride"/> class from <see cref="ProtocolStaticSectionOverride"/>.</summary>
-    public ProtocolSectionOverride(ProtocolStaticSectionOverride value)
-    {
-        ArgumentNullException.ThrowIfNull(value);
-        ProtocolStaticSectionOverride = value;
-    }
-
-    /// <summary>Converts <see cref="ProtocolStaticSectionOverride"/> to <see cref="ProtocolSectionOverride"/>.</summary>
-    public static implicit operator ProtocolSectionOverride(ProtocolStaticSectionOverride value) => new(value);
-
-    /// <summary>Initializes a new instance of the <see cref="ProtocolSectionOverride"/> class from <see cref="ProtocolMarkerSectionOverride"/>.</summary>
-    public ProtocolSectionOverride(ProtocolMarkerSectionOverride value)
-    {
-        ArgumentNullException.ThrowIfNull(value);
-        ProtocolMarkerSectionOverride = value;
-    }
-
-    /// <summary>Converts <see cref="ProtocolMarkerSectionOverride"/> to <see cref="ProtocolSectionOverride"/>.</summary>
-    public static implicit operator ProtocolSectionOverride(ProtocolMarkerSectionOverride value) => new(value);
-
-    /// <summary>Provides a <see cref="JsonConverter{ProtocolSectionOverride}"/> for serializing <see cref="ProtocolSectionOverride"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<ProtocolSectionOverride>
-    {
-        /// <inheritdoc />
-        public override ProtocolSectionOverride Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            if (reader.TokenType == JsonTokenType.Null)
-            {
-                throw new JsonException("Expected JSON object for ProtocolSectionOverride.");
-            }
-
-            using var document = JsonDocument.ParseValue(ref reader);
-            var element = document.RootElement;
-            if (element.ValueKind == JsonValueKind.Object && (element.TryGetProperty("action", out _) && element.GetProperty("action").ValueKind == JsonValueKind.String && (element.GetProperty("action").GetString() == "replace" || element.GetProperty("action").GetString() == "remove" || element.GetProperty("action").GetString() == "append" || element.GetProperty("action").GetString() == "prepend")))
-            {
-                var protocolStaticSectionOverride = JsonSerializer.Deserialize(element, RpcJsonContext.Default.ProtocolStaticSectionOverride);
-                return protocolStaticSectionOverride is null ? throw new JsonException("Expected ProtocolStaticSectionOverride value.") : new ProtocolSectionOverride(protocolStaticSectionOverride);
-            }
-            if ((element.ValueKind == JsonValueKind.Object && (element.TryGetProperty("action", out _) && element.GetProperty("action").ValueKind == JsonValueKind.String && (element.GetProperty("action").GetString() == "transform")) || element.ValueKind == JsonValueKind.Object && (element.TryGetProperty("action", out _) && element.GetProperty("action").ValueKind == JsonValueKind.String && (element.GetProperty("action").GetString() == "preserve"))))
-            {
-                var protocolMarkerSectionOverride = JsonSerializer.Deserialize(element, RpcJsonContext.Default.ProtocolMarkerSectionOverride);
-                return protocolMarkerSectionOverride is null ? throw new JsonException("Expected ProtocolMarkerSectionOverride value.") : new ProtocolSectionOverride(protocolMarkerSectionOverride);
-            }
-
-            throw new JsonException("JSON value did not match any ProtocolSectionOverride variant.");
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, ProtocolSectionOverride value, JsonSerializerOptions options)
-        {
-            if (value.ProtocolStaticSectionOverride is { } protocolStaticSectionOverride)
-            {
-                JsonSerializer.Serialize(writer, protocolStaticSectionOverride, RpcJsonContext.Default.ProtocolStaticSectionOverride);
-                return;
-            }
-            if (value.ProtocolMarkerSectionOverride is { } protocolMarkerSectionOverride)
-            {
-                JsonSerializer.Serialize(writer, protocolMarkerSectionOverride, RpcJsonContext.Default.ProtocolMarkerSectionOverride);
-                return;
-            }
-
-            throw new JsonException("No ProtocolSectionOverride variant value is set.");
-        }
-    }
-}
-
-/// <summary>RPC data type for ProtocolSystemMessageCustomizeConfig operations.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class ProtocolSystemMessageCustomizeConfig
-{
-    /// <summary>Text appended after the customized sections.</summary>
-    [JsonPropertyName("content")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? Content { get; set; }
-
-    /// <summary>Customize-mode discriminator.</summary>
-    [JsonPropertyName("mode")]
-    public ProtocolCustomizeMode Mode { get; set; }
-
-    /// <summary>Named standard-prompt section overrides.</summary>
-    [JsonPropertyName("sections")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public IDictionary<string, ProtocolSectionOverride>? Sections { get; set; }
-}
-
-/// <summary>JSON union data type for <c>ProtocolSystemMessageConfig</c>.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-public sealed partial class ProtocolSystemMessageConfig
-{
-    /// <summary>Gets the value when this instance contains <see cref="ProtocolSystemMessageAppendConfig"/>.</summary>
-    public ProtocolSystemMessageAppendConfig? ProtocolSystemMessageAppendConfig { get; }
-
-    /// <summary>Gets the value when this instance contains <see cref="ProtocolSystemMessageReplaceConfig"/>.</summary>
-    public ProtocolSystemMessageReplaceConfig? ProtocolSystemMessageReplaceConfig { get; }
-
-    /// <summary>Gets the value when this instance contains <see cref="ProtocolSystemMessageCustomizeConfig"/>.</summary>
-    public ProtocolSystemMessageCustomizeConfig? ProtocolSystemMessageCustomizeConfig { get; }
-
-    /// <summary>Initializes a new instance of the <see cref="ProtocolSystemMessageConfig"/> class from <see cref="ProtocolSystemMessageAppendConfig"/>.</summary>
-    public ProtocolSystemMessageConfig(ProtocolSystemMessageAppendConfig value)
-    {
-        ArgumentNullException.ThrowIfNull(value);
-        ProtocolSystemMessageAppendConfig = value;
-    }
-
-    /// <summary>Converts <see cref="ProtocolSystemMessageAppendConfig"/> to <see cref="ProtocolSystemMessageConfig"/>.</summary>
-    public static implicit operator ProtocolSystemMessageConfig(ProtocolSystemMessageAppendConfig value) => new(value);
-
-    /// <summary>Initializes a new instance of the <see cref="ProtocolSystemMessageConfig"/> class from <see cref="ProtocolSystemMessageReplaceConfig"/>.</summary>
-    public ProtocolSystemMessageConfig(ProtocolSystemMessageReplaceConfig value)
-    {
-        ArgumentNullException.ThrowIfNull(value);
-        ProtocolSystemMessageReplaceConfig = value;
-    }
-
-    /// <summary>Converts <see cref="ProtocolSystemMessageReplaceConfig"/> to <see cref="ProtocolSystemMessageConfig"/>.</summary>
-    public static implicit operator ProtocolSystemMessageConfig(ProtocolSystemMessageReplaceConfig value) => new(value);
-
-    /// <summary>Initializes a new instance of the <see cref="ProtocolSystemMessageConfig"/> class from <see cref="ProtocolSystemMessageCustomizeConfig"/>.</summary>
-    public ProtocolSystemMessageConfig(ProtocolSystemMessageCustomizeConfig value)
-    {
-        ArgumentNullException.ThrowIfNull(value);
-        ProtocolSystemMessageCustomizeConfig = value;
-    }
-
-    /// <summary>Converts <see cref="ProtocolSystemMessageCustomizeConfig"/> to <see cref="ProtocolSystemMessageConfig"/>.</summary>
-    public static implicit operator ProtocolSystemMessageConfig(ProtocolSystemMessageCustomizeConfig value) => new(value);
-
-    /// <summary>Provides a <see cref="JsonConverter{ProtocolSystemMessageConfig}"/> for serializing <see cref="ProtocolSystemMessageConfig"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<ProtocolSystemMessageConfig>
-    {
-        /// <inheritdoc />
-        public override ProtocolSystemMessageConfig Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            if (reader.TokenType == JsonTokenType.Null)
-            {
-                throw new JsonException("Expected JSON object for ProtocolSystemMessageConfig.");
-            }
-
-            using var document = JsonDocument.ParseValue(ref reader);
-            var element = document.RootElement;
-            if (element.ValueKind == JsonValueKind.Object && (!element.TryGetProperty("mode", out _) || (element.TryGetProperty("mode", out _) && element.GetProperty("mode").ValueKind == JsonValueKind.String && (element.GetProperty("mode").GetString() == "append"))))
-            {
-                var protocolSystemMessageAppendConfig = JsonSerializer.Deserialize(element, RpcJsonContext.Default.ProtocolSystemMessageAppendConfig);
-                return protocolSystemMessageAppendConfig is null ? throw new JsonException("Expected ProtocolSystemMessageAppendConfig value.") : new ProtocolSystemMessageConfig(protocolSystemMessageAppendConfig);
-            }
-            if (element.ValueKind == JsonValueKind.Object && (element.TryGetProperty("mode", out _) && element.GetProperty("mode").ValueKind == JsonValueKind.String && (element.GetProperty("mode").GetString() == "replace")))
-            {
-                var protocolSystemMessageReplaceConfig = JsonSerializer.Deserialize(element, RpcJsonContext.Default.ProtocolSystemMessageReplaceConfig);
-                return protocolSystemMessageReplaceConfig is null ? throw new JsonException("Expected ProtocolSystemMessageReplaceConfig value.") : new ProtocolSystemMessageConfig(protocolSystemMessageReplaceConfig);
-            }
-            if (element.ValueKind == JsonValueKind.Object && (element.TryGetProperty("mode", out _) && element.GetProperty("mode").ValueKind == JsonValueKind.String && (element.GetProperty("mode").GetString() == "customize")))
-            {
-                var protocolSystemMessageCustomizeConfig = JsonSerializer.Deserialize(element, RpcJsonContext.Default.ProtocolSystemMessageCustomizeConfig);
-                return protocolSystemMessageCustomizeConfig is null ? throw new JsonException("Expected ProtocolSystemMessageCustomizeConfig value.") : new ProtocolSystemMessageConfig(protocolSystemMessageCustomizeConfig);
-            }
-
-            throw new JsonException("JSON value did not match any ProtocolSystemMessageConfig variant.");
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, ProtocolSystemMessageConfig value, JsonSerializerOptions options)
-        {
-            if (value.ProtocolSystemMessageAppendConfig is { } protocolSystemMessageAppendConfig)
-            {
-                JsonSerializer.Serialize(writer, protocolSystemMessageAppendConfig, RpcJsonContext.Default.ProtocolSystemMessageAppendConfig);
-                return;
-            }
-            if (value.ProtocolSystemMessageReplaceConfig is { } protocolSystemMessageReplaceConfig)
-            {
-                JsonSerializer.Serialize(writer, protocolSystemMessageReplaceConfig, RpcJsonContext.Default.ProtocolSystemMessageReplaceConfig);
-                return;
-            }
-            if (value.ProtocolSystemMessageCustomizeConfig is { } protocolSystemMessageCustomizeConfig)
-            {
-                JsonSerializer.Serialize(writer, protocolSystemMessageCustomizeConfig, RpcJsonContext.Default.ProtocolSystemMessageCustomizeConfig);
-                return;
-            }
-
-            throw new JsonException("No ProtocolSystemMessageConfig variant value is set.");
-        }
-    }
-}
-
-/// <summary>A BYOK model definition referencing a named provider.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class ProviderModelConfig
-{
-    /// <summary>Forward-compatible persisted on-device Auto annotation. The live counterpart is metadata.autoLocal.</summary>
-    [JsonPropertyName("autoLocal")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public JsonElement? AutoLocal { get; set; }
-
-    /// <summary>Optional capability overrides (vision, tool_calls, reasoning, etc.).</summary>
-    [JsonPropertyName("capabilities")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ModelCapabilitiesOverride? Capabilities { get; set; }
-
-    /// <summary>Provider-local model id, unique within its provider. The session-wide selection id (shown in the model list and passed to switchTo) is the provider-qualified `provider/id`.</summary>
-    [JsonPropertyName("id")]
-    public string Id { get; set; } = string.Empty;
-
-    /// <summary>Maximum context window tokens for the model.</summary>
-    [JsonPropertyName("maxContextWindowTokens")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public double? MaxContextWindowTokens { get; set; }
-
-    /// <summary>Maximum output tokens for the model.</summary>
-    [JsonPropertyName("maxOutputTokens")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public double? MaxOutputTokens { get; set; }
-
-    /// <summary>Maximum prompt/input tokens for the model.</summary>
-    [JsonPropertyName("maxPromptTokens")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public double? MaxPromptTokens { get; set; }
-
-    /// <summary>Provider-published model metadata, preserved verbatim as the public Model.metadata object.</summary>
-    [JsonPropertyName("metadata")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public IDictionary<string, JsonElement>? Metadata { get; set; }
-
-    /// <summary>Well-known base model id used for behavior/capability/config lookup. Defaults to `id`.</summary>
-    [JsonPropertyName("modelId")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? ModelId { get; set; }
-
-    /// <summary>Display name for model pickers. Defaults to the provider-qualified selection id (`provider/id`).</summary>
-    [JsonPropertyName("name")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? Name { get; set; }
-
-    /// <summary>Name of the configured provider that serves this model.</summary>
-    [JsonPropertyName("provider")]
-    public string Provider { get; set; } = string.Empty;
-
-    /// <summary>System-message configuration used when the runtime builds the standard prompt for this provider-qualified model, including general-purpose subagents. It uses the same object hierarchy as session-level systemMessage configuration, except transform actions are rejected because the current callback protocol is not model-scoped. When present, it overrides the session-wide configuration on those prompt paths. Selected custom-agent and specialized-subagent prompts remain authoritative.</summary>
-    [JsonPropertyName("systemMessage")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ProtocolSystemMessageConfig? SystemMessage { get; set; }
-
-    /// <summary>The model name sent to the provider API for inference. Defaults to `id`.</summary>
-    [JsonPropertyName("wireModel")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? WireModel { get; set; }
-}
-
-/// <summary>Azure-specific provider options.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class ProviderConfigAzure
-{
-    /// <summary>API version. When set, uses the versioned deployment route. When omitted, uses the GA versionless v1 route.</summary>
-    [JsonPropertyName("apiVersion")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? ApiVersion { get; set; }
-}
-
 /// <summary>External SDK input for a named custom model provider. Ingested by the native protocol boundary before host dispatch.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class NamedProviderConfig
@@ -6836,79 +6999,9 @@ internal sealed class DecisionsAskRequest
 
 /// <summary>Result of adding a model to the saved provider configuration.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class ProvidersConfigAddModelResult
-{
-    /// <summary>Whether the provider was created along with the model.</summary>
-    [JsonPropertyName("providerAdded")]
-    public bool ProviderAdded { get; set; }
-}
-
-/// <summary>Editable provider settings, without credential values or custom headers.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class SavedProviderConfigurationProviderInput
-{
-    /// <summary>Safe Azure connection settings, including API version.</summary>
-    [JsonPropertyName("azure")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ProviderConfigAzure? Azure { get; set; }
-
-    /// <summary>Provider endpoint.</summary>
-    [JsonPropertyName("baseUrl")]
-    public string BaseUrl { get; set; } = string.Empty;
-
-    /// <summary>Non-secret local model runtime options, such as the WinML device.</summary>
-    [JsonPropertyName("localModel")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public JsonElement? LocalModel { get; set; }
-
-    /// <summary>Serving product used for attribution.</summary>
-    [JsonPropertyName("modelProvider")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ProviderConfigModelProvider? ModelProvider { get; set; }
-
-    /// <summary>Provider name used to qualify model selection ids.</summary>
-    [JsonPropertyName("name")]
-    public string Name { get; set; } = string.Empty;
-
-    /// <summary>HTTP or WebSocket transport.</summary>
-    [JsonPropertyName("transport")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ProviderConfigTransport? Transport { get; set; }
-
-    /// <summary>Provider protocol family.</summary>
-    [JsonPropertyName("type")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public SavedProviderConfigurationType? Type { get; set; }
-
-    /// <summary>OpenAI-compatible wire API.</summary>
-    [JsonPropertyName("wireApi")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ProviderConfigWireApi? WireApi { get; set; }
-}
-
-/// <summary>Request to add a model to the server-owned saved provider configuration.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-internal sealed class ProvidersConfigAddModelRequest
-{
-    /// <summary>Optional replacement API key. Stored in the OS keychain and never returned.</summary>
-    [JsonPropertyName("credential")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? Credential { get; set; }
-
-    /// <summary>Model to add to the provider.</summary>
-    [JsonPropertyName("model")]
-    public ProviderModelConfig Model { get => field ??= new(); set; }
-
-    /// <summary>Provider settings to create when this provider is not already saved.</summary>
-    [JsonPropertyName("provider")]
-    public SavedProviderConfigurationProviderInput Provider { get => field ??= new(); set; }
-}
-
-/// <summary>Result of adding a model to the saved provider configuration.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 internal sealed class ProvidersSourceAddModelResult
 {
-    /// <summary>Whether the provider was created along with the model.</summary>
+    /// <summary>True when this operation created the provider row.</summary>
     [JsonPropertyName("providerAdded")]
     public bool ProviderAdded { get; set; }
 }
@@ -33526,6 +33619,16 @@ public partial class TeamPluginMarketplaceSourceGitHub : TeamPluginMarketplaceSo
     [JsonIgnore]
     public override string Source => "github";
 
+    /// <summary>Folder in the repository that holds the marketplace. Absent means the repository root.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("path")]
+    public string? Path { get; set; }
+
+    /// <summary>Branch or tag the marketplace is read from. Absent means the default branch.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("ref")]
+    public string? Ref { get; set; }
+
     /// <summary>GitHub repository in owner/name form.</summary>
     [JsonPropertyName("repo")]
     public required string Repo { get; set; }
@@ -33875,6 +33978,32 @@ internal sealed class ProviderAddRequest
     [JsonPropertyName("providers")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IList<NamedProviderConfig>? Providers { get; set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Request to update one provider's connection settings in a single session.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class SessionProviderUpdateProviderRequest
+{
+    /// <summary>Replacement provider settings. Credentials and custom headers are not accepted in this session update.</summary>
+    [JsonPropertyName("provider")]
+    public SavedProviderConfigurationProviderInput Provider { get => field ??= new(); set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Request to update one provider-local model in a single session.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class SessionProviderUpdateModelRequest
+{
+    /// <summary>Replacement model definition. Its provider and id identify the session row to replace.</summary>
+    [JsonPropertyName("model")]
+    public ProviderModelConfig Model { get => field ??= new(); set; }
 
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -39817,7 +39946,7 @@ internal sealed class MetadataSetWorkingDirectoryRequest
     public string WorkingDirectory { get; set; } = string.Empty;
 }
 
-/// <summary>Re-tokenize the session's existing messages against `modelId` and return the token totals. Useful for hosts that want an initial estimate of context usage on session resume, before the next agent turn fires `session.context_info_changed` events. Returns zeros for an empty session.</summary>
+/// <summary>Re-tokenize the session's existing messages against `modelId` and return the token totals. Useful for hosts that want an initial estimate of context usage on session resume, before the next agent turn fires `session.usage_info` events. Returns zeros for an empty session.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class MetadataRecomputeContextTokensResult
 {
@@ -40627,11 +40756,15 @@ internal sealed class HistorySetCompactionConfigRequest
 {
     /// <summary>
     /// Model that summarizes this session's conversation when it compacts,
-    /// instead of the session's own model. Applies only when both are Copilot
-    /// models the session may use; for a BYOK or provider session, or a model
-    /// the session's catalog or allowed-model policy rejects, compaction
-    /// summarizes on the session's model. Takes precedence over any runtime
-    /// experiment that picks a compaction model. Blank values are ignored.
+    /// instead of the session's own model. A Copilot session can name another
+    /// Copilot model it may use. A session on a custom provider can name
+    /// another model that provider serves: for a single `provider` config, a
+    /// model name it accepts, sent with default limits for that name; for a
+    /// named provider, another of that provider's model selection IDs. An Azure
+    /// provider, a model from a different provider, or a model the session's
+    /// catalog or allowed-model policy rejects leaves compaction on the
+    /// session's model. Takes precedence over any runtime experiment that picks
+    /// a compaction model. Blank values are ignored.
     /// </summary>
     [JsonPropertyName("model")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -44379,6 +44512,669 @@ public readonly struct TaskKind : IEquatable<TaskKind>
 }
 
 
+/// <summary>Resolved Anthropic adaptive-thinking capability for a model.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct AdaptiveThinkingSupport : IEquatable<AdaptiveThinkingSupport>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="AdaptiveThinkingSupport"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="AdaptiveThinkingSupport"/>.</param>
+    [JsonConstructor]
+    public AdaptiveThinkingSupport(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="AdaptiveThinkingSupport"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The model does not accept thinking.type='adaptive'.</summary>
+    public static AdaptiveThinkingSupport Unsupported { get; } = new("unsupported");
+
+    /// <summary>The model accepts adaptive thinking but also accepts thinking.type='enabled'.</summary>
+    public static AdaptiveThinkingSupport Optional { get; } = new("optional");
+
+    /// <summary>The model defaults to adaptive thinking and rejects thinking.type='enabled' with HTTP 400, but still accepts thinking.type='disabled' (e.g. opus-4.7/4.8/5, sonnet-5).</summary>
+    public static AdaptiveThinkingSupport Required { get; } = new("required");
+
+    /// <summary>The model accepts only thinking.type='adaptive'; 'enabled', 'disabled', and an omitted thinking block all fail with HTTP 400 (e.g. fable, mythos).</summary>
+    public static AdaptiveThinkingSupport AdaptiveOnly { get; } = new("adaptive_only");
+
+    /// <summary>Returns a value indicating whether two <see cref="AdaptiveThinkingSupport"/> instances are equivalent.</summary>
+    public static bool operator ==(AdaptiveThinkingSupport left, AdaptiveThinkingSupport right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="AdaptiveThinkingSupport"/> instances are not equivalent.</summary>
+    public static bool operator !=(AdaptiveThinkingSupport left, AdaptiveThinkingSupport right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is AdaptiveThinkingSupport other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(AdaptiveThinkingSupport other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{AdaptiveThinkingSupport}"/> for serializing <see cref="AdaptiveThinkingSupport"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<AdaptiveThinkingSupport>
+    {
+        /// <inheritdoc />
+        public override AdaptiveThinkingSupport Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, AdaptiveThinkingSupport value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AdaptiveThinkingSupport));
+        }
+    }
+}
+
+
+/// <summary>Defines the allowed values.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ProtocolAppendMode : IEquatable<ProtocolAppendMode>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ProtocolAppendMode"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ProtocolAppendMode"/>.</param>
+    [JsonConstructor]
+    public ProtocolAppendMode(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ProtocolAppendMode"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>append</c> value.</summary>
+    public static ProtocolAppendMode Append { get; } = new("append");
+
+    /// <summary>Returns a value indicating whether two <see cref="ProtocolAppendMode"/> instances are equivalent.</summary>
+    public static bool operator ==(ProtocolAppendMode left, ProtocolAppendMode right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ProtocolAppendMode"/> instances are not equivalent.</summary>
+    public static bool operator !=(ProtocolAppendMode left, ProtocolAppendMode right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ProtocolAppendMode other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ProtocolAppendMode other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ProtocolAppendMode}"/> for serializing <see cref="ProtocolAppendMode"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ProtocolAppendMode>
+    {
+        /// <inheritdoc />
+        public override ProtocolAppendMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ProtocolAppendMode value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ProtocolAppendMode));
+        }
+    }
+}
+
+
+/// <summary>Defines the allowed values.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ProtocolReplaceMode : IEquatable<ProtocolReplaceMode>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ProtocolReplaceMode"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ProtocolReplaceMode"/>.</param>
+    [JsonConstructor]
+    public ProtocolReplaceMode(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ProtocolReplaceMode"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>replace</c> value.</summary>
+    public static ProtocolReplaceMode Replace { get; } = new("replace");
+
+    /// <summary>Returns a value indicating whether two <see cref="ProtocolReplaceMode"/> instances are equivalent.</summary>
+    public static bool operator ==(ProtocolReplaceMode left, ProtocolReplaceMode right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ProtocolReplaceMode"/> instances are not equivalent.</summary>
+    public static bool operator !=(ProtocolReplaceMode left, ProtocolReplaceMode right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ProtocolReplaceMode other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ProtocolReplaceMode other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ProtocolReplaceMode}"/> for serializing <see cref="ProtocolReplaceMode"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ProtocolReplaceMode>
+    {
+        /// <inheritdoc />
+        public override ProtocolReplaceMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ProtocolReplaceMode value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ProtocolReplaceMode));
+        }
+    }
+}
+
+
+/// <summary>Defines the allowed values.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ProtocolCustomizeMode : IEquatable<ProtocolCustomizeMode>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ProtocolCustomizeMode"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ProtocolCustomizeMode"/>.</param>
+    [JsonConstructor]
+    public ProtocolCustomizeMode(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ProtocolCustomizeMode"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>customize</c> value.</summary>
+    public static ProtocolCustomizeMode Customize { get; } = new("customize");
+
+    /// <summary>Returns a value indicating whether two <see cref="ProtocolCustomizeMode"/> instances are equivalent.</summary>
+    public static bool operator ==(ProtocolCustomizeMode left, ProtocolCustomizeMode right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ProtocolCustomizeMode"/> instances are not equivalent.</summary>
+    public static bool operator !=(ProtocolCustomizeMode left, ProtocolCustomizeMode right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ProtocolCustomizeMode other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ProtocolCustomizeMode other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ProtocolCustomizeMode}"/> for serializing <see cref="ProtocolCustomizeMode"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ProtocolCustomizeMode>
+    {
+        /// <inheritdoc />
+        public override ProtocolCustomizeMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ProtocolCustomizeMode value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ProtocolCustomizeMode));
+        }
+    }
+}
+
+
+/// <summary>Defines the allowed values.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ProtocolStaticSectionAction : IEquatable<ProtocolStaticSectionAction>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ProtocolStaticSectionAction"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ProtocolStaticSectionAction"/>.</param>
+    [JsonConstructor]
+    public ProtocolStaticSectionAction(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ProtocolStaticSectionAction"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Replace the section content.</summary>
+    public static ProtocolStaticSectionAction Replace { get; } = new("replace");
+
+    /// <summary>Remove the section content.</summary>
+    public static ProtocolStaticSectionAction Remove { get; } = new("remove");
+
+    /// <summary>Append content to the section.</summary>
+    public static ProtocolStaticSectionAction Append { get; } = new("append");
+
+    /// <summary>Prepend content to the section.</summary>
+    public static ProtocolStaticSectionAction Prepend { get; } = new("prepend");
+
+    /// <summary>Returns a value indicating whether two <see cref="ProtocolStaticSectionAction"/> instances are equivalent.</summary>
+    public static bool operator ==(ProtocolStaticSectionAction left, ProtocolStaticSectionAction right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ProtocolStaticSectionAction"/> instances are not equivalent.</summary>
+    public static bool operator !=(ProtocolStaticSectionAction left, ProtocolStaticSectionAction right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ProtocolStaticSectionAction other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ProtocolStaticSectionAction other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ProtocolStaticSectionAction}"/> for serializing <see cref="ProtocolStaticSectionAction"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ProtocolStaticSectionAction>
+    {
+        /// <inheritdoc />
+        public override ProtocolStaticSectionAction Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ProtocolStaticSectionAction value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ProtocolStaticSectionAction));
+        }
+    }
+}
+
+
+/// <summary>Credential availability, not provider authentication or health.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct SavedProviderCredentialStatus : IEquatable<SavedProviderCredentialStatus>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="SavedProviderCredentialStatus"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="SavedProviderCredentialStatus"/>.</param>
+    [JsonConstructor]
+    public SavedProviderCredentialStatus(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="SavedProviderCredentialStatus"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>A secure or legacy credential source is configured.</summary>
+    public static SavedProviderCredentialStatus Present { get; } = new("present");
+
+    /// <summary>No credential source is configured.</summary>
+    public static SavedProviderCredentialStatus Absent { get; } = new("absent");
+
+    /// <summary>Secure credential storage could not be queried.</summary>
+    public static SavedProviderCredentialStatus Unavailable { get; } = new("unavailable");
+
+    /// <summary>Returns a value indicating whether two <see cref="SavedProviderCredentialStatus"/> instances are equivalent.</summary>
+    public static bool operator ==(SavedProviderCredentialStatus left, SavedProviderCredentialStatus right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="SavedProviderCredentialStatus"/> instances are not equivalent.</summary>
+    public static bool operator !=(SavedProviderCredentialStatus left, SavedProviderCredentialStatus right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is SavedProviderCredentialStatus other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(SavedProviderCredentialStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{SavedProviderCredentialStatus}"/> for serializing <see cref="SavedProviderCredentialStatus"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<SavedProviderCredentialStatus>
+    {
+        /// <inheritdoc />
+        public override SavedProviderCredentialStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, SavedProviderCredentialStatus value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SavedProviderCredentialStatus));
+        }
+    }
+}
+
+
+/// <summary>The product serving the model, reported in telemetry as `model_provider`.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ProviderConfigModelProvider : IEquatable<ProviderConfigModelProvider>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ProviderConfigModelProvider"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ProviderConfigModelProvider"/>.</param>
+    [JsonConstructor]
+    public ProviderConfigModelProvider(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ProviderConfigModelProvider"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>OpenAI API.</summary>
+    public static ProviderConfigModelProvider Openai { get; } = new("openai");
+
+    /// <summary>Anthropic API.</summary>
+    public static ProviderConfigModelProvider Anthropic { get; } = new("anthropic");
+
+    /// <summary>Azure OpenAI Service.</summary>
+    public static ProviderConfigModelProvider AzureOpenai { get; } = new("azure_openai");
+
+    /// <summary>Ollama.</summary>
+    public static ProviderConfigModelProvider Ollama { get; } = new("ollama");
+
+    /// <summary>LM Studio.</summary>
+    public static ProviderConfigModelProvider LmStudio { get; } = new("lm_studio");
+
+    /// <summary>Foundry Local.</summary>
+    public static ProviderConfigModelProvider FoundryLocal { get; } = new("foundry_local");
+
+    /// <summary>llama.cpp server.</summary>
+    public static ProviderConfigModelProvider LlamaCpp { get; } = new("llama_cpp");
+
+    /// <summary>Returns a value indicating whether two <see cref="ProviderConfigModelProvider"/> instances are equivalent.</summary>
+    public static bool operator ==(ProviderConfigModelProvider left, ProviderConfigModelProvider right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ProviderConfigModelProvider"/> instances are not equivalent.</summary>
+    public static bool operator !=(ProviderConfigModelProvider left, ProviderConfigModelProvider right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ProviderConfigModelProvider other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ProviderConfigModelProvider other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ProviderConfigModelProvider}"/> for serializing <see cref="ProviderConfigModelProvider"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ProviderConfigModelProvider>
+    {
+        /// <inheritdoc />
+        public override ProviderConfigModelProvider Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ProviderConfigModelProvider value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ProviderConfigModelProvider));
+        }
+    }
+}
+
+
+/// <summary>Provider transport. Defaults to "http".</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ProviderConfigTransport : IEquatable<ProviderConfigTransport>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ProviderConfigTransport"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ProviderConfigTransport"/>.</param>
+    [JsonConstructor]
+    public ProviderConfigTransport(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ProviderConfigTransport"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>HTTP request/streaming transport.</summary>
+    public static ProviderConfigTransport Http { get; } = new("http");
+
+    /// <summary>WebSocket transport.</summary>
+    public static ProviderConfigTransport Websockets { get; } = new("websockets");
+
+    /// <summary>Returns a value indicating whether two <see cref="ProviderConfigTransport"/> instances are equivalent.</summary>
+    public static bool operator ==(ProviderConfigTransport left, ProviderConfigTransport right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ProviderConfigTransport"/> instances are not equivalent.</summary>
+    public static bool operator !=(ProviderConfigTransport left, ProviderConfigTransport right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ProviderConfigTransport other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ProviderConfigTransport other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ProviderConfigTransport}"/> for serializing <see cref="ProviderConfigTransport"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ProviderConfigTransport>
+    {
+        /// <inheritdoc />
+        public override ProviderConfigTransport Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ProviderConfigTransport value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ProviderConfigTransport));
+        }
+    }
+}
+
+
+/// <summary>Provider families supported by saved configuration, including managed local models.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct SavedProviderConfigurationType : IEquatable<SavedProviderConfigurationType>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="SavedProviderConfigurationType"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="SavedProviderConfigurationType"/>.</param>
+    [JsonConstructor]
+    public SavedProviderConfigurationType(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="SavedProviderConfigurationType"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Generic OpenAI-compatible API.</summary>
+    public static SavedProviderConfigurationType Openai { get; } = new("openai");
+
+    /// <summary>Azure OpenAI Service endpoint.</summary>
+    public static SavedProviderConfigurationType Azure { get; } = new("azure");
+
+    /// <summary>Anthropic API endpoint.</summary>
+    public static SavedProviderConfigurationType Anthropic { get; } = new("anthropic");
+
+    /// <summary>Experimental: Google Gemini API endpoint, served over the native Gemini Interactions API.</summary>
+    public static SavedProviderConfigurationType Google { get; } = new("google");
+
+    /// <summary>Runtime-managed local model server.</summary>
+    public static SavedProviderConfigurationType LocalModel { get; } = new("local_model");
+
+    /// <summary>Windows ML local model provider.</summary>
+    public static SavedProviderConfigurationType Winml { get; } = new("winml");
+
+    /// <summary>Returns a value indicating whether two <see cref="SavedProviderConfigurationType"/> instances are equivalent.</summary>
+    public static bool operator ==(SavedProviderConfigurationType left, SavedProviderConfigurationType right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="SavedProviderConfigurationType"/> instances are not equivalent.</summary>
+    public static bool operator !=(SavedProviderConfigurationType left, SavedProviderConfigurationType right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is SavedProviderConfigurationType other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(SavedProviderConfigurationType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{SavedProviderConfigurationType}"/> for serializing <see cref="SavedProviderConfigurationType"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<SavedProviderConfigurationType>
+    {
+        /// <inheritdoc />
+        public override SavedProviderConfigurationType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, SavedProviderConfigurationType value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SavedProviderConfigurationType));
+        }
+    }
+}
+
+
+/// <summary>Wire API format (openai/azure only). Defaults to "completions".</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ProviderConfigWireApi : IEquatable<ProviderConfigWireApi>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ProviderConfigWireApi"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ProviderConfigWireApi"/>.</param>
+    [JsonConstructor]
+    public ProviderConfigWireApi(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ProviderConfigWireApi"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>OpenAI Chat Completions wire format.</summary>
+    public static ProviderConfigWireApi Completions { get; } = new("completions");
+
+    /// <summary>OpenAI Responses API wire format.</summary>
+    public static ProviderConfigWireApi Responses { get; } = new("responses");
+
+    /// <summary>Returns a value indicating whether two <see cref="ProviderConfigWireApi"/> instances are equivalent.</summary>
+    public static bool operator ==(ProviderConfigWireApi left, ProviderConfigWireApi right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ProviderConfigWireApi"/> instances are not equivalent.</summary>
+    public static bool operator !=(ProviderConfigWireApi left, ProviderConfigWireApi right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ProviderConfigWireApi other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ProviderConfigWireApi other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ProviderConfigWireApi}"/> for serializing <see cref="ProviderConfigWireApi"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ProviderConfigWireApi>
+    {
+        /// <inheritdoc />
+        public override ProviderConfigWireApi Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ProviderConfigWireApi value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ProviderConfigWireApi));
+        }
+    }
+}
+
+
 /// <summary>Information, warning, or error.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -46314,75 +47110,6 @@ public readonly struct ImageToolModelOperation : IEquatable<ImageToolModelOperat
 }
 
 
-/// <summary>Resolved Anthropic adaptive-thinking capability for a model.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct AdaptiveThinkingSupport : IEquatable<AdaptiveThinkingSupport>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="AdaptiveThinkingSupport"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="AdaptiveThinkingSupport"/>.</param>
-    [JsonConstructor]
-    public AdaptiveThinkingSupport(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="AdaptiveThinkingSupport"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>The model does not accept thinking.type='adaptive'.</summary>
-    public static AdaptiveThinkingSupport Unsupported { get; } = new("unsupported");
-
-    /// <summary>The model accepts adaptive thinking but also accepts thinking.type='enabled'.</summary>
-    public static AdaptiveThinkingSupport Optional { get; } = new("optional");
-
-    /// <summary>The model defaults to adaptive thinking and rejects thinking.type='enabled' with HTTP 400, but still accepts thinking.type='disabled' (e.g. opus-4.7/4.8/5, sonnet-5).</summary>
-    public static AdaptiveThinkingSupport Required { get; } = new("required");
-
-    /// <summary>The model accepts only thinking.type='adaptive'; 'enabled', 'disabled', and an omitted thinking block all fail with HTTP 400 (e.g. fable, mythos).</summary>
-    public static AdaptiveThinkingSupport AdaptiveOnly { get; } = new("adaptive_only");
-
-    /// <summary>Returns a value indicating whether two <see cref="AdaptiveThinkingSupport"/> instances are equivalent.</summary>
-    public static bool operator ==(AdaptiveThinkingSupport left, AdaptiveThinkingSupport right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="AdaptiveThinkingSupport"/> instances are not equivalent.</summary>
-    public static bool operator !=(AdaptiveThinkingSupport left, AdaptiveThinkingSupport right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is AdaptiveThinkingSupport other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(AdaptiveThinkingSupport other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{AdaptiveThinkingSupport}"/> for serializing <see cref="AdaptiveThinkingSupport"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<AdaptiveThinkingSupport>
-    {
-        /// <inheritdoc />
-        public override AdaptiveThinkingSupport Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, AdaptiveThinkingSupport value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AdaptiveThinkingSupport));
-        }
-    }
-}
-
-
 /// <summary>Model capability category for grouping in the model picker.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -46713,396 +47440,6 @@ public readonly struct AzureMlRegistrationKind : IEquatable<AzureMlRegistrationK
 }
 
 
-/// <summary>Defines the allowed values.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct ProtocolAppendMode : IEquatable<ProtocolAppendMode>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="ProtocolAppendMode"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="ProtocolAppendMode"/>.</param>
-    [JsonConstructor]
-    public ProtocolAppendMode(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="ProtocolAppendMode"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Gets the <c>append</c> value.</summary>
-    public static ProtocolAppendMode Append { get; } = new("append");
-
-    /// <summary>Returns a value indicating whether two <see cref="ProtocolAppendMode"/> instances are equivalent.</summary>
-    public static bool operator ==(ProtocolAppendMode left, ProtocolAppendMode right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="ProtocolAppendMode"/> instances are not equivalent.</summary>
-    public static bool operator !=(ProtocolAppendMode left, ProtocolAppendMode right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is ProtocolAppendMode other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(ProtocolAppendMode other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{ProtocolAppendMode}"/> for serializing <see cref="ProtocolAppendMode"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<ProtocolAppendMode>
-    {
-        /// <inheritdoc />
-        public override ProtocolAppendMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, ProtocolAppendMode value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ProtocolAppendMode));
-        }
-    }
-}
-
-
-/// <summary>Defines the allowed values.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct ProtocolReplaceMode : IEquatable<ProtocolReplaceMode>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="ProtocolReplaceMode"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="ProtocolReplaceMode"/>.</param>
-    [JsonConstructor]
-    public ProtocolReplaceMode(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="ProtocolReplaceMode"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Gets the <c>replace</c> value.</summary>
-    public static ProtocolReplaceMode Replace { get; } = new("replace");
-
-    /// <summary>Returns a value indicating whether two <see cref="ProtocolReplaceMode"/> instances are equivalent.</summary>
-    public static bool operator ==(ProtocolReplaceMode left, ProtocolReplaceMode right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="ProtocolReplaceMode"/> instances are not equivalent.</summary>
-    public static bool operator !=(ProtocolReplaceMode left, ProtocolReplaceMode right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is ProtocolReplaceMode other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(ProtocolReplaceMode other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{ProtocolReplaceMode}"/> for serializing <see cref="ProtocolReplaceMode"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<ProtocolReplaceMode>
-    {
-        /// <inheritdoc />
-        public override ProtocolReplaceMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, ProtocolReplaceMode value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ProtocolReplaceMode));
-        }
-    }
-}
-
-
-/// <summary>Defines the allowed values.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct ProtocolCustomizeMode : IEquatable<ProtocolCustomizeMode>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="ProtocolCustomizeMode"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="ProtocolCustomizeMode"/>.</param>
-    [JsonConstructor]
-    public ProtocolCustomizeMode(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="ProtocolCustomizeMode"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Gets the <c>customize</c> value.</summary>
-    public static ProtocolCustomizeMode Customize { get; } = new("customize");
-
-    /// <summary>Returns a value indicating whether two <see cref="ProtocolCustomizeMode"/> instances are equivalent.</summary>
-    public static bool operator ==(ProtocolCustomizeMode left, ProtocolCustomizeMode right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="ProtocolCustomizeMode"/> instances are not equivalent.</summary>
-    public static bool operator !=(ProtocolCustomizeMode left, ProtocolCustomizeMode right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is ProtocolCustomizeMode other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(ProtocolCustomizeMode other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{ProtocolCustomizeMode}"/> for serializing <see cref="ProtocolCustomizeMode"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<ProtocolCustomizeMode>
-    {
-        /// <inheritdoc />
-        public override ProtocolCustomizeMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, ProtocolCustomizeMode value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ProtocolCustomizeMode));
-        }
-    }
-}
-
-
-/// <summary>Defines the allowed values.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct ProtocolStaticSectionAction : IEquatable<ProtocolStaticSectionAction>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="ProtocolStaticSectionAction"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="ProtocolStaticSectionAction"/>.</param>
-    [JsonConstructor]
-    public ProtocolStaticSectionAction(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="ProtocolStaticSectionAction"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Replace the section content.</summary>
-    public static ProtocolStaticSectionAction Replace { get; } = new("replace");
-
-    /// <summary>Remove the section content.</summary>
-    public static ProtocolStaticSectionAction Remove { get; } = new("remove");
-
-    /// <summary>Append content to the section.</summary>
-    public static ProtocolStaticSectionAction Append { get; } = new("append");
-
-    /// <summary>Prepend content to the section.</summary>
-    public static ProtocolStaticSectionAction Prepend { get; } = new("prepend");
-
-    /// <summary>Returns a value indicating whether two <see cref="ProtocolStaticSectionAction"/> instances are equivalent.</summary>
-    public static bool operator ==(ProtocolStaticSectionAction left, ProtocolStaticSectionAction right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="ProtocolStaticSectionAction"/> instances are not equivalent.</summary>
-    public static bool operator !=(ProtocolStaticSectionAction left, ProtocolStaticSectionAction right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is ProtocolStaticSectionAction other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(ProtocolStaticSectionAction other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{ProtocolStaticSectionAction}"/> for serializing <see cref="ProtocolStaticSectionAction"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<ProtocolStaticSectionAction>
-    {
-        /// <inheritdoc />
-        public override ProtocolStaticSectionAction Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, ProtocolStaticSectionAction value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ProtocolStaticSectionAction));
-        }
-    }
-}
-
-
-/// <summary>The product serving the model, reported in telemetry as `model_provider`.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct ProviderConfigModelProvider : IEquatable<ProviderConfigModelProvider>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="ProviderConfigModelProvider"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="ProviderConfigModelProvider"/>.</param>
-    [JsonConstructor]
-    public ProviderConfigModelProvider(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="ProviderConfigModelProvider"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>OpenAI API.</summary>
-    public static ProviderConfigModelProvider Openai { get; } = new("openai");
-
-    /// <summary>Anthropic API.</summary>
-    public static ProviderConfigModelProvider Anthropic { get; } = new("anthropic");
-
-    /// <summary>Azure OpenAI Service.</summary>
-    public static ProviderConfigModelProvider AzureOpenai { get; } = new("azure_openai");
-
-    /// <summary>Ollama.</summary>
-    public static ProviderConfigModelProvider Ollama { get; } = new("ollama");
-
-    /// <summary>LM Studio.</summary>
-    public static ProviderConfigModelProvider LmStudio { get; } = new("lm_studio");
-
-    /// <summary>Foundry Local.</summary>
-    public static ProviderConfigModelProvider FoundryLocal { get; } = new("foundry_local");
-
-    /// <summary>llama.cpp server.</summary>
-    public static ProviderConfigModelProvider LlamaCpp { get; } = new("llama_cpp");
-
-    /// <summary>Returns a value indicating whether two <see cref="ProviderConfigModelProvider"/> instances are equivalent.</summary>
-    public static bool operator ==(ProviderConfigModelProvider left, ProviderConfigModelProvider right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="ProviderConfigModelProvider"/> instances are not equivalent.</summary>
-    public static bool operator !=(ProviderConfigModelProvider left, ProviderConfigModelProvider right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is ProviderConfigModelProvider other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(ProviderConfigModelProvider other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{ProviderConfigModelProvider}"/> for serializing <see cref="ProviderConfigModelProvider"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<ProviderConfigModelProvider>
-    {
-        /// <inheritdoc />
-        public override ProviderConfigModelProvider Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, ProviderConfigModelProvider value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ProviderConfigModelProvider));
-        }
-    }
-}
-
-
-/// <summary>Provider transport. Defaults to "http".</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct ProviderConfigTransport : IEquatable<ProviderConfigTransport>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="ProviderConfigTransport"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="ProviderConfigTransport"/>.</param>
-    [JsonConstructor]
-    public ProviderConfigTransport(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="ProviderConfigTransport"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>HTTP request/streaming transport.</summary>
-    public static ProviderConfigTransport Http { get; } = new("http");
-
-    /// <summary>WebSocket transport.</summary>
-    public static ProviderConfigTransport Websockets { get; } = new("websockets");
-
-    /// <summary>Returns a value indicating whether two <see cref="ProviderConfigTransport"/> instances are equivalent.</summary>
-    public static bool operator ==(ProviderConfigTransport left, ProviderConfigTransport right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="ProviderConfigTransport"/> instances are not equivalent.</summary>
-    public static bool operator !=(ProviderConfigTransport left, ProviderConfigTransport right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is ProviderConfigTransport other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(ProviderConfigTransport other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{ProviderConfigTransport}"/> for serializing <see cref="ProviderConfigTransport"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<ProviderConfigTransport>
-    {
-        /// <inheritdoc />
-        public override ProviderConfigTransport Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, ProviderConfigTransport value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ProviderConfigTransport));
-        }
-    }
-}
-
-
 /// <summary>Provider type. Defaults to "openai" for generic OpenAI-compatible APIs.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -47170,69 +47507,6 @@ public readonly struct ProviderConfigType : IEquatable<ProviderConfigType>
         public override void Write(Utf8JsonWriter writer, ProviderConfigType value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ProviderConfigType));
-        }
-    }
-}
-
-
-/// <summary>Wire API format (openai/azure only). Defaults to "completions".</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct ProviderConfigWireApi : IEquatable<ProviderConfigWireApi>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="ProviderConfigWireApi"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="ProviderConfigWireApi"/>.</param>
-    [JsonConstructor]
-    public ProviderConfigWireApi(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="ProviderConfigWireApi"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>OpenAI Chat Completions wire format.</summary>
-    public static ProviderConfigWireApi Completions { get; } = new("completions");
-
-    /// <summary>OpenAI Responses API wire format.</summary>
-    public static ProviderConfigWireApi Responses { get; } = new("responses");
-
-    /// <summary>Returns a value indicating whether two <see cref="ProviderConfigWireApi"/> instances are equivalent.</summary>
-    public static bool operator ==(ProviderConfigWireApi left, ProviderConfigWireApi right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="ProviderConfigWireApi"/> instances are not equivalent.</summary>
-    public static bool operator !=(ProviderConfigWireApi left, ProviderConfigWireApi right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is ProviderConfigWireApi other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(ProviderConfigWireApi other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{ProviderConfigWireApi}"/> for serializing <see cref="ProviderConfigWireApi"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<ProviderConfigWireApi>
-    {
-        /// <inheritdoc />
-        public override ProviderConfigWireApi Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, ProviderConfigWireApi value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ProviderConfigWireApi));
         }
     }
 }
@@ -47425,81 +47699,6 @@ public readonly struct AzureMlCatalogRetryMode : IEquatable<AzureMlCatalogRetryM
         public override void Write(Utf8JsonWriter writer, AzureMlCatalogRetryMode value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AzureMlCatalogRetryMode));
-        }
-    }
-}
-
-
-/// <summary>Provider families supported by saved configuration.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct SavedProviderConfigurationType : IEquatable<SavedProviderConfigurationType>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="SavedProviderConfigurationType"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="SavedProviderConfigurationType"/>.</param>
-    [JsonConstructor]
-    public SavedProviderConfigurationType(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="SavedProviderConfigurationType"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Generic OpenAI-compatible API.</summary>
-    public static SavedProviderConfigurationType Openai { get; } = new("openai");
-
-    /// <summary>Azure OpenAI Service endpoint.</summary>
-    public static SavedProviderConfigurationType Azure { get; } = new("azure");
-
-    /// <summary>Anthropic API endpoint.</summary>
-    public static SavedProviderConfigurationType Anthropic { get; } = new("anthropic");
-
-    /// <summary>Experimental: Google Gemini API endpoint, served over the native Gemini Interactions API.</summary>
-    public static SavedProviderConfigurationType Google { get; } = new("google");
-
-    /// <summary>Runtime-managed local model server.</summary>
-    public static SavedProviderConfigurationType LocalModel { get; } = new("local_model");
-
-    /// <summary>Windows ML local model provider.</summary>
-    public static SavedProviderConfigurationType Winml { get; } = new("winml");
-
-    /// <summary>Returns a value indicating whether two <see cref="SavedProviderConfigurationType"/> instances are equivalent.</summary>
-    public static bool operator ==(SavedProviderConfigurationType left, SavedProviderConfigurationType right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="SavedProviderConfigurationType"/> instances are not equivalent.</summary>
-    public static bool operator !=(SavedProviderConfigurationType left, SavedProviderConfigurationType right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is SavedProviderConfigurationType other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(SavedProviderConfigurationType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{SavedProviderConfigurationType}"/> for serializing <see cref="SavedProviderConfigurationType"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<SavedProviderConfigurationType>
-    {
-        /// <inheritdoc />
-        public override SavedProviderConfigurationType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, SavedProviderConfigurationType value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SavedProviderConfigurationType));
         }
     }
 }
@@ -64838,6 +65037,12 @@ public sealed class ServerRpc
         await CopilotClient.InvokeRpcAsync(_rpc, "registerExtensionLaunchProvider", [], cancellationToken);
     }
 
+    /// <summary>Providers APIs.</summary>
+    public ServerProvidersApi Providers =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
+        field;
+
     /// <summary>LocalModels APIs.</summary>
     public ServerLocalModelsApi LocalModels =>
         field ??
@@ -64918,12 +65123,6 @@ public sealed class ServerRpc
 
     /// <summary>Decisions APIs.</summary>
     public ServerDecisionsApi Decisions =>
-        field ??
-        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
-        field;
-
-    /// <summary>Providers APIs.</summary>
-    public ServerProvidersApi Providers =>
         field ??
         Interlocked.CompareExchange(ref field, new(_rpc), null) ??
         field;
@@ -65125,6 +65324,98 @@ public sealed class ServerRpc
         field ??
         Interlocked.CompareExchange(ref field, new(_rpc), null) ??
         field;
+}
+
+/// <summary>Provides server-scoped Providers APIs.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class ServerProvidersApi
+{
+    private readonly JsonRpc _rpc;
+
+    internal ServerProvidersApi(JsonRpc rpc)
+    {
+        _rpc = rpc;
+    }
+
+    /// <summary>Config APIs.</summary>
+    public ServerProvidersConfigApi Config =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
+        field;
+}
+
+/// <summary>Provides server-scoped ProvidersConfig APIs.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class ServerProvidersConfigApi
+{
+    private readonly JsonRpc _rpc;
+
+    internal ServerProvidersConfigApi(JsonRpc rpc)
+    {
+        _rpc = rpc;
+    }
+
+    /// <summary>Reads the server's saved provider settings and credential availability without returning secrets or activating models.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Saved configuration. Reading does not activate, select, or load a model.</returns>
+    public async Task<ProvidersConfigReadResult> ReadAsync(CancellationToken cancellationToken = default)
+    {
+        return await CopilotClient.InvokeRpcAsync<ProvidersConfigReadResult>(_rpc, "providers.config.read", [], cancellationToken);
+    }
+
+    /// <summary>Updates shared connection settings for a saved provider while preserving its credentials and other sensitive fields. This durable operation does not change any live session.</summary>
+    /// <param name="provider">Replacement provider settings. Existing credentials and custom headers are retained; omitted local-model settings are retained.</param>
+    /// <param name="credential">Optional replacement API key. Stored in the OS keychain and never returned.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Result of updating shared saved provider settings.</returns>
+    public async Task<ProvidersConfigUpdateProviderResult> UpdateProviderAsync(SavedProviderConfigurationProviderInput provider, string? credential = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(provider);
+
+        var request = new ProvidersConfigUpdateProviderRequest { Provider = provider, Credential = credential };
+        return await CopilotClient.InvokeRpcAsync<ProvidersConfigUpdateProviderResult>(_rpc, "providers.config.updateProvider", [request], cancellationToken);
+    }
+
+    /// <summary>Updates one saved provider model without changing its sibling models. This durable operation does not change any live session.</summary>
+    /// <param name="model">Replacement model definition. Its provider and id identify the saved row to replace.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Result of updating one saved provider model.</returns>
+    public async Task<ProvidersConfigUpdateModelResult> UpdateModelAsync(ProviderModelConfig model, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+
+        var request = new ProvidersConfigUpdateModelRequest { Model = model };
+        return await CopilotClient.InvokeRpcAsync<ProvidersConfigUpdateModelResult>(_rpc, "providers.config.updateModel", [request], cancellationToken);
+    }
+
+    /// <summary>Removes one model from the server's saved provider configuration and removes its provider only when no saved models remain. This durable operation does not change any live session.</summary>
+    /// <param name="providerName">Name of the provider that owns the model.</param>
+    /// <param name="modelId">Provider-local model id to remove.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Result of removing one saved provider model.</returns>
+    public async Task<ProvidersConfigRemoveModelResult> RemoveModelAsync(string providerName, string modelId, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(providerName);
+        ArgumentNullException.ThrowIfNull(modelId);
+
+        var request = new ProvidersConfigRemoveModelRequest { ProviderName = providerName, ModelId = modelId };
+        return await CopilotClient.InvokeRpcAsync<ProvidersConfigRemoveModelResult>(_rpc, "providers.config.removeModel", [request], cancellationToken);
+    }
+
+    /// <summary>Adds a model to the server's saved provider configuration. This durable operation does not change any live session.</summary>
+    /// <param name="provider">Provider settings to create when this provider is not already saved.</param>
+    /// <param name="model">Model to add to the provider.</param>
+    /// <param name="credential">Optional replacement API key. Stored in the OS keychain and never returned.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Result of adding a model to the saved provider configuration.</returns>
+    public async Task<ProvidersConfigAddModelResult> AddModelAsync(SavedProviderConfigurationProviderInput provider, ProviderModelConfig model, string? credential = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(provider);
+        ArgumentNullException.ThrowIfNull(model);
+
+        var request = new ProvidersConfigAddModelRequest { Provider = provider, Model = model, Credential = credential };
+        return await CopilotClient.InvokeRpcAsync<ProvidersConfigAddModelResult>(_rpc, "providers.config.addModel", [request], cancellationToken);
+    }
 }
 
 /// <summary>Provides server-scoped LocalModels APIs.</summary>
@@ -65625,7 +65916,7 @@ public sealed class ServerUserSettingsApi
 
     /// <summary>Adds or removes one hook key in the user `disabledHooks` setting, rewriting settings.json in place and leaving every other setting untouched. Reports a typed outcome rather than failing the call, so a host can tell an unparseable settings file apart from a write that could not complete.</summary>
     /// <param name="settingsPath">Path of the settings.json to rewrite.</param>
-    /// <param name="disableKey">Durable content-hash key of the hook, as `hooks.loadResources` reports it.</param>
+    /// <param name="disableKey">Durable content-hash key of the hook, as `hooks.discover` reports it in `disableKey`.</param>
     /// <param name="disabled">True adds the key to `disabledHooks`, false removes it.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Outcome of rewriting the `disabledHooks` setting.</returns>
@@ -65638,7 +65929,7 @@ public sealed class ServerUserSettingsApi
         return await CopilotClient.InvokeRpcAsync<UserSettingsSetHookDisabledResult>(_rpc, "user.settings.setHookDisabled", [request], cancellationToken);
     }
 
-    /// <summary>Reads the user's settings document exactly as `user.settings.load` does, but from a caller-supplied configuration directory instead of the one the server resolved for itself. Use this when a consumer scopes a session to its own Copilot home — the SDK's per-session `configDir` override — so the settings read match the directory that session actually uses. An absent or empty `configDir` resolves the server's own home, making this identical to `user.settings.load`. Hook-validation relaxations are deliberately not caller-supplied: they continue to come from the server's environment, so a consumer cannot widen the host's hook policy through this method.</summary>
+    /// <summary>Reads the user's settings document as `user.settings.loadWithWarning` does, without its warning, but from a caller-supplied configuration directory instead of the one the server resolved for itself. Use this when a consumer scopes a session to its own Copilot home — the SDK's per-session `configDir` override — so the settings read match the directory that session actually uses. An absent or empty `configDir` resolves the server's own home, making this identical to the `settings` that `user.settings.loadWithWarning` returns. Hook-validation relaxations are deliberately not caller-supplied: they continue to come from the server's environment, so a consumer cannot widen the host's hook policy through this method.</summary>
     /// <param name="configDir">Copilot configuration directory to read the settings document from, taking precedence over the server's own `COPILOT_HOME` and default home. Omit it, or pass an empty string, to read the directory the server resolved for itself.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>The stored user settings document, keyed by setting name.</returns>
@@ -65648,7 +65939,7 @@ public sealed class ServerUserSettingsApi
         return await CopilotClient.InvokeRpcAsync<IDictionary<string, JsonElement>>(_rpc, "user.settings.loadForConfigDir", [request], cancellationToken);
     }
 
-    /// <summary>Reads a repository's checked-in settings document as stored, normalized, together with any diagnostic raised while reading it. This is the repository half of the layering `user.settings.get` reports: `user.settings.load` reads the user's own document, and this reads the one a repository checks in to govern the keys `user.settings.governanceKeys` lists as repo-governable. A document that fails to parse, or that sets a key a repository may not govern, is reported through `warning` while the settings that did load are still returned, so a consumer surfaces the diagnostic and continues rather than failing the session. When `repoRoot` is the user's home directory the Claude-compatible configuration is skipped, so a home-directory session does not inherit a personal config as repository policy.</summary>
+    /// <summary>Reads a repository's checked-in settings document as stored, normalized, together with any diagnostic raised while reading it. This is the repository half of the layering `user.settings.get` reports: `user.settings.loadWithWarning` reads the user's own document, and this reads the one a repository checks in to govern the keys `user.settings.listGovernanceKeys` lists as repo-governable. A document that fails to parse, or that sets a key a repository may not govern, is reported through `warning` while the settings that did load are still returned, so a consumer surfaces the diagnostic and continues rather than failing the session. When `repoRoot` is the user's home directory the Claude-compatible configuration is skipped, so a home-directory session does not inherit a personal config as repository policy.</summary>
     /// <param name="repoRoot">Absolute path of the repository root whose settings to read. When this is the user's home directory, the Claude-compatible configuration is skipped, so a home-directory session does not inherit a personal config as if it were repository policy.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>A repository's settings as stored, together with any diagnostic raised while reading them.</returns>
@@ -65674,7 +65965,7 @@ public sealed class ServerUserSettingsApi
         return await CopilotClient.InvokeRpcAsync<UserSettingsLoadAndMergeRepoResult>(_rpc, "user.settings.loadAndMergeRepo", [request], cancellationToken);
     }
 
-    /// <summary>Reports the on-disk path of the settings document `user.settings.load` and `user.settings.set` read and write. Resolved the same way those methods resolve it, so a host that shows or opens the settings file names the file the runtime actually uses, including the extensionless legacy `settings` file when that is what is present.</summary>
+    /// <summary>Reports the on-disk path of the settings document `user.settings.loadWithWarning` and `user.settings.set` read and write. Resolved the same way those methods resolve it, so a host that shows or opens the settings file names the file the runtime actually uses, including the extensionless legacy `settings` file when that is what is present.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>The on-disk location of the user's settings document.</returns>
     internal async Task<UserSettingsPathResult> GetPathAsync(CancellationToken cancellationToken = default)
@@ -65682,7 +65973,7 @@ public sealed class ServerUserSettingsApi
         return await CopilotClient.InvokeRpcAsync<UserSettingsPathResult>(_rpc, "user.settings.getPath", [], cancellationToken);
     }
 
-    /// <summary>Reads the user's stored settings together with the diagnostic raised while reading them. This is `user.settings.load` plus the reason part of the document was ignored: that one answers the document alone, so a caller cannot tell a clean read from a salvaged one. Read this when the caller is about to write the file back, where accepting a partial parse would discard every value the loader could not read. The settings that did load are still reported alongside the warning, so a consumer may surface it and continue instead of failing.</summary>
+    /// <summary>Reads the user's stored settings together with the diagnostic raised while reading them. This is `user.settings.loadForConfigDir` without a `configDir` plus the reason part of the document was ignored: that one answers the document alone, so a caller cannot tell a clean read from a salvaged one. Read this when the caller is about to write the file back, where accepting a partial parse would discard every value the loader could not read. The settings that did load are still reported alongside the warning, so a consumer may surface it and continue instead of failing.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>The user's stored settings, together with any diagnostic raised while reading them.</returns>
     internal async Task<UserSettingsLoadWithWarningResult> LoadWithWarningAsync(CancellationToken cancellationToken = default)
@@ -65783,7 +66074,7 @@ public sealed class ServerUserSettingsApi
         return await CopilotClient.InvokeRpcAsync<UserSettingsMigrateStaffLogLevelOnceResult>(_rpc, "user.settings.migrateStaffLogLevelOnce", [request], cancellationToken);
     }
 
-    /// <summary>Runs the one-time cleanup that removes obsolete CLI-owned settings and legacy rubber-duck keys from the user's settings document, and reports what it did. Idempotent and safe to call on every startup: with nothing obsolete left it reports `unchanged` and writes nothing. The cleanup preserves every key it does not recognize, so a setting written by a newer host is never dropped by an older one, and a document that fails to parse is reported `invalid` and left untouched rather than rewritten from a partial read. The cleaned document is not returned: it is written before this replies, so `user.settings.load` reads it authoritatively. A host that surfaces unrecognized keys through `user.settings.unknownKeys` wants this first, because the keys this retires would otherwise be shown to the user as if they were misspelled settings.</summary>
+    /// <summary>Runs the one-time cleanup that removes obsolete CLI-owned settings and legacy rubber-duck keys from the user's settings document, and reports what it did. Idempotent and safe to call on every startup: with nothing obsolete left it reports `unchanged` and writes nothing. The cleanup preserves every key it does not recognize, so a setting written by a newer host is never dropped by an older one, and a document that fails to parse is reported `invalid` and left untouched rather than rewritten from a partial read. The cleaned document is not returned: it is written before this replies, so `user.settings.loadWithWarning` reads it authoritatively. A host that surfaces unrecognized keys through `user.settings.getUnknownKeysWarning` wants this first, because the keys this retires would otherwise be shown to the user as if they were misspelled settings.</summary>
     /// <param name="configDir">The configuration directory holding the settings document to clean. A host that scopes a session to its own Copilot home passes that directory here; omit it to clean the document under the home the server resolved for itself. The home directory and environment are deliberately not caller-supplied: they decide only the settings path root and the two hook-parsing flags, and those describe the process doing the reading rather than the caller.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>The outcome of the one-time obsolete-settings cleanup.</returns>
@@ -65801,7 +66092,7 @@ public sealed class ServerUserSettingsApi
         return await CopilotClient.InvokeRpcAsync<UserSettingsGetResult>(_rpc, "user.settings.get", [], cancellationToken);
     }
 
-    /// <summary>Resolves the on-disk locations of the settings files this runtime reads, so a consumer can show or open them. The user path is the same file `user.settings.get`, `user.settings.load`, and `user.settings.set` operate on. Supply `repoRoot` to also resolve that repository's checked-in and local settings paths. A path is reported whether or not the file exists.</summary>
+    /// <summary>Resolves the on-disk locations of the settings files this runtime reads, so a consumer can show or open them. The user path is the same file `user.settings.get`, `user.settings.loadWithWarning`, and `user.settings.set` operate on. Supply `repoRoot` to also resolve that repository's checked-in and local settings paths. A path is reported whether or not the file exists.</summary>
     /// <param name="repoRoot">Absolute path of a repository root. Supply it to also resolve that repository's two settings file paths; omit it to resolve only the user path.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>On-disk locations of the settings files this runtime reads. A path is reported whether or not the file exists.</returns>
@@ -67001,51 +67292,6 @@ public sealed class ServerDecisionsApi
 
         var request = new DecisionsAskRequest { Context = context, Questions = questions, SelectionId = selectionId, GitHubToken = gitHubToken, Model = model, TimeoutMs = timeoutMs, Purpose = purpose };
         return await CopilotClient.InvokeRpcAsync<DecisionsAskResult>(_rpc, "decisions.ask", [request], cancellationToken);
-    }
-}
-
-/// <summary>Provides server-scoped Providers APIs.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class ServerProvidersApi
-{
-    private readonly JsonRpc _rpc;
-
-    internal ServerProvidersApi(JsonRpc rpc)
-    {
-        _rpc = rpc;
-    }
-
-    /// <summary>Config APIs.</summary>
-    public ServerProvidersConfigApi Config =>
-        field ??
-        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
-        field;
-}
-
-/// <summary>Provides server-scoped ProvidersConfig APIs.</summary>
-[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-public sealed class ServerProvidersConfigApi
-{
-    private readonly JsonRpc _rpc;
-
-    internal ServerProvidersConfigApi(JsonRpc rpc)
-    {
-        _rpc = rpc;
-    }
-
-    /// <summary>Adds a model to the server's saved provider configuration. This durable operation does not change any live session.</summary>
-    /// <param name="provider">Provider settings to create when this provider is not already saved.</param>
-    /// <param name="model">Model to add to the provider.</param>
-    /// <param name="credential">Optional replacement API key. Stored in the OS keychain and never returned.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Result of adding a model to the saved provider configuration.</returns>
-    public async Task<ProvidersConfigAddModelResult> AddModelAsync(SavedProviderConfigurationProviderInput provider, ProviderModelConfig model, string? credential = null, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(provider);
-        ArgumentNullException.ThrowIfNull(model);
-
-        var request = new ProvidersConfigAddModelRequest { Provider = provider, Model = model, Credential = credential };
-        return await CopilotClient.InvokeRpcAsync<ProvidersConfigAddModelResult>(_rpc, "providers.config.addModel", [request], cancellationToken);
     }
 }
 
@@ -74483,6 +74729,30 @@ public sealed class ProviderApi
         return await CopilotClient.InvokeRpcAsync<ProviderAddResult>(_session.Rpc, "session.provider.add", [request], cancellationToken);
     }
 
+    /// <summary>Updates one provider's connection settings in this session's BYOK registry while preserving its saved credential and sibling models.</summary>
+    /// <param name="provider">Replacement provider settings. Credentials and custom headers are not accepted in this session update.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    public async Task UpdateProviderAsync(SavedProviderConfigurationProviderInput provider, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(provider);
+        _session.ThrowIfDisposed();
+
+        var request = new SessionProviderUpdateProviderRequest { SessionId = _session.SessionId, Provider = provider };
+        await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.provider.updateProvider", [request], cancellationToken);
+    }
+
+    /// <summary>Updates one model in this session's BYOK registry without replacing sibling models or unrelated provider registrations.</summary>
+    /// <param name="model">Replacement model definition. Its provider and id identify the session row to replace.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    public async Task UpdateModelAsync(ProviderModelConfig model, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+        _session.ThrowIfDisposed();
+
+        var request = new SessionProviderUpdateModelRequest { SessionId = _session.SessionId, Model = model };
+        await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.provider.updateModel", [request], cancellationToken);
+    }
+
     /// <summary>Atomically updates the session's BYOK provider and model registry by applying the supplied snapshot, replacing existing entries, updating models, or removing entries absent from the snapshot.</summary>
     /// <param name="providers">Named BYOK provider connection snapshot. Providers absent from this list are removed.</param>
     /// <param name="models">BYOK model definition snapshot. Models absent from this list are removed.</param>
@@ -76098,7 +76368,7 @@ public sealed class MetadataApi
     /// <summary>Re-tokenizes the session's existing messages against a model and returns aggregate token totals.</summary>
     /// <param name="modelId">Model identifier used for tokenization. The runtime token-counts both chat-context and system-context messages against this model.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Re-tokenize the session's existing messages against `modelId` and return the token totals. Useful for hosts that want an initial estimate of context usage on session resume, before the next agent turn fires `session.context_info_changed` events. Returns zeros for an empty session.</returns>
+    /// <returns>Re-tokenize the session's existing messages against `modelId` and return the token totals. Useful for hosts that want an initial estimate of context usage on session resume, before the next agent turn fires `session.usage_info` events. Returns zeros for an empty session.</returns>
     public async Task<MetadataRecomputeContextTokensResult> RecomputeContextTokensAsync(string modelId, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(modelId);
@@ -76327,11 +76597,15 @@ public sealed class HistoryApi
     /// <summary>Replaces this local session's compaction settings: the model, prompt and reasoning effort its automatic and manual compactions use. Each call replaces all three: an omitted field returns to its default. Settings are held in memory only, so re-apply them after resuming the session in a new process. A change applies to compactions that start afterwards, except that automatic compactions keep the model the running turn already chose for them until that turn ends; a compaction already in progress may still pick up a new reasoning effort. Rejects on a remote session.</summary>
     /// <param name="model">
     /// Model that summarizes this session's conversation when it compacts,
-    /// instead of the session's own model. Applies only when both are Copilot
-    /// models the session may use; for a BYOK or provider session, or a model
-    /// the session's catalog or allowed-model policy rejects, compaction
-    /// summarizes on the session's model. Takes precedence over any runtime
-    /// experiment that picks a compaction model. Blank values are ignored.
+    /// instead of the session's own model. A Copilot session can name another
+    /// Copilot model it may use. A session on a custom provider can name
+    /// another model that provider serves: for a single `provider` config, a
+    /// model name it accepts, sent with default limits for that name; for a
+    /// named provider, another of that provider's model selection IDs. An Azure
+    /// provider, a model from a different provider, or a model the session's
+    /// catalog or allowed-model policy rejects leaves compaction on the
+    /// session's model. Takes precedence over any runtime experiment that picks
+    /// a compaction model. Blank values are ignored.
     /// </param>
     /// <param name="prompt">
     /// Summarization instruction sent as the final user message of a
@@ -79172,6 +79446,13 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(ProviderWithdrawResult))]
 [JsonSerializable(typeof(ProvidersConfigAddModelRequest))]
 [JsonSerializable(typeof(ProvidersConfigAddModelResult))]
+[JsonSerializable(typeof(ProvidersConfigReadResult))]
+[JsonSerializable(typeof(ProvidersConfigRemoveModelRequest))]
+[JsonSerializable(typeof(ProvidersConfigRemoveModelResult))]
+[JsonSerializable(typeof(ProvidersConfigUpdateModelRequest))]
+[JsonSerializable(typeof(ProvidersConfigUpdateModelResult))]
+[JsonSerializable(typeof(ProvidersConfigUpdateProviderRequest))]
+[JsonSerializable(typeof(ProvidersConfigUpdateProviderResult))]
 [JsonSerializable(typeof(ProvidersSourceAddModelRequest))]
 [JsonSerializable(typeof(ProvidersSourceAddModelResult))]
 [JsonSerializable(typeof(PushAttachment))]
@@ -79281,6 +79562,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SandboxUnsupportedStartupNoticeParams))]
 [JsonSerializable(typeof(SandboxUnsupportedStartupNoticeResult))]
 [JsonSerializable(typeof(SavedProviderConfigurationAddModelRequest))]
+[JsonSerializable(typeof(SavedProviderConfigurationProvider))]
 [JsonSerializable(typeof(SavedProviderConfigurationProviderInput))]
 [JsonSerializable(typeof(ScheduleAddAtRequest))]
 [JsonSerializable(typeof(ScheduleAddCronRequest))]
@@ -79513,6 +79795,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionProviderGetEndpointRequest))]
 [JsonSerializable(typeof(SessionProviderGetEndpointRequestWithSession))]
 [JsonSerializable(typeof(SessionProviderGetStatusRequest))]
+[JsonSerializable(typeof(SessionProviderUpdateModelRequest))]
+[JsonSerializable(typeof(SessionProviderUpdateProviderRequest))]
 [JsonSerializable(typeof(SessionProvidersGetCatalogRequest))]
 [JsonSerializable(typeof(SessionProvidersModelsDiagnoseRequest))]
 [JsonSerializable(typeof(SessionProvidersModelsDiagnoseResult))]

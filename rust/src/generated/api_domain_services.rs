@@ -963,41 +963,6 @@ impl Default for AgentsGetDiscoveryPathsOptions {
     }
 }
 
-/// Editable provider settings, without credential values or custom headers.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SavedProviderConfigurationProviderInput {
-    /// Safe Azure connection settings, including API version.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub azure: Option<ProviderConfigAzure>,
-    /// Provider endpoint.
-    pub base_url: String,
-    /// Non-secret local model runtime options, such as the WinML device.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub local_model: Option<serde_json::Value>,
-    /// Serving product used for attribution.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub model_provider: Option<ProviderConfigModelProvider>,
-    /// Provider name used to qualify model selection ids.
-    pub name: String,
-    /// HTTP or WebSocket transport.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub transport: Option<ProviderConfigTransport>,
-    /// Provider protocol family.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub r#type: Option<SavedProviderConfigurationType>,
-    /// OpenAI-compatible wire API.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub wire_api: Option<ProviderConfigWireApi>,
-}
-
 /// Request to add a model to the server-owned saved provider configuration.
 ///
 /// <div class="warning">
@@ -7137,11 +7102,15 @@ pub struct HistoryRewindResult {
 #[serde(rename_all = "camelCase")]
 pub struct HistorySetCompactionConfigRequest {
     /// Model that summarizes this session's conversation when it compacts,
-    /// instead of the session's own model. Applies only when both are Copilot
-    /// models the session may use; for a BYOK or provider session, or a model
-    /// the session's catalog or allowed-model policy rejects, compaction
-    /// summarizes on the session's model. Takes precedence over any runtime
-    /// experiment that picks a compaction model. Blank values are ignored.
+    /// instead of the session's own model. A Copilot session can name another
+    /// Copilot model it may use. A session on a custom provider can name
+    /// another model that provider serves: for a single `provider` config, a
+    /// model name it accepts, sent with default limits for that name; for a
+    /// named provider, another of that provider's model selection IDs. An Azure
+    /// provider, a model from a different provider, or a model the session's
+    /// catalog or allowed-model policy rejects leaves compaction on the
+    /// session's model. Takes precedence over any runtime experiment that picks
+    /// a compaction model. Blank values are ignored.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
     /// Summarization instruction sent as the final user message of a
@@ -9864,7 +9833,7 @@ pub struct MetadataRecomputeContextTokensRequest {
     pub model_id: String,
 }
 
-/// Re-tokenize the session's existing messages against `modelId` and return the token totals. Useful for hosts that want an initial estimate of context usage on session resume, before the next agent turn fires `session.context_info_changed` events. Returns zeros for an empty session.
+/// Re-tokenize the session's existing messages against `modelId` and return the token totals. Useful for hosts that want an initial estimate of context usage on session resume, before the next agent turn fires `session.usage_info` events. Returns zeros for an empty session.
 ///
 /// <div class="warning">
 ///
@@ -11810,8 +11779,122 @@ pub struct RuntimeOpenBrowserRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SavedProviderConfigurationAddModelResult {
-    /// Whether the provider was created along with the model.
+    /// True when this operation created the provider row.
     pub provider_added: bool,
+}
+
+/// Saved configuration. Reading does not activate, select, or load a model.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SavedProviderConfigurationReadResult {
+    /// Saved model definitions in file order.
+    pub models: Vec<ProviderModelConfig>,
+    /// Providers in saved order.
+    pub providers: Vec<SavedProviderConfigurationProvider>,
+}
+
+/// Request to remove one saved provider-local model definition.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SavedProviderConfigurationRemoveModelRequest {
+    /// Provider-local model id to remove.
+    pub model_id: String,
+    /// Name of the provider that owns the model.
+    pub provider_name: String,
+}
+
+/// Result of removing one saved provider model.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SavedProviderConfigurationRemoveModelResult {
+    /// True when removing the final model also removed its provider and managed credential.
+    pub provider_removed: bool,
+}
+
+/// Request to replace one saved provider-local model definition.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SavedProviderConfigurationUpdateModelRequest {
+    /// Replacement model definition. Its provider and id identify the saved row to replace.
+    pub model: ProviderModelConfig,
+}
+
+/// Result of updating one saved provider model.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SavedProviderConfigurationUpdateModelResult {
+    /// Provider-local id of the updated model.
+    pub model_id: String,
+    /// Name of the provider that owns the updated model.
+    pub provider_name: String,
+}
+
+/// Request to replace shared settings for one saved provider.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SavedProviderConfigurationUpdateProviderRequest {
+    /// Optional replacement API key. Stored in the OS keychain and never returned.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub credential: Option<String>,
+    /// Replacement provider settings. Existing credentials and custom headers are retained; omitted local-model settings are retained.
+    pub provider: SavedProviderConfigurationProviderInput,
+}
+
+/// Result of updating shared saved provider settings.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SavedProviderConfigurationUpdateProviderResult {
+    /// Name of the provider whose settings were updated.
+    pub provider_name: String,
 }
 
 /// Register an absolute-time scheduled prompt.
@@ -15013,40 +15096,6 @@ pub enum AgentRegistrySpawnResult {
     SpawnError(AgentRegistrySpawnError),
     RegistryTimeout(AgentRegistrySpawnRegistryTimeout),
     ValidationError(AgentRegistrySpawnValidationError),
-}
-
-/// Provider families supported by saved configuration.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SavedProviderConfigurationType {
-    /// Generic OpenAI-compatible API.
-    #[serde(rename = "openai")]
-    Openai,
-    /// Azure OpenAI Service endpoint.
-    #[serde(rename = "azure")]
-    Azure,
-    /// Anthropic API endpoint.
-    #[serde(rename = "anthropic")]
-    Anthropic,
-    /// Experimental: Google Gemini API endpoint, served over the native Gemini Interactions API.
-    #[serde(rename = "google")]
-    Google,
-    /// Runtime-managed local model server.
-    #[serde(rename = "local_model")]
-    LocalModel,
-    /// Windows ML local model provider.
-    #[serde(rename = "winml")]
-    Winml,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
 }
 
 /// Attachment type discriminator

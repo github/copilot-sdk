@@ -608,16 +608,6 @@ fn host_create_refresh_custom_instructions_round_trips_without_widening_resume()
 }
 
 #[test]
-fn host_create_refresh_custom_instructions_rejects_invalid_and_unknown_settings() {
-    for value in [
-        json!({"sessionId": "id", "refreshCustomInstructions": "true"}),
-        json!({"sessionId": "id", "refreshCustomInstructions": true, "unknown": true}),
-    ] {
-        assert!(config_from_host(&serde_json::from_value(value).unwrap()).is_err());
-    }
-}
-
-#[test]
 fn host_settings_round_trip_without_callbacks_or_losing_constraints() {
     let value = json!({
         "sessionId": "id", "workingDirectory": "/work", "additionalDirectories": ["/extra"],

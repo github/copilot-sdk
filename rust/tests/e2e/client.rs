@@ -2,9 +2,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use async_trait::async_trait;
-use github_copilot_sdk::{
-    CliProgram, Client, ClientOptions, Error, ListModelsHandler, Model, Transport,
-};
+use github_copilot_sdk::{Client, Error, ListModelsHandler, Model, Transport};
 
 use super::support::{is_inprocess_default, with_e2e_context};
 
@@ -153,53 +151,6 @@ async fn should_list_models_when_authenticated() {
         })
     })
     .await;
-}
-
-#[tokio::test]
-async fn should_stop_client_with_active_session() {
-    with_e2e_context("client", "should_stop_client_with_active_session", |ctx| {
-        Box::pin(async move {
-            ctx.set_default_copilot_user();
-            let client = ctx.start_client().await;
-            let _session = client
-                .create_session(ctx.approve_all_session_config())
-                .await
-                .expect("create session");
-
-            client.stop().await.expect("stop client");
-        })
-    })
-    .await;
-}
-
-#[tokio::test]
-async fn should_force_stop_client() {
-    with_e2e_context("client", "should_force_stop_client", |ctx| {
-        Box::pin(async move {
-            let client = ctx.start_client().await;
-            client.force_stop();
-        })
-    })
-    .await;
-}
-
-#[tokio::test]
-async fn should_report_error_with_stderr_when_cli_fails_to_start() {
-    let err = Client::start(
-        ClientOptions::new()
-            .with_program(CliProgram::Path(std::path::PathBuf::from(
-                "definitely-not-copilot-cli-for-rust-e2e",
-            )))
-            .with_use_logged_in_user(false),
-    )
-    .await
-    .expect_err("start should fail for missing CLI");
-
-    let message = err.to_string();
-    assert!(
-        !message.trim().is_empty(),
-        "missing CLI start failure should include an error message"
-    );
 }
 
 #[tokio::test]

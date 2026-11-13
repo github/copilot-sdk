@@ -31,7 +31,7 @@ record UserSettingsUpdateParams(
     @JsonProperty("value") Object value,
     /** Copilot configuration directory to write the settings document in, taking precedence over the server's own `COPILOT_HOME` and default home. Omit it, or pass an empty string, to use the directory the server resolved for itself. */
     @JsonProperty("configDir") String configDir,
-    /** Single-component name for the settings document at `<configDir>/settings/<subDir>.json`; path separators, `.` and `..` are rejected. Omit it, or pass an empty string, to use the main settings document. */
+    /** Single-component name for the settings document at `&lt;configDir>/settings/&lt;subDir>.json`; path separators, `.` and `..` are rejected. Omit it, or pass an empty string, to use the main settings document. */
     @JsonProperty("subDir") String subDir
 ) {
 

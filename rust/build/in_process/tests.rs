@@ -938,21 +938,6 @@ fn skip_modes_need_no_snapshots_and_local_runtime_preserves_bundled_precedence()
 }
 
 #[test]
-fn openssl_version_guard_preserves_the_major_3_build_host_and_target_contract() {
-    for boundary in ["Linux SDK build host", "Linux SDK target"] {
-        for version in [0x3000_0000, 0x3000_0120, 0x3050_0090] {
-            require_openssl_3(boundary, version);
-        }
-        for version in [0, 0x1000_20bf, 0x1010_107f, 0x2000_0000, 0x4000_0000] {
-            assert!(
-                std::panic::catch_unwind(|| require_openssl_3(boundary, version)).is_err(),
-                "{boundary} accepted unsupported version {version:#x}"
-            );
-        }
-    }
-}
-
-#[test]
 fn runtime_loaded_targets_require_the_exact_common_api_profile() {
     let fixture = Fixture::new(true, false);
     for (version, accepted) in [

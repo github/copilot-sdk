@@ -35,7 +35,7 @@ public final class SystemNotificationEvent extends SessionEvent {
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record SystemNotificationEventData(
-        /** The notification text, typically wrapped in <system_notification> XML tags */
+        /** The notification text, typically wrapped in &lt;system_notification> XML tags */
         @JsonProperty("content") String content,
         /** Structured metadata identifying what triggered this notification */
         @JsonProperty("kind") Object kind,
@@ -48,7 +48,7 @@ public final class SystemNotificationEvent extends SessionEvent {
         /**
          * Retains the constructor published in Java SDK 1.0.28.
          * @deprecated Use named construction via {@link #builder()}.
-         * @param content The notification text, typically wrapped in <system_notification> XML tags
+         * @param content The notification text, typically wrapped in &lt;system_notification> XML tags
          * @param kind Structured metadata identifying what triggered this notification
          * @param responsesReasoning Provider reasoning settings anchored before this model-facing message for cache-stable replay; the historical responsesReasoning name is retained for compatibility
          */

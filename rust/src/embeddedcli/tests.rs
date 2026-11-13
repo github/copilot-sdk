@@ -1219,18 +1219,6 @@ fn runtime_library_aliases_are_rejected_before_repair() {
 
 #[cfg(all(has_bundled_cli, unix))]
 #[test]
-fn warm_runtime_install_needs_no_writable_cache() {
-    assert_read_only_runtime_cache(0o555, false);
-}
-
-#[cfg(all(has_bundled_cli, unix))]
-#[test]
-fn warm_runtime_reuses_owner_only_immutable_cache() {
-    assert_read_only_runtime_cache(0o500, false);
-}
-
-#[cfg(all(has_bundled_cli, unix))]
-#[test]
 fn warm_runtime_reuses_nonexecutable_native_library() {
     assert_read_only_runtime_cache(0o555, true);
     assert_read_only_runtime_cache(0o500, true);

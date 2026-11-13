@@ -24,7 +24,7 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ProvidersConfigAddModelResult(
-    /** Whether the provider was created along with the model. */
+    /** True when this operation created the provider row. */
     @JsonProperty("providerAdded") Boolean providerAdded
 ) {
 

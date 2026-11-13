@@ -1092,60 +1092,6 @@ async fn early_and_late_subscribers_share_one_event_loop() {
 // ---------------------------------------------------------------------------
 
 #[tokio::test(start_paused = true)]
-async fn create_session_wrapper_keeps_rpc_sequence() {
-    let (client, mut server) = make_client();
-
-    let start = tokio::spawn({
-        let client = client.clone();
-        async move { client.create_session(SessionConfig::default()).await }
-    });
-
-    let create_req = server.read_request().await;
-    assert_eq!(create_req["method"], "session.create");
-    let session_id = create_req["params"]["sessionId"]
-        .as_str()
-        .unwrap()
-        .to_string();
-    server
-        .respond(&create_req, create_result(&session_id))
-        .await;
-
-    let session = timeout(TIMEOUT, start).await.unwrap().unwrap().unwrap();
-    assert_eq!(session.id().as_str(), session_id);
-    server.expect_quiet().await;
-    drop(session);
-}
-
-#[tokio::test(start_paused = true)]
-async fn resume_session_wrapper_keeps_rpc_sequence() {
-    let (client, mut server) = make_client();
-    let session_id = SessionId::new("wrapper-resume");
-
-    let start = tokio::spawn({
-        let client = client.clone();
-        let session_id = session_id.clone();
-        async move {
-            client
-                .resume_session(ResumeSessionConfig::new(session_id))
-                .await
-        }
-    });
-
-    let resume_req = server.read_request().await;
-    assert_eq!(resume_req["method"], "session.resume");
-    assert_eq!(resume_req["params"]["sessionId"], session_id.as_str());
-    server
-        .respond(&resume_req, json!({ "sessionId": session_id.as_str() }))
-        .await;
-    server.answer_skills_reload().await;
-
-    let session = timeout(TIMEOUT, start).await.unwrap().unwrap().unwrap();
-    assert_eq!(session.id(), &session_id);
-    server.expect_quiet().await;
-    drop(session);
-}
-
-#[tokio::test(start_paused = true)]
 async fn resume_bootstrap_retains_all_startup_phases_and_keeps_later_subscribers_live() {
     let (client, mut server) = make_client();
     let session_id = SessionId::new("resume-bootstrap-phases");

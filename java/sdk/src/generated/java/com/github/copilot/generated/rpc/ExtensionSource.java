@@ -10,7 +10,7 @@ package com.github.copilot.generated.rpc;
 import javax.annotation.processing.Generated;
 
 /**
- * Discovery source: project (.github/extensions/), user (~/.copilot/extensions/), plugin (installed plugin), or session (session-state/<id>/extensions/)
+ * Discovery source: project (.github/extensions/), user (~/.copilot/extensions/), plugin (installed plugin), or session (session-state/&lt;id>/extensions/)
  *
  * @since 1.0.0
  */

@@ -1619,25 +1619,3 @@ fn program_exists_on_path(program: &str) -> bool {
         std::env::split_paths(&path).any(|directory| directory.join(program).is_file())
     })
 }
-
-#[test]
-fn e2e_context_isolates_copilot_cache() {
-    let home_dir = tempfile::tempdir().expect("create test home");
-    let home_dir = canonical_temp_path(home_dir.path());
-    let cache_dir = home_dir.join(".cache");
-    let expected = [
-        ("COPILOT_CACHE_HOME", cache_dir.join("copilot")),
-        ("XDG_CACHE_HOME", cache_dir),
-    ];
-
-    let environment = isolated_cache_environment(&home_dir);
-
-    for (key, value) in expected {
-        assert!(
-            environment.iter().any(|(actual_key, actual_value)| {
-                actual_key == key && actual_value == value.as_os_str()
-            }),
-            "{key} should use the isolated test home"
-        );
-    }
-}

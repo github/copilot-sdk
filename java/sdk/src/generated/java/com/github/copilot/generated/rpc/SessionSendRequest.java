@@ -57,7 +57,7 @@ public final class SessionSendRequest {
     @JsonProperty("requiredTool")
     private String requiredTool;
 
-    /** Optional provenance tag copied to the resulting user.message event. Must be `user`, `system`, `command-<command-id>` for command-originated messages, `schedule-<numeric-id>` for scheduled prompts, `agent-<agent-id>` for prompts sent by another agent, or `automation-<automation-id>` for turns a host sends on behalf of an automation the user configured. An automation turn defines the session's task like a user message but carries no human authority. */
+    /** Optional provenance tag copied to the resulting user.message event. Must be `user`, `system`, `command-&lt;command-id>` for command-originated messages, `schedule-&lt;numeric-id>` for scheduled prompts, `agent-&lt;agent-id>` for prompts sent by another agent, or `automation-&lt;automation-id>` for turns a host sends on behalf of an automation the user configured. An automation turn defines the session's task like a user message but carries no human authority. */
     @JsonProperty("source")
     private String source;
 
@@ -164,7 +164,7 @@ public final class SessionSendRequest {
     /**
      * Returns the {@code source} property.
      *
-     * @return Optional provenance tag copied to the resulting user.message event. Must be `user`, `system`, `command-<command-id>` for command-originated messages, `schedule-<numeric-id>` for scheduled prompts, `agent-<agent-id>` for prompts sent by another agent, or `automation-<automation-id>` for turns a host sends on behalf of an automation the user configured. An automation turn defines the session's task like a user message but carries no human authority.
+     * @return Optional provenance tag copied to the resulting user.message event. Must be `user`, `system`, `command-&lt;command-id>` for command-originated messages, `schedule-&lt;numeric-id>` for scheduled prompts, `agent-&lt;agent-id>` for prompts sent by another agent, or `automation-&lt;automation-id>` for turns a host sends on behalf of an automation the user configured. An automation turn defines the session's task like a user message but carries no human authority.
      */
     public String getSource() {
         return source;
@@ -302,7 +302,7 @@ public final class SessionSendRequest {
     /**
      * Sets the {@code source} property.
      *
-     * @param value Optional provenance tag copied to the resulting user.message event. Must be `user`, `system`, `command-<command-id>` for command-originated messages, `schedule-<numeric-id>` for scheduled prompts, `agent-<agent-id>` for prompts sent by another agent, or `automation-<automation-id>` for turns a host sends on behalf of an automation the user configured. An automation turn defines the session's task like a user message but carries no human authority.
+     * @param value Optional provenance tag copied to the resulting user.message event. Must be `user`, `system`, `command-&lt;command-id>` for command-originated messages, `schedule-&lt;numeric-id>` for scheduled prompts, `agent-&lt;agent-id>` for prompts sent by another agent, or `automation-&lt;automation-id>` for turns a host sends on behalf of an automation the user configured. An automation turn defines the session's task like a user message but carries no human authority.
      * @return this request
      */
     public SessionSendRequest setSource(String value) {

@@ -23,7 +23,7 @@ import javax.annotation.processing.Generated;
 public record McpPlanSecretPlaceholder(
     /** Key the secret is supplied under. Inert untrusted data. */
     @JsonProperty("key") String key,
-    /** The runtime-assigned `${secret:<id>}` placeholder written into configuration in place of the value. */
+    /** The runtime-assigned `${secret:&lt;id>}` placeholder written into configuration in place of the value. */
     @JsonProperty("placeholder") String placeholder,
     /** Human-readable label from the card. Inert untrusted text. */
     @JsonProperty("title") String title

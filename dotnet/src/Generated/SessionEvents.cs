@@ -10276,6 +10276,11 @@ public sealed partial class PermissionRecoveryAttempt
     [JsonPropertyName("requestFingerprint")]
     public required string RequestFingerprint { get; set; }
 
+    /// <summary>Whether this deferral happened because the automatic permission review ended without a verdict (timeout, empty or unparseable reply). Such a deferral assesses nothing: it does not make a later identical request a repeated attempt or count toward the attempt limit. Older runtimes ignore it.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("reviewIncomplete")]
+    public bool? ReviewIncomplete { get; set; }
+
     /// <summary>Tool-call identifier associated with this attempt, when available.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("toolCallId")]

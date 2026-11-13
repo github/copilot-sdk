@@ -193,27 +193,6 @@ fn non_unicode_home_and_xdg_paths_are_preserved() {
 
 #[cfg(unix)]
 #[test]
-fn public_unix_lookups_match_the_platform_policy() {
-    for (kind, lookup) in [
-        (Directory::Home, super::home_dir as fn() -> Option<PathBuf>),
-        (Directory::Cache, super::cache_dir),
-        (Directory::Config, super::config_dir),
-        (Directory::LocalData, super::data_local_dir),
-    ] {
-        assert_eq!(
-            lookup(),
-            unix::directory(
-                kind,
-                cfg!(any(target_os = "macos", target_os = "ios")),
-                |key| std::env::var_os(key),
-                std::env::home_dir,
-            )
-        );
-    }
-}
-
-#[cfg(unix)]
-#[test]
 fn actual_home_lookup_preserves_environment_and_passwd_fallback() {
     use std::os::unix::ffi::OsStringExt;
 

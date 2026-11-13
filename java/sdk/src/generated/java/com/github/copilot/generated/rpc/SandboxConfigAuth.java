@@ -21,7 +21,7 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SandboxConfigAuth(
-    /** Whether to authenticate sandboxed HTTPS git through the local masking proxy. The child receives a fake `http.<url>.extraheader`; the real Authorization header is substituted only at its original HTTPS host, port, and repository path scope. github.com uses the Copilot token; other forges use credentials resolved from the user's own helper on the host. Default: false (opt-in). */
+    /** Whether to authenticate sandboxed HTTPS git through the local masking proxy. The child receives a fake `http.&lt;url>.extraheader`; the real Authorization header is substituted only at its original HTTPS host, port, and repository path scope. github.com uses the Copilot token; other forges use credentials resolved from the user's own helper on the host. Default: false (opt-in). */
     @JsonProperty("git") Boolean git,
     /** Whether to authenticate sandboxed gh through the local masking proxy. The child receives a fake GH_TOKEN; its real value is substituted only at github.com, api.github.com and uploads.github.com (github.com because gh repo clone authenticates git through gh auth git-credential). The repository's GitHub account takes precedence over the Copilot login. Default: false (opt-in). */
     @JsonProperty("gh") Boolean gh

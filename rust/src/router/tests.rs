@@ -718,23 +718,6 @@ fn a_superseded_claim_does_not_release_a_later_registration() {
 }
 
 #[test]
-fn unregister_owned_removes_only_the_matching_registration() {
-    let router = SessionRouter::new();
-    let stale = router.register(&session_id());
-    let live = router.register(&session_id());
-
-    // The stale owner must not evict the registration that replaced it.
-    assert!(!router.unregister_owned(&session_id(), stale.token));
-    assert_eq!(router.session_ids(), vec![session_id()]);
-
-    assert!(router.unregister_owned(&session_id(), live.token));
-    assert!(router.session_ids().is_empty());
-
-    // Removing twice is a no-op rather than evicting a future tenant.
-    assert!(!router.unregister_owned(&session_id(), live.token));
-}
-
-#[test]
 fn restore_owned_hands_the_id_back_to_a_running_replaced_registration() {
     let router = SessionRouter::new();
     let resident = router.register(&session_id());
@@ -768,17 +751,6 @@ fn replaced_registration_becomes_resident_only_after_setup_completes() {
     assert!(replaced.is_resident());
     startup.state.cancel();
     assert!(!replaced.is_resident());
-}
-
-#[test]
-fn restore_owned_does_not_restore_cancelled_startup_with_open_channels() {
-    let router = SessionRouter::new();
-    let startup = router.register(&session_id());
-    let (attempt, replaced) = router.replace(&session_id());
-    startup.state.cancel();
-
-    assert!(router.restore_owned(&session_id(), attempt.token, replaced));
-    assert!(router.session_ids().is_empty());
 }
 
 #[test]

@@ -257,7 +257,7 @@ try (var client = new CopilotClient()) {
 
 ## Queueing (enqueue mode)
 
-Queueing buffers messages to be processed sequentially after the current turn finishes. Each queued message starts its own full turn. This is the default mode—if you omit `mode`, the SDK uses `"enqueue"`.
+Queueing buffers messages to be processed sequentially after the current turn finishes. Each queued message starts its own full turn. This is the default mode: a message sent without `mode` is queued the same way while a turn is running. The two differ after a turn ends while a background agent is still running: a single message sent without `mode` starts a new turn right away, but a message sent with `mode: "enqueue"` waits until the background agents finish.
 
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
@@ -631,7 +631,7 @@ class InteractiveChat {
 | `"immediate"` | Inject into current turn | Injected before next LLM call | Starts a new turn immediately |
 
 > [!NOTE]
-> When the session is idle (not processing), both modes behave identically—the message starts a new turn immediately.
+> When the session is idle (not processing), both modes behave identically—the message starts a new turn immediately. If a turn has ended but a background agent is still running, `"immediate"` (and a single message sent without `mode`) starts a new turn immediately, while `"enqueue"` waits until the background agents finish.
 
 ## Best practices
 

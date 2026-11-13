@@ -24,7 +24,7 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionsFindByPrefixParams(
-    /** UUID prefix (>=7 hex chars, <36 chars). Returns the unique session ID, or undefined when there is no match or the prefix matches multiple sessions. */
+    /** UUID prefix (>=7 hex chars, &lt;36 chars). Returns the unique session ID, or undefined when there is no match or the prefix matches multiple sessions. */
     @JsonProperty("prefix") String prefix
 ) {
 

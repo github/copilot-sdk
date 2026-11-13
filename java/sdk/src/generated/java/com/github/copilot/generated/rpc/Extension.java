@@ -25,7 +25,7 @@ public record Extension(
     @JsonProperty("id") String id,
     /** Extension name (directory name) */
     @JsonProperty("name") String name,
-    /** Discovery source: project (.github/extensions/), user (~/.copilot/extensions/), plugin (installed plugin), or session (session-state/<id>/extensions/) */
+    /** Discovery source: project (.github/extensions/), user (~/.copilot/extensions/), plugin (installed plugin), or session (session-state/&lt;id>/extensions/) */
     @JsonProperty("source") ExtensionSource source,
     /** Current status: running, dormant, disabled, failed, or starting */
     @JsonProperty("status") ExtensionStatus status,

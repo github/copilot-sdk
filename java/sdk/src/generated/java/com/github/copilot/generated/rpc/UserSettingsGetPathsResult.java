@@ -22,7 +22,7 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @com.fasterxml.jackson.databind.annotation.JsonDeserialize(using = UserSettingsGetPathsResult.$NullableDeserializer.class)
 record UserSettingsGetPathsResult(
-    /** The user settings file: `settings.json` under the resolved Copilot home. This is the file `user.settings.get`, `user.settings.load`, and `user.settings.set` read and write. */
+    /** The user settings file: `settings.json` under the resolved Copilot home. This is the file `user.settings.get`, `user.settings.loadWithWarning`, and `user.settings.set` read and write. */
     @JsonProperty("userSettings") String userSettings,
     /** The repository's checked-in settings file, or null when no repository root was supplied. */
     @JsonProperty("repoSettings") String repoSettings,

@@ -5,9 +5,9 @@
 use github_copilot_sdk::AutoTier;
 use github_copilot_sdk::rpc::{
     AcceptedEnqueueCommandResult, ConnectorConnectResult, EnqueueCommandResult,
-    ModelSwitchAutoTierRequest, ProtocolExternalToolDefinition, SessionsOpenCreate,
-    SessionsOpenCreateKind, SessionsOpenResume, SessionsOpenResumeKind,
-    UnsupportedEnqueueCommandResult,
+    ModelSwitchAutoTierRequest, ProtocolExternalToolDefinition, ProviderModelConfig,
+    SavedProviderConfigurationReadResult, SessionsOpenCreate, SessionsOpenCreateKind,
+    SessionsOpenResume, SessionsOpenResumeKind, UnsupportedEnqueueCommandResult,
 };
 use github_copilot_sdk::session_events::RecommendedAutoTier;
 
@@ -149,6 +149,93 @@ filesystem_callback_result!(
     filesystem_rename_result_accepts_null_success,
     github_copilot_sdk::rpc::SessionFsRenameResult
 );
+
+#[test]
+fn saved_provider_configuration_read_accepts_integral_float_token_limits() {
+    let mut response: SavedProviderConfigurationReadResult =
+        serde_json::from_value(serde_json::json!({
+            "models": [{
+                "id": "gpt-4o",
+                "provider": "openai",
+                "maxContextWindowTokens": 128000.0,
+                "maxOutputTokens": 16384.0,
+                "maxPromptTokens": 111616.0
+            }],
+            "providers": [{
+                "credentialStatus": "absent",
+                "provider": {
+                    "baseUrl": "https://api.example.com/v1",
+                    "name": "openai"
+                }
+            }]
+        }))
+        .expect("saved provider configuration accepts JSON-number token limits");
+
+    let output_limit: i64 = 16_384;
+    assert_eq!(
+        response.models[0].max_context_window_tokens,
+        Some(128_000_i64)
+    );
+    assert_eq!(response.models[0].max_prompt_tokens, Some(111_616_i64));
+    response.models[0].max_output_tokens = Some(output_limit);
+    let response = serde_json::to_value(response).unwrap();
+    assert_eq!(
+        response["models"][0]["maxContextWindowTokens"],
+        serde_json::json!(128000)
+    );
+    assert_eq!(
+        response["models"][0]["maxOutputTokens"],
+        serde_json::json!(16384)
+    );
+    assert_eq!(
+        response["models"][0]["maxPromptTokens"],
+        serde_json::json!(111616)
+    );
+}
+
+#[test]
+fn provider_model_token_limits_preserve_integer_bounds_without_rounding() {
+    for limit in [serde_json::json!(i64::MIN), serde_json::json!(i64::MAX)] {
+        let model: ProviderModelConfig = serde_json::from_value(serde_json::json!({
+            "id": "test", "provider": "test", "maxOutputTokens": limit,
+        }))
+        .expect("existing integer limits must remain readable without precision loss");
+        assert_eq!(
+            serde_json::to_value(model).unwrap()["maxOutputTokens"],
+            limit
+        );
+    }
+
+    for limit in [
+        serde_json::json!(1.5),
+        serde_json::json!(i64::MAX as f64),
+        serde_json::json!(-9_223_372_036_854_777_856.0),
+        serde_json::json!("16384"),
+    ] {
+        let result = serde_json::from_value::<ProviderModelConfig>(serde_json::json!({
+            "id": "test", "provider": "test", "maxOutputTokens": limit,
+        }));
+        assert!(
+            result.is_err(),
+            "non-integer or out-of-range limit {limit} must be rejected"
+        );
+    }
+
+    for limit in [None, Some(serde_json::Value::Null)] {
+        let mut wire = serde_json::json!({"id": "test", "provider": "test"});
+        if let Some(limit) = limit {
+            wire["maxOutputTokens"] = limit;
+        }
+        let model: ProviderModelConfig = serde_json::from_value(wire).unwrap();
+        assert!(
+            serde_json::to_value(model)
+                .unwrap()
+                .get("maxOutputTokens")
+                .is_none(),
+            "an omitted or null token limit must not become an explicit value"
+        );
+    }
+}
 
 #[test]
 fn classify_trajectory_request_accepts_recorded_session_events() {

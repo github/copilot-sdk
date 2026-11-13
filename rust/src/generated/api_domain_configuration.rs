@@ -1518,7 +1518,7 @@ pub struct UserSettingsGetPathsResult {
     /// The repository's checked-in settings file, or null when no repository root was supplied.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub repo_settings: Option<String>,
-    /// The user settings file: `settings.json` under the resolved Copilot home. This is the file `user.settings.get`, `user.settings.load`, and `user.settings.set` read and write.
+    /// The user settings file: `settings.json` under the resolved Copilot home. This is the file `user.settings.get`, `user.settings.loadWithWarning`, and `user.settings.set` read and write.
     pub user_settings: String,
 }
 
@@ -1790,7 +1790,7 @@ pub(crate) struct UserSettingsMigrateObsoleteOnDiskRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct UserSettingsMigrateObsoleteOnDiskResult {
-    /// What the cleanup did. Only `changed` rewrote the document. The cleaned settings are not returned here: the document is written before this replies, so `user.settings.load` reads it authoritatively.
+    /// What the cleanup did. Only `changed` rewrote the document. The cleaned settings are not returned here: the document is written before this replies, so `user.settings.loadWithWarning` reads it authoritatively.
     #[doc(hidden)]
     pub(crate) status: UserSettingsMigrateObsoleteOnDiskStatus,
 }
@@ -2056,7 +2056,7 @@ pub(crate) struct UserSettingsResetStaffModelSelectionOnceResult {
 pub(crate) struct UserSettingsSetHookDisabledRequest {
     /// True adds the key to `disabledHooks`, false removes it.
     pub disabled: bool,
-    /// Durable content-hash key of the hook, as `hooks.loadResources` reports it.
+    /// Durable content-hash key of the hook, as `hooks.discover` reports it in `disableKey`.
     pub disable_key: String,
     /// Path of the settings.json to rewrite.
     pub settings_path: String,

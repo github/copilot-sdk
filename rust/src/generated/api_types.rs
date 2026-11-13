@@ -26,6 +26,16 @@ use crate::types::{RequestId, SessionEvent, SessionId};
 
 /// JSON-RPC method name constants.
 pub mod rpc_methods {
+    /// `providers.config.read`
+    pub const PROVIDERS_CONFIG_READ: &str = "providers.config.read";
+    /// `providers.config.updateProvider`
+    pub const PROVIDERS_CONFIG_UPDATEPROVIDER: &str = "providers.config.updateProvider";
+    /// `providers.config.updateModel`
+    pub const PROVIDERS_CONFIG_UPDATEMODEL: &str = "providers.config.updateModel";
+    /// `providers.config.removeModel`
+    pub const PROVIDERS_CONFIG_REMOVEMODEL: &str = "providers.config.removeModel";
+    /// `providers.config.addModel`
+    pub const PROVIDERS_CONFIG_ADDMODEL: &str = "providers.config.addModel";
     /// `localModels.configure`
     pub const LOCALMODELS_CONFIGURE: &str = "localModels.configure";
     /// `localModels.inspect`
@@ -293,8 +303,6 @@ pub mod rpc_methods {
     pub const AZUREML_DISCARD: &str = "azureMl.discard";
     /// `decisions.ask`
     pub const DECISIONS_ASK: &str = "decisions.ask";
-    /// `providers.config.addModel`
-    pub const PROVIDERS_CONFIG_ADDMODEL: &str = "providers.config.addModel";
     /// `providersSource.addModel`
     pub(crate) const PROVIDERSSOURCE_ADDMODEL: &str = "providersSource.addModel";
     /// `contentExclusion.validatePolicies`
@@ -1182,6 +1190,10 @@ pub mod rpc_methods {
     pub const SESSION_PROVIDER_GETENDPOINT: &str = "session.provider.getEndpoint";
     /// `session.provider.add`
     pub const SESSION_PROVIDER_ADD: &str = "session.provider.add";
+    /// `session.provider.updateProvider`
+    pub const SESSION_PROVIDER_UPDATEPROVIDER: &str = "session.provider.updateProvider";
+    /// `session.provider.updateModel`
+    pub const SESSION_PROVIDER_UPDATEMODEL: &str = "session.provider.updateModel";
     /// `session.provider.sync`
     pub const SESSION_PROVIDER_SYNC: &str = "session.provider.sync";
     /// `session.provider.getStatus`
@@ -1674,15 +1686,17 @@ pub use sdk_api_shared::{
     SandboxConfigUserPolicyExperimentalSeatbelt, SandboxConfigUserPolicyFilesystem,
     SandboxConfigUserPolicyNetwork, SandboxConfigUserPolicyNetworkProxy,
     SandboxConfigUserPolicySeatbelt, SandboxCredentialSuggestion, SandboxCredentialsConfig,
-    SandboxMaskedEnvVar, ScheduleEntry, SendAgentMode, ServerSkill, SessionCompletionItem,
-    SessionVisibilityStatus, SessionWorkingDirectoryContextHostType, ShellCredentials,
-    ShellInitProfile, ShellInitScript, ShellInitScriptShell, ShellOptions, Skill, SkillInstallPlan,
-    SkillInstallationFileReview, SkillInstallationLocation, SkillInstallationOwnershipState,
-    SkillInstallationReview, SkillInstallationReviewInstall, SkillInstallationReviewInstallAction,
-    SkillInstallationReviewUninstall, SkillInstallationReviewUninstallAction,
-    SkillInstallationScope, SkillInstallationSessionState, SkillInstallationSource,
-    SkillInstallationSummary, SkillsInvokedSkill, SlashCommandInfo, SlashCommandInput,
-    SlashCommandInputChoice, SlashCommandInputCompletion, SlashCommandKind,
+    SandboxMaskedEnvVar, SavedProviderConfigurationProvider,
+    SavedProviderConfigurationProviderInput, SavedProviderConfigurationType,
+    SavedProviderCredentialStatus, ScheduleEntry, SendAgentMode, ServerSkill,
+    SessionCompletionItem, SessionVisibilityStatus, SessionWorkingDirectoryContextHostType,
+    ShellCredentials, ShellInitProfile, ShellInitScript, ShellInitScriptShell, ShellOptions, Skill,
+    SkillInstallPlan, SkillInstallationFileReview, SkillInstallationLocation,
+    SkillInstallationOwnershipState, SkillInstallationReview, SkillInstallationReviewInstall,
+    SkillInstallationReviewInstallAction, SkillInstallationReviewUninstall,
+    SkillInstallationReviewUninstallAction, SkillInstallationScope, SkillInstallationSessionState,
+    SkillInstallationSource, SkillInstallationSummary, SkillsInvokedSkill, SlashCommandInfo,
+    SlashCommandInput, SlashCommandInputChoice, SlashCommandInputCompletion, SlashCommandKind,
     StandaloneExtensionAdmission, SubagentSettingsConfig, SubagentSettingsEntry,
     SubagentSettingsEntryContextTier, TokenAuthInfo, TokenAuthInfoType, TokenProviderAuthInfo,
     TokenProviderAuthInfoType, UIElicitationResponseAction, UserAuthInfo, UserAuthInfoType,
@@ -1996,7 +2010,8 @@ pub use sdk_api_session::{
     SessionPluginsMarketplacesRemoveResult, SessionPluginsRetryManagedRequest,
     SessionPluginsRetryManagedResult, SessionPluginsUpdateResult, SessionProviderAddResult,
     SessionProviderGetEndpointResult, SessionProviderGetStatusParams,
-    SessionProviderGetStatusResult, SessionProviderSyncResult, SessionProviderWithdrawResult,
+    SessionProviderGetStatusResult, SessionProviderSyncResult, SessionProviderUpdateModelParams,
+    SessionProviderUpdateProviderParams, SessionProviderWithdrawResult,
     SessionProvidersDiscoverResult, SessionProvidersGetCatalogParams,
     SessionProvidersGetCatalogResult, SessionProvidersGetStatusResult,
     SessionProvidersModelsDiagnoseParams, SessionProvidersModelsDiagnoseResult,
@@ -2435,8 +2450,10 @@ pub use sdk_api_models::{
     ModelsListTokenPriceUnitsResult, ProviderAddRequest, ProviderAddResult, ProviderEndpoint,
     ProviderGetEndpointRequest, ProviderStatus, ProviderSyncRequest, ProviderSyncResult,
     ProviderTokenAcquireRequest, ProviderTokenAcquireResult, ProviderTokenGetTokenResult,
-    ProviderWithdrawRequest, ProviderWithdrawResult, ProvidersConfigAddModelResult,
-    ProvidersSourceAddModelResult, TokenPriceUnit,
+    ProviderUpdateModelRequest, ProviderUpdateProviderRequest, ProviderWithdrawRequest,
+    ProviderWithdrawResult, ProvidersConfigAddModelResult, ProvidersConfigReadResult,
+    ProvidersConfigRemoveModelResult, ProvidersConfigUpdateModelResult,
+    ProvidersConfigUpdateProviderResult, ProvidersSourceAddModelResult, TokenPriceUnit,
 };
 pub(crate) use sdk_api_models::{ModelClearStartupSeedRequest, ModelClearStartupSeedResult};
 
@@ -2834,20 +2851,22 @@ pub use sdk_api_services::{
     RegisterEventInterestParams, RegisterEventInterestResult, ReleaseEventInterestParams,
     ResponseFormat, ResponseFormatType, RuntimeOpenBrowserRequest, SandboxSessionChange,
     SavedProviderConfigurationAddModelRequest, SavedProviderConfigurationAddModelResult,
-    SavedProviderConfigurationProviderInput, SavedProviderConfigurationType, ScheduleAddAtRequest,
-    ScheduleAddCronRequest, ScheduleAddRequest, ScheduleAddResult, ScheduleAddSelfPacedRequest,
-    ScheduleHasSelfPacedResult, ScheduleList, ScheduleRearmSelfPacedRequest, ScheduleStopRequest,
-    ScheduleStopResult, SecretsAddFilterValuesRequest, SecretsAddFilterValuesResult,
-    SendAndWaitResult, SendAttachmentsToMessageParams, SendMessageItem, SendMessagesOptions,
-    SendMessagesRequest, SendMessagesRequestResponseFormat, SendMessagesRequestResponseFormatType,
-    SendMessagesResult, SendMode, SendOptions, SendRequest, SendRequestResponseFormat,
-    SendRequestResponseFormatType, SendResult, SendSystemNotificationRequest, SessionLogLevel,
-    SessionWorkingDirectoryContext, ShellBuildInteractiveEnvironmentRequest,
-    ShellBuildInteractiveEnvironmentResult, ShellCancelUserRequestedRequest, ShellExecRequest,
-    ShellExecResult, ShellExecuteUserRequestedRequest, ShellKillRequest, ShellKillResult,
-    ShellKillSignal, ShutdownRequest, SlashCommandAddTimelineEntryResult,
-    SlashCommandAddTimelineEntryResultKind, SlashCommandAgentPromptResult,
-    SlashCommandAgentPromptResultKind, SlashCommandCompletedResult,
+    SavedProviderConfigurationReadResult, SavedProviderConfigurationRemoveModelRequest,
+    SavedProviderConfigurationRemoveModelResult, SavedProviderConfigurationUpdateModelRequest,
+    SavedProviderConfigurationUpdateModelResult, SavedProviderConfigurationUpdateProviderRequest,
+    SavedProviderConfigurationUpdateProviderResult, ScheduleAddAtRequest, ScheduleAddCronRequest,
+    ScheduleAddRequest, ScheduleAddResult, ScheduleAddSelfPacedRequest, ScheduleHasSelfPacedResult,
+    ScheduleList, ScheduleRearmSelfPacedRequest, ScheduleStopRequest, ScheduleStopResult,
+    SecretsAddFilterValuesRequest, SecretsAddFilterValuesResult, SendAndWaitResult,
+    SendAttachmentsToMessageParams, SendMessageItem, SendMessagesOptions, SendMessagesRequest,
+    SendMessagesRequestResponseFormat, SendMessagesRequestResponseFormatType, SendMessagesResult,
+    SendMode, SendOptions, SendRequest, SendRequestResponseFormat, SendRequestResponseFormatType,
+    SendResult, SendSystemNotificationRequest, SessionLogLevel, SessionWorkingDirectoryContext,
+    ShellBuildInteractiveEnvironmentRequest, ShellBuildInteractiveEnvironmentResult,
+    ShellCancelUserRequestedRequest, ShellExecRequest, ShellExecResult,
+    ShellExecuteUserRequestedRequest, ShellKillRequest, ShellKillResult, ShellKillSignal,
+    ShutdownRequest, SlashCommandAddTimelineEntryResult, SlashCommandAddTimelineEntryResultKind,
+    SlashCommandAgentPromptResult, SlashCommandAgentPromptResultKind, SlashCommandCompletedResult,
     SlashCommandCompletedResultKind, SlashCommandInvocationResult, SlashCommandModelPickerDialog,
     SlashCommandModelPickerDialogKind, SlashCommandSelectSubcommandOption,
     SlashCommandSelectSubcommandResult, SlashCommandSelectSubcommandResultKind,

@@ -447,7 +447,7 @@ export type AgentRegistrySpawnValidationErrorField =
   /** The permissionMode parameter */
   | "permissionMode";
 /**
- * Provider families supported by saved configuration.
+ * Provider families supported by saved configuration, including managed local models.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SavedProviderConfigurationType".
@@ -7175,6 +7175,20 @@ export type SandboxSessionChange =
   /** The sandbox is enabled for this session; nothing was persisted. */
   | "restored";
 /**
+ * Credential availability, not provider authentication or health.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SavedProviderCredentialStatus".
+ */
+/** @experimental */
+export type SavedProviderCredentialStatus =
+  /** A secure or legacy credential source is configured. */
+  | "present"
+  /** No credential source is configured. */
+  | "absent"
+  /** Secure credential storage could not be queried. */
+  | "unavailable";
+/**
  * Current authentication information, or null when no authentication is active.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -7635,6 +7649,14 @@ export type TeamPluginMarketplaceSource = {
    * GitHub repository in owner/name form.
    */
   repo: string;
+  /**
+   * Branch or tag the marketplace is read from. Absent means the default branch.
+   */
+  ref?: string | null;
+  /**
+   * Folder in the repository that holds the marketplace. Absent means the repository root.
+   */
+  path?: string | null;
 };
 /**
  * Copilot plan tier used by the session quota projection.
@@ -21602,11 +21624,15 @@ export interface HistorySkippedFileRestore {
 export interface HistorySetCompactionConfigRequest {
   /**
    * Model that summarizes this session's conversation when it compacts,
-   * instead of the session's own model. Applies only when both are Copilot
-   * models the session may use; for a BYOK or provider session, or a model
-   * the session's catalog or allowed-model policy rejects, compaction
-   * summarizes on the session's model. Takes precedence over any runtime
-   * experiment that picks a compaction model. Blank values are ignored.
+   * instead of the session's own model. A Copilot session can name another
+   * Copilot model it may use. A session on a custom provider can name
+   * another model that provider serves: for a single `provider` config, a
+   * model name it accepts, sent with default limits for that name; for a
+   * named provider, another of that provider's model selection IDs. An Azure
+   * provider, a model from a different provider, or a model the session's
+   * catalog or allowed-model policy rejects leaves compaction on the
+   * session's model. Takes precedence over any runtime experiment that picks
+   * a compaction model. Blank values are ignored.
    */
   model?: string;
   /**
@@ -29559,7 +29585,7 @@ export interface MetadataRecomputeContextTokensRequest {
   modelId: string;
 }
 /**
- * Re-tokenize the session's existing messages against `modelId` and return the token totals. Useful for hosts that want an initial estimate of context usage on session resume, before the next agent turn fires `session.context_info_changed` events. Returns zeros for an empty session.
+ * Re-tokenize the session's existing messages against `modelId` and return the token totals. Useful for hosts that want an initial estimate of context usage on session resume, before the next agent turn fires `session.usage_info` events. Returns zeros for an empty session.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "MetadataRecomputeContextTokensResult".
@@ -34161,6 +34187,32 @@ export interface ProviderTokenAcquireResult {
   token: string;
 }
 /**
+ * Request to update one provider-local model in a single session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProviderUpdateModelRequest".
+ */
+/** @experimental */
+export interface ProviderUpdateModelRequest {
+  /**
+   * Replacement model definition. Its provider and id identify the session row to replace.
+   */
+  model: ProviderModelConfig;
+}
+/**
+ * Request to update one provider's connection settings in a single session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProviderUpdateProviderRequest".
+ */
+/** @experimental */
+export interface ProviderUpdateProviderRequest {
+  /**
+   * Replacement provider settings. Credentials and custom headers are not accepted in this session update.
+   */
+  provider: SavedProviderConfigurationProviderInput;
+}
+/**
  * Host-managed model selection ids to withdraw from the session's BYOK registry.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -36608,9 +36660,133 @@ export interface SandboxUnsupportedStartupNoticeResult {
 /** @experimental */
 export interface SavedProviderConfigurationAddModelResult {
   /**
-   * Whether the provider was created along with the model.
+   * True when this operation created the provider row.
    */
   providerAdded: boolean;
+}
+/**
+ * A saved provider's editable settings and credential status, never secret values.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SavedProviderConfigurationProvider".
+ */
+/** @experimental */
+export interface SavedProviderConfigurationProvider {
+  /**
+   * Safe connection settings; commands, headers, credentials, and internal storage metadata are omitted.
+   */
+  provider: SavedProviderConfigurationProviderInput;
+  /**
+   * Credential availability without disclosing its value.
+   */
+  credentialStatus: SavedProviderCredentialStatus;
+}
+/**
+ * Saved configuration. Reading does not activate, select, or load a model.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SavedProviderConfigurationReadResult".
+ */
+/** @experimental */
+export interface SavedProviderConfigurationReadResult {
+  /**
+   * Providers in saved order.
+   */
+  providers: SavedProviderConfigurationProvider[];
+  /**
+   * Saved model definitions in file order.
+   */
+  models: ProviderModelConfig[];
+}
+/**
+ * Request to remove one saved provider-local model definition.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SavedProviderConfigurationRemoveModelRequest".
+ */
+/** @experimental */
+export interface SavedProviderConfigurationRemoveModelRequest {
+  /**
+   * Name of the provider that owns the model.
+   */
+  providerName: string;
+  /**
+   * Provider-local model id to remove.
+   */
+  modelId: string;
+}
+/**
+ * Result of removing one saved provider model.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SavedProviderConfigurationRemoveModelResult".
+ */
+/** @experimental */
+export interface SavedProviderConfigurationRemoveModelResult {
+  /**
+   * True when removing the final model also removed its provider and managed credential.
+   */
+  providerRemoved: boolean;
+}
+/**
+ * Request to replace one saved provider-local model definition.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SavedProviderConfigurationUpdateModelRequest".
+ */
+/** @experimental */
+export interface SavedProviderConfigurationUpdateModelRequest {
+  /**
+   * Replacement model definition. Its provider and id identify the saved row to replace.
+   */
+  model: ProviderModelConfig;
+}
+/**
+ * Result of updating one saved provider model.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SavedProviderConfigurationUpdateModelResult".
+ */
+/** @experimental */
+export interface SavedProviderConfigurationUpdateModelResult {
+  /**
+   * Name of the provider that owns the updated model.
+   */
+  providerName: string;
+  /**
+   * Provider-local id of the updated model.
+   */
+  modelId: string;
+}
+/**
+ * Request to replace shared settings for one saved provider.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SavedProviderConfigurationUpdateProviderRequest".
+ */
+/** @experimental */
+export interface SavedProviderConfigurationUpdateProviderRequest {
+  /**
+   * Replacement provider settings. Existing credentials and custom headers are retained; omitted local-model settings are retained.
+   */
+  provider: SavedProviderConfigurationProviderInput;
+  /**
+   * Optional replacement API key. Stored in the OS keychain and never returned.
+   */
+  credential?: string;
+}
+/**
+ * Result of updating shared saved provider settings.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SavedProviderConfigurationUpdateProviderResult".
+ */
+/** @experimental */
+export interface SavedProviderConfigurationUpdateProviderResult {
+  /**
+   * Name of the provider whose settings were updated.
+   */
+  providerName: string;
 }
 /**
  * Register an absolute-time scheduled prompt.
@@ -44926,7 +45102,7 @@ export interface UserSettingsGetPathsRequest {
 /** @experimental */
 export interface UserSettingsGetPathsResult {
   /**
-   * The user settings file: `settings.json` under the resolved Copilot home. This is the file `user.settings.get`, `user.settings.load`, and `user.settings.set` read and write.
+   * The user settings file: `settings.json` under the resolved Copilot home. This is the file `user.settings.get`, `user.settings.loadWithWarning`, and `user.settings.set` read and write.
    */
   userSettings: string;
   /**
@@ -45203,7 +45379,7 @@ export interface UserSettingsMigrateObsoleteOnDiskRequest {
 /** @internal */
 export interface UserSettingsMigrateObsoleteOnDiskResult {
   /**
-   * What the cleanup did. Only `changed` rewrote the document. The cleaned settings are not returned here: the document is written before this replies, so `user.settings.load` reads it authoritatively.
+   * What the cleanup did. Only `changed` rewrote the document. The cleaned settings are not returned here: the document is written before this replies, so `user.settings.loadWithWarning` reads it authoritatively.
    */
   status: UserSettingsMigrateObsoleteOnDiskStatus;
 }
@@ -45477,7 +45653,7 @@ export interface UserSettingsSetHookDisabledRequest {
    */
   settingsPath: string;
   /**
-   * Durable content-hash key of the hook, as `hooks.loadResources` reports it.
+   * Durable content-hash key of the hook, as `hooks.discover` reports it in `disableKey`.
    */
   disableKey: string;
   /**
@@ -47479,6 +47655,147 @@ export interface WorkspacesWriteAutopilotObjectiveResult {
   operation: string;
 }
 /**
+ * Saved configuration. Reading does not activate, select, or load a model.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProvidersConfigReadResult".
+ */
+/** @experimental */
+export interface ProvidersConfigReadResult {
+  /**
+   * Providers in saved order.
+   */
+  providers: SavedProviderConfigurationProvider[];
+  /**
+   * Saved model definitions in file order.
+   */
+  models: ProviderModelConfig[];
+}
+/**
+ * Result of updating shared saved provider settings.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProvidersConfigUpdateProviderResult".
+ */
+/** @experimental */
+export interface ProvidersConfigUpdateProviderResult {
+  /**
+   * Name of the provider whose settings were updated.
+   */
+  providerName: string;
+}
+/**
+ * Request to replace shared settings for one saved provider.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProvidersConfigUpdateProviderRequest".
+ */
+/** @experimental */
+export interface ProvidersConfigUpdateProviderRequest {
+  /**
+   * Replacement provider settings. Existing credentials and custom headers are retained; omitted local-model settings are retained.
+   */
+  provider: SavedProviderConfigurationProviderInput;
+  /**
+   * Optional replacement API key. Stored in the OS keychain and never returned.
+   */
+  credential?: string;
+}
+/**
+ * Result of updating one saved provider model.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProvidersConfigUpdateModelResult".
+ */
+/** @experimental */
+export interface ProvidersConfigUpdateModelResult {
+  /**
+   * Name of the provider that owns the updated model.
+   */
+  providerName: string;
+  /**
+   * Provider-local id of the updated model.
+   */
+  modelId: string;
+}
+/**
+ * Request to replace one saved provider-local model definition.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProvidersConfigUpdateModelRequest".
+ */
+/** @experimental */
+export interface ProvidersConfigUpdateModelRequest {
+  /**
+   * Replacement model definition. Its provider and id identify the saved row to replace.
+   */
+  model: ProviderModelConfig;
+}
+/**
+ * Result of removing one saved provider model.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProvidersConfigRemoveModelResult".
+ */
+/** @experimental */
+export interface ProvidersConfigRemoveModelResult {
+  /**
+   * True when removing the final model also removed its provider and managed credential.
+   */
+  providerRemoved: boolean;
+}
+/**
+ * Request to remove one saved provider-local model definition.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProvidersConfigRemoveModelRequest".
+ */
+/** @experimental */
+export interface ProvidersConfigRemoveModelRequest {
+  /**
+   * Name of the provider that owns the model.
+   */
+  providerName: string;
+  /**
+   * Provider-local model id to remove.
+   */
+  modelId: string;
+}
+/**
+ * Result of adding a model to the saved provider configuration.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProvidersConfigAddModelResult".
+ */
+/** @experimental */
+export interface ProvidersConfigAddModelResult {
+  /**
+   * True when this operation created the provider row.
+   */
+  providerAdded: boolean;
+}
+/**
+ * Request to add a model to the server-owned saved provider configuration.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ProvidersConfigAddModelRequest".
+ */
+/** @experimental */
+export interface ProvidersConfigAddModelRequest {
+  /**
+   * Provider settings to create when this provider is not already saved.
+   */
+  provider: SavedProviderConfigurationProviderInput;
+  /**
+   * Model to add to the provider.
+   */
+  model: ProviderModelConfig;
+  /**
+   * Optional replacement API key. Stored in the OS keychain and never returned.
+   */
+  credential?: string;
+}
+/**
  * Snapshot and transient notifications for one connection-owned manager.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -48108,46 +48425,12 @@ export interface AzureMlDiscardResult {}
  * Result of adding a model to the saved provider configuration.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ProvidersConfigAddModelResult".
- */
-/** @experimental */
-export interface ProvidersConfigAddModelResult {
-  /**
-   * Whether the provider was created along with the model.
-   */
-  providerAdded: boolean;
-}
-/**
- * Request to add a model to the server-owned saved provider configuration.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ProvidersConfigAddModelRequest".
- */
-/** @experimental */
-export interface ProvidersConfigAddModelRequest {
-  /**
-   * Provider settings to create when this provider is not already saved.
-   */
-  provider: SavedProviderConfigurationProviderInput;
-  /**
-   * Model to add to the provider.
-   */
-  model: ProviderModelConfig;
-  /**
-   * Optional replacement API key. Stored in the OS keychain and never returned.
-   */
-  credential?: string;
-}
-/**
- * Result of adding a model to the saved provider configuration.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ProvidersSourceAddModelResult".
  */
 /** @experimental */
 export interface ProvidersSourceAddModelResult {
   /**
-   * Whether the provider was created along with the model.
+   * True when this operation created the provider row.
    */
   providerAdded: boolean;
 }
@@ -49233,6 +49516,32 @@ export interface SessionProviderGetEndpointRequest {
   modelId?: string;
 }
 /**
+ * Request to update one provider's connection settings in a single session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionProviderUpdateProviderRequest".
+ */
+/** @experimental */
+export interface SessionProviderUpdateProviderRequest {
+  /**
+   * Replacement provider settings. Credentials and custom headers are not accepted in this session update.
+   */
+  provider: SavedProviderConfigurationProviderInput;
+}
+/**
+ * Request to update one provider-local model in a single session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionProviderUpdateModelRequest".
+ */
+/** @experimental */
+export interface SessionProviderUpdateModelRequest {
+  /**
+   * Replacement model definition. Its provider and id identify the session row to replace.
+   */
+  model: ProviderModelConfig;
+}
+/**
  * Runtime-owned configuration inventory and configuration diagnostics.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -49903,6 +50212,55 @@ export interface InstallationsConfirmRequest {
 export function createServerRpc(connection: MessageConnection) {
     return {
         /** @experimental */
+        providers: {
+            /** @experimental */
+            config: {
+                /**
+                 * Reads the server's saved provider settings and credential availability without returning secrets or activating models.
+                 *
+                 * @returns Saved configuration. Reading does not activate, select, or load a model.
+                 */
+                read: async (): Promise<ProvidersConfigReadResult> =>
+                    connection.sendRequest("providers.config.read", {}),
+                /**
+                 * Updates shared connection settings for a saved provider while preserving its credentials and other sensitive fields. This durable operation does not change any live session.
+                 *
+                 * @param params Request to replace shared settings for one saved provider.
+                 *
+                 * @returns Result of updating shared saved provider settings.
+                 */
+                updateProvider: async (params: ProvidersConfigUpdateProviderRequest): Promise<ProvidersConfigUpdateProviderResult> =>
+                    connection.sendRequest("providers.config.updateProvider", params),
+                /**
+                 * Updates one saved provider model without changing its sibling models. This durable operation does not change any live session.
+                 *
+                 * @param params Request to replace one saved provider-local model definition.
+                 *
+                 * @returns Result of updating one saved provider model.
+                 */
+                updateModel: async (params: ProvidersConfigUpdateModelRequest): Promise<ProvidersConfigUpdateModelResult> =>
+                    connection.sendRequest("providers.config.updateModel", params),
+                /**
+                 * Removes one model from the server's saved provider configuration and removes its provider only when no saved models remain. This durable operation does not change any live session.
+                 *
+                 * @param params Request to remove one saved provider-local model definition.
+                 *
+                 * @returns Result of removing one saved provider model.
+                 */
+                removeModel: async (params: ProvidersConfigRemoveModelRequest): Promise<ProvidersConfigRemoveModelResult> =>
+                    connection.sendRequest("providers.config.removeModel", params),
+                /**
+                 * Adds a model to the server's saved provider configuration. This durable operation does not change any live session.
+                 *
+                 * @param params Request to add a model to the server-owned saved provider configuration.
+                 *
+                 * @returns Result of adding a model to the saved provider configuration.
+                 */
+                addModel: async (params: ProvidersConfigAddModelRequest): Promise<ProvidersConfigAddModelResult> =>
+                    connection.sendRequest("providers.config.addModel", params),
+            },
+        },
+        /** @experimental */
         localModels: {
             /**
              * Configures this SDK connection's local model manager. Runtime admission, credentials, jobs, files, progress, and cancellation remain connection-owned. A source session supplies live registration and selection without extending its lifetime.
@@ -50387,21 +50745,6 @@ export function createServerRpc(connection: MessageConnection) {
              */
             ask: async (params: DecisionsAskRequest): Promise<DecisionsAskResult> =>
                 connection.sendRequest("decisions.ask", params),
-        },
-        /** @experimental */
-        providers: {
-            /** @experimental */
-            config: {
-                /**
-                 * Adds a model to the server's saved provider configuration. This durable operation does not change any live session.
-                 *
-                 * @param params Request to add a model to the server-owned saved provider configuration.
-                 *
-                 * @returns Result of adding a model to the saved provider configuration.
-                 */
-                addModel: async (params: ProvidersConfigAddModelRequest): Promise<ProvidersConfigAddModelResult> =>
-                    connection.sendRequest("providers.config.addModel", params),
-            },
         },
         /** @experimental */
         contentExclusion: {
@@ -51632,7 +51975,7 @@ export function createInternalServerRpc(connection: MessageConnection) {
                 setHookDisabled: async (params: UserSettingsSetHookDisabledRequest): Promise<UserSettingsSetHookDisabledResult> =>
                     connection.sendRequest("user.settings.setHookDisabled", params),
                 /**
-                 * Reads the user's settings document exactly as `user.settings.load` does, but from a caller-supplied configuration directory instead of the one the server resolved for itself. Use this when a consumer scopes a session to its own Copilot home — the SDK's per-session `configDir` override — so the settings read match the directory that session actually uses. An absent or empty `configDir` resolves the server's own home, making this identical to `user.settings.load`. Hook-validation relaxations are deliberately not caller-supplied: they continue to come from the server's environment, so a consumer cannot widen the host's hook policy through this method.
+                 * Reads the user's settings document as `user.settings.loadWithWarning` does, without its warning, but from a caller-supplied configuration directory instead of the one the server resolved for itself. Use this when a consumer scopes a session to its own Copilot home — the SDK's per-session `configDir` override — so the settings read match the directory that session actually uses. An absent or empty `configDir` resolves the server's own home, making this identical to the `settings` that `user.settings.loadWithWarning` returns. Hook-validation relaxations are deliberately not caller-supplied: they continue to come from the server's environment, so a consumer cannot widen the host's hook policy through this method.
                  *
                  * @param params Selects the configuration directory whose user settings to read.
                  *
@@ -51641,7 +51984,7 @@ export function createInternalServerRpc(connection: MessageConnection) {
                 loadForConfigDir: async (params: UserSettingsLoadForConfigDirRequest): Promise<UserSettingsLoadForConfigDirResult> =>
                     connection.sendRequest("user.settings.loadForConfigDir", params),
                 /**
-                 * Reads a repository's checked-in settings document as stored, normalized, together with any diagnostic raised while reading it. This is the repository half of the layering `user.settings.get` reports: `user.settings.load` reads the user's own document, and this reads the one a repository checks in to govern the keys `user.settings.governanceKeys` lists as repo-governable. A document that fails to parse, or that sets a key a repository may not govern, is reported through `warning` while the settings that did load are still returned, so a consumer surfaces the diagnostic and continues rather than failing the session. When `repoRoot` is the user's home directory the Claude-compatible configuration is skipped, so a home-directory session does not inherit a personal config as repository policy.
+                 * Reads a repository's checked-in settings document as stored, normalized, together with any diagnostic raised while reading it. This is the repository half of the layering `user.settings.get` reports: `user.settings.loadWithWarning` reads the user's own document, and this reads the one a repository checks in to govern the keys `user.settings.listGovernanceKeys` lists as repo-governable. A document that fails to parse, or that sets a key a repository may not govern, is reported through `warning` while the settings that did load are still returned, so a consumer surfaces the diagnostic and continues rather than failing the session. When `repoRoot` is the user's home directory the Claude-compatible configuration is skipped, so a home-directory session does not inherit a personal config as repository policy.
                  *
                  * @param params Selects the repository whose checked-in settings to read.
                  *
@@ -51659,14 +52002,14 @@ export function createInternalServerRpc(connection: MessageConnection) {
                 loadAndMergeRepo: async (params: UserSettingsLoadAndMergeRepoRequest): Promise<UserSettingsLoadAndMergeRepoResult> =>
                     connection.sendRequest("user.settings.loadAndMergeRepo", params),
                 /**
-                 * Reports the on-disk path of the settings document `user.settings.load` and `user.settings.set` read and write. Resolved the same way those methods resolve it, so a host that shows or opens the settings file names the file the runtime actually uses, including the extensionless legacy `settings` file when that is what is present.
+                 * Reports the on-disk path of the settings document `user.settings.loadWithWarning` and `user.settings.set` read and write. Resolved the same way those methods resolve it, so a host that shows or opens the settings file names the file the runtime actually uses, including the extensionless legacy `settings` file when that is what is present.
                  *
                  * @returns The on-disk location of the user's settings document.
                  */
                 getPath: async (): Promise<UserSettingsPathResult> =>
                     connection.sendRequest("user.settings.getPath", {}),
                 /**
-                 * Reads the user's stored settings together with the diagnostic raised while reading them. This is `user.settings.load` plus the reason part of the document was ignored: that one answers the document alone, so a caller cannot tell a clean read from a salvaged one. Read this when the caller is about to write the file back, where accepting a partial parse would discard every value the loader could not read. The settings that did load are still reported alongside the warning, so a consumer may surface it and continue instead of failing.
+                 * Reads the user's stored settings together with the diagnostic raised while reading them. This is `user.settings.loadForConfigDir` without a `configDir` plus the reason part of the document was ignored: that one answers the document alone, so a caller cannot tell a clean read from a salvaged one. Read this when the caller is about to write the file back, where accepting a partial parse would discard every value the loader could not read. The settings that did load are still reported alongside the warning, so a consumer may surface it and continue instead of failing.
                  *
                  * @returns The user's stored settings, together with any diagnostic raised while reading them.
                  */
@@ -51736,7 +52079,7 @@ export function createInternalServerRpc(connection: MessageConnection) {
                 migrateStaffLogLevelOnce: async (params: UserSettingsMigrateStaffLogLevelOnceRequest): Promise<UserSettingsMigrateStaffLogLevelOnceResult> =>
                     connection.sendRequest("user.settings.migrateStaffLogLevelOnce", params),
                 /**
-                 * Runs the one-time cleanup that removes obsolete CLI-owned settings and legacy rubber-duck keys from the user's settings document, and reports what it did. Idempotent and safe to call on every startup: with nothing obsolete left it reports `unchanged` and writes nothing. The cleanup preserves every key it does not recognize, so a setting written by a newer host is never dropped by an older one, and a document that fails to parse is reported `invalid` and left untouched rather than rewritten from a partial read. The cleaned document is not returned: it is written before this replies, so `user.settings.load` reads it authoritatively. A host that surfaces unrecognized keys through `user.settings.unknownKeys` wants this first, because the keys this retires would otherwise be shown to the user as if they were misspelled settings.
+                 * Runs the one-time cleanup that removes obsolete CLI-owned settings and legacy rubber-duck keys from the user's settings document, and reports what it did. Idempotent and safe to call on every startup: with nothing obsolete left it reports `unchanged` and writes nothing. The cleanup preserves every key it does not recognize, so a setting written by a newer host is never dropped by an older one, and a document that fails to parse is reported `invalid` and left untouched rather than rewritten from a partial read. The cleaned document is not returned: it is written before this replies, so `user.settings.loadWithWarning` reads it authoritatively. A host that surfaces unrecognized keys through `user.settings.getUnknownKeysWarning` wants this first, because the keys this retires would otherwise be shown to the user as if they were misspelled settings.
                  *
                  * @param params Selects the configuration directory whose settings document to clean.
                  *
@@ -51745,7 +52088,7 @@ export function createInternalServerRpc(connection: MessageConnection) {
                 migrateObsoleteOnDisk: async (params: UserSettingsMigrateObsoleteOnDiskRequest): Promise<UserSettingsMigrateObsoleteOnDiskResult> =>
                     connection.sendRequest("user.settings.migrateObsoleteOnDisk", params),
                 /**
-                 * Resolves the on-disk locations of the settings files this runtime reads, so a consumer can show or open them. The user path is the same file `user.settings.get`, `user.settings.load`, and `user.settings.set` operate on. Supply `repoRoot` to also resolve that repository's checked-in and local settings paths. A path is reported whether or not the file exists.
+                 * Resolves the on-disk locations of the settings files this runtime reads, so a consumer can show or open them. The user path is the same file `user.settings.get`, `user.settings.loadWithWarning`, and `user.settings.set` operate on. Supply `repoRoot` to also resolve that repository's checked-in and local settings paths. A path is reported whether or not the file exists.
                  *
                  * @param params Selects which settings file paths to resolve.
                  *
@@ -54560,6 +54903,20 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             add: async (params: ProviderAddRequest): Promise<ProviderAddResult> =>
                 connection.sendRequest("session.provider.add", { ...params, sessionId }),
             /**
+             * Updates one provider's connection settings in this session's BYOK registry while preserving its saved credential and sibling models.
+             *
+             * @param params Request to update one provider's connection settings in a single session.
+             */
+            updateProvider: async (params: SessionProviderUpdateProviderRequest): Promise<void> =>
+                connection.sendRequest("session.provider.updateProvider", { ...params, sessionId }),
+            /**
+             * Updates one model in this session's BYOK registry without replacing sibling models or unrelated provider registrations.
+             *
+             * @param params Request to update one provider-local model in a single session.
+             */
+            updateModel: async (params: SessionProviderUpdateModelRequest): Promise<void> =>
+                connection.sendRequest("session.provider.updateModel", { ...params, sessionId }),
+            /**
              * Atomically updates the session's BYOK provider and model registry by applying the supplied snapshot, replacing existing entries, updating models, or removing entries absent from the snapshot.
              *
              * @param params Authoritative BYOK provider and model registry snapshot to apply atomically to the session.
@@ -55296,7 +55653,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              *
              * @param params Model identifier to use when re-tokenizing the session's existing messages.
              *
-             * @returns Re-tokenize the session's existing messages against `modelId` and return the token totals. Useful for hosts that want an initial estimate of context usage on session resume, before the next agent turn fires `session.context_info_changed` events. Returns zeros for an empty session.
+             * @returns Re-tokenize the session's existing messages against `modelId` and return the token totals. Useful for hosts that want an initial estimate of context usage on session resume, before the next agent turn fires `session.usage_info` events. Returns zeros for an empty session.
              */
             recomputeContextTokens: async (params: MetadataRecomputeContextTokensRequest): Promise<MetadataRecomputeContextTokensResult> =>
                 connection.sendRequest("session.metadata.recomputeContextTokens", { ...params, sessionId }),

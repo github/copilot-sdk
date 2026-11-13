@@ -1155,6 +1155,36 @@ pub struct ProviderTokenAcquireResult {
     pub token: String,
 }
 
+/// Request to update one provider-local model in a single session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderUpdateModelRequest {
+    /// Replacement model definition. Its provider and id identify the session row to replace.
+    pub model: ProviderModelConfig,
+}
+
+/// Request to update one provider's connection settings in a single session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderUpdateProviderRequest {
+    /// Replacement provider settings. Credentials and custom headers are not accepted in this session update.
+    pub provider: SavedProviderConfigurationProviderInput,
+}
+
 /// Host-managed model selection ids to withdraw from the session's BYOK registry.
 ///
 /// <div class="warning">
@@ -1188,6 +1218,85 @@ pub struct ProviderWithdrawResult {
     pub providers_removed: Vec<String>,
     /// Selection ids that were registered and are now withdrawn. Excludes requested ids that were not present.
     pub withdrawn: Vec<String>,
+}
+
+/// Saved configuration. Reading does not activate, select, or load a model.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProvidersConfigReadResult {
+    /// Saved model definitions in file order.
+    pub models: Vec<ProviderModelConfig>,
+    /// Providers in saved order.
+    pub providers: Vec<SavedProviderConfigurationProvider>,
+}
+
+/// Result of updating shared saved provider settings.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProvidersConfigUpdateProviderResult {
+    /// Name of the provider whose settings were updated.
+    pub provider_name: String,
+}
+
+/// Result of updating one saved provider model.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProvidersConfigUpdateModelResult {
+    /// Provider-local id of the updated model.
+    pub model_id: String,
+    /// Name of the provider that owns the updated model.
+    pub provider_name: String,
+}
+
+/// Result of removing one saved provider model.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProvidersConfigRemoveModelResult {
+    /// True when removing the final model also removed its provider and managed credential.
+    pub provider_removed: bool,
+}
+
+/// Result of adding a model to the saved provider configuration.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProvidersConfigAddModelResult {
+    /// True when this operation created the provider row.
+    pub provider_added: bool,
 }
 
 /// List of Copilot models available to the resolved user, including capabilities and billing metadata.
@@ -1262,23 +1371,8 @@ pub struct ModelsListTokenPriceUnitsResult {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ProvidersConfigAddModelResult {
-    /// Whether the provider was created along with the model.
-    pub provider_added: bool,
-}
-
-/// Result of adding a model to the saved provider configuration.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ProvidersSourceAddModelResult {
-    /// Whether the provider was created along with the model.
+    /// True when this operation created the provider row.
     pub provider_added: bool,
 }
 

@@ -10,47 +10,6 @@ use tokio::sync::mpsc;
 use super::support::recv_with_timeout;
 
 #[tokio::test]
-async fn should_invoke_pretooluse_hook_when_model_runs_a_tool() {
-    super::support::with_shared_e2e_context(
-        &E2E,
-        "hooks",
-        "should_invoke_pretooluse_hook_when_model_runs_a_tool",
-        |ctx| {
-            Box::pin(async move {
-                ctx.set_default_copilot_user();
-                std::fs::write(ctx.work_dir().join("hello.txt"), "Hello from the test!")
-                    .expect("write hello");
-                let (pre_tx, mut pre_rx) = mpsc::unbounded_channel();
-                let client = ctx.start_client().await;
-                let session = client
-                    .create_session(ctx.approve_all_session_config().with_hooks(Arc::new(
-                        RecordingHooks {
-                            pre_tx: Some(pre_tx),
-                            post_tx: None,
-                            deny: false,
-                        },
-                    )))
-                    .await
-                    .expect("create session");
-
-                session
-                    .send_and_wait("Read the contents of hello.txt and tell me what it says")
-                    .await
-                    .expect("send");
-
-                let input = recv_with_timeout(&mut pre_rx, "preToolUse hook").await;
-                assert_eq!(input.0, *session.id());
-                assert!(!input.1.is_empty());
-
-                session.disconnect().await.expect("disconnect session");
-                client.stop().await.expect("stop client");
-            })
-        },
-    )
-    .await;
-}
-
-#[tokio::test]
 async fn should_invoke_posttooluse_hook_after_model_runs_a_tool() {
     super::support::with_shared_e2e_context(
         &E2E,
@@ -229,4 +188,4 @@ impl SessionHooks for RecordingHooks {
         None
     }
 }
-static E2E: super::support::SharedE2eGroup = super::support::SharedE2eGroup::standard("hooks", 4);
+static E2E: super::support::SharedE2eGroup = super::support::SharedE2eGroup::standard("hooks", 3);

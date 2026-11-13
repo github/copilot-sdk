@@ -795,12 +795,24 @@ pub struct ProviderModelConfig {
     pub id: String,
     /// Maximum context window tokens for the model.
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "ProviderModelConfig::deserialize_token_limit"
+    )]
     pub max_context_window_tokens: Option<i64>,
     /// Maximum output tokens for the model.
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "ProviderModelConfig::deserialize_token_limit"
+    )]
     pub max_output_tokens: Option<i64>,
     /// Maximum prompt/input tokens for the model.
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "ProviderModelConfig::deserialize_token_limit"
+    )]
     pub max_prompt_tokens: Option<i64>,
     /// Provider-published model metadata, preserved verbatim as the public Model.metadata object.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -821,6 +833,30 @@ pub struct ProviderModelConfig {
     pub wire_model: Option<String>,
 }
 
+impl ProviderModelConfig {
+    fn deserialize_token_limit<'de, D>(deserializer: D) -> Result<Option<i64>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let Some(number) = Option::<serde_json::Number>::deserialize(deserializer)? else {
+            return Ok(None);
+        };
+        if let Some(value) = number.as_i64() {
+            return Ok(Some(value));
+        }
+        if let Some(value) = number.as_f64()
+            && value.fract() == 0.0
+            // i64::MAX rounds up to 2^63 as f64, so the upper bound is exclusive.
+            && ((i64::MIN as f64)..-(i64::MIN as f64)).contains(&value)
+        {
+            return Ok(Some(value as i64));
+        }
+        Err(serde::de::Error::custom(
+            "expected an integer token limit in the i64 range",
+        ))
+    }
+}
+
 /// Azure-specific provider options.
 ///
 /// <div class="warning">
@@ -835,6 +871,41 @@ pub struct ProviderConfigAzure {
     /// API version. When set, uses the versioned deployment route. When omitted, uses the GA versionless v1 route.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub api_version: Option<String>,
+}
+
+/// Editable provider settings, without credential values or custom headers.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SavedProviderConfigurationProviderInput {
+    /// Safe Azure connection settings, including API version.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub azure: Option<ProviderConfigAzure>,
+    /// Provider endpoint.
+    pub base_url: String,
+    /// Non-secret local model runtime options, such as the WinML device.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub local_model: Option<serde_json::Value>,
+    /// Serving product used for attribution.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_provider: Option<ProviderConfigModelProvider>,
+    /// Provider name used to qualify model selection ids.
+    pub name: String,
+    /// HTTP or WebSocket transport.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transport: Option<ProviderConfigTransport>,
+    /// Provider protocol family.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub r#type: Option<SavedProviderConfigurationType>,
+    /// OpenAI-compatible wire API.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wire_api: Option<ProviderConfigWireApi>,
 }
 
 /// Pointer to a GitHub repository.
@@ -5228,6 +5299,23 @@ pub struct SandboxCredentialSuggestion {
     pub suggested_inject_hosts: Vec<String>,
 }
 
+/// A saved provider's editable settings and credential status, never secret values.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SavedProviderConfigurationProvider {
+    /// Credential availability without disclosing its value.
+    pub credential_status: SavedProviderCredentialStatus,
+    /// Safe connection settings; commands, headers, credentials, and internal storage metadata are omitted.
+    pub provider: SavedProviderConfigurationProviderInput,
+}
+
 /// Scheduled prompt entry with ID, timing (`intervalMs`, `cron`, or `at`), prompt text, recurrence, and next run time.
 ///
 /// <div class="warning">
@@ -6344,6 +6432,40 @@ pub enum ProviderConfigTransport {
     /// WebSocket transport.
     #[serde(rename = "websockets")]
     Websockets,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Provider families supported by saved configuration, including managed local models.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SavedProviderConfigurationType {
+    /// Generic OpenAI-compatible API.
+    #[serde(rename = "openai")]
+    Openai,
+    /// Azure OpenAI Service endpoint.
+    #[serde(rename = "azure")]
+    Azure,
+    /// Anthropic API endpoint.
+    #[serde(rename = "anthropic")]
+    Anthropic,
+    /// Experimental: Google Gemini API endpoint, served over the native Gemini Interactions API.
+    #[serde(rename = "google")]
+    Google,
+    /// Runtime-managed local model server.
+    #[serde(rename = "local_model")]
+    LocalModel,
+    /// Windows ML local model provider.
+    #[serde(rename = "winml")]
+    Winml,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -8818,6 +8940,31 @@ pub(crate) enum SettingsEditOperation {
     /// Remove the setting without supplying a value.
     #[serde(rename = "remove")]
     Remove,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Credential availability, not provider authentication or health.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SavedProviderCredentialStatus {
+    /// A secure or legacy credential source is configured.
+    #[serde(rename = "present")]
+    Present,
+    /// No credential source is configured.
+    #[serde(rename = "absent")]
+    Absent,
+    /// Secure credential storage could not be queried.
+    #[serde(rename = "unavailable")]
+    Unavailable,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

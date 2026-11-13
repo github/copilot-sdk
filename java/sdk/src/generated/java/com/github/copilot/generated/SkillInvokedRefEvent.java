@@ -49,7 +49,7 @@ public final class SkillInvokedRefEvent extends SessionEvent {
         @JsonProperty("model") String model,
         /** File path to the SKILL.md definition, or an empty string for an SDK-provided skill without a filesystem identity */
         @JsonProperty("path") String path,
-        /** Content identifier of an earlier inline skill event in this session, in the prefixed form `sha256:<lowercase hex digest>` over the UTF-8 bytes of that event's `content` */
+        /** Content identifier of an earlier inline skill event in this session, in the prefixed form `sha256:&lt;lowercase hex digest>` over the UTF-8 bytes of that event's `content` */
         @JsonProperty("contentId") String contentId,
         /** UTF-16 code unit length of the referenced skill content. Derived from the referenced body and validated against it when the reference is expanded; a reference whose length disagrees with the body it names is rejected instead of expanded */
         @JsonProperty("contentLength") Long contentLength,
@@ -83,7 +83,7 @@ public final class SkillInvokedRefEvent extends SessionEvent {
          * @param invokedAtTurn Projected chat-message count when the skill was invoked. Preserved from the inline event data when the authored body is deduplicated.
          * @param model Model identifier active when the skill was invoked, when known
          * @param path File path to the SKILL.md definition, or an empty string for an SDK-provided skill without a filesystem identity
-         * @param contentId Content identifier of an earlier inline skill event in this session, in the prefixed form `sha256:<lowercase hex digest>` over the UTF-8 bytes of that event's `content`
+         * @param contentId Content identifier of an earlier inline skill event in this session, in the prefixed form `sha256:&lt;lowercase hex digest>` over the UTF-8 bytes of that event's `content`
          * @param contentLength UTF-16 code unit length of the referenced skill content. Derived from the referenced body and validated against it when the reference is expanded; a reference whose length disagrees with the body it names is rejected instead of expanded
          * @param allowedTools Tool names that should be auto-approved when this skill is active
          * @param disableModelInvocation Whether model invocation is disabled for this skill

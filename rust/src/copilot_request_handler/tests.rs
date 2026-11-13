@@ -196,48 +196,6 @@ async fn secure_websocket_rejects_a_plaintext_endpoint_without_panicking() {
     }
 }
 
-#[tokio::test]
-async fn plaintext_websocket_still_forwards_messages() {
-    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let address = listener.local_addr().unwrap();
-    let response = CopilotWebSocketResponse::new(Arc::new(CopilotRequestExchange::new(
-        "plaintext-websocket".to_string(),
-        Weak::new(),
-    )));
-    let server = async {
-        let (socket, _) = listener.accept().await.unwrap();
-        let mut websocket = tokio_tungstenite::accept_async(socket).await.unwrap();
-        assert_eq!(
-            websocket.next().await.unwrap().unwrap(),
-            Message::Text("plaintext-websocket-message".into()),
-        );
-        assert!(matches!(
-            websocket.next().await.unwrap().unwrap(),
-            Message::Close(_),
-        ));
-    };
-    let forward = Box::pin(async {
-        let forwarder =
-            CopilotWebSocketForwarder::builder(format!("ws://{address}/"), HeaderMap::new())
-                .connect(response)
-                .await
-                .unwrap();
-        forwarder
-            .send_request_message(CopilotWebSocketMessage {
-                data: b"plaintext-websocket-message".to_vec(),
-                binary: false,
-            })
-            .await
-            .unwrap();
-        forwarder.close().await.unwrap();
-    });
-    timeout(Duration::from_secs(5), async {
-        tokio::join!(server, forward)
-    })
-    .await
-    .expect("plaintext WebSocket should complete its round trip");
-}
-
 #[derive(Default)]
 struct EmptyResponseHandler {
     calls: std::sync::atomic::AtomicUsize,

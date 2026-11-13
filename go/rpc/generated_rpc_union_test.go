@@ -9,6 +9,55 @@ import (
 	"github.com/github/copilot-sdk/go/internal/jsonrpc2"
 )
 
+func TestProtocolSectionOverrideEdits(t *testing.T) {
+	t.Run("static content stays editable after decoding", func(t *testing.T) {
+		var section ProtocolSectionOverride
+		if err := json.Unmarshal([]byte(`{"action":"replace","content":"before"}`), &section); err != nil {
+			t.Fatalf("decode section: %v", err)
+		}
+		if section.ProtocolStaticSectionOverride == nil || section.ProtocolMarkerSectionOverride != nil {
+			t.Fatalf("decoded section = %#v, want only a static override", section)
+		}
+		content := "after"
+		section.ProtocolStaticSectionOverride.Content = &content
+		wire, err := json.Marshal(section)
+		if err != nil {
+			t.Fatalf("encode edited section: %v", err)
+		}
+		if string(wire) != `{"action":"replace","content":"after"}` {
+			t.Fatalf("edited section = %s, want replacement content", wire)
+		}
+	})
+
+	t.Run("marker action keeps its typed representation", func(t *testing.T) {
+		var section ProtocolSectionOverride
+		if err := json.Unmarshal([]byte(`{"action":"transform"}`), &section); err != nil {
+			t.Fatalf("decode marker: %v", err)
+		}
+		if _, ok := section.ProtocolMarkerSectionOverride.(*ProtocolMarkerSectionOverrideTransform); !ok {
+			t.Fatalf("decoded marker = %T, want *ProtocolMarkerSectionOverrideTransform", section.ProtocolMarkerSectionOverride)
+		}
+		if section.ProtocolStaticSectionOverride != nil {
+			t.Fatalf("marker also decoded as static: %#v", section)
+		}
+	})
+
+	t.Run("unknown action retains its payload", func(t *testing.T) {
+		const payload = `{"action":"future","option":"retained"}`
+		var section ProtocolSectionOverride
+		if err := json.Unmarshal([]byte(payload), &section); err != nil {
+			t.Fatalf("decode future action: %v", err)
+		}
+		wire, err := json.Marshal(section)
+		if err != nil {
+			t.Fatalf("encode future action: %v", err)
+		}
+		if string(wire) != payload {
+			t.Fatalf("future action = %s, want %s", wire, payload)
+		}
+	})
+}
+
 func TestExternalToolResultJSONUnion(t *testing.T) {
 	var stringResult ExternalToolResult = ExternalToolStringResult("tool result")
 	raw, err := json.Marshal(stringResult)

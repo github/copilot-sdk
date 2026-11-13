@@ -9606,11 +9606,15 @@ type HistoryRewindResult struct {
 // change or be removed.
 type HistorySetCompactionConfigRequest struct {
 	// Model that summarizes this session's conversation when it compacts,
-	// instead of the session's own model. Applies only when both are Copilot
-	// models the session may use; for a BYOK or provider session, or a model
-	// the session's catalog or allowed-model policy rejects, compaction
-	// summarizes on the session's model. Takes precedence over any runtime
-	// experiment that picks a compaction model. Blank values are ignored.
+	// instead of the session's own model. A Copilot session can name another
+	// Copilot model it may use. A session on a custom provider can name
+	// another model that provider serves: for a single `provider` config, a
+	// model name it accepts, sent with default limits for that name; for a
+	// named provider, another of that provider's model selection IDs. An Azure
+	// provider, a model from a different provider, or a model the session's
+	// catalog or allowed-model policy rejects leaves compaction on the
+	// session's model. Takes precedence over any runtime experiment that picks
+	// a compaction model. Blank values are ignored.
 	Model *string `json:"model,omitempty"`
 	// Summarization instruction sent as the final user message of a
 	// compaction request, replacing the built-in prompt entirely; the caller
@@ -16798,8 +16802,8 @@ type MetadataRecomputeContextTokensRequest struct {
 
 // Re-tokenize the session's existing messages against `modelId` and return the token
 // totals. Useful for hosts that want an initial estimate of context usage on session
-// resume, before the next agent turn fires `session.context_info_changed` events. Returns
-// zeros for an empty session.
+// resume, before the next agent turn fires `session.usage_info` events. Returns zeros for
+// an empty session.
 // Experimental: MetadataRecomputeContextTokensResult is part of an experimental API and may
 // change or be removed.
 type MetadataRecomputeContextTokensResult struct {
@@ -19175,6 +19179,11 @@ type PermissionRecoveryAttempt struct {
 	Relation PermissionRecoveryAttemptRelation `json:"relation"`
 	// SHA-256 fingerprint of normalized request data; raw permission arguments are not included
 	RequestFingerprint string `json:"requestFingerprint"`
+	// Whether this deferral happened because the automatic permission review ended without a
+	// verdict (timeout, empty or unparseable reply). Such a deferral assesses nothing: it does
+	// not make a later identical request a repeated attempt or count toward the attempt limit.
+	// Older runtimes ignore it.
+	ReviewIncomplete *bool `json:"reviewIncomplete,omitempty"`
 	// Tool-call identifier associated with this attempt, when available
 	ToolCallID *string `json:"toolCallId,omitempty"`
 }
@@ -21158,8 +21167,44 @@ type ProviderQuotaState struct {
 // Experimental: ProvidersConfigAddModelResult is part of an experimental API and may change
 // or be removed.
 type ProvidersConfigAddModelResult struct {
-	// Whether the provider was created along with the model.
+	// True when this operation created the provider row.
 	ProviderAdded bool `json:"providerAdded"`
+}
+
+// Saved configuration. Reading does not activate, select, or load a model.
+// Experimental: ProvidersConfigReadResult is part of an experimental API and may change or
+// be removed.
+type ProvidersConfigReadResult struct {
+	// Saved model definitions in file order.
+	Models []ProviderModelConfig `json:"models"`
+	// Providers in saved order.
+	Providers []SavedProviderConfigurationProvider `json:"providers"`
+}
+
+// Result of removing one saved provider model.
+// Experimental: ProvidersConfigRemoveModelResult is part of an experimental API and may
+// change or be removed.
+type ProvidersConfigRemoveModelResult struct {
+	// True when removing the final model also removed its provider and managed credential.
+	ProviderRemoved bool `json:"providerRemoved"`
+}
+
+// Result of updating one saved provider model.
+// Experimental: ProvidersConfigUpdateModelResult is part of an experimental API and may
+// change or be removed.
+type ProvidersConfigUpdateModelResult struct {
+	// Provider-local id of the updated model.
+	ModelID string `json:"modelId"`
+	// Name of the provider that owns the updated model.
+	ProviderName string `json:"providerName"`
+}
+
+// Result of updating shared saved provider settings.
+// Experimental: ProvidersConfigUpdateProviderResult is part of an experimental API and may
+// change or be removed.
+type ProvidersConfigUpdateProviderResult struct {
+	// Name of the provider whose settings were updated.
+	ProviderName string `json:"providerName"`
 }
 
 // Short-lived, rotating credential the caller must send on every request, in addition to
@@ -21183,7 +21228,7 @@ type ProviderSessionToken struct {
 // Experimental: ProvidersSourceAddModelResult is part of an experimental API and may change
 // or be removed.
 type ProvidersSourceAddModelResult struct {
-	// Whether the provider was created along with the model.
+	// True when this operation created the provider row.
 	ProviderAdded bool `json:"providerAdded"`
 }
 
@@ -21243,6 +21288,23 @@ type ProviderTokenAcquireRequest struct {
 type ProviderTokenAcquireResult struct {
 	// The bearer token value (without the `Bearer ` prefix).
 	Token string `json:"token"`
+}
+
+// Request to update one provider-local model in a single session.
+// Experimental: ProviderUpdateModelRequest is part of an experimental API and may change or
+// be removed.
+type ProviderUpdateModelRequest struct {
+	// Replacement model definition. Its provider and id identify the session row to replace.
+	Model ProviderModelConfig `json:"model"`
+}
+
+// Request to update one provider's connection settings in a single session.
+// Experimental: ProviderUpdateProviderRequest is part of an experimental API and may change
+// or be removed.
+type ProviderUpdateProviderRequest struct {
+	// Replacement provider settings. Credentials and custom headers are not accepted in this
+	// session update.
+	Provider SavedProviderConfigurationProviderInput `json:"provider"`
 }
 
 // Host-managed model selection ids to withdraw from the session's BYOK registry.
@@ -23148,8 +23210,19 @@ type SavedProviderConfigurationAddModelRequest struct {
 // Experimental: SavedProviderConfigurationAddModelResult is part of an experimental API and
 // may change or be removed.
 type SavedProviderConfigurationAddModelResult struct {
-	// Whether the provider was created along with the model.
+	// True when this operation created the provider row.
 	ProviderAdded bool `json:"providerAdded"`
+}
+
+// A saved provider's editable settings and credential status, never secret values.
+// Experimental: SavedProviderConfigurationProvider is part of an experimental API and may
+// change or be removed.
+type SavedProviderConfigurationProvider struct {
+	// Credential availability without disclosing its value.
+	CredentialStatus SavedProviderCredentialStatus `json:"credentialStatus"`
+	// Safe connection settings; commands, headers, credentials, and internal storage metadata
+	// are omitted.
+	Provider SavedProviderConfigurationProviderInput `json:"provider"`
 }
 
 // Editable provider settings, without credential values or custom headers.
@@ -23172,6 +23245,71 @@ type SavedProviderConfigurationProviderInput struct {
 	Type *SavedProviderConfigurationType `json:"type,omitempty"`
 	// OpenAI-compatible wire API.
 	WireAPI *ProviderConfigWireAPI `json:"wireApi,omitempty"`
+}
+
+// Saved configuration. Reading does not activate, select, or load a model.
+// Experimental: SavedProviderConfigurationReadResult is part of an experimental API and may
+// change or be removed.
+type SavedProviderConfigurationReadResult struct {
+	// Saved model definitions in file order.
+	Models []ProviderModelConfig `json:"models"`
+	// Providers in saved order.
+	Providers []SavedProviderConfigurationProvider `json:"providers"`
+}
+
+// Request to remove one saved provider-local model definition.
+// Experimental: SavedProviderConfigurationRemoveModelRequest is part of an experimental API
+// and may change or be removed.
+type SavedProviderConfigurationRemoveModelRequest struct {
+	// Provider-local model id to remove.
+	ModelID string `json:"modelId"`
+	// Name of the provider that owns the model.
+	ProviderName string `json:"providerName"`
+}
+
+// Result of removing one saved provider model.
+// Experimental: SavedProviderConfigurationRemoveModelResult is part of an experimental API
+// and may change or be removed.
+type SavedProviderConfigurationRemoveModelResult struct {
+	// True when removing the final model also removed its provider and managed credential.
+	ProviderRemoved bool `json:"providerRemoved"`
+}
+
+// Request to replace one saved provider-local model definition.
+// Experimental: SavedProviderConfigurationUpdateModelRequest is part of an experimental API
+// and may change or be removed.
+type SavedProviderConfigurationUpdateModelRequest struct {
+	// Replacement model definition. Its provider and id identify the saved row to replace.
+	Model ProviderModelConfig `json:"model"`
+}
+
+// Result of updating one saved provider model.
+// Experimental: SavedProviderConfigurationUpdateModelResult is part of an experimental API
+// and may change or be removed.
+type SavedProviderConfigurationUpdateModelResult struct {
+	// Provider-local id of the updated model.
+	ModelID string `json:"modelId"`
+	// Name of the provider that owns the updated model.
+	ProviderName string `json:"providerName"`
+}
+
+// Request to replace shared settings for one saved provider.
+// Experimental: SavedProviderConfigurationUpdateProviderRequest is part of an experimental
+// API and may change or be removed.
+type SavedProviderConfigurationUpdateProviderRequest struct {
+	// Optional replacement API key. Stored in the OS keychain and never returned.
+	Credential *string `json:"credential,omitempty"`
+	// Replacement provider settings. Existing credentials and custom headers are retained;
+	// omitted local-model settings are retained.
+	Provider SavedProviderConfigurationProviderInput `json:"provider"`
+}
+
+// Result of updating shared saved provider settings.
+// Experimental: SavedProviderConfigurationUpdateProviderResult is part of an experimental
+// API and may change or be removed.
+type SavedProviderConfigurationUpdateProviderResult struct {
+	// Name of the provider whose settings were updated.
+	ProviderName string `json:"providerName"`
 }
 
 // Register an absolute-time scheduled prompt.
@@ -26474,6 +26612,33 @@ type SessionProvidersModelsDiagnoseRequest struct {
 type SessionProvidersModelsDiagnoseResult struct {
 	// True for a selectable model, false for a blocked model, absent for a missing row.
 	Available *bool `json:"available,omitempty"`
+}
+
+// Request to update one provider-local model in a single session.
+// Experimental: SessionProviderUpdateModelRequest is part of an experimental API and may
+// change or be removed.
+type SessionProviderUpdateModelRequest struct {
+	// Replacement model definition. Its provider and id identify the session row to replace.
+	Model ProviderModelConfig `json:"model"`
+}
+
+// Experimental: SessionProviderUpdateModelResult is part of an experimental API and may
+// change or be removed.
+type SessionProviderUpdateModelResult struct {
+}
+
+// Request to update one provider's connection settings in a single session.
+// Experimental: SessionProviderUpdateProviderRequest is part of an experimental API and may
+// change or be removed.
+type SessionProviderUpdateProviderRequest struct {
+	// Replacement provider settings. Credentials and custom headers are not accepted in this
+	// session update.
+	Provider SavedProviderConfigurationProviderInput `json:"provider"`
+}
+
+// Experimental: SessionProviderUpdateProviderResult is part of an experimental API and may
+// change or be removed.
+type SessionProviderUpdateProviderResult struct {
 }
 
 // Outcome of the prune operation: deleted IDs, dry-run candidates, skipped IDs, total bytes
@@ -30373,6 +30538,10 @@ type TeamPluginMarketplace struct {
 // Experimental: TeamPluginMarketplaceSource is part of an experimental API and may change
 // or be removed.
 type TeamPluginMarketplaceSource struct {
+	// Folder in the repository that holds the marketplace. Absent means the repository root.
+	Path *string `json:"path,omitempty"`
+	// Branch or tag the marketplace is read from. Absent means the default branch.
+	Ref *string `json:"ref,omitempty"`
 	// GitHub repository in owner/name form.
 	Repo string `json:"repo"`
 	// Marketplace source discriminator. Currently only github is supported.
@@ -31505,7 +31674,8 @@ type UserSettingsGetPathsResult struct {
 	// The repository's checked-in settings file, or null when no repository root was supplied.
 	RepoSettings *string `json:"repoSettings,omitempty"`
 	// The user settings file: `settings.json` under the resolved Copilot home. This is the file
-	// `user.settings.get`, `user.settings.load`, and `user.settings.set` read and write.
+	// `user.settings.get`, `user.settings.loadWithWarning`, and `user.settings.set` read and
+	// write.
 	UserSettings string `json:"userSettings"`
 }
 
@@ -31717,8 +31887,8 @@ type UserSettingsMigrateObsoleteOnDiskRequest struct {
 // of the public surface.
 type UserSettingsMigrateObsoleteOnDiskResult struct {
 	// What the cleanup did. Only `changed` rewrote the document. The cleaned settings are not
-	// returned here: the document is written before this replies, so `user.settings.load` reads
-	// it authoritatively.
+	// returned here: the document is written before this replies, so
+	// `user.settings.loadWithWarning` reads it authoritatively.
 	// Internal: Status is part of the SDK's internal API surface and is not intended for
 	// external use.
 	Status UserSettingsMigrateObsoleteOnDiskStatus `json:"status"`
@@ -31912,7 +32082,7 @@ type UserSettingsResetStaffModelSelectionOnceResult struct {
 type UserSettingsSetHookDisabledRequest struct {
 	// True adds the key to `disabledHooks`, false removes it.
 	Disabled bool `json:"disabled"`
-	// Durable content-hash key of the hook, as `hooks.loadResources` reports it.
+	// Durable content-hash key of the hook, as `hooks.discover` reports it in `disableKey`.
 	DisableKey string `json:"disableKey"`
 	// Path of the settings.json to rewrite.
 	SettingsPath string `json:"settingsPath"`
@@ -38840,7 +39010,7 @@ const (
 	SandboxSessionChangeRestored SandboxSessionChange = "restored"
 )
 
-// Provider families supported by saved configuration.
+// Provider families supported by saved configuration, including managed local models.
 // Experimental: SavedProviderConfigurationType is part of an experimental API and may
 // change or be removed.
 type SavedProviderConfigurationType string
@@ -38858,6 +39028,20 @@ const (
 	SavedProviderConfigurationTypeOpenai SavedProviderConfigurationType = "openai"
 	// Windows ML local model provider.
 	SavedProviderConfigurationTypeWinml SavedProviderConfigurationType = "winml"
+)
+
+// Credential availability, not provider authentication or health.
+// Experimental: SavedProviderCredentialStatus is part of an experimental API and may change
+// or be removed.
+type SavedProviderCredentialStatus string
+
+const (
+	// No credential source is configured.
+	SavedProviderCredentialStatusAbsent SavedProviderCredentialStatus = "absent"
+	// A secure or legacy credential source is configured.
+	SavedProviderCredentialStatusPresent SavedProviderCredentialStatus = "present"
+	// Secure credential storage could not be queried.
+	SavedProviderCredentialStatusUnavailable SavedProviderCredentialStatus = "unavailable"
 )
 
 // The UI mode the agent was in when this message was sent. Defaults to the session's
@@ -42905,6 +43089,86 @@ func (a *ServerProvidersConfigAPI) AddModel(ctx context.Context, params *SavedPr
 		return nil, err
 	}
 	var result ProvidersConfigAddModelResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Reads the server's saved provider settings and credential availability without returning
+// secrets or activating models.
+//
+// RPC method: providers.config.read.
+//
+// Returns: Saved configuration. Reading does not activate, select, or load a model.
+func (a *ServerProvidersConfigAPI) Read(ctx context.Context) (*ProvidersConfigReadResult, error) {
+	raw, err := a.client.Request(ctx, "providers.config.read", nil)
+	if err != nil {
+		return nil, err
+	}
+	var result ProvidersConfigReadResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// RemoveModel removes one model from the server's saved provider configuration and removes
+// its provider only when no saved models remain. This durable operation does not change any
+// live session.
+//
+// RPC method: providers.config.removeModel.
+//
+// Parameters: Request to remove one saved provider-local model definition.
+//
+// Returns: Result of removing one saved provider model.
+func (a *ServerProvidersConfigAPI) RemoveModel(ctx context.Context, params *SavedProviderConfigurationRemoveModelRequest) (*ProvidersConfigRemoveModelResult, error) {
+	raw, err := a.client.Request(ctx, "providers.config.removeModel", params)
+	if err != nil {
+		return nil, err
+	}
+	var result ProvidersConfigRemoveModelResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// UpdateModel updates one saved provider model without changing its sibling models. This
+// durable operation does not change any live session.
+//
+// RPC method: providers.config.updateModel.
+//
+// Parameters: Request to replace one saved provider-local model definition.
+//
+// Returns: Result of updating one saved provider model.
+func (a *ServerProvidersConfigAPI) UpdateModel(ctx context.Context, params *SavedProviderConfigurationUpdateModelRequest) (*ProvidersConfigUpdateModelResult, error) {
+	raw, err := a.client.Request(ctx, "providers.config.updateModel", params)
+	if err != nil {
+		return nil, err
+	}
+	var result ProvidersConfigUpdateModelResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// UpdateProvider updates shared connection settings for a saved provider while preserving
+// its credentials and other sensitive fields. This durable operation does not change any
+// live session.
+//
+// RPC method: providers.config.updateProvider.
+//
+// Parameters: Request to replace shared settings for one saved provider.
+//
+// Returns: Result of updating shared saved provider settings.
+func (a *ServerProvidersConfigAPI) UpdateProvider(ctx context.Context, params *SavedProviderConfigurationUpdateProviderRequest) (*ProvidersConfigUpdateProviderResult, error) {
+	raw, err := a.client.Request(ctx, "providers.config.updateProvider", params)
+	if err != nil {
+		return nil, err
+	}
+	var result ProvidersConfigUpdateProviderResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -47923,9 +48187,9 @@ func (a *InternalServerUserSettingsAPI) Edit(ctx context.Context, params *UserSe
 	return &result, nil
 }
 
-// GetPath reports the on-disk path of the settings document `user.settings.load` and
-// `user.settings.set` read and write. Resolved the same way those methods resolve it, so a
-// host that shows or opens the settings file names the file the runtime actually uses,
+// GetPath reports the on-disk path of the settings document `user.settings.loadWithWarning`
+// and `user.settings.set` read and write. Resolved the same way those methods resolve it,
+// so a host that shows or opens the settings file names the file the runtime actually uses,
 // including the extensionless legacy `settings` file when that is what is present.
 //
 // RPC method: user.settings.getPath.
@@ -47947,9 +48211,9 @@ func (a *InternalServerUserSettingsAPI) GetPath(ctx context.Context) (*UserSetti
 
 // GetPaths resolves the on-disk locations of the settings files this runtime reads, so a
 // consumer can show or open them. The user path is the same file `user.settings.get`,
-// `user.settings.load`, and `user.settings.set` operate on. Supply `repoRoot` to also
-// resolve that repository's checked-in and local settings paths. A path is reported whether
-// or not the file exists.
+// `user.settings.loadWithWarning`, and `user.settings.set` operate on. Supply `repoRoot` to
+// also resolve that repository's checked-in and local settings paths. A path is reported
+// whether or not the file exists.
 //
 // RPC method: user.settings.getPaths.
 //
@@ -48054,12 +48318,13 @@ func (a *InternalServerUserSettingsAPI) LoadAndMergeRepo(ctx context.Context, pa
 	return &result, nil
 }
 
-// LoadForConfigDir reads the user's settings document exactly as `user.settings.load` does,
-// but from a caller-supplied configuration directory instead of the one the server resolved
-// for itself. Use this when a consumer scopes a session to its own Copilot home — the SDK's
-// per-session `configDir` override — so the settings read match the directory that session
-// actually uses. An absent or empty `configDir` resolves the server's own home, making this
-// identical to `user.settings.load`. Hook-validation relaxations are deliberately not
+// LoadForConfigDir reads the user's settings document as `user.settings.loadWithWarning`
+// does, without its warning, but from a caller-supplied configuration directory instead of
+// the one the server resolved for itself. Use this when a consumer scopes a session to its
+// own Copilot home — the SDK's per-session `configDir` override — so the settings read
+// match the directory that session actually uses. An absent or empty `configDir` resolves
+// the server's own home, making this identical to the `settings` that
+// `user.settings.loadWithWarning` returns. Hook-validation relaxations are deliberately not
 // caller-supplied: they continue to come from the server's environment, so a consumer
 // cannot widen the host's hook policy through this method.
 //
@@ -48106,14 +48371,14 @@ func (a *InternalServerUserSettingsAPI) LoadForEdit(ctx context.Context) (*UserS
 
 // LoadRepo reads a repository's checked-in settings document as stored, normalized,
 // together with any diagnostic raised while reading it. This is the repository half of the
-// layering `user.settings.get` reports: `user.settings.load` reads the user's own document,
-// and this reads the one a repository checks in to govern the keys
-// `user.settings.governanceKeys` lists as repo-governable. A document that fails to parse,
-// or that sets a key a repository may not govern, is reported through `warning` while the
-// settings that did load are still returned, so a consumer surfaces the diagnostic and
-// continues rather than failing the session. When `repoRoot` is the user's home directory
-// the Claude-compatible configuration is skipped, so a home-directory session does not
-// inherit a personal config as repository policy.
+// layering `user.settings.get` reports: `user.settings.loadWithWarning` reads the user's
+// own document, and this reads the one a repository checks in to govern the keys
+// `user.settings.listGovernanceKeys` lists as repo-governable. A document that fails to
+// parse, or that sets a key a repository may not govern, is reported through `warning`
+// while the settings that did load are still returned, so a consumer surfaces the
+// diagnostic and continues rather than failing the session. When `repoRoot` is the user's
+// home directory the Claude-compatible configuration is skipped, so a home-directory
+// session does not inherit a personal config as repository policy.
 //
 // RPC method: user.settings.loadRepo.
 //
@@ -48136,12 +48401,12 @@ func (a *InternalServerUserSettingsAPI) LoadRepo(ctx context.Context, params *Us
 }
 
 // LoadWithWarning reads the user's stored settings together with the diagnostic raised
-// while reading them. This is `user.settings.load` plus the reason part of the document was
-// ignored: that one answers the document alone, so a caller cannot tell a clean read from a
-// salvaged one. Read this when the caller is about to write the file back, where accepting
-// a partial parse would discard every value the loader could not read. The settings that
-// did load are still reported alongside the warning, so a consumer may surface it and
-// continue instead of failing.
+// while reading them. This is `user.settings.loadForConfigDir` without a `configDir` plus
+// the reason part of the document was ignored: that one answers the document alone, so a
+// caller cannot tell a clean read from a salvaged one. Read this when the caller is about
+// to write the file back, where accepting a partial parse would discard every value the
+// loader could not read. The settings that did load are still reported alongside the
+// warning, so a consumer may surface it and continue instead of failing.
 //
 // RPC method: user.settings.loadWithWarning.
 //
@@ -48232,9 +48497,10 @@ func (a *InternalServerUserSettingsAPI) MergeRepoValue(ctx context.Context, para
 // a setting written by a newer host is never dropped by an older one, and a document that
 // fails to parse is reported `invalid` and left untouched rather than rewritten from a
 // partial read. The cleaned document is not returned: it is written before this replies, so
-// `user.settings.load` reads it authoritatively. A host that surfaces unrecognized keys
-// through `user.settings.unknownKeys` wants this first, because the keys this retires would
-// otherwise be shown to the user as if they were misspelled settings.
+// `user.settings.loadWithWarning` reads it authoritatively. A host that surfaces
+// unrecognized keys through `user.settings.getUnknownKeysWarning` wants this first, because
+// the keys this retires would otherwise be shown to the user as if they were misspelled
+// settings.
 //
 // RPC method: user.settings.migrateObsoleteOnDisk.
 //
@@ -52262,8 +52528,8 @@ func (a *MetadataAPI) IsProcessing(ctx context.Context) (*MetadataIsProcessingRe
 //
 // Returns: Re-tokenize the session's existing messages against `modelId` and return the
 // token totals. Useful for hosts that want an initial estimate of context usage on session
-// resume, before the next agent turn fires `session.context_info_changed` events. Returns
-// zeros for an empty session.
+// resume, before the next agent turn fires `session.usage_info` events. Returns zeros for
+// an empty session.
 func (a *MetadataAPI) RecomputeContextTokens(ctx context.Context, params *MetadataRecomputeContextTokensRequest) (*MetadataRecomputeContextTokensResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
@@ -54437,6 +54703,50 @@ func (a *ProviderAPI) Sync(ctx context.Context, params *ProviderSyncRequest) (*P
 		return nil, err
 	}
 	var result ProviderSyncResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// UpdateModel updates one model in this session's BYOK registry without replacing sibling
+// models or unrelated provider registrations.
+//
+// RPC method: session.provider.updateModel.
+//
+// Parameters: Request to update one provider-local model in a single session.
+func (a *ProviderAPI) UpdateModel(ctx context.Context, params *SessionProviderUpdateModelRequest) (*SessionProviderUpdateModelResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["model"] = params.Model
+	}
+	raw, err := a.client.Request(ctx, "session.provider.updateModel", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionProviderUpdateModelResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// UpdateProvider updates one provider's connection settings in this session's BYOK registry
+// while preserving its saved credential and sibling models.
+//
+// RPC method: session.provider.updateProvider.
+//
+// Parameters: Request to update one provider's connection settings in a single session.
+func (a *ProviderAPI) UpdateProvider(ctx context.Context, params *SessionProviderUpdateProviderRequest) (*SessionProviderUpdateProviderResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["provider"] = params.Provider
+	}
+	raw, err := a.client.Request(ctx, "session.provider.updateProvider", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionProviderUpdateProviderResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}

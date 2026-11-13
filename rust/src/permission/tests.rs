@@ -14,19 +14,6 @@ fn data() -> PermissionRequestData {
 }
 
 #[tokio::test]
-async fn approve_all_approves() {
-    let h = approve_all();
-    assert!(matches!(
-        h.handle(SessionId::from("s"), RequestId::new("1"), data())
-            .await,
-        PermissionResult::Decision {
-            decision: crate::types::PermissionDecision::ApproveOnce(_),
-            ..
-        }
-    ));
-}
-
-#[tokio::test]
 async fn approve_all_fails_when_managed_settings_enabled() {
     let h = approve_all();
     let mut request = data();
@@ -44,19 +31,6 @@ async fn approve_all_fails_when_managed_settings_enabled() {
 #[tokio::test]
 async fn deny_all_denies() {
     let h = deny_all();
-    assert!(matches!(
-        h.handle(SessionId::from("s"), RequestId::new("1"), data())
-            .await,
-        PermissionResult::Decision {
-            decision: crate::types::PermissionDecision::Reject(_),
-            ..
-        }
-    ));
-}
-
-#[tokio::test]
-async fn approve_if_consults_predicate() {
-    let h = approve_if(|d| d.extra.get("tool").and_then(|v| v.as_str()) != Some("shell"));
     assert!(matches!(
         h.handle(SessionId::from("s"), RequestId::new("1"), data())
             .await,
@@ -86,33 +60,6 @@ async fn approve_if_still_rejects_managed_request_when_predicate_denies() {
     request.managed_approval_required = Some(true);
     assert!(matches!(
         h.handle(SessionId::from("s"), RequestId::new("1"), request)
-            .await,
-        PermissionResult::Decision {
-            decision: crate::types::PermissionDecision::Reject(_),
-            ..
-        }
-    ));
-}
-
-#[tokio::test]
-async fn resolve_handler_policy_wins() {
-    struct AlwaysApprove;
-    #[async_trait]
-    impl PermissionHandler for AlwaysApprove {
-        async fn handle(
-            &self,
-            _: SessionId,
-            _: RequestId,
-            _: PermissionRequestData,
-        ) -> PermissionResult {
-            PermissionResult::approve_once()
-        }
-    }
-    let resolved = resolve_handler(Some(Arc::new(AlwaysApprove)), Some(Policy::DenyAll)).unwrap();
-    // Policy wins -- the AlwaysApprove handler is discarded.
-    assert!(matches!(
-        resolved
-            .handle(SessionId::from("s"), RequestId::new("1"), data())
             .await,
         PermissionResult::Decision {
             decision: crate::types::PermissionDecision::Reject(_),

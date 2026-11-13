@@ -14,7 +14,7 @@ import com.github.copilot.CopilotExperimental;
 import javax.annotation.processing.Generated;
 
 /**
- * A bearer token supplied by the SDK client for a BYOK provider. The runtime sets it as `Authorization: Bearer <token>` on the outbound request and does no caching; the SDK consumer owns token caching and refresh.
+ * A bearer token supplied by the SDK client for a BYOK provider. The runtime sets it as `Authorization: Bearer &lt;token>` on the outbound request and does no caching; the SDK consumer owns token caching and refresh.
  *
  * @apiNote This method is experimental and may change in a future version.
  * @since 1.0.0

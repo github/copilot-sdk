@@ -55,7 +55,7 @@ public final class UserMessageEvent extends SessionEvent {
         @JsonProperty("supportedNativeDocumentMimeTypes") List<String> supportedNativeDocumentMimeTypes,
         /** Path-backed native document attachments that stayed on the tagged_files path flow because native upload could not read them or would exceed the request size limit */
         @JsonProperty("nativeDocumentPathFallbackPaths") List<String> nativeDocumentPathFallbackPaths,
-        /** Origin of this message, used for timeline filtering and attribution (e.g., `skill-pdf` for hidden skill injection or `agent-<agent-id>` for an inter-agent prompt) */
+        /** Origin of this message, used for timeline filtering and attribution (e.g., `skill-pdf` for hidden skill injection or `agent-&lt;agent-id>` for an inter-agent prompt) */
         @JsonProperty("source") String source,
         /** How this message was delivered to the agentic loop relative to loop state (idle-start vs. steering/queued while busy). The timing axis; combine with `source` (origin) for the full picture. Used for telemetry attribution. */
         @JsonProperty("delivery") UserMessageDelivery delivery,
@@ -83,7 +83,7 @@ public final class UserMessageEvent extends SessionEvent {
          * @param attachments Files, selections, or GitHub references attached to the message
          * @param supportedNativeDocumentMimeTypes Normalized document MIME types that were sent natively instead of through tagged_files XML
          * @param nativeDocumentPathFallbackPaths Path-backed native document attachments that stayed on the tagged_files path flow because native upload could not read them or would exceed the request size limit
-         * @param source Origin of this message, used for timeline filtering and attribution (e.g., `skill-pdf` for hidden skill injection or `agent-<agent-id>` for an inter-agent prompt)
+         * @param source Origin of this message, used for timeline filtering and attribution (e.g., `skill-pdf` for hidden skill injection or `agent-&lt;agent-id>` for an inter-agent prompt)
          * @param delivery How this message was delivered to the agentic loop relative to loop state (idle-start vs. steering/queued while busy). The timing axis; combine with `source` (origin) for the full picture. Used for telemetry attribution.
          * @param agentMode The agent mode that was active when this message was sent
          * @param isAutopilotContinuation True when this user message was auto-injected by autopilot's continuation loop rather than typed by the user; used to distinguish autopilot-driven turns in telemetry.
@@ -124,7 +124,7 @@ public final class UserMessageEvent extends SessionEvent {
          * @param attachments Files, selections, or GitHub references attached to the message
          * @param supportedNativeDocumentMimeTypes Normalized document MIME types that were sent natively instead of through tagged_files XML
          * @param nativeDocumentPathFallbackPaths Path-backed native document attachments that stayed on the tagged_files path flow because native upload could not read them or would exceed the request size limit
-         * @param source Origin of this message, used for timeline filtering and attribution (e.g., `skill-pdf` for hidden skill injection or `agent-<agent-id>` for an inter-agent prompt)
+         * @param source Origin of this message, used for timeline filtering and attribution (e.g., `skill-pdf` for hidden skill injection or `agent-&lt;agent-id>` for an inter-agent prompt)
          * @param delivery How this message was delivered to the agentic loop relative to loop state (idle-start vs. steering/queued while busy). The timing axis; combine with `source` (origin) for the full picture. Used for telemetry attribution.
          * @param agentMode The agent mode that was active when this message was sent
          * @param isAutopilotContinuation True when this user message was auto-injected by autopilot's continuation loop rather than typed by the user; used to distinguish autopilot-driven turns in telemetry.
@@ -163,7 +163,7 @@ public final class UserMessageEvent extends SessionEvent {
          * @param attachments Files, selections, or GitHub references attached to the message
          * @param supportedNativeDocumentMimeTypes Normalized document MIME types that were sent natively instead of through tagged_files XML
          * @param nativeDocumentPathFallbackPaths Path-backed native document attachments that stayed on the tagged_files path flow because native upload could not read them or would exceed the request size limit
-         * @param source Origin of this message, used for timeline filtering and attribution (e.g., `skill-pdf` for hidden skill injection or `agent-<agent-id>` for an inter-agent prompt)
+         * @param source Origin of this message, used for timeline filtering and attribution (e.g., `skill-pdf` for hidden skill injection or `agent-&lt;agent-id>` for an inter-agent prompt)
          * @param delivery How this message was delivered to the agentic loop relative to loop state (idle-start vs. steering/queued while busy). The timing axis; combine with `source` (origin) for the full picture. Used for telemetry attribution.
          * @param agentMode The agent mode that was active when this message was sent
          * @param isAutopilotContinuation True when this user message was auto-injected by autopilot's continuation loop rather than typed by the user; used to distinguish autopilot-driven turns in telemetry.

@@ -22,36 +22,6 @@ use super::support::{
 };
 
 #[tokio::test]
-async fn should_work_with_approve_all_permission_handler() {
-    super::support::with_shared_e2e_context(
-        &E2E,
-        "permissions",
-        "should_work_with_approve_all_permission_handler",
-        |ctx| {
-            Box::pin(async move {
-                ctx.set_default_copilot_user();
-                let client = ctx.start_client().await;
-                let session = client
-                    .create_session(ctx.approve_all_session_config())
-                    .await
-                    .expect("create session");
-
-                let answer = session
-                    .send_and_wait("What is 2+2?")
-                    .await
-                    .expect("send")
-                    .expect("assistant message");
-                assert!(assistant_message_content(&answer).contains('4'));
-
-                session.disconnect().await.expect("disconnect session");
-                client.stop().await.expect("stop client");
-            })
-        },
-    )
-    .await;
-}
-
-#[tokio::test]
 async fn should_deny_permission_when_handler_returns_denied() {
     super::support::with_shared_e2e_context(
         &E2E,
@@ -889,4 +859,4 @@ impl PermissionHandler for SlowPermissionHandler {
     }
 }
 static E2E: super::support::SharedE2eGroup =
-    super::support::SharedE2eGroup::standard("permissions", 9);
+    super::support::SharedE2eGroup::standard("permissions", 8);

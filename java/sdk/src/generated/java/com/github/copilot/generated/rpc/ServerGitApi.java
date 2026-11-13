@@ -27,7 +27,7 @@ final class ServerGitApi {
     }
 
     /**
-     * Reads the remote that the branch checked out in a working tree tracks, as `branch.<name>.remote` configures it. Reports `origin` rather than failing whenever there is no tracking configuration to read — on a detached HEAD, on a branch with no upstream, or when git itself fails — because a caller asking which remote to talk to needs an answer it can act on, not an error. Marked internal because it exists to carry a CLI call site off the napi boundary onto the SDK contract; it is migration plumbing, not a surface consumers are meant to depend on.
+     * Reads the remote that the branch checked out in a working tree tracks, as `branch.&lt;name>.remote` configures it. Reports `origin` rather than failing whenever there is no tracking configuration to read — on a detached HEAD, on a branch with no upstream, or when git itself fails — because a caller asking which remote to talk to needs an answer it can act on, not an error. Marked internal because it exists to carry a CLI call site off the napi boundary onto the SDK contract; it is migration plumbing, not a surface consumers are meant to depend on.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0

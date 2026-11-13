@@ -27,6 +27,50 @@ public final class ServerProvidersConfigApi {
     }
 
     /**
+     * Reads the server's saved provider settings and credential availability without returning secrets or activating models.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<ProvidersConfigReadResult> read() {
+        return caller.invoke("providers.config.read", java.util.Map.of(), ProvidersConfigReadResult.class);
+    }
+
+    /**
+     * Updates shared connection settings for a saved provider while preserving its credentials and other sensitive fields. This durable operation does not change any live session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<ProvidersConfigUpdateProviderResult> updateProvider(ProvidersConfigUpdateProviderParams params) {
+        return caller.invoke("providers.config.updateProvider", params, ProvidersConfigUpdateProviderResult.class);
+    }
+
+    /**
+     * Updates one saved provider model without changing its sibling models. This durable operation does not change any live session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<ProvidersConfigUpdateModelResult> updateModel(ProvidersConfigUpdateModelParams params) {
+        return caller.invoke("providers.config.updateModel", params, ProvidersConfigUpdateModelResult.class);
+    }
+
+    /**
+     * Removes one model from the server's saved provider configuration and removes its provider only when no saved models remain. This durable operation does not change any live session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<ProvidersConfigRemoveModelResult> removeModel(ProvidersConfigRemoveModelParams params) {
+        return caller.invoke("providers.config.removeModel", params, ProvidersConfigRemoveModelResult.class);
+    }
+
+    /**
      * Adds a model to the server's saved provider configuration. This durable operation does not change any live session.
      *
      * @apiNote This method is experimental and may change in a future version.

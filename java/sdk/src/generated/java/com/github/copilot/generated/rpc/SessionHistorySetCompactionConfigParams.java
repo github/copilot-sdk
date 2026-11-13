@@ -27,11 +27,15 @@ public record SessionHistorySetCompactionConfigParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
     /** Model that summarizes this session's conversation when it compacts,
-instead of the session's own model. Applies only when both are Copilot
-models the session may use; for a BYOK or provider session, or a model
-the session's catalog or allowed-model policy rejects, compaction
-summarizes on the session's model. Takes precedence over any runtime
-experiment that picks a compaction model. Blank values are ignored. */
+instead of the session's own model. A Copilot session can name another
+Copilot model it may use. A session on a custom provider can name
+another model that provider serves: for a single `provider` config, a
+model name it accepts, sent with default limits for that name; for a
+named provider, another of that provider's model selection IDs. An Azure
+provider, a model from a different provider, or a model the session's
+catalog or allowed-model policy rejects leaves compaction on the
+session's model. Takes precedence over any runtime experiment that picks
+a compaction model. Blank values are ignored. */
     @JsonProperty("model") String model,
     /** Summarization instruction sent as the final user message of a
 compaction request, replacing the built-in prompt entirely; the caller

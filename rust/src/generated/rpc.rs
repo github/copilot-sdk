@@ -6617,6 +6617,118 @@ pub struct ClientRpcProvidersConfig<'a> {
 }
 
 impl<'a> ClientRpcProvidersConfig<'a> {
+    /// Reads the server's saved provider settings and credential availability without returning secrets or activating models.
+    ///
+    /// Wire method: `providers.config.read`.
+    ///
+    /// # Returns
+    ///
+    /// Saved configuration. Reading does not activate, select, or load a model.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn read(&self) -> Result<SavedProviderConfigurationReadResult, Error> {
+        let wire_params = serde_json::json!({});
+        self.client
+            .call_typed(rpc_methods::PROVIDERS_CONFIG_READ, Some(wire_params))
+            .await
+    }
+
+    /// Updates shared connection settings for a saved provider while preserving its credentials and other sensitive fields. This durable operation does not change any live session.
+    ///
+    /// Wire method: `providers.config.updateProvider`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Request to replace shared settings for one saved provider.
+    ///
+    /// # Returns
+    ///
+    /// Result of updating shared saved provider settings.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn update_provider(
+        &self,
+        params: SavedProviderConfigurationUpdateProviderRequest,
+    ) -> Result<SavedProviderConfigurationUpdateProviderResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        self.client
+            .call_typed(
+                rpc_methods::PROVIDERS_CONFIG_UPDATEPROVIDER,
+                Some(wire_params),
+            )
+            .await
+    }
+
+    /// Updates one saved provider model without changing its sibling models. This durable operation does not change any live session.
+    ///
+    /// Wire method: `providers.config.updateModel`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Request to replace one saved provider-local model definition.
+    ///
+    /// # Returns
+    ///
+    /// Result of updating one saved provider model.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn update_model(
+        &self,
+        params: SavedProviderConfigurationUpdateModelRequest,
+    ) -> Result<SavedProviderConfigurationUpdateModelResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        self.client
+            .call_typed(rpc_methods::PROVIDERS_CONFIG_UPDATEMODEL, Some(wire_params))
+            .await
+    }
+
+    /// Removes one model from the server's saved provider configuration and removes its provider only when no saved models remain. This durable operation does not change any live session.
+    ///
+    /// Wire method: `providers.config.removeModel`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Request to remove one saved provider-local model definition.
+    ///
+    /// # Returns
+    ///
+    /// Result of removing one saved provider model.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn remove_model(
+        &self,
+        params: SavedProviderConfigurationRemoveModelRequest,
+    ) -> Result<SavedProviderConfigurationRemoveModelResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        self.client
+            .call_typed(rpc_methods::PROVIDERS_CONFIG_REMOVEMODEL, Some(wire_params))
+            .await
+    }
+
     /// Adds a model to the server's saved provider configuration. This durable operation does not change any live session.
     ///
     /// Wire method: `providers.config.addModel`.
@@ -9611,7 +9723,7 @@ impl<'a> ClientRpcUserSettings<'a> {
             .await
     }
 
-    /// Reads the user's settings document exactly as `user.settings.load` does, but from a caller-supplied configuration directory instead of the one the server resolved for itself. Use this when a consumer scopes a session to its own Copilot home — the SDK's per-session `configDir` override — so the settings read match the directory that session actually uses. An absent or empty `configDir` resolves the server's own home, making this identical to `user.settings.load`. Hook-validation relaxations are deliberately not caller-supplied: they continue to come from the server's environment, so a consumer cannot widen the host's hook policy through this method.
+    /// Reads the user's settings document as `user.settings.loadWithWarning` does, without its warning, but from a caller-supplied configuration directory instead of the one the server resolved for itself. Use this when a consumer scopes a session to its own Copilot home — the SDK's per-session `configDir` override — so the settings read match the directory that session actually uses. An absent or empty `configDir` resolves the server's own home, making this identical to the `settings` that `user.settings.loadWithWarning` returns. Hook-validation relaxations are deliberately not caller-supplied: they continue to come from the server's environment, so a consumer cannot widen the host's hook policy through this method.
     ///
     /// Wire method: `user.settings.loadForConfigDir`.
     ///
@@ -9643,7 +9755,7 @@ impl<'a> ClientRpcUserSettings<'a> {
             .await
     }
 
-    /// Reads a repository's checked-in settings document as stored, normalized, together with any diagnostic raised while reading it. This is the repository half of the layering `user.settings.get` reports: `user.settings.load` reads the user's own document, and this reads the one a repository checks in to govern the keys `user.settings.governanceKeys` lists as repo-governable. A document that fails to parse, or that sets a key a repository may not govern, is reported through `warning` while the settings that did load are still returned, so a consumer surfaces the diagnostic and continues rather than failing the session. When `repoRoot` is the user's home directory the Claude-compatible configuration is skipped, so a home-directory session does not inherit a personal config as repository policy.
+    /// Reads a repository's checked-in settings document as stored, normalized, together with any diagnostic raised while reading it. This is the repository half of the layering `user.settings.get` reports: `user.settings.loadWithWarning` reads the user's own document, and this reads the one a repository checks in to govern the keys `user.settings.listGovernanceKeys` lists as repo-governable. A document that fails to parse, or that sets a key a repository may not govern, is reported through `warning` while the settings that did load are still returned, so a consumer surfaces the diagnostic and continues rather than failing the session. When `repoRoot` is the user's home directory the Claude-compatible configuration is skipped, so a home-directory session does not inherit a personal config as repository policy.
     ///
     /// Wire method: `user.settings.loadRepo`.
     ///
@@ -9704,7 +9816,7 @@ impl<'a> ClientRpcUserSettings<'a> {
             .await
     }
 
-    /// Reports the on-disk path of the settings document `user.settings.load` and `user.settings.set` read and write. Resolved the same way those methods resolve it, so a host that shows or opens the settings file names the file the runtime actually uses, including the extensionless legacy `settings` file when that is what is present.
+    /// Reports the on-disk path of the settings document `user.settings.loadWithWarning` and `user.settings.set` read and write. Resolved the same way those methods resolve it, so a host that shows or opens the settings file names the file the runtime actually uses, including the extensionless legacy `settings` file when that is what is present.
     ///
     /// Wire method: `user.settings.getPath`.
     ///
@@ -9726,7 +9838,7 @@ impl<'a> ClientRpcUserSettings<'a> {
             .await
     }
 
-    /// Reads the user's stored settings together with the diagnostic raised while reading them. This is `user.settings.load` plus the reason part of the document was ignored: that one answers the document alone, so a caller cannot tell a clean read from a salvaged one. Read this when the caller is about to write the file back, where accepting a partial parse would discard every value the loader could not read. The settings that did load are still reported alongside the warning, so a consumer may surface it and continue instead of failing.
+    /// Reads the user's stored settings together with the diagnostic raised while reading them. This is `user.settings.loadForConfigDir` without a `configDir` plus the reason part of the document was ignored: that one answers the document alone, so a caller cannot tell a clean read from a salvaged one. Read this when the caller is about to write the file back, where accepting a partial parse would discard every value the loader could not read. The settings that did load are still reported alongside the warning, so a consumer may surface it and continue instead of failing.
     ///
     /// Wire method: `user.settings.loadWithWarning`.
     ///
@@ -9971,7 +10083,7 @@ impl<'a> ClientRpcUserSettings<'a> {
             .await
     }
 
-    /// Runs the one-time cleanup that removes obsolete CLI-owned settings and legacy rubber-duck keys from the user's settings document, and reports what it did. Idempotent and safe to call on every startup: with nothing obsolete left it reports `unchanged` and writes nothing. The cleanup preserves every key it does not recognize, so a setting written by a newer host is never dropped by an older one, and a document that fails to parse is reported `invalid` and left untouched rather than rewritten from a partial read. The cleaned document is not returned: it is written before this replies, so `user.settings.load` reads it authoritatively. A host that surfaces unrecognized keys through `user.settings.unknownKeys` wants this first, because the keys this retires would otherwise be shown to the user as if they were misspelled settings.
+    /// Runs the one-time cleanup that removes obsolete CLI-owned settings and legacy rubber-duck keys from the user's settings document, and reports what it did. Idempotent and safe to call on every startup: with nothing obsolete left it reports `unchanged` and writes nothing. The cleanup preserves every key it does not recognize, so a setting written by a newer host is never dropped by an older one, and a document that fails to parse is reported `invalid` and left untouched rather than rewritten from a partial read. The cleaned document is not returned: it is written before this replies, so `user.settings.loadWithWarning` reads it authoritatively. A host that surfaces unrecognized keys through `user.settings.getUnknownKeysWarning` wants this first, because the keys this retires would otherwise be shown to the user as if they were misspelled settings.
     ///
     /// Wire method: `user.settings.migrateObsoleteOnDisk`.
     ///
@@ -10025,7 +10137,7 @@ impl<'a> ClientRpcUserSettings<'a> {
             .await
     }
 
-    /// Resolves the on-disk locations of the settings files this runtime reads, so a consumer can show or open them. The user path is the same file `user.settings.get`, `user.settings.load`, and `user.settings.set` operate on. Supply `repoRoot` to also resolve that repository's checked-in and local settings paths. A path is reported whether or not the file exists.
+    /// Resolves the on-disk locations of the settings files this runtime reads, so a consumer can show or open them. The user path is the same file `user.settings.get`, `user.settings.loadWithWarning`, and `user.settings.set` operate on. Supply `repoRoot` to also resolve that repository's checked-in and local settings paths. A path is reported whether or not the file exists.
     ///
     /// Wire method: `user.settings.getPaths`.
     ///
@@ -16998,7 +17110,7 @@ impl<'a> SessionRpcMetadata<'a> {
     ///
     /// # Returns
     ///
-    /// Re-tokenize the session's existing messages against `modelId` and return the token totals. Useful for hosts that want an initial estimate of context usage on session resume, before the next agent turn fires `session.context_info_changed` events. Returns zeros for an empty session.
+    /// Re-tokenize the session's existing messages against `modelId` and return the token totals. Useful for hosts that want an initial estimate of context usage on session resume, before the next agent turn fires `session.usage_info` events. Returns zeros for an empty session.
     ///
     /// <div class="warning">
     ///
@@ -19365,6 +19477,67 @@ impl<'a> SessionRpcProvider<'a> {
             .client()
             .call_typed(rpc_methods::SESSION_PROVIDER_ADD, Some(wire_params))
             .await
+    }
+
+    /// Updates one provider's connection settings in this session's BYOK registry while preserving its saved credential and sibling models.
+    ///
+    /// Wire method: `session.provider.updateProvider`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Request to update one provider's connection settings in a single session.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn update_provider(
+        &self,
+        params: SessionProviderUpdateProviderParams,
+    ) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _: serde::de::IgnoredAny = self
+            .session
+            .client()
+            .call_typed(
+                rpc_methods::SESSION_PROVIDER_UPDATEPROVIDER,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(())
+    }
+
+    /// Updates one model in this session's BYOK registry without replacing sibling models or unrelated provider registrations.
+    ///
+    /// Wire method: `session.provider.updateModel`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Request to update one provider-local model in a single session.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn update_model(
+        &self,
+        params: SessionProviderUpdateModelParams,
+    ) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _: serde::de::IgnoredAny = self
+            .session
+            .client()
+            .call_typed(rpc_methods::SESSION_PROVIDER_UPDATEMODEL, Some(wire_params))
+            .await?;
+        Ok(())
     }
 
     /// Atomically updates the session's BYOK provider and model registry by applying the supplied snapshot, replacing existing entries, updating models, or removing entries absent from the snapshot.

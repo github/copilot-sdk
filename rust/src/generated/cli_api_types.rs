@@ -172,12 +172,24 @@ pub struct ProviderModelConfig {
     pub id: String,
     /// Maximum context window tokens for the model.
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "ProviderModelConfig::deserialize_token_limit"
+    )]
     pub max_context_window_tokens: Option<i64>,
     /// Maximum output tokens for the model.
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "ProviderModelConfig::deserialize_token_limit"
+    )]
     pub max_output_tokens: Option<i64>,
     /// Maximum prompt/input tokens for the model.
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "ProviderModelConfig::deserialize_token_limit"
+    )]
     pub max_prompt_tokens: Option<i64>,
     /// Provider-published model metadata, preserved verbatim as the public Model.metadata object.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -196,6 +208,30 @@ pub struct ProviderModelConfig {
     /// The model name sent to the provider API for inference. Defaults to `id`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub wire_model: Option<String>,
+}
+
+impl ProviderModelConfig {
+    fn deserialize_token_limit<'de, D>(deserializer: D) -> Result<Option<i64>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let Some(number) = Option::<serde_json::Number>::deserialize(deserializer)? else {
+            return Ok(None);
+        };
+        if let Some(value) = number.as_i64() {
+            return Ok(Some(value));
+        }
+        if let Some(value) = number.as_f64()
+            && value.fract() == 0.0
+            // i64::MAX rounds up to 2^63 as f64, so the upper bound is exclusive.
+            && ((i64::MIN as f64)..-(i64::MIN as f64)).contains(&value)
+        {
+            return Ok(Some(value as i64));
+        }
+        Err(serde::de::Error::custom(
+            "expected an integer token limit in the i64 range",
+        ))
+    }
 }
 
 /// Azure-specific provider options.
@@ -635,7 +671,7 @@ pub struct ProtocolSystemMessageReplaceConfig {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SavedProviderConfigurationAddModelResult {
-    /// Whether the provider was created along with the model.
+    /// True when this operation created the provider row.
     pub provider_added: bool,
 }
 
@@ -650,7 +686,7 @@ pub struct SavedProviderConfigurationAddModelResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProvidersSourceAddModelResult {
-    /// Whether the provider was created along with the model.
+    /// True when this operation created the provider row.
     pub provider_added: bool,
 }
 
@@ -1119,7 +1155,7 @@ pub enum ProviderConfigTransport {
     Unknown,
 }
 
-/// Provider families supported by saved configuration.
+/// Provider families supported by saved configuration, including managed local models.
 ///
 /// <div class="warning">
 ///

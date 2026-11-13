@@ -42,7 +42,7 @@ spelling and is additive with this one.
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ShellCredentials(
     /** Whether to authenticate the agent's `git` commands as the session's GitHub credential, by
-injecting an `http.<host>.extraheader` (plus `insteadOf` rewrites so SSH-spelled remotes for
+injecting an `http.&lt;host>.extraheader` (plus `insteadOf` rewrites so SSH-spelled remotes for
 that host use the authenticated HTTPS transport). Applied only to a spawn that runs a
 remote-contacting `git` subcommand. Default: false (opt-in). */
     @JsonProperty("git") Boolean git,
@@ -54,7 +54,7 @@ Applies to a github.com credential only. `gh` picks its credential variable from
 command targets rather than the one the credential belongs to, and the command can choose that
 target, so `GH_ENTERPRISE_TOKEN` would offer a single-tenant enterprise credential to every
 other enterprise host. A session whose credential is enterprise-scoped therefore runs `gh`
-unauthenticated; its `git` commands are unaffected, because `http.<host>.extraheader` is scoped
+unauthenticated; its `git` commands are unaffected, because `http.&lt;host>.extraheader` is scoped
 to one host by construction. Default: false (opt-in). */
     @JsonProperty("gh") Boolean gh
 ) {

@@ -16,6 +16,8 @@
 //! mutate the handshake or return a custom [`CopilotWebSocketHandler`].
 //! Default pass-through uses platform-verified Rustls on macOS for TLS 1.3,
 //! and native-tls on other platforms, for HTTPS and secure WebSockets.
+//! macOS's native-tls adapter uses TLS-1.2-only Secure Transport; the native
+//! transport and OS-crypto migration boundaries are documented in `network_tls`.
 //!
 //! # Cancellation
 //!

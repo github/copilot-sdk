@@ -3180,6 +3180,9 @@ pub struct PermissionRecoveryAttempt {
     pub relation: PermissionRecoveryAttemptRelation,
     /// SHA-256 fingerprint of normalized request data; raw permission arguments are not included
     pub request_fingerprint: String,
+    /// Whether this deferral happened because the automatic permission review ended without a verdict (timeout, empty or unparseable reply). Such a deferral assesses nothing: it does not make a later identical request a repeated attempt or count toward the attempt limit. Older runtimes ignore it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub review_incomplete: Option<bool>,
     /// Tool-call identifier associated with this attempt, when available
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,

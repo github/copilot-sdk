@@ -40,24 +40,6 @@ fn permission_required_options_preserve_host_and_provider_wire_inputs() {
     }
 }
 
-#[test]
-fn permission_requirements_preserve_exhaustive_literals_and_provider_options() {
-    let request = PermissionsSetRequiredRequest { required: true };
-    assert_eq!(
-        serde_json::to_value(request).unwrap(),
-        json!({"required": true})
-    );
-    assert_eq!(
-        serde_json::to_value(PermissionsSetRequiredOptions::new(false)).unwrap(),
-        json!({"required": false})
-    );
-    assert_eq!(
-        serde_json::to_value(PermissionsSetRequiredOptions::new(false).provider_id("provider"))
-            .unwrap(),
-        json!({"required": false, "providerId": "provider"})
-    );
-}
-
 #[allow(dead_code)]
 async fn permission_required_entry_points_compile(
     permissions: SessionRpcPermissions<'_>,

@@ -15,8 +15,6 @@ mod openssl_linkage;
 
 #[cfg(any(target_os = "linux", test))]
 use openssl_linkage::require_dynamic_openssl;
-#[cfg(test)]
-use openssl_linkage::require_openssl_3;
 
 #[path = "../src/cache_paths.rs"]
 mod cache_paths;
