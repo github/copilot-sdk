@@ -22,7 +22,6 @@ const pendingWorkTimeout = 60 * time.Second
 // and resume from a fresh client with ContinuePendingWork=true. Warm-join coverage keeps
 // the original client connected while a second client resumes the same session.
 func TestPendingWorkResumeE2E(t *testing.T) {
-	t.Parallel()
 	ctx := testharness.NewTestContext(t)
 
 	t.Run("should continue pending permission request after resume", func(t *testing.T) {
@@ -675,7 +674,7 @@ func TestPendingWorkResumeE2E(t *testing.T) {
 // serverCliURL extracts the local CLI URL from a TCP-mode server client.
 // The server must already be started; this function panics with a fatal
 // test failure if the port is not yet available.
-func serverCliURL(t *testing.T, server *testharness.Client) string {
+func serverCliURL(t *testing.T, server *copilot.Client) string {
 	t.Helper()
 	port := server.RuntimePort()
 	if port == 0 {
@@ -692,7 +691,7 @@ const sharedTCPToken = "tcp-shared-test-token"
 
 // startTCPServer starts a TCP-mode server client and returns its CLI URL.
 // It triggers an initial connection so RuntimePort is populated.
-func startTCPServer(t *testing.T, ctx *testharness.TestContext) (*testharness.Client, string) {
+func startTCPServer(t *testing.T, ctx *testharness.TestContext) (*copilot.Client, string) {
 	t.Helper()
 	server := ctx.NewClient(func(opts *copilot.ClientOptions) {
 		opts.Connection = copilot.TCPConnection{Path: opts.Connection.(copilot.StdioConnection).Path, ConnectionToken: sharedTCPToken}

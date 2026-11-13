@@ -167,15 +167,13 @@ async fn dropping_reader_drops_pending_source() {
     assert!(tx.is_closed());
 }
 
-#[tokio::test(start_paused = true)]
+#[tokio::test]
 async fn always_ready_empty_frames_yield_to_cancellation() {
     let mut reader = HttpResponseReader::new(Box::pin(stream::repeat_with(|| Ok(Bytes::new()))));
     let mut output = Vec::new();
-    let reading = tokio::time::timeout(Duration::from_millis(10), reader.next_chunk(&mut output));
-    tokio::pin!(reading);
-    assert!(reading.as_mut().now_or_never().is_none());
-
-    tokio::time::advance(Duration::from_millis(10)).await;
-
-    assert!(reading.await.is_err());
+    assert!(
+        tokio::time::timeout(Duration::from_millis(10), reader.next_chunk(&mut output))
+            .await
+            .is_err()
+    );
 }

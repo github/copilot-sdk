@@ -110,10 +110,17 @@ async def _send_and_get_next_exchange(session, ctx: E2ETestContext, prompt: str)
     return exchanges[existing_count]
 
 
-async def _assert_session_limits_applied(session, max_ai_credits: float) -> None:
-    snapshot = await session.rpc.metadata.snapshot()
-    assert snapshot.session_limits is not None
-    assert snapshot.session_limits.max_ai_credits == max_ai_credits
+def _assert_session_limits_status(exchange: dict, expected_remaining: str) -> None:
+    for message in exchange.get("request", {}).get("messages", []):
+        content = message.get("content")
+        if message.get("role") == "user" and isinstance(content, str):
+            if "<session_limits_status>" in content:
+                assert f"Remaining session limits: {expected_remaining}." in content
+                assert (
+                    "Be frugal; avoid optional exploration and unnecessary tool calls." in content
+                )
+                return
+    raise AssertionError("Expected session limits status message")
 
 
 def _get_task_agent_types(exchange: dict) -> list[str]:
@@ -455,8 +462,10 @@ class TestSessionConfig:
             session_limits={"max_ai_credits": 30},
         )
 
-        await _send_and_get_next_exchange(session, ctx, "Acknowledge the current session limits.")
-        await _assert_session_limits_applied(session, 30)
+        exchange = await _send_and_get_next_exchange(
+            session, ctx, "Acknowledge the current session limits."
+        )
+        _assert_session_limits_status(exchange, "30 AI credits")
 
         await session.disconnect()
 
@@ -470,8 +479,10 @@ class TestSessionConfig:
             session_limits={"max_ai_credits": 30},
         )
 
-        await _send_and_get_next_exchange(session2, ctx, "Acknowledge the current session limits.")
-        await _assert_session_limits_applied(session2, 30)
+        exchange = await _send_and_get_next_exchange(
+            session2, ctx, "Acknowledge the current session limits."
+        )
+        _assert_session_limits_status(exchange, "30 AI credits")
 
         await session2.disconnect()
         await session1.disconnect()

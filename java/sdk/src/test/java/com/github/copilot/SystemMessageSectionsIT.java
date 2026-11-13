@@ -29,6 +29,7 @@ import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.SectionOverride;
 import com.github.copilot.rpc.SectionOverrideAction;
+import com.github.copilot.rpc.SessionConfig;
 import com.github.copilot.rpc.SystemMessageConfig;
 import com.github.copilot.rpc.SystemMessageSections;
 import com.github.copilot.rpc.SystemPromptSections;
@@ -86,7 +87,7 @@ class SystemMessageSectionsIT {
             Path testFile = ctx.getWorkDir().resolve("test.txt");
             Files.writeString(testFile, "Hello transform!");
 
-            CopilotSession session = client.createSession(ctx.newSessionConfig().setSystemMessage(systemMessage)
+            CopilotSession session = client.createSession(new SessionConfig().setSystemMessage(systemMessage)
                     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get(30, TimeUnit.SECONDS);
 
             try {
@@ -172,7 +173,7 @@ class SystemMessageSectionsIT {
                                         + "You only answer questions about plants and gardening.")));
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(ctx.newSessionConfig().setSystemMessage(systemMessage)
+            CopilotSession session = client.createSession(new SessionConfig().setSystemMessage(systemMessage)
                     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get(30, TimeUnit.SECONDS);
 
             try {
@@ -209,7 +210,7 @@ class SystemMessageSectionsIT {
                                         + "You only answer questions about plants and gardening.")));
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(ctx.newSessionConfig().setSystemMessage(systemMessage)
+            CopilotSession session = client.createSession(new SessionConfig().setSystemMessage(systemMessage)
                     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get(30, TimeUnit.SECONDS);
 
             try {

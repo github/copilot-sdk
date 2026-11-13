@@ -31,13 +31,6 @@ func manualTool() copilot.Tool {
 	}
 }
 
-// Without a permission handler the runtime denies the tool instead of emitting
-// permission.requested. Answering "no-result" leaves each request pending so a
-// resumed session can resolve it.
-func leavePermissionPending(copilot.PermissionRequest, copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
-	return &rpc.PermissionDecisionNoResult{}, nil
-}
-
 func newClient() *copilot.Client {
 	cliPath, err := sampleutil.CLIPath()
 	if err != nil {
@@ -119,8 +112,7 @@ func main() {
 		panic(err)
 	}
 	session1, err := client1.CreateSession(ctx, &copilot.SessionConfig{
-		Tools:               []copilot.Tool{tool},
-		OnPermissionRequest: leavePermissionPending,
+		Tools: []copilot.Tool{tool},
 	})
 	if err != nil {
 		panic(err)
@@ -144,10 +136,7 @@ func main() {
 		panic(err)
 	}
 	cancel()
-	// Stop gracefully so the session is saved; ForceStop can kill the runtime before it is.
-	if err := client1.Stop(); err != nil {
-		panic(err)
-	}
+	client1.ForceStop()
 	pause()
 
 	// 2. Resume pending work and grant permission to invoke the tool.
@@ -157,7 +146,6 @@ func main() {
 	}
 	session2, err := client2.ResumeSession(ctx, sessionID, &copilot.ResumeSessionConfig{
 		Tools:               []copilot.Tool{tool},
-		OnPermissionRequest: leavePermissionPending,
 		ContinuePendingWork: copilot.Bool(true),
 	})
 	if err != nil {
@@ -182,9 +170,7 @@ func main() {
 		panic(err)
 	}
 	cancel()
-	if err := client2.Stop(); err != nil {
-		panic(err)
-	}
+	client2.ForceStop()
 	pause()
 
 	// 3. Resume again and manually provide the pending tool result.
@@ -194,7 +180,6 @@ func main() {
 	}
 	session3, err := client3.ResumeSession(ctx, sessionID, &copilot.ResumeSessionConfig{
 		Tools:               []copilot.Tool{tool},
-		OnPermissionRequest: leavePermissionPending,
 		ContinuePendingWork: copilot.Bool(true),
 	})
 	if err != nil {

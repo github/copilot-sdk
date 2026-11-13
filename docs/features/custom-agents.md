@@ -29,26 +29,6 @@ To discover Markdown definitions from versioned packages or vendored folders, us
 
 Pass `customAgents` when creating a session. Each agent needs at minimum a `name` and `prompt`.
 
-Use the built-in subagent allowlist on both create and resume to restrict only
-built-in subagents. An empty list disables all built-in subagents; a nonempty
-list allows only the named built-ins, subject to runtime availability and
-exclusions. Unknown built-in names are rejected. Custom agents remain available,
-including custom agents with the same name as a built-in.
-
-| SDK                  | Create and resume option                                            |
-| -------------------- | ------------------------------------------------------------------- |
-| Node.js / TypeScript | `includedBuiltinAgents`                                             |
-| Python               | `included_builtin_agents`                                           |
-| Go                   | `IncludedBuiltInAgents` (use a non-nil `[]string{}` to disable all) |
-| .NET                 | `IncludedBuiltInAgents`                                             |
-| Java                 | `setIncludedBuiltInAgents`                                          |
-| Rust                 | `with_included_builtin_agents`                                      |
-
-Omitting the allowlist uses existing defaults when creating a session or
-resuming after a runtime restart (cold resume). On a resident session (warm
-resume), omission preserves the current allowlist. The allowlist is not
-persisted: supply it again on resume to retain the restriction after a restart.
-
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
 
@@ -59,7 +39,7 @@ const client = new CopilotClient();
 await client.start();
 
 const session = await client.createSession({
-    model: "auto",
+    model: "gpt-5.4",
     customAgents: [
         {
             name: "researcher",
@@ -94,7 +74,7 @@ await client.start()
 
 session = await client.create_session(
     on_permission_request=lambda req, inv: PermissionDecisionApproveOnce(),
-    model="auto",
+    model="gpt-5.4",
     custom_agents=[
         {
             "name": "researcher",
@@ -135,7 +115,7 @@ func main() {
 	client.Start(ctx)
 
 	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
-		Model: "auto",
+		Model: "gpt-5.4",
 		CustomAgents: []copilot.CustomAgentConfig{
 			{
 				Name:        "researcher",
@@ -167,7 +147,7 @@ client := copilot.NewClient(nil)
 client.Start(ctx)
 
 session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
-    Model: "auto",
+    Model: "gpt-5.4",
     CustomAgents: []copilot.CustomAgentConfig{
         {
             Name:        "researcher",
@@ -202,7 +182,7 @@ using GitHub.Copilot.Rpc;
 await using var client = new CopilotClient();
 await using var session = await client.CreateSessionAsync(new SessionConfig
 {
-    Model = "auto",
+    Model = "gpt-5.4",
     CustomAgents = new List<CustomAgentConfig>
     {
         new()
@@ -242,7 +222,7 @@ try (var client = new CopilotClient()) {
 
     var session = client.createSession(
         new SessionConfig()
-            .setModel("auto")
+            .setModel("gpt-5.4")
             .setCustomAgents(List.of(
                 new CustomAgentConfig()
                     .setName("researcher")
@@ -443,6 +423,23 @@ session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
 <details>
 <summary><strong>.NET</strong></summary>
 
+<!-- docs-validate: hidden -->
+```csharp
+using GitHub.Copilot;
+
+await using var client = new CopilotClient();
+
+var session = await client.CreateSessionAsync(new SessionConfig
+{
+    CustomAgents = new List<CustomAgentConfig>
+    {
+        new() { Name = "researcher", Prompt = "You are a research assistant. Analyze code and answer questions." },
+        new() { Name = "editor", Prompt = "You are a code editor. Make minimal, surgical changes." },
+    },
+    Agent = "researcher", // Pre-select the researcher agent
+});
+```
+<!-- /docs-validate: hidden -->
 ```csharp
 var session = await client.CreateSessionAsync(new SessionConfig
 {
@@ -644,7 +641,7 @@ func main() {
 	client.Start(ctx)
 
 	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
-		Model: "auto",
+		Model: "gpt-5.4",
 		OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
 			return &rpc.PermissionDecisionApproveOnce{}, nil
 		},
@@ -698,6 +695,44 @@ _, err := session.SendAndWait(ctx, copilot.MessageOptions{
 
 <details>
 <summary><strong>.NET</strong></summary>
+
+<!-- docs-validate: hidden -->
+```csharp
+using GitHub.Copilot;
+
+public static class SubAgentEventsExample
+{
+    public static async Task Example(CopilotSession session)
+    {
+        using var subscription = session.On<SessionEvent>(evt =>
+        {
+            switch (evt)
+            {
+                case SubagentStartedEvent started:
+                    Console.WriteLine($"▶ Sub-agent started: {started.Data.AgentDisplayName}");
+                    Console.WriteLine($"  Description: {started.Data.AgentDescription}");
+                    Console.WriteLine($"  Tool call ID: {started.Data.ToolCallId}");
+                    break;
+                case SubagentCompletedEvent completed:
+                    Console.WriteLine($"✅ Sub-agent completed: {completed.Data.AgentDisplayName}");
+                    break;
+                case SubagentFailedEvent failed:
+                    Console.WriteLine($"❌ Sub-agent failed: {failed.Data.AgentDisplayName} — {failed.Data.Error}");
+                    break;
+                case SubagentSelectedEvent selected:
+                    Console.WriteLine($"🎯 Agent selected: {selected.Data.AgentDisplayName}");
+                    break;
+            }
+        });
+
+        await session.SendAndWaitAsync(new MessageOptions
+        {
+            Prompt = "Research how authentication works in this codebase"
+        });
+    }
+}
+```
+<!-- /docs-validate: hidden -->
 
 ```csharp
 using var subscription = session.On<SessionEvent>(evt =>
@@ -805,9 +840,6 @@ interface AgentNode {
 }
 
 const agentTree = new Map<string, AgentNode>();
-
-// Your application's UI rendering function
-declare function renderAgentTree(tree: Map<string, AgentNode>): void;
 
 session.on((event) => {
     if (event.type === "subagent.started") {
@@ -1005,7 +1037,7 @@ session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 </details>
 
 <details>
-<summary><strong>.NET</strong></summary>
+<summary><strong>C# / .NET</strong></summary>
 
 <!-- docs-validate: hidden -->
 ```csharp
@@ -1148,7 +1180,7 @@ Sub-agents can fail. Always listen for `subagent.failed` events and handle them 
 ```typescript
 session.on((event) => {
     if (event.type === "subagent.failed") {
-        console.error(`Agent ${event.data.agentName} failed: ${event.data.error}`);
+        logger.error(`Agent ${event.data.agentName} failed: ${event.data.error}`);
         // Show error in UI, retry, or fall back to parent agent
     }
 });

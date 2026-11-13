@@ -122,7 +122,6 @@ func (rt *rewritingRoundTripper) RoundTrip(req *http.Request) (*http.Response, e
 }
 
 func TestCopilotRequestHandler(t *testing.T) {
-	t.Parallel()
 	testharness.SkipIfInProcess(t, "an LLM inference provider is process-global in-process")
 	ctx := testharness.NewTestContext(t)
 	counters := &handlerCounters{}
@@ -163,7 +162,7 @@ func TestCopilotRequestHandler(t *testing.T) {
 		},
 	}
 
-	client := newCopilotRequestClient(ctx, handler)
+	client := newCopilotRequestClient(ctx, handler, "COPILOT_EXP_COPILOT_CLI_WEBSOCKET_RESPONSES=true")
 	t.Cleanup(func() { client.ForceStop() })
 
 	if err := client.Start(t.Context()); err != nil {
@@ -172,7 +171,6 @@ func TestCopilotRequestHandler(t *testing.T) {
 
 	session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 		OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-		Capi:                &copilot.CapiSessionOptions{EnableWebSocketResponses: copilot.Bool(true)},
 	})
 	if err != nil {
 		t.Fatalf("Failed to create session: %v", err)

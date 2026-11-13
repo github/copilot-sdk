@@ -325,7 +325,7 @@ class HostingExample {
     static CompletableFuture<AhpHost> startApplicationHost(CopilotClient client) {
         return client.startAhpHost(new AhpHostOptions()
                 .setAuthentication(AhpHostAuthentication.github())
-                .setLocalServer(HostLocalServerOptions.builder().build())
+                .setLocalServer(new HostLocalServerOptions(null, null, null, null))
                 .setCreateSession(request -> client.createSession(request.config()
                         .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)))
                 .setOnSessionReleased(session -> {
@@ -455,14 +455,14 @@ not the collection directly. In Node.js, use
 
 ### CLI hosting commands
 
-`/ahp start` starts a runtime-supervised
-in-process listener alongside the current CLI session. `/remote share` publishes
-the foreground local session through enabled incoming account connections, preserving its
+With `AHP_CLIENT` enabled, `/ahp start` starts a runtime-supervised
+in-process listener alongside the current CLI session. `/remote share` starts or reuses
+that same listener and publishes the foreground local session, preserving its
 ID. Neither command starts another runtime. Ordinary new AHP sessions remain
 available; the application session factory is not enabled.
 
-`/ahp start` shows the loopback endpoint, in-process host ID, and generated connection token.
-Sharing shows the session URI. Use an AHP 0.9 client with the connection
+Both commands show the loopback endpoint, in-process host ID, and generated connection token.
+Sharing also shows the session URI. Use an AHP 0.9 client with the connection
 token and ordinary GitHub resource authentication; the connection token alone
 does not bypass resource authorization.
 
@@ -487,9 +487,10 @@ parameter. Treat this stdout URL as a credential; ordinary host logs retain
 the bare endpoint. GitHub authentication and resource authorization remain
 required in both modes, independently of SDK `--auth-token-env` or client-side
 `--ahp-authenticate github`.
-Local-owner `/remote on|off|show` uses AHP publication and withdrawal.
-Attached clients manage access in the owning CLI. Account history sync remains separate,
-and managed remote-control policy still gates off-machine publication.
+Local-owner `/remote on|off|show` retains its independent
+Mission Control path; the old attached-AHP-client export toggle is intentionally unavailable.
+`COPILOT_AHP_SHARE_BIND` can select a wider listener for sharing;
+the CLI's managed remote-control policy still gates off-machine publication.
 The CLI `--ahp` attachment client negotiates AHP 0.9 for these listeners, with
 0.7 retained for older external hosts. Bare `--ahp` can start an in-process
 listener when no local host exists; that listener ends with its owning CLI.
@@ -654,7 +655,7 @@ is not claimed to implement the new host operations. Generated bindings in this
 branch come from the companion runtime's local schema, so release-based code
 generation must use that same companion release when its pin is advanced.
 
-The runtime repository's `.github/workflows/ci.yml` runs SDK feature checks in active
+The runtime repository's `.github/workflows/sdk-rust.yml` runs SDK feature checks in active
 monorepo CI.
 Its runtime-free feature checks do not activate the opt-in AHP E2Es.
 

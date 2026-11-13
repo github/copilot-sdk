@@ -143,10 +143,7 @@ pub struct PreMcpToolCallInput {
 ///
 /// `meta_to_use` has tri-state semantics:
 /// - `None`: field is absent in JSON, meaning preserve existing `_meta`
-/// - `Some(Value::Null)`: serialized as JSON `null`, meaning drop hook-controlled
-///   `_meta`; the runtime still sends its own keys, `com.github.copilot/toolCallId`
-///   and `com.github.copilot/turnId` (present only when the turn was started with
-///   a [`client_turn_id`](crate::types::MessageOptions::client_turn_id))
+/// - `Some(Value::Null)`: serialized as JSON `null`, meaning omit `_meta`
 /// - `Some(Value::Object(...))`: serialized as JSON object, meaning replace `_meta`
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]

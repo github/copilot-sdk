@@ -4,8 +4,6 @@
 
 package com.github.copilot;
 
-import org.junit.jupiter.api.Tag;
-
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Files;
@@ -30,6 +28,7 @@ import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.PermissionRequestResult;
 import com.github.copilot.rpc.PermissionRequestResultKind;
 import com.github.copilot.rpc.PreToolUseHookOutput;
+import com.github.copilot.rpc.SessionConfig;
 import com.github.copilot.rpc.SessionHooks;
 import com.github.copilot.rpc.ToolDefinition;
 import com.github.copilot.rpc.UserInputResponse;
@@ -46,7 +45,6 @@ import com.github.copilot.rpc.UserInputResponse;
  * assert the decorator was invoked.
  * </p>
  */
-@Tag("e2e")
 public class ExecutorWiringTest {
 
     private static E2ETestContext ctx;
@@ -158,7 +156,7 @@ public class ExecutorWiringTest {
 
         // Reset count after client construction to isolate tool-call dispatch
         try (CopilotClient client = ctx.createClient(createOptionsWithExecutor(trackingExecutor))) {
-            CopilotSession session = client.createSession(ctx.newSessionConfig().setTools(List.of(encryptTool))
+            CopilotSession session = client.createSession(new SessionConfig().setTools(List.of(encryptTool))
                     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             int beforeToolCall = trackingExecutor.getTaskCount();
@@ -196,7 +194,7 @@ public class ExecutorWiringTest {
 
         TrackingExecutor trackingExecutor = new TrackingExecutor(ForkJoinPool.commonPool());
 
-        var config = ctx.newSessionConfig().setOnPermissionRequest((request, invocation) -> CompletableFuture
+        var config = new SessionConfig().setOnPermissionRequest((request, invocation) -> CompletableFuture
                 .completedFuture(new PermissionRequestResult().setKind(PermissionRequestResultKind.APPROVED)));
 
         try (CopilotClient client = ctx.createClient(createOptionsWithExecutor(trackingExecutor))) {
@@ -238,7 +236,7 @@ public class ExecutorWiringTest {
 
         TrackingExecutor trackingExecutor = new TrackingExecutor(ForkJoinPool.commonPool());
 
-        var config = ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+        var config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
                 .setOnUserInputRequest((request, invocation) -> {
                     String answer = (request.getChoices() != null && !request.getChoices().isEmpty())
                             ? request.getChoices().get(0)
@@ -283,7 +281,7 @@ public class ExecutorWiringTest {
 
         TrackingExecutor trackingExecutor = new TrackingExecutor(ForkJoinPool.commonPool());
 
-        var config = ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+        var config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
                 .setHooks(new SessionHooks().setOnPreToolUse(
                         (input, invocation) -> CompletableFuture.completedFuture(PreToolUseHookOutput.allow())));
 
@@ -344,7 +342,7 @@ public class ExecutorWiringTest {
                 });
 
         CopilotClient client = ctx.createClient(createOptionsWithExecutor(trackingExecutor));
-        client.createSession(ctx.newSessionConfig().setTools(List.of(encryptTool))
+        client.createSession(new SessionConfig().setTools(List.of(encryptTool))
                 .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
         int beforeStop = trackingExecutor.getTaskCount();

@@ -60,21 +60,20 @@ An extension calling `session.workflow.run(...)` is not validated against `argsS
 
 The `run()` context provides:
 
-- `ctx.runId`: Stable ID reused across resumed attempts.
-- `ctx.args`: Invocation arguments, forwarded verbatim. When the caller omits `args`, this is `{}` rather than `undefined`.
-- `ctx.agent(prompt, options?)`: Runs one workflow-owned subagent. Options are exactly `label`, `schema`, `model`, `agent`, `reasoningEffort`, `contextTier`, and `timeoutSeconds`. See [Subagent calls](#subagent-calls).
-- `ctx.parallel(thunks)`: Runs thunks concurrently and awaits all of them (a barrier). A thunk that throws becomes `null` in the result array, so one failed item does not lose the rest. Cancellation and hard runtime failures (`ResponseError`, `ConnectionError`) are the exception — those propagate and reject the whole call, because they mean the run itself is in trouble rather than one item having failed. Handle them at run level; do not assume every failure arrives as a `null`. Rejects above 4096 items.
-- `ctx.pipeline(items, ...stages)`: Flows each item through every stage without a barrier between stages, so one item can be in a later stage while another is still in an earlier one. Each stage is called as `(previous, item, index)`, where `previous` is the prior stage's result and `item` is the original input. A stage that throws drops that item to `null` and skips its remaining stages, with the same exception for cancellation and hard runtime failures. Rejects above 4096 items.
-- `ctx.phase(title)`: Starts a named progress phase. This sets a single run-global value, so calling it from inside concurrent `parallel`/`pipeline` stages races. Call it at run-level transitions and distinguish concurrent work by `label` instead.
-- `ctx.log(message)`: Appends a progress line. When a workflow bounds its own coverage (top-N, sampling), log what was dropped.
-- `ctx.step(key, producer, options?)`: Journals the producer's JSON result under a stable key so a resume replays it without re-running the producer. A journaled (default) producer must return a JSON-serializable value; `undefined` or a non-JSON value is rejected. Pass `{ volatile: true }` to bypass the journal and run the producer every time.
+* `ctx.runId`: Stable ID reused across resumed attempts.
+* `ctx.args`: Invocation arguments, forwarded verbatim. When the caller omits `args`, this is `{}` rather than `undefined`.
+* `ctx.agent(prompt, options?)`: Runs one workflow-owned subagent. Options are exactly `label`, `schema`, `model`, `agent`, `reasoningEffort`, and `contextTier`. See [Subagent calls](#subagent-calls).
+* `ctx.parallel(thunks)`: Runs thunks concurrently and awaits all of them (a barrier). A thunk that throws becomes `null` in the result array, so one failed item does not lose the rest. Cancellation and hard runtime failures (`ResponseError`, `ConnectionError`) are the exception — those propagate and reject the whole call, because they mean the run itself is in trouble rather than one item having failed. Handle them at run level; do not assume every failure arrives as a `null`. Rejects above 4096 items.
+* `ctx.pipeline(items, ...stages)`: Flows each item through every stage without a barrier between stages, so one item can be in a later stage while another is still in an earlier one. Each stage is called as `(previous, item, index)`, where `previous` is the prior stage's result and `item` is the original input. A stage that throws drops that item to `null` and skips its remaining stages, with the same exception for cancellation and hard runtime failures. Rejects above 4096 items.
+* `ctx.phase(title)`: Starts a named progress phase. This sets a single run-global value, so calling it from inside concurrent `parallel`/`pipeline` stages races. Call it at run-level transitions and distinguish concurrent work by `label` instead.
+* `ctx.log(message)`: Appends a progress line. When a workflow bounds its own coverage (top-N, sampling), log what was dropped.
+* `ctx.step(key, producer, options?)`: Journals the producer's JSON result under a stable key so a resume replays it without re-running the producer. A journaled (default) producer must return a JSON-serializable value; `undefined` or a non-JSON value is rejected. Pass `{ volatile: true }` to bypass the journal and run the producer every time.
 
-    The key is the _sole_ identity: neither the producer body nor its inputs contribute to it. A resume replays the cached value for a matching key even if the producer has since changed, so version the key (`"scan-v2"`) whenever its inputs or meaning change. Journaled producers are best-effort at-least-once and may run again across crashes or concurrent same-key callers, so keep side effects idempotent.
-
-- `ctx.pause(key)`: Pauses at a durable, one-shot checkpoint. The first attempt records the checkpoint, pauses, and throws `AbortError` after cooperative cancellation. When the run resumes, the workflow starts again and the same checkpoint returns so execution can continue. Call it only from the main workflow flow, not inside `ctx.parallel()` or `ctx.pipeline()`.
-- `ctx.session`: The session returned by `joinSession`. It refuses calls that start, resume, or pause a workflow run. Call `extensions_manage` with `operation: "guide"` to read more about the session APIs.
-- `ctx.signal`: Cooperative cancellation signal for extension work and subprocesses.
-- `ctx.workflow(...)`: Always rejects because nested workflows are not supported.
+  The key is the *sole* identity: neither the producer body nor its inputs contribute to it. A resume replays the cached value for a matching key even if the producer has since changed, so version the key (`"scan-v2"`) whenever its inputs or meaning change. Journaled producers are best-effort at-least-once and may run again across crashes or concurrent same-key callers, so keep side effects idempotent.
+* `ctx.pause(key)`: Pauses at a durable, one-shot checkpoint. The first attempt records the checkpoint, pauses, and throws `AbortError` after cooperative cancellation. When the run resumes, the workflow starts again and the same checkpoint returns so execution can continue. Call it only from the main workflow flow, not inside `ctx.parallel()` or `ctx.pipeline()`.
+* `ctx.session`: The session returned by `joinSession`. It refuses calls that start, resume, or pause a workflow run. Call `extensions_manage` with `operation: "guide"` to read more about the session APIs.
+* `ctx.signal`: Cooperative cancellation signal for extension work and subprocesses.
+* `ctx.workflow(...)`: Always rejects because nested workflows are not supported.
 
 Workflow-owned subagents are intentionally hidden from `read_agent` and `write_agent`. Use the workflow observability APIs instead.
 
@@ -82,7 +81,7 @@ Workflow-owned subagents are intentionally hidden from `read_agent` and `write_a
 
 `ctx.agent(prompt, options?)` spawns one workflow-scoped subagent and awaits it. Without a schema it resolves to the subagent's final text. With `options.schema` it resolves to the parsed JSON value.
 
-**Identical calls are memoized into one subagent.** Each call is journaled by its canonical prompt and options, including `label`. Two calls with the same prompt and the same options return one shared result — even when issued concurrently. To spawn N _independent_ subagents, give each a unique `label` or vary the prompt:
+**Identical calls are memoized into one subagent.** Each call is journaled by its canonical prompt and options, including `label`. Two calls with the same prompt and the same options return one shared result — even when issued concurrently. To spawn N *independent* subagents, give each a unique `label` or vary the prompt:
 
 ```js
 // One subagent, awaited five times — almost certainly not what you want.
@@ -103,29 +102,13 @@ if (!finding) return { finding: null };
 
 Cancellation and hard runtime failures — a reached limit, a durable-state failure — reject instead, aborting the run. When filtering results, prefer `v => v !== null` over `Boolean`, which also discards a valid `false`, `0`, or `""`.
 
-**`schema` is a structural subset of JSON Schema, not a validator.** Honored: `type`, `required`, `enum`, `const`, recursive `properties`/`items`, and `anyOf`/`oneOf`/`allOf` — where `oneOf` is treated as `anyOf`, meaning at least one branch matches rather than exactly one. Ignored and _not_ enforced: `additionalProperties`, `pattern`, `minLength`/`maxLength`, `format`, numeric ranges, and boolean schemas. Do not rely on an ignored keyword to constrain a result.
+**`schema` is a structural subset of JSON Schema, not a validator.** Honored: `type`, `required`, `enum`, `const`, recursive `properties`/`items`, and `anyOf`/`oneOf`/`allOf` — where `oneOf` is treated as `anyOf`, meaning at least one branch matches rather than exactly one. Ignored and *not* enforced: `additionalProperties`, `pattern`, `minLength`/`maxLength`, `format`, numeric ranges, and boolean schemas. Do not rely on an ignored keyword to constrain a result.
 
 The runtime always parses and validates the returned JSON against that workflow subset. On a parse or match failure, it sends up to two correction turns to the same subagent; it does not spawn replacement subagents or repeat the original task.
 
 Eligible local first-party model routes also use provider-native structured output to strengthen generation. Native selection fails closed: the selected CAPI model must explicitly report structured-output support, the wire route must support native formats, and the schema must fit a conservative provider subset. That subset requires an object root, typed nodes, non-empty object properties, every property listed in `required`, `additionalProperties: false` on every object, object-shaped array items, and bounded depth, property count, enum size, and serialized size. It accepts nested `anyOf`, descriptions, and enums, but rejects root `anyOf`, references, boolean schemas, `allOf`, `oneOf`, `const`, and other unsupported keywords.
 
 AHP subagents, HydraFusion-selected children, BYOK providers, models without the capability, unknown routes, and schemas outside the native subset keep prompt-based JSON coercion. They retain the same parsing, validation, and same-agent correction behavior, so workflow authors use one `ctx.agent(..., { schema })` API regardless of the selected path.
-
-**Per-agent deadlines are optional and runtime-owned.** `options.timeoutSeconds`
-must be finite and positive, at most `2_147_483.647`. It covers this call's
-concurrency and journal queueing, preparation, agent execution, and same-agent
-schema correction turns. Durable writes and cancellation cleanup are allowed to
-finish, so the deadline is soft rather than a guarantee of an immediate response.
-
-An expired call cancels only its own agent subtree and rejects with JSON-RPC
-`data.code: "workflow_agent_timeout"`. It does not cancel `ctx.signal` or sibling
-calls, consume an extra agent admission, or memoize a failed result. Catch that
-specific failure inside an individual thunk if the workflow should continue.
-An uncaught error still fails the workflow normally. A run cancellation or
-reached run limit takes precedence over an agent deadline; the existing run
-limits and accounting still apply. A cleanup failure rejects with
-`workflow_agent_cleanup_failed`, never a successful agent result. Omit the option
-unless a deadline is known or requested.
 
 ### Choosing between pipeline and parallel
 
@@ -153,7 +136,7 @@ limits: { maxTotalSubagents: 10 },
 
 ## Run and resume
 
-`run` waits for the current attempt to settle. Run by registered name or handle:
+Run by registered name or handle:
 
 ```ts
 const run = await session.workflow.run("review-changed", {
@@ -213,24 +196,6 @@ Both resolve with the run envelope (`WorkflowRunResult`) for **every** outcome�
 
 If the runtime that owns a started run disappears, the run remains active until its existing lease expires. The next observation reconciles it to `halted`, after which it can be resumed through the same API. Resume reuses durable journal entries and durable AI credit spend; spend that was not durably stored before the runtime disappeared is not reconstructed.
 
-Use `start` with the same name/handle and options to return immediately after
-runtime admission instead of waiting for completion:
-
-```ts
-const admitted = await session.workflow.start("review-changed", {
-    args: { files: ["src/a.ts"] },
-    notifyOnComplete: false,
-});
-console.log(`Admitted run ${admitted.runId}: ${admitted.status}`);
-const settled = await session.workflow.waitForRun(admitted.runId);
-```
-
-The admitted envelope is not a successful result; inspect the terminal status
-before using `result`. Admission still enforces eligibility, input validation and
-active-run limits, and a pre-admission failure rejects without returning a run.
-`start` does not change `run` or `resume`'s blocking behavior. Like `run`, it is
-not allowed from a workflow body because nested workflows are unsupported.
-
 Pause a running attempt from outside its workflow body:
 
 ```ts
@@ -260,6 +225,7 @@ Observation does not restore execution eligibility. Starting, resuming, pausing,
 ```ts
 const runs = await session.workflow.listRuns();
 const runsPage = await session.workflow.listRuns({
+    afterSeq,
     beforeSeq,
     limit,
 });
@@ -267,15 +233,15 @@ const detail = await session.workflow.getRunDetail(runId);
 const progressPage = await session.workflow.getRunProgress(runId, {
     phaseId,
     afterSeq,
+    beforeSeq,
     limit,
 });
 ```
 
 - `listRuns()` returns only the runs array from the newest default page of this session's durable workflow runs. This overload preserves the original convenience API.
-- `listRuns({ afterSeq, limit })` or `listRuns({ beforeSeq, limit })` returns the full page. Its `oldestSeq`, `newestSeq`, `hasMoreNewer`, and `omittedOlder` fields let callers continue paging without raw RPC calls.
+- `listRuns({ afterSeq, beforeSeq, limit })` returns the full page. Its `oldestSeq`, `newestSeq`, `hasMoreNewer`, and `omittedOlder` fields let callers continue paging without raw RPC calls.
 - `getRunDetail(runId)` returns phases, prompt-safe agent summaries, and the latest progress page. Each current-runtime agent summary includes `consumedNanoAiu`, the known spend from that direct agent and its descendants. Older runtimes omit the field, and historical agents without attributable charge rows also omit it when the run contains unattributed spend.
 - `getRunProgress(runId, options?)` pages progress forward, backward, by phase, or from the latest tail.
-- Both paging calls take at most one cursor: `afterSeq` pages forward and `beforeSeq` pages backward, each exclusive of the given sequence number. A request with both fails with JSON-RPC `-32602` and `data.code: "workflow_runs_invalid_cursor"` from `listRuns`, or `"workflow_progress_invalid_cursor"` from `getRunProgress`.
 
 `getRun(runId)` reads the latest run envelope. `pause(runId)` pauses a running attempt and returns its `paused` envelope. `cancel(runId)` cancels a run and returns its terminal envelope.
 

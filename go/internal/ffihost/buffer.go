@@ -27,18 +27,13 @@ func newReceiveBuffer() *receiveBuffer {
 	return rb
 }
 
-// feed takes ownership of data, which the callback has copied from native memory.
 func (rb *receiveBuffer) feed(data []byte) {
 	rb.mu.Lock()
 	defer rb.mu.Unlock()
 	if rb.closed {
 		return
 	}
-	if len(rb.buf) == 0 {
-		rb.buf = data
-	} else {
-		rb.buf = append(rb.buf, data...)
-	}
+	rb.buf = append(rb.buf, data...)
 	rb.cond.Broadcast()
 }
 
@@ -58,9 +53,6 @@ func (rb *receiveBuffer) Read(p []byte) (int, error) {
 	}
 	n := copy(p, rb.buf)
 	rb.buf = rb.buf[n:]
-	if len(rb.buf) == 0 {
-		rb.buf = nil
-	}
 	return n, nil
 }
 

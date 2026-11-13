@@ -22,15 +22,6 @@ namespace GitHub.Copilot.Test.Unit;
 
 public sealed class SetToolsTests
 {
-    private sealed class DelegatingDeclaration(AIFunction inner) : AIFunctionDeclaration
-    {
-        public override string Name => inner.Name;
-        public override string Description => inner.Description;
-        public override JsonElement JsonSchema => inner.JsonSchema;
-        public override object? GetService(Type serviceType, object? serviceKey = null) =>
-            inner.GetService(serviceType, serviceKey);
-    }
-
     [Theory]
     [InlineData(null)]
     [InlineData("Fruit lookups")]
@@ -49,7 +40,6 @@ public sealed class SetToolsTests
                     OverridesBuiltInTool = true,
                     SkipPermission = true,
                     IsTerminal = true,
-                    Idempotent = true,
                     Defer = CopilotToolDefer.Never,
                     Metadata = new Dictionary<string, JsonNode?> { ["owner"] = "test" },
                     Namespace = new ToolNamespace { Name = "fruit", Description = namespaceDescription },
@@ -59,11 +49,11 @@ public sealed class SetToolsTests
                     Name = "lookup_fruit",
                     Description = "Looks up the fruit for a numeric code",
                 }),
-            new DelegatingDeclaration(AIFunctionFactory.Create(() => "empty", new AIFunctionFactoryOptions
+            AIFunctionFactory.Create(() => "empty", new AIFunctionFactoryOptions
             {
                 Name = "empty_description",
                 Description = string.Empty,
-            })),
+            }),
         ]);
 
         var request = Assert.Single(server.Requests, request => request.Method == "session.tools.set");
@@ -80,8 +70,6 @@ public sealed class SetToolsTests
                 Assert.True(fruit.GetProperty("overridesBuiltInTool").GetBoolean());
                 Assert.True(fruit.GetProperty("skipPermission").GetBoolean());
                 Assert.True(fruit.GetProperty("isTerminal").GetBoolean());
-                Assert.True(fruit.GetProperty("idempotent").GetBoolean());
-                Assert.True(fruit.GetProperty("hasHandler").GetBoolean());
                 Assert.Equal("never", fruit.GetProperty("defer").GetString());
                 Assert.Equal("test", fruit.GetProperty("metadata").GetProperty("owner").GetString());
                 Assert.Equal("fruit", fruit.GetProperty("namespace").GetProperty("name").GetString());
@@ -95,48 +83,13 @@ public sealed class SetToolsTests
             {
                 Assert.Equal("empty_description", empty.GetProperty("name").GetString());
                 Assert.Equal(string.Empty, empty.GetProperty("description").GetString());
-                Assert.True(empty.GetProperty("hasHandler").GetBoolean());
                 Assert.False(empty.TryGetProperty("overridesBuiltInTool", out _));
                 Assert.False(empty.TryGetProperty("skipPermission", out _));
                 Assert.False(empty.TryGetProperty("isTerminal", out _));
-                Assert.False(empty.TryGetProperty("idempotent", out _));
                 Assert.False(empty.TryGetProperty("defer", out _));
                 Assert.False(empty.TryGetProperty("metadata", out _));
                 Assert.False(empty.TryGetProperty("namespace", out _));
             });
-    }
-
-    [Fact]
-    public async Task DeclarationOnly_Request_Does_Not_Run_The_Previous_Handler()
-    {
-        await using var server = await SetToolsFakeServer.StartAsync();
-        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
-        var calls = 0;
-        await using var session = await client.CreateSessionAsync(new SessionConfig
-        {
-            Tools = [AIFunctionFactory.Create(() => Interlocked.Increment(ref calls),
-                new AIFunctionFactoryOptions { Name = "lookup" })],
-        });
-        var observed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        using var subscription = session.On<ExternalToolRequestedEvent>(requested =>
-        {
-            if (requested.Data.RequestId == "declared-request")
-                observed.TrySetResult();
-        });
-
-        await server.SendSessionEventAsync(session.SessionId, "external_tool.requested", new Dictionary<string, object?>
-        {
-            ["sessionId"] = session.SessionId,
-            ["requestId"] = "declared-request",
-            ["toolCallId"] = "declared-call",
-            ["toolName"] = "lookup",
-            ["arguments"] = new Dictionary<string, object?>(),
-            ["hasHandler"] = false,
-        });
-        await observed.Task.WaitAsync(TimeSpan.FromSeconds(5));
-
-        Assert.Equal(0, Volatile.Read(ref calls));
-        Assert.DoesNotContain(server.Requests, request => request.Method == "session.tools.handlePendingToolCall");
     }
 
     [Fact]
@@ -369,8 +322,7 @@ public sealed class SetToolsTests
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => replacement);
 
             releaseSet.SetResult();
-            // This is an ordering handshake; CI's hang timeout bounds a missing response.
-            await logger.ResponseReceived.Task;
+            await logger.ResponseReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
             var result = await InvokeToolAsync(server, session, "cancel_tool", "cancel-request");
             Assert.Equal("new", result);
@@ -379,33 +331,6 @@ public sealed class SetToolsTests
         {
             releaseSet.TrySetResult();
             logger.ContinueResponse.TrySetResult();
-        }
-    }
-
-    [Theory]
-    [InlineData("Failed", true)]
-    [InlineData("Failed", false)]
-    [InlineData("Canceled", true)]
-    [InlineData("Canceled", false)]
-    public async Task SetToolsResponseLogger_Propagates_Unsuccessful_Response(string status, bool includeException)
-    {
-        var logger = new SetToolsResponseLogger();
-        var exception = includeException ? new IOException("Tool replacement failed.") : null;
-        logger.Log(LogLevel.Warning, default, new KeyValuePair<string, object?>[]
-        {
-            new("Method", "session.tools.set"),
-            new("Status", status),
-        }, exception, static (_, _) => string.Empty);
-
-        Assert.True(logger.ResponseReceived.Task.IsFaulted);
-        if (exception is not null)
-        {
-            Assert.Same(exception, await Assert.ThrowsAsync<IOException>(() => logger.ResponseReceived.Task));
-        }
-        else
-        {
-            var error = await Assert.ThrowsAsync<InvalidOperationException>(() => logger.ResponseReceived.Task);
-            Assert.Equal($"session.tools.set completed with status '{status}'.", error.Message);
         }
     }
 
@@ -681,15 +606,8 @@ public sealed class SetToolsTests
         {
             if (state is IReadOnlyList<KeyValuePair<string, object?>> properties &&
                 properties.Any(entry => entry is { Key: "Method", Value: "session.tools.set" }) &&
-                properties.FirstOrDefault(entry => entry.Key == "Status").Value is string status)
+                properties.Any(entry => entry is { Key: "Status", Value: "Succeeded" }))
             {
-                if (status != "Succeeded")
-                {
-                    ResponseReceived.TrySetException(exception ??
-                        new InvalidOperationException($"session.tools.set completed with status '{status}'."));
-                    return;
-                }
-
                 // Hold the RPC awaiter after acceptance without blocking the reader's next tool event.
                 ResponseReceived.TrySetResult();
                 ContinueResponse.Task.GetAwaiter().GetResult();

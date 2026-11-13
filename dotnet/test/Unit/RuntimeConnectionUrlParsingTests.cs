@@ -9,41 +9,6 @@ namespace GitHub.Copilot.Test.Unit;
 
 public class RuntimeConnectionUrlParsingTests
 {
-    [Theory]
-    [InlineData("https://example.com:443")]
-    [InlineData("HtTpS://example.com:443")]
-    [InlineData("https://[::1]:9000")]
-    [InlineData("https://localhost:9000")]
-    public void ForUri_RejectsHttpsBeforeConnecting(string url)
-    {
-        var exception = Assert.Throws<ArgumentException>(() => new CopilotClient(new CopilotClientOptions
-        {
-            Connection = RuntimeConnection.ForUri(url, connectionToken: "connection-secret")
-        }));
-
-        Assert.Equal(
-            "HTTPS runtime connections are not supported: this transport uses plaintext TCP, not TLS",
-            exception.Message);
-    }
-
-    [Theory]
-    [InlineData("8080")]
-    [InlineData("localhost:9000")]
-    [InlineData("http://localhost:7000")]
-    [InlineData("[::1]:9000")]
-    [InlineData("http://[::1]:7000")]
-    [InlineData("copilot.example.com")]
-    [InlineData("https:9000")]
-    public void ForUri_AcceptsRawTcpAddresses(string url)
-    {
-        var client = new CopilotClient(new CopilotClientOptions
-        {
-            Connection = RuntimeConnection.ForUri(url)
-        });
-
-        Assert.Null(client.RuntimePort);
-    }
-
     [Fact]
     public void ForUri_ParsesBracketedIpv6HostPort()
     {

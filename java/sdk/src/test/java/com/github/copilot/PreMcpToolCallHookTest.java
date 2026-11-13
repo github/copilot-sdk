@@ -4,8 +4,6 @@
 
 package com.github.copilot;
 
-import org.junit.jupiter.api.Tag;
-
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.HashMap;
@@ -27,6 +25,7 @@ import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.PreMcpToolCallHookInput;
 import com.github.copilot.rpc.PreMcpToolCallHookOutput;
+import com.github.copilot.rpc.SessionConfig;
 import com.github.copilot.rpc.SessionHooks;
 
 /**
@@ -38,7 +37,6 @@ import com.github.copilot.rpc.SessionHooks;
  * test/snapshots/pre_mcp_tool_call_hook/.
  * </p>
  */
-@Tag("e2e")
 public class PreMcpToolCallHookTest {
 
     private static final ObjectMapper MAPPER = JsonRpcClient.getObjectMapper();
@@ -83,8 +81,8 @@ public class PreMcpToolCallHookTest {
         });
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(ctx.newSessionConfig().setMcpServers(mcpServers)
-                    .setHooks(hooks).setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+            CopilotSession session = client.createSession(new SessionConfig().setMcpServers(mcpServers).setHooks(hooks)
+                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             AssistantMessageEvent response = session.sendAndWait(new MessageOptions().setPrompt(
                     "Use the meta-echo/echo_meta tool with value 'test-set'. Reply with just the raw tool result."))
@@ -130,8 +128,8 @@ public class PreMcpToolCallHookTest {
         });
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(ctx.newSessionConfig().setMcpServers(mcpServers)
-                    .setHooks(hooks).setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+            CopilotSession session = client.createSession(new SessionConfig().setMcpServers(mcpServers).setHooks(hooks)
+                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             AssistantMessageEvent response = session.sendAndWait(new MessageOptions().setPrompt(
                     "Use the meta-echo/echo_meta tool with value 'test-replace'. Reply with just the raw tool result."))
@@ -171,8 +169,8 @@ public class PreMcpToolCallHookTest {
         });
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(ctx.newSessionConfig().setMcpServers(mcpServers)
-                    .setHooks(hooks).setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+            CopilotSession session = client.createSession(new SessionConfig().setMcpServers(mcpServers).setHooks(hooks)
+                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             AssistantMessageEvent response = session.sendAndWait(new MessageOptions().setPrompt(
                     "Use the meta-echo/echo_meta tool with value 'test-remove'. Reply with just the raw tool result."))

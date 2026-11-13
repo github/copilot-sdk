@@ -41,10 +41,7 @@ pub struct Artifacts {
 
 static ARTIFACTS: LazyLock<Artifacts> = LazyLock::new(|| {
     if let Ok(manifest) = std::env::var("COPILOT_RUNTIME_HOST_CANDIDATE_MANIFEST") {
-        let package = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .canonicalize()
-            .unwrap();
-        let sdk = package.parent().unwrap();
+        let sdk = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
         let output = Command::new(sdk.join("nodejs/node_modules/.bin/tsx"))
             .arg(sdk.join("rust/tests/e2e/runtime_host_candidate.mts"))
             .arg(manifest)

@@ -77,9 +77,6 @@ type (
 	AttachmentSelectionDetailsStart                                = rpc.AttachmentSelectionDetailsStart
 	AttachmentSessionReference                                     = rpc.AttachmentSessionReference
 	AttachmentType                                                 = rpc.AttachmentType
-	AutoModeRecoveryConsentCompletedData                           = rpc.AutoModeRecoveryConsentCompletedData
-	AutoModeRecoveryConsentRequestedData                           = rpc.AutoModeRecoveryConsentRequestedData
-	AutoModeRecoveryOutcomeData                                    = rpc.AutoModeRecoveryOutcomeData
 	AutoModeResolvedReasoningBucket                                = rpc.AutoModeResolvedReasoningBucket
 	AutoModeSwitchCompletedData                                    = rpc.AutoModeSwitchCompletedData
 	AutoModeSwitchRequestedData                                    = rpc.AutoModeSwitchRequestedData
@@ -94,9 +91,7 @@ type (
 	CanvasRegistryChangedCanvas                                    = rpc.CanvasRegistryChangedCanvas
 	CanvasRegistryChangedCanvasAction                              = rpc.CanvasRegistryChangedCanvasAction
 	CapabilitiesChangedData                                        = rpc.CapabilitiesChangedData
-	CapabilitiesChangedDataWithAutoModeRecovery                    = rpc.CapabilitiesChangedDataWithAutoModeRecovery
 	CapabilitiesChangedUI                                          = rpc.CapabilitiesChangedUI
-	CapabilitiesChangedUIWithAutoModeRecovery                      = rpc.CapabilitiesChangedUIWithAutoModeRecovery
 	CitableSource                                                  = rpc.CitableSource
 	CitationLocation                                               = rpc.CitationLocation
 	CitationLocationBlock                                          = rpc.CitationLocationBlock
@@ -160,24 +155,12 @@ type (
 	HookProgressData                                               = rpc.HookProgressData
 	HookStartData                                                  = rpc.HookStartData
 	HumanResponseActor                                             = rpc.HumanResponseActor
-	HumanResponseAskUserAction                                     = rpc.HumanResponseAskUserAction
 	HumanResponseRecordedData                                      = rpc.HumanResponseRecordedData
 	HumanResponseRecordedResponse                                  = rpc.HumanResponseRecordedResponse
 	HumanResponseRecordedResponseAskUser                           = rpc.HumanResponseRecordedResponseAskUser
 	HumanResponseRecordedResponseExitPlanMode                      = rpc.HumanResponseRecordedResponseExitPlanMode
 	HumanResponseRecordedResponseResponseKind                      = rpc.HumanResponseRecordedResponseResponseKind
 	HumanResponseRecordedResponseUserInput                         = rpc.HumanResponseRecordedResponseUserInput
-	IdeAddFileReferenceData                                        = rpc.IdeAddFileReferenceData
-	IdeConnectedInfo                                               = rpc.IdeConnectedInfo
-	IdeConnectionChangedData                                       = rpc.IdeConnectionChangedData
-	IdeConnectionState                                             = rpc.IdeConnectionState
-	IdeElicitationCompleteData                                     = rpc.IdeElicitationCompleteData
-	IdeFileReference                                               = rpc.IdeFileReference
-	IdePosition                                                    = rpc.IdePosition
-	IdeRange                                                       = rpc.IdeRange
-	IdeSelection                                                   = rpc.IdeSelection
-	IdeSelectionChangedData                                        = rpc.IdeSelectionChangedData
-	IdeSelectionRange                                              = rpc.IdeSelectionRange
 	IndexedSearchState                                             = rpc.IndexedSearchState
 	InstructionUpdateAuthority                                     = rpc.InstructionUpdateAuthority
 	InstructionUpdateBoundary                                      = rpc.InstructionUpdateBoundary
@@ -375,7 +358,6 @@ type (
 	SessionCanvasUnavailableData                                   = rpc.SessionCanvasUnavailableData
 	SessionCompactionCompleteData                                  = rpc.SessionCompactionCompleteData
 	SessionCompactionStartData                                     = rpc.SessionCompactionStartData
-	SessionCompactionSummarizedData                                = rpc.SessionCompactionSummarizedData
 	SessionCompletionReceiptData                                   = rpc.SessionCompletionReceiptData
 	SessionContextChangedData                                      = rpc.SessionContextChangedData
 	SessionContextClearedData                                      = rpc.SessionContextClearedData
@@ -385,7 +367,6 @@ type (
 	SessionEvent                                                   = rpc.SessionEvent
 	SessionEventData                                               = rpc.SessionEventData
 	SessionEventType                                               = rpc.SessionEventType
-	SessionEventWithAutoModeRecovery                               = rpc.SessionEventWithAutoModeRecovery
 	SessionExtensionsAttachmentsPushedData                         = rpc.SessionExtensionsAttachmentsPushedData
 	SessionExtensionsLoadedData                                    = rpc.SessionExtensionsLoadedData
 	SessionFusionCompletedData                                     = rpc.SessionFusionCompletedData
@@ -595,7 +576,6 @@ const (
 	AssistantMessageToolRequestTypeCustom                                = rpc.AssistantMessageToolRequestTypeCustom
 	AssistantMessageToolRequestTypeFunction                              = rpc.AssistantMessageToolRequestTypeFunction
 	AssistantUsageAPIEndpointChatCompletions                             = rpc.AssistantUsageAPIEndpointChatCompletions
-	AssistantUsageAPIEndpointInteractions                                = rpc.AssistantUsageAPIEndpointInteractions
 	AssistantUsageAPIEndpointResponses                                   = rpc.AssistantUsageAPIEndpointResponses
 	AssistantUsageAPIEndpointV1Messages                                  = rpc.AssistantUsageAPIEndpointV1Messages
 	AssistantUsageAPIEndpointWsResponses                                 = rpc.AssistantUsageAPIEndpointWsResponses
@@ -693,7 +673,6 @@ const (
 	ExtensionsLoadedExtensionSourceSession                               = rpc.ExtensionsLoadedExtensionSourceSession
 	ExtensionsLoadedExtensionSourceUser                                  = rpc.ExtensionsLoadedExtensionSourceUser
 	ExtensionsLoadedExtensionStatusDisabled                              = rpc.ExtensionsLoadedExtensionStatusDisabled
-	ExtensionsLoadedExtensionStatusDormant                               = rpc.ExtensionsLoadedExtensionStatusDormant
 	ExtensionsLoadedExtensionStatusFailed                                = rpc.ExtensionsLoadedExtensionStatusFailed
 	ExtensionsLoadedExtensionStatusRunning                               = rpc.ExtensionsLoadedExtensionStatusRunning
 	ExtensionsLoadedExtensionStatusStarting                              = rpc.ExtensionsLoadedExtensionStatusStarting
@@ -727,8 +706,6 @@ const (
 	HumanResponseActorHostAutomation                                     = rpc.HumanResponseActorHostAutomation
 	HumanResponseActorHumanResponse                                      = rpc.HumanResponseActorHumanResponse
 	HumanResponseActorUnknown                                            = rpc.HumanResponseActorUnknown
-	HumanResponseAskUserActionCancel                                     = rpc.HumanResponseAskUserActionCancel
-	HumanResponseAskUserActionDecline                                    = rpc.HumanResponseAskUserActionDecline
 	HumanResponseRecordedResponseResponseKindAskUser                     = rpc.HumanResponseRecordedResponseResponseKindAskUser
 	HumanResponseRecordedResponseResponseKindExitPlanMode                = rpc.HumanResponseRecordedResponseResponseKindExitPlanMode
 	HumanResponseRecordedResponseResponseKindUserInput                   = rpc.HumanResponseRecordedResponseResponseKindUserInput
@@ -859,7 +836,6 @@ const (
 	ModelProviderKindLoki                                                = rpc.ModelProviderKindLoki
 	OmittedBinaryOmittedReasonAssetUnavailable                           = rpc.OmittedBinaryOmittedReasonAssetUnavailable
 	OmittedBinaryOmittedReasonTooLarge                                   = rpc.OmittedBinaryOmittedReasonTooLarge
-	OmittedBinaryOmittedReasonUnsupportedFormat                          = rpc.OmittedBinaryOmittedReasonUnsupportedFormat
 	OmittedBinaryTypeImage                                               = rpc.OmittedBinaryTypeImage
 	OmittedBinaryTypeResource                                            = rpc.OmittedBinaryTypeResource
 	PermissionApprovalEvaluationEvaluationStageJudge                     = rpc.PermissionApprovalEvaluationEvaluationStageJudge
@@ -1061,9 +1037,6 @@ const (
 	SessionEventTypeAssistantTurnRetry                                   = rpc.SessionEventTypeAssistantTurnRetry
 	SessionEventTypeAssistantTurnStart                                   = rpc.SessionEventTypeAssistantTurnStart
 	SessionEventTypeAssistantUsage                                       = rpc.SessionEventTypeAssistantUsage
-	SessionEventTypeAutoModeRecoveryConsentCompleted                     = rpc.SessionEventTypeAutoModeRecoveryConsentCompleted
-	SessionEventTypeAutoModeRecoveryConsentRequested                     = rpc.SessionEventTypeAutoModeRecoveryConsentRequested
-	SessionEventTypeAutoModeRecoveryOutcome                              = rpc.SessionEventTypeAutoModeRecoveryOutcome
 	SessionEventTypeAutoModeSwitchCompleted                              = rpc.SessionEventTypeAutoModeSwitchCompleted
 	SessionEventTypeAutoModeSwitchRequested                              = rpc.SessionEventTypeAutoModeSwitchRequested
 	SessionEventTypeCapabilitiesChanged                                  = rpc.SessionEventTypeCapabilitiesChanged
@@ -1081,10 +1054,6 @@ const (
 	SessionEventTypeHookProgress                                         = rpc.SessionEventTypeHookProgress
 	SessionEventTypeHookStart                                            = rpc.SessionEventTypeHookStart
 	SessionEventTypeHumanResponseRecorded                                = rpc.SessionEventTypeHumanResponseRecorded
-	SessionEventTypeIdeAddFileReference                                  = rpc.SessionEventTypeIdeAddFileReference
-	SessionEventTypeIdeConnectionChanged                                 = rpc.SessionEventTypeIdeConnectionChanged
-	SessionEventTypeIdeElicitationComplete                               = rpc.SessionEventTypeIdeElicitationComplete
-	SessionEventTypeIdeSelectionChanged                                  = rpc.SessionEventTypeIdeSelectionChanged
 	SessionEventTypeInstructionUpdate                                    = rpc.SessionEventTypeInstructionUpdate
 	SessionEventTypeMCPAppToolCallComplete                               = rpc.SessionEventTypeMCPAppToolCallComplete
 	SessionEventTypeMCPHeadersRefreshCompleted                           = rpc.SessionEventTypeMCPHeadersRefreshCompleted
@@ -1127,7 +1096,6 @@ const (
 	SessionEventTypeSessionCanvasUnavailable                             = rpc.SessionEventTypeSessionCanvasUnavailable
 	SessionEventTypeSessionCompactionComplete                            = rpc.SessionEventTypeSessionCompactionComplete
 	SessionEventTypeSessionCompactionStart                               = rpc.SessionEventTypeSessionCompactionStart
-	SessionEventTypeSessionCompactionSummarized                          = rpc.SessionEventTypeSessionCompactionSummarized
 	SessionEventTypeSessionCompletionReceipt                             = rpc.SessionEventTypeSessionCompletionReceipt
 	SessionEventTypeSessionContextChanged                                = rpc.SessionEventTypeSessionContextChanged
 	SessionEventTypeSessionContextCleared                                = rpc.SessionEventTypeSessionContextCleared

@@ -10,7 +10,6 @@ import java.util.Map;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.JsonNode;
 
 import com.github.copilot.CopilotExperimental;
 
@@ -42,30 +41,6 @@ import com.github.copilot.CopilotExperimental;
 @CopilotExperimental
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class NamedProviderConfig {
-
-    @JsonProperty("localModel")
-    private JsonNode localModel;
-
-    /**
-     * Gets runtime options for a local model.
-     *
-     * @return the options, or {@code null} if unset
-     */
-    public JsonNode getLocalModel() {
-        return localModel;
-    }
-
-    /**
-     * Sets runtime options without changing their JSON shape.
-     *
-     * @param localModel
-     *            the runtime options
-     * @return this config for method chaining
-     */
-    public NamedProviderConfig setLocalModel(JsonNode localModel) {
-        this.localModel = localModel;
-        return this;
-    }
 
     @JsonProperty("name")
     private String name;
@@ -124,7 +99,7 @@ public class NamedProviderConfig {
     /**
      * Gets the provider type.
      *
-     * @return the provider type (e.g., "openai", "azure", "anthropic", "google")
+     * @return the provider type (e.g., "openai", "azure", "anthropic")
      */
     public String getType() {
         return type;
@@ -138,7 +113,6 @@ public class NamedProviderConfig {
      * <li>"openai" - OpenAI API</li>
      * <li>"azure" - Azure OpenAI Service</li>
      * <li>"anthropic" - Anthropic API</li>
-     * <li>"google" - Google Gemini Interactions API (experimental)</li>
      * </ul>
      *
      * @param type
@@ -185,8 +159,10 @@ public class NamedProviderConfig {
     /**
      * Sets the product serving this provider's models, reported in telemetry as
      * {@code model_provider}. Allowed values are "openai", "anthropic",
-     * "azure_openai", "ollama", "lm_studio", "foundry_local", and "llama_cpp"; only
-     * affects telemetry.
+     * "azure_openai", "ollama", "lm_studio", "foundry_local", and "llama_cpp".
+     * "azure_openai" also omits explicit prompt-cache breakpoints, which limit
+     * cross-turn cache reuse on Azure; set it for a proxy or custom domain in front
+     * of Azure OpenAI.
      *
      * @param modelProvider
      *            the model provider

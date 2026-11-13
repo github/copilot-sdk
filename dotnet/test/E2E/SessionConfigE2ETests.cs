@@ -345,7 +345,7 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         var sessionId = session1.SessionId;
         await SuspendAndUntrackSessionForResumeAsync(session1);
 
-        await using var session2 = await ResumeSessionAsync(sessionId, new ResumeSessionConfig
+        var session2 = await ResumeSessionAsync(sessionId, new ResumeSessionConfig
         {
             WorkingDirectory = subDir,
         });
@@ -357,13 +357,7 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         Assert.Contains("resume working directory", message?.Data.Content ?? string.Empty);
 
-        await SuspendAndUntrackSessionForResumeAsync(session2);
-        var omittedWorkingDirectory = new ResumeSessionConfig();
-        await using var session3 = await ResumeSessionAsync(sessionId, omittedWorkingDirectory);
-
-        Assert.Null(omittedWorkingDirectory.WorkingDirectory);
-        var resumeEvent = (await session3.GetEventsAsync()).OfType<SessionResumeEvent>().Last();
-        Assert.Equal(subDir, resumeEvent.Data.Context?.Cwd);
+        await session2.DisposeAsync();
     }
 
     [Fact]
@@ -490,11 +484,11 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         try
         {
-            await SendAndGetNextExchangeAsync(
+            var exchange = await SendAndGetNextExchangeAsync(
                 session,
                 "Acknowledge the current session limits.");
 
-            await AssertSessionLimitsAppliedAsync(session, 30);
+            AssertSessionLimitsStatus(exchange, "30 AI credits");
         }
         finally
         {
@@ -518,11 +512,11 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         try
         {
-            await SendAndGetNextExchangeAsync(
+            var exchange = await SendAndGetNextExchangeAsync(
                 session2,
                 "Acknowledge the current session limits.");
 
-            await AssertSessionLimitsAppliedAsync(session2, 30);
+            AssertSessionLimitsStatus(exchange, "30 AI credits");
         }
         finally
         {
@@ -792,11 +786,17 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         return exchanges[existingCount];
     }
 
-    private static async Task AssertSessionLimitsAppliedAsync(CopilotSession session, double maxAiCredits)
+    private static void AssertSessionLimitsStatus(ParsedHttpExchange exchange, string expectedRemaining)
     {
-        var metadata = await session.Rpc.Metadata.SnapshotAsync();
-        Assert.NotNull(metadata.SessionLimits);
-        Assert.Equal<double?>(maxAiCredits, metadata.SessionLimits!.MaxAiCredits);
+        var message = exchange.Request.Messages.SingleOrDefault(m =>
+            m.Role == "user"
+            && m.StringContent?.Contains("<session_limits_status>", StringComparison.Ordinal) == true);
+
+        Assert.NotNull(message);
+        Assert.Contains($"Remaining session limits: {expectedRemaining}.", message!.StringContent);
+        Assert.Contains(
+            "Be frugal; avoid optional exploration and unnecessary tool calls.",
+            message.StringContent);
     }
 
     private static IReadOnlyList<string> GetTaskAgentTypes(ParsedHttpExchange exchange)

@@ -9,7 +9,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.fasterxml.jackson.annotation.JsonAnyGetter;
 import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -198,12 +197,10 @@ public class PermissionRequest {
     }
 
     /**
-     * Gets additional extension data for the request. The entries serialize as
-     * top-level request fields.
+     * Gets additional extension data for the request.
      *
      * @return the extension data map
      */
-    @JsonAnyGetter
     public Map<String, Object> getExtensionData() {
         return extensionData;
     }

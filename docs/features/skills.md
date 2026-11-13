@@ -24,7 +24,7 @@ import { CopilotClient } from "@github/copilot-sdk";
 
 const client = new CopilotClient();
 const session = await client.createSession({
-    model: "auto",
+    model: "gpt-5.4",
     skillDirectories: [
         "./skills/code-review",
         "./skills/documentation",
@@ -51,7 +51,7 @@ async def main():
 
     session = await client.create_session(
         on_permission_request=lambda req, inv: PermissionDecisionApproveOnce(),
-        model="auto",
+        model="gpt-5.4",
         skill_directories=[
             "./skills/code-review",
             "./skills/documentation",
@@ -88,7 +88,7 @@ func main() {
     defer client.Stop()
 
     session, err := client.CreateSession(ctx, &copilot.SessionConfig{
-        Model: "auto",
+        Model: "gpt-5.4",
         SkillDirectories: []string{
             "./skills/code-review",
             "./skills/documentation",
@@ -123,7 +123,7 @@ using GitHub.Copilot.Rpc;
 await using var client = new CopilotClient();
 await using var session = await client.CreateSessionAsync(new SessionConfig
 {
-    Model = "auto",
+    Model = "gpt-5.4",
     SkillDirectories = new List<string>
     {
         "./skills/code-review",
@@ -155,7 +155,7 @@ try (var client = new CopilotClient()) {
 
     var session = client.createSession(
         new SessionConfig()
-            .setModel("auto")
+            .setModel("gpt-5.4")
             .setSkillDirectories(List.of(
                 "./skills/code-review",
                 "./skills/documentation"
@@ -216,14 +216,19 @@ package main
 import (
 	"context"
 	copilot "github.com/github/copilot-sdk/go"
+	"github.com/github/copilot-sdk/go/rpc"
 )
 
 func main() {
+	ctx := context.Background()
 	client := copilot.NewClient(nil)
 
-	session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
+	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
 		SkillDirectories: []string{"./skills"},
 		DisabledSkills:   []string{"experimental-feature", "deprecated-tool"},
+		OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
+			return &rpc.PermissionDecisionApproveOnce{}, nil
+		},
 	})
 	_ = session
 }
@@ -242,6 +247,29 @@ session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
 <details>
 <summary><strong>.NET</strong></summary>
 
+<!-- docs-validate: hidden -->
+```csharp
+using GitHub.Copilot;
+using GitHub.Copilot.Rpc;
+
+public static class SkillsExample
+{
+    public static async Task Main()
+    {
+        await using var client = new CopilotClient();
+
+        var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            SkillDirectories = new List<string> { "./skills" },
+            DisabledSkills = new List<string> { "experimental-feature", "deprecated-tool" },
+            OnPermissionRequest = (req, inv) =>
+                Task.FromResult(PermissionDecision.ApproveOnce()),
+        });
+    }
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```csharp
 var session = await client.CreateSessionAsync(new SessionConfig
 {
@@ -255,26 +283,7 @@ var session = await client.CreateSessionAsync(new SessionConfig
 <details>
 <summary><strong>Java</strong></summary>
 
-<!-- docs-validate: hidden -->
-```java
-import com.github.copilot.*;
-import com.github.copilot.rpc.*;
-import java.util.List;
-
-public class SkillDirectoriesExample {
-    public static void main(String[] args) throws Exception {
-        try (var client = new CopilotClient()) {
-            var session = client.createSession(
-                new SessionConfig()
-                    .setSkillDirectories(List.of("./skills"))
-                    .setDisabledSkills(List.of("experimental-feature", "deprecated-tool"))
-                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
-            ).get();
-        }
-    }
-}
-```
-<!-- /docs-validate: hidden -->
+<!-- docs-validate: skip -->
 ```java
 import com.github.copilot.rpc.*;
 import java.util.List;
@@ -566,6 +575,7 @@ The Java skill provider API is `@CopilotExperimental`, so the consuming class or
 <details>
 <summary><strong>Rust</strong></summary>
 
+<!-- docs-validate: skip -->
 ```rust
 use std::sync::Arc;
 
@@ -713,7 +723,7 @@ The runtime validates the provider's catalog and content:
   | Java | The returned `CompletableFuture` is cancelled with `cancel(true)`, which doesn't interrupt running work. |
   | Rust | The provider future is dropped. |
 
-  These signals cover calls that the runtime cancels. When the connection closes or the client is force-stopped, the Python, Go, .NET, Java, and Rust SDKs also cancel calls that are still running. The Node.js SDK doesn't: a running call continues until it returns, and the SDK discards its result.
+  These signals cover calls that the runtime cancels. When the connection closes or the client is force-stopped, the .NET, Java, and Rust SDKs also cancel calls that are still running. The Node.js, Python, and Go SDKs don't: a running call continues until it returns, and the SDK discards its result.
 
 If listing fails or returns an invalid catalog, the runtime reports the problem in the `errors` list returned by `skills.reload`. A failed reload keeps the provider skills from the last successful list. If reading a skill fails, the `skill` tool reports a generic load failure to the model. The SDK never forwards the text of errors your provider throws or returns, so that text can't leak into the conversation.
 

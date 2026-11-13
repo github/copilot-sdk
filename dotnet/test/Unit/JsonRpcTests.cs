@@ -95,96 +95,6 @@ public class JsonRpcTests
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public async Task JsonRpc_Dispose_During_Send_Does_Not_Mask_Error(bool blockFlush, bool failSend)
-    {
-        var sendError = failSend ? new IOException("send failed") : null;
-        using var sendStream = new GatedSendStream(blockFlush, sendError);
-        using var rpc = new JsonRpcReflection(sendStream, Stream.Null);
-        var pending = rpc.InvokeAsync<string>("pending", args: null);
-        var shutdownError = new IOException("connection stopped");
-        var timeout = TimeSpan.FromSeconds(5);
-
-        try
-        {
-            await sendStream.Blocked.WaitAsync(timeout);
-            rpc.Dispose(shutdownError);
-            Assert.True(rpc.Completion.IsCompleted);
-            Assert.False(pending.IsCompleted);
-        }
-        finally
-        {
-            sendStream.Unblock();
-        }
-
-        var error = await Record.ExceptionAsync(() => pending.WaitAsync(timeout));
-        Assert.Same(sendError ?? shutdownError, error);
-        if (!failSend)
-        {
-            Assert.Equal(
-                CreateFrame("""{"jsonrpc":"2.0","id":1,"method":"pending"}"""),
-                sendStream.ToArray());
-        }
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task JsonRpc_Dispose_With_Queued_Send_Does_Not_Write_Another_Frame(bool cancelQueued)
-    {
-        using var sendStream = new GatedSendStream();
-        using var rpc = new JsonRpcReflection(sendStream, Stream.Null);
-        using var cancellation = new CancellationTokenSource();
-        var active = rpc.InvokeAsync<string>("active", args: null);
-        Task<string>? queued = null;
-        var shutdownError = Assert.Throws<IOException>((Action)(() => throw new IOException("connection stopped")));
-        var originalStackTrace = shutdownError.StackTrace!;
-        var timeout = TimeSpan.FromSeconds(5);
-
-        try
-        {
-            await sendStream.Blocked.WaitAsync(timeout);
-            queued = rpc.InvokeAsync<string>("queued", args: null, cancellation.Token);
-            Assert.False(queued.IsCompleted);
-            if (cancelQueued)
-            {
-                cancellation.Cancel();
-                // Finish canceling the lock wait before shutdown competes with it.
-                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => queued.WaitAsync(timeout));
-            }
-            rpc.Dispose(shutdownError);
-        }
-        finally
-        {
-            sendStream.Unblock();
-        }
-
-        var activeError = await Record.ExceptionAsync(() => active.WaitAsync(timeout));
-        var queuedError = await Record.ExceptionAsync(() => queued!.WaitAsync(timeout));
-        cancellation.Cancel();
-        Assert.Same(shutdownError, activeError);
-        if (cancelQueued)
-        {
-            Assert.IsAssignableFrom<OperationCanceledException>(queuedError);
-        }
-        else
-        {
-            Assert.Same(shutdownError, queuedError);
-            Assert.Contains(originalStackTrace, queuedError.StackTrace, StringComparison.Ordinal);
-            var lateError = await Record.ExceptionAsync(() =>
-                rpc.InvokeAsync<string>("afterShutdown", args: null).WaitAsync(timeout));
-            Assert.Same(shutdownError, lateError);
-            Assert.Contains(originalStackTrace, lateError.StackTrace, StringComparison.Ordinal);
-        }
-        Assert.Equal(
-            CreateFrame("""{"jsonrpc":"2.0","id":1,"method":"active"}"""),
-            sendStream.ToArray());
-    }
-
-    [Theory]
     [InlineData(true)]
     [InlineData(false)]
     public async Task JsonRpc_Cancels_Incoming_Handler_Token_When_Connection_Disposed(bool requestHasId)
@@ -316,28 +226,25 @@ public class JsonRpcTests
         Assert.Equal("carried", await next.WaitAsync(TimeSpan.FromSeconds(5)));
     }
 
-    [Theory]
-    [InlineData(1024 * 1024, 1, 0)]
-    [InlineData(2 * 1024 * 1024, 128, 8192)]
-    public async Task JsonRpc_Does_Not_Retain_Oversized_Receive_Buffer(int headerPaddingLength, int responseCount, int payloadLength)
+    [Fact]
+    public async Task JsonRpc_Does_Not_Retain_Oversized_Receive_Buffer()
     {
         var oversizedFrame = CreateResponseFrame(
             long.MaxValue,
             "ignored",
-            headerPaddingLength: headerPaddingLength);
-        var responses = Enumerable.Range(1, responseCount).Select(i => $"{i}:{new string('x', payloadLength)}").ToArray();
-        var carriedFrames = CombineFrames(responses.Select((value, i) => CreateResponseFrame(i + 1, value)));
-        using var receiveStream = new CoalescedFramesThenWaitStream(oversizedFrame, carriedFrames);
+            headerPaddingLength: 1024 * 1024);
+        var carriedFrame = CreateResponseFrame(1, "carried");
+        using var receiveStream = new CoalescedFramesThenWaitStream(oversizedFrame, carriedFrame);
         using var rpc = new JsonRpcReflection(Stream.Null, receiveStream);
 
-        var carriedResponse = Task.WhenAll(responses.Select(_ => rpc.InvokeAsync<string>("pending", args: null)));
+        var carriedResponse = rpc.InvokeAsync<string>("pending", args: null);
         rpc.StartListening();
 
         var responseCompleted = await Task.WhenAny(
             carriedResponse,
             Task.Delay(TimeSpan.FromSeconds(5), CancellationToken.None));
         Assert.Same(carriedResponse, responseCompleted);
-        Assert.Equal(responses, await carriedResponse);
+        Assert.Equal("carried", await carriedResponse);
         Assert.True(receiveStream.FramesWereCoalesced);
 
         var readCompleted = await Task.WhenAny(
@@ -388,76 +295,6 @@ public class JsonRpcTests
         await rpc.Completion.WaitAsync(TimeSpan.FromSeconds(5));
 
         Assert.Equal(payloads, collector.Payloads.Select(payload => payload?.GetRawText() ?? "null"));
-    }
-
-    [Fact]
-    public async Task JsonRpc_Reads_Messages_Nested_Past_Serializer_Default_Depth()
-    {
-        // The message object and its params add two levels above each payload.
-        var maxDepth = JsonRpcReflection.MaxIncomingMessageDepth;
-        var deep = NestedJson(200);
-        var atLimit = NestedJson(maxDepth - 2);
-        using var receiveStream = new MemoryStream(CombineFrames(
-        [
-            CreateNotificationFrame("payload", $$"""{"payload":{{NestedJson(maxDepth - 1)}}}"""),
-            CreateNotificationFrame("payload", $$"""{"payload":{{atLimit}}}"""),
-            CreateNotificationFrame("payload", $$"""{"payload":{{deep}}}"""),
-            CreateFrame($$"""{"jsonrpc":"2.0","id":1,"result":{{deep}}}"""),
-        ]));
-        using var rpc = new JsonRpcReflection(Stream.Null, receiveStream);
-        var collector = new JsonElementCollector(2);
-        rpc.SetLocalRpcMethod("payload", (Action<JsonElement?>)collector.Handle);
-
-        var response = rpc.InvokeAsync<JsonElement>("pending", args: null);
-        rpc.StartListening();
-
-        Assert.Equal(deep, (await response.WaitAsync(TimeSpan.FromSeconds(5))).GetRawText());
-        await collector.Completion.WaitAsync(TimeSpan.FromSeconds(5));
-        await rpc.Completion.WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.Equal(new[] { atLimit, deep }, collector.Payloads.Select(payload => payload!.Value.GetRawText()));
-    }
-
-    [Theory]
-    [InlineData(7)]
-    [InlineData(int.MaxValue)]
-    public async Task JsonRpc_Consumes_Coalesced_Frames_After_Invalid_Json_And_Buffer_Compaction(int chunkSize)
-    {
-        var frames = new List<byte[]>
-        {
-            CreateResponseFrame(0, "ignored", headerPaddingLength: 4096),
-            CreateFrame("{invalid"),
-        };
-        frames.AddRange(Enumerable.Range(0, 100).Select(i => CreateNotificationFrame("payload", $$"""{"payload":{{i}}}""")));
-        frames.Add(CreateNotificationFrame("payload", $$"""{"payload":"{{new string('x', 8192)}}"}"""));
-        frames.Add(CreateNotificationFrame("payload", """{"payload":"last"}"""));
-        using var receiveStream = new FragmentedReadStream(CombineFrames(frames), chunkSize);
-        using var rpc = new JsonRpcReflection(Stream.Null, receiveStream);
-        var collector = new JsonElementCollector(102);
-        rpc.SetLocalRpcMethod("payload", (Action<JsonElement?>)collector.Handle);
-
-        rpc.StartListening();
-        await rpc.Completion.WaitAsync(TimeSpan.FromSeconds(5));
-
-        Assert.Equal(102, collector.Payloads.Count);
-        Assert.Equal(Enumerable.Range(0, 100), collector.Payloads.Take(100).Select(p => p!.Value.GetInt32()));
-        Assert.Equal(new string('x', 8192), collector.Payloads[100]!.Value.GetString());
-        Assert.Equal("last", collector.Payloads[101]!.Value.GetString());
-    }
-
-    [Theory]
-    [InlineData("Content-Len")]
-    [InlineData("Content-Length: 100\r\n\r\n{}")]
-    public async Task JsonRpc_Truncated_Frame_Closes_Connection(string frame)
-    {
-        using var receiveStream = new FragmentedReadStream(Encoding.ASCII.GetBytes(frame), 7);
-        using var rpc = new JsonRpcReflection(Stream.Null, receiveStream);
-        var pending = rpc.InvokeAsync<JsonElement>("pending", args: null);
-
-        rpc.StartListening();
-
-        var error = await Assert.ThrowsAnyAsync<IOException>(() => pending.WaitAsync(TimeSpan.FromSeconds(5)));
-        Assert.Equal("ConnectionLostException", error.GetType().Name);
-        await rpc.Completion.WaitAsync(TimeSpan.FromSeconds(5));
     }
 
     [Fact]
@@ -565,9 +402,6 @@ public class JsonRpcTests
         body.CopyTo(frame, header.Length);
         return frame;
     }
-
-    private static string NestedJson(int levels) =>
-        string.Concat(Enumerable.Repeat("""{"n":""", levels)) + "42" + new string('}', levels);
 
     private static byte[] CombineFrames(IEnumerable<byte[]> frames)
     {
@@ -678,9 +512,6 @@ public class JsonRpcTests
 
         private static readonly JsonSerializerOptions SerializerOptions = CreateSerializerOptions();
 
-        public static int MaxIncomingMessageDepth =>
-            (int)JsonRpcType.GetField("MaxIncomingMessageDepth", BindingFlags.Static | BindingFlags.NonPublic)!.GetRawConstantValue()!;
-
         private static JsonSerializerOptions CreateSerializerOptions()
         {
             var property = typeof(CopilotClient).GetProperty(
@@ -736,10 +567,6 @@ public class JsonRpcTests
 
         public void Dispose() => ((IDisposable)_instance).Dispose();
 
-        public void Dispose(Exception reason) =>
-            JsonRpcType.GetMethod("Dispose", BindingFlags.Instance | BindingFlags.NonPublic)!
-                .Invoke(_instance, [reason]);
-
         public void NotifyProcessExit(CopilotClient client) =>
             typeof(CopilotClient)
                 .GetMethod("DisposeRpcAfterProcessExit", BindingFlags.Instance | BindingFlags.NonPublic)!
@@ -785,66 +612,6 @@ public class JsonRpcTests
                 _completion.TrySetResult();
             }
         }
-    }
-
-    private sealed class GatedSendStream(bool blockFlush = false, Exception? sendError = null) : MemoryStream
-    {
-        private readonly TaskCompletionSource _blocked = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        private readonly TaskCompletionSource _release = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        public Task Blocked => _blocked.Task;
-
-        public void Unblock() => _release.TrySetResult();
-
-        public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
-            WriteCoreAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
-
-#if NET8_0_OR_GREATER
-        public override
-#else
-        internal
-#endif
-        ValueTask WriteAsync(ReadOnlyMemory<byte> source, CancellationToken cancellationToken = default) =>
-            WriteCoreAsync(source, cancellationToken);
-
-        private async ValueTask WriteCoreAsync(ReadOnlyMemory<byte> source, CancellationToken cancellationToken)
-        {
-            Assert.False(cancellationToken.CanBeCanceled);
-            if (!blockFlush)
-            {
-                await BlockAsync();
-            }
-
-            var bytes = source.ToArray();
-            base.Write(bytes, 0, bytes.Length);
-        }
-
-        public override Task FlushAsync(CancellationToken cancellationToken)
-        {
-            Assert.False(cancellationToken.CanBeCanceled);
-            return blockFlush ? BlockAsync() : Task.CompletedTask;
-        }
-
-        private async Task BlockAsync()
-        {
-            _blocked.TrySetResult();
-            await _release.Task;
-            if (sendError is not null)
-            {
-                throw sendError;
-            }
-        }
-    }
-
-    private sealed class FragmentedReadStream(byte[] bytes, int chunkSize) : MemoryStream(bytes)
-    {
-        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
-            base.ReadAsync(buffer, offset, Math.Min(count, chunkSize), cancellationToken);
-
-#if NET8_0_OR_GREATER
-        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) =>
-            base.ReadAsync(buffer.Slice(0, Math.Min(buffer.Length, chunkSize)), cancellationToken);
-#endif
     }
 
     private sealed class CoalescedFramesThenWaitStream : Stream

@@ -15,9 +15,6 @@ import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.SessionConfig;
 import java.io.IOException;
-import java.net.BindException;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.util.HashMap;
 import java.util.Arrays;
@@ -39,30 +36,6 @@ import org.junit.jupiter.params.provider.ValueSource;
 @AllowCopilotExperimental
 class AhpHostTest {
     @Test
-    void fakeRuntimeReservesItsClientAddress() throws Exception {
-        try (var server = new FakeRuntime(); var competing = new ServerSocket()) {
-            competing.setReuseAddress(true);
-            assertThrows(BindException.class,
-                    () -> competing.bind(new InetSocketAddress("127.0.0.1", server.listener.getLocalPort())));
-        }
-    }
-
-    @Test
-    void nullPublicationIdsPreserveOmittedWireFields() throws Exception {
-        try (var server = new FakeRuntime(); var client = server.client()) {
-            var host = await(client.startAhpHost(localOptions()));
-
-            var publish = assertDoesNotThrow(() -> host.publishSession(null));
-            var unpublish = assertDoesNotThrow(() -> host.unpublishSession(null));
-
-            assertThrows(Exception.class, () -> await(publish));
-            assertTrue(await(unpublish).unpublished());
-            assertFalse(server.unpublicationRequests.get(0).has("sessionId"));
-            await(host.dispose());
-        }
-    }
-
-    @Test
     void rejectsMissingInvalidAndIncompatibleAdmissionBeforeConnecting() throws Exception {
         for (var mode : com.github.copilot.rpc.CopilotClientMode.values()) {
             try (var server = new FakeRuntime();
@@ -79,8 +52,7 @@ class AhpHostTest {
                         AhpHostAuthentication.custom("owner", request -> null))) {
                     assertThrows(Exception.class,
                             () -> await(client.startAhpHost(localOptions().setAuthentication(policy)
-                                    .setGithubEnvironment(HostGitHubEnvironmentOptions.builder().name("host")
-                                            .computeId("compute").build()))));
+                                    .setGithubEnvironment(new HostGitHubEnvironmentOptions("host", "compute")))));
                 }
                 assertFalse(server.connected.isDone());
             }
@@ -247,8 +219,7 @@ class AhpHostTest {
 
     private static AhpHostOptions localOptions() {
         return new AhpHostOptions().setAuthentication(AhpHostAuthentication.github())
-                .setLocalServer(HostLocalServerOptions.builder().hostname(null).port(null).token(null)
-                        .requireConnectionToken(null).build());
+                .setLocalServer(new HostLocalServerOptions(null, null, null, null));
     }
 
     private static <T> T await(CompletableFuture<T> future) throws Exception {
@@ -273,8 +244,7 @@ class AhpHostTest {
                     var client = server.client();
                     var host = await(
                             client.startAhpHost(new AhpHostOptions().setAuthentication(AhpHostAuthentication.github())
-                                    .setGithubEnvironment(HostGitHubEnvironmentOptions.builder().name(fields[0])
-                                            .computeId(fields[1]).build())))) {
+                                    .setGithubEnvironment(new HostGitHubEnvironmentOptions(fields[0], fields[1]))))) {
                 var environment = await(server.startRequest).path("githubEnvironment");
                 assertEquals(fields[0], environment.path("name").asText());
                 assertEquals(fields[1], environment.path("computeId").asText());
@@ -289,12 +259,10 @@ class AhpHostTest {
             var options = new AhpHostOptions().setAuthentication(AhpHostAuthentication.github())
                     .setComputeId("compute");
             if (local) {
-                options.setLocalServer(HostLocalServerOptions.builder().hostname("127.0.0.1").port(0L)
-                        .token("test-token").requireConnectionToken(true).build());
+                options.setLocalServer(new HostLocalServerOptions("127.0.0.1", 0L, "test-token", true));
             }
             if (github) {
-                options.setGithubEnvironment(
-                        HostGitHubEnvironmentOptions.builder().name("test host").computeId("compute").build());
+                options.setGithubEnvironment(new HostGitHubEnvironmentOptions("test host", "compute"));
             }
             try (var host = await(client.startAhpHost(options))) {
                 var request = await(server.startRequest);
@@ -326,13 +294,12 @@ class AhpHostTest {
         try (var server = new FakeRuntime(); var client = server.client()) {
             server.finishConnect = new CompletableFuture<>();
             var options = localOptions().setComputeId("compute").setWorkspace("/runtime/workspace")
-                    .setGithubEnvironment(
-                            HostGitHubEnvironmentOptions.builder().name("original").computeId("compute").build());
+                    .setGithubEnvironment(new HostGitHubEnvironmentOptions("original", "compute"));
             var pending = client.startAhpHost(options);
             await(server.connectEntered);
             try {
                 options.setComputeId("changed").setWorkspace("/changed/workspace").setLocalServer(null)
-                        .setGithubEnvironment(HostGitHubEnvironmentOptions.builder().name("").computeId("").build())
+                        .setGithubEnvironment(new HostGitHubEnvironmentOptions("", ""))
                         .setAuthentication(AhpHostAuthentication.none());
             } finally {
                 server.finishConnect.complete(null);
@@ -355,8 +322,7 @@ class AhpHostTest {
                 var client = server.client();
                 var host = await(
                         client.startAhpHost(new AhpHostOptions().setAuthentication(AhpHostAuthentication.github())
-                                .setGithubEnvironment(HostGitHubEnvironmentOptions.builder().name("test host")
-                                        .computeId("compute").build())))) {
+                                .setGithubEnvironment(new HostGitHubEnvironmentOptions("test host", "compute"))))) {
             assertFalse(await(server.startRequest).path("githubEnvironment").has("requireConnectionBinding"));
         }
     }
@@ -366,10 +332,9 @@ class AhpHostTest {
     void forwardsExplicitConnectionBinding(boolean required) throws Exception {
         try (var server = new FakeRuntime();
                 var client = server.client();
-                var host = await(
-                        client.startAhpHost(new AhpHostOptions().setAuthentication(AhpHostAuthentication.github())
-                                .setGithubEnvironment(HostGitHubEnvironmentOptions.builder().name("test host")
-                                        .computeId("compute").requireConnectionBinding(required).build())))) {
+                var host = await(client.startAhpHost(
+                        new AhpHostOptions().setAuthentication(AhpHostAuthentication.github()).setGithubEnvironment(
+                                new HostGitHubEnvironmentOptions("test host", "compute", required))))) {
             assertEquals(required,
                     await(server.startRequest).path("githubEnvironment").path("requireConnectionBinding").asBoolean());
         }
@@ -444,9 +409,7 @@ class AhpHostTest {
 
     @ParameterizedTest
     @CsvSource({"streaming,false", "streaming,true", "enableMcpApps,false", "enableMcpApps,true",
-            "suppressResumeEvent,false", "suppressResumeEvent,true", "skipCustomInstructions,false",
-            "skipCustomInstructions,true", "coauthorEnabled,false", "coauthorEnabled,true",
-            "manageScheduleEnabled,false", "manageScheduleEnabled,true"})
+            "suppressResumeEvent,false", "suppressResumeEvent,true"})
     void rejectsChangedBooleanSettings(String setting, boolean expected) throws Exception {
         try (var server = new FakeRuntime(); var client = server.client()) {
             var host = await(client.startAhpHost(localOptions().setResumeSession(request -> {
@@ -454,9 +417,6 @@ class AhpHostTest {
                     case "streaming" -> request.config().setStreaming(!expected);
                     case "enableMcpApps" -> request.config().setEnableMcpApps(!expected);
                     case "suppressResumeEvent" -> request.config().setDisableResume(!expected);
-                    case "skipCustomInstructions" -> request.config().setSkipCustomInstructions(!expected);
-                    case "coauthorEnabled" -> request.config().setCoauthorEnabled(!expected);
-                    case "manageScheduleEnabled" -> request.config().setManageScheduleEnabled(!expected);
                     default -> throw new AssertionError(setting);
                 }
                 return client.resumeSession(request.sessionId(),
@@ -470,28 +430,6 @@ class AhpHostTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"false,skipCustomInstructions,false", "false,skipCustomInstructions,true",
-            "false,coauthorEnabled,false", "false,coauthorEnabled,true", "false,manageScheduleEnabled,false",
-            "false,manageScheduleEnabled,true", "true,skipCustomInstructions,false", "true,skipCustomInstructions,true",
-            "true,coauthorEnabled,false", "true,coauthorEnabled,true", "true,manageScheduleEnabled,false",
-            "true,manageScheduleEnabled,true"})
-    void preservesSettingsAppliedAfterCreation(boolean resume, String setting, boolean expected) throws Exception {
-        try (var server = new FakeRuntime(); var client = server.client()) {
-            var host = await(client.startAhpHost(localOptions()
-                    .setCreateSession(request -> client
-                            .createSession(request.config().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)))
-                    .setResumeSession(request -> client.resumeSession(request.sessionId(),
-                            request.config().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)))));
-            assertEquals("applied", await(
-                    server.materialize(host, "applied", resume, Map.of("sessionId", "applied", setting, expected)))
-                    .get("sessionId").asText());
-            assertEquals(1, server.optionsRequests.size());
-            assertEquals(expected, server.optionsRequests.get(0).get(setting).booleanValue());
-            await(host.dispose());
-        }
-    }
-
-    @ParameterizedTest
     @ValueSource(booleans = {false, true})
     void comparesNumericSettingsByValue(boolean resume) throws Exception {
         for (Number credits : List.<Number>of(10, 3000000000L, 10.5)) {
@@ -499,15 +437,13 @@ class AhpHostTest {
                 try (var server = new FakeRuntime(); var client = server.client()) {
                     var host = await(client.startAhpHost(localOptions().setCreateSession(request -> {
                         if (changed) {
-                            request.config().setSessionLimits(
-                                    SessionLimitsConfig.builder().maxAiCredits(credits.doubleValue() + 1).build());
+                            request.config().setSessionLimits(new SessionLimitsConfig(credits.doubleValue() + 1));
                         }
                         return client
                                 .createSession(request.config().setOnPermissionRequest(PermissionHandler.APPROVE_ALL));
                     }).setResumeSession(request -> {
                         if (changed) {
-                            request.config().setSessionLimits(
-                                    SessionLimitsConfig.builder().maxAiCredits(credits.doubleValue() + 1).build());
+                            request.config().setSessionLimits(new SessionLimitsConfig(credits.doubleValue() + 1));
                         }
                         return client.resumeSession(request.sessionId(),
                                 request.config().setOnPermissionRequest(PermissionHandler.APPROVE_ALL));
@@ -632,10 +568,9 @@ class AhpHostTest {
     }
 
     private static final class FakeRuntime implements AutoCloseable {
-        final ServerSocket listener = new ServerSocket(0, 1, InetAddress.getByName("127.0.0.1"));
+        final ServerSocket listener = new ServerSocket(0);
         final CompletableFuture<JsonRpcClient> connected = new CompletableFuture<>();
         final CopyOnWriteArrayList<JsonNode> sessionRequests = new CopyOnWriteArrayList<>();
-        final CopyOnWriteArrayList<JsonNode> optionsRequests = new CopyOnWriteArrayList<>();
         final CopyOnWriteArrayList<JsonNode> unpublicationRequests = new CopyOnWriteArrayList<>();
         final AtomicInteger disposals = new AtomicInteger();
         final CompletableFuture<String> startEntered = new CompletableFuture<>();
@@ -663,12 +598,9 @@ class AhpHostTest {
                                         params.path("sessionId").asText(UUID.randomUUID().toString())));
                             });
                         }
-                        transport.registerMethodHandler("session.disconnect",
-                                (id, params) -> respond(transport, id, Map.of()));
-                        transport.registerMethodHandler("session.options.update", (id, params) -> {
-                            optionsRequests.add(params);
-                            respond(transport, id, Map.of());
-                        });
+                        for (String method : List.of("session.disconnect", "session.options.update")) {
+                            transport.registerMethodHandler(method, (id, params) -> respond(transport, id, Map.of()));
+                        }
                         transport.registerMethodHandler("host.start", (id, params) -> {
                             startEntered.complete(params.get("hostId").asText());
                             startRequest.complete(params);

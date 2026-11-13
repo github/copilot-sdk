@@ -47,28 +47,6 @@ import com.github.copilot.generated.rpc.EntraAuthConfig;
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class CopilotClientOptions {
-    private InternalTestOptions internalTestOptions;
-
-    /**
-     * @return unsupported SDK test infrastructure configuration
-     * @hidden
-     */
-    @CopilotExperimental
-    public InternalTestOptions getInternalTestOptions() {
-        return internalTestOptions;
-    }
-
-    /**
-     * @param value
-     *            test configuration for runtimes owned by this client
-     * @return this options instance
-     * @hidden
-     */
-    @CopilotExperimental
-    public CopilotClientOptions setInternalTestOptions(InternalTestOptions value) {
-        internalTestOptions = value;
-        return this;
-    }
 
     @Deprecated
     private boolean autoRestart;
@@ -89,7 +67,7 @@ public class CopilotClientOptions {
     private CopilotClientMode mode = CopilotClientMode.COPILOT_CLI;
     private ExtensionLaunchProvider extensionLaunchProvider;
     private InstallationConfirmationHandler installationConfirmationHandler;
-    private NetworkConfig network;
+    private KerberosAuthConfig kerberosAuth;
     private Supplier<CompletableFuture<List<ModelInfo>>> onListModels;
     private CopilotRequestHandler requestHandler;
     private Function<GitHubTelemetryNotification, CompletableFuture<Void>> onGitHubTelemetry;
@@ -244,36 +222,28 @@ public class CopilotClientOptions {
     }
 
     /**
-     * Gets the network callbacks through which the SDK host takes over parts of the
-     * runtime's networking.
+     * Gets the SDK-host Kerberos credential callback configuration.
      *
      * @return the configuration, or {@code null} if not set
      */
     @JsonIgnore
-    @CopilotExperimental
-    public NetworkConfig getNetwork() {
-        return network;
+    public KerberosAuthConfig getKerberosAuth() {
+        return kerberosAuth;
     }
 
     /**
-     * Sets the network callbacks through which the SDK host decides the runtime's
-     * proxies and supplies its Kerberos tokens and proxy credentials.
+     * Supplies Kerberos credentials from the SDK host.
      * <p>
-     * When the configuration has at least one callback, the client handles the
-     * runtime's {@code network.resolveProxy}, {@code network.authenticateNegotiate}
-     * and {@code network.authenticateBasic} requests for the configured callbacks
-     * and registers them during startup, before any session can be created. Startup
-     * fails if registration fails. The callbacks and scope are read when the client
-     * starts.
+     * When provided, the client handles the runtime's {@code kerberosAuth.acquire}
+     * requests with the configured callback and registers it during startup, before
+     * any session can be created. Startup fails if registration fails.
      *
-     * @param network
+     * @param kerberosAuth
      *            the configuration (must not be {@code null})
      * @return this options instance for method chaining
-     * @see NetworkConfig
      */
-    @CopilotExperimental
-    public CopilotClientOptions setNetwork(NetworkConfig network) {
-        this.network = Objects.requireNonNull(network, "network must not be null");
+    public CopilotClientOptions setKerberosAuth(KerberosAuthConfig kerberosAuth) {
+        this.kerberosAuth = Objects.requireNonNull(kerberosAuth, "kerberosAuth must not be null");
         return this;
     }
 
@@ -414,11 +384,10 @@ public class CopilotClientOptions {
      * Sets the {@code COPILOT_HOME} environment variable on the spawned CLI
      * process. When {@code null}, the {@code COPILOT_HOME} env var is not set on
      * the spawned process, so the CLI falls back to its default
-     * ({@code ~/.copilot}). In-process hosts also keep their runtime cache in its
-     * {@code cache} subdirectory.
+     * ({@code ~/.copilot}).
      * <p>
-     * This option applies to runtimes owned by this client; it is ignored when
-     * connecting to an external server via {@link #setCliUrl(String)}.
+     * This option is only used when the SDK spawns the CLI process; it is ignored
+     * when connecting to an external server via {@link #setCliUrl(String)}.
      *
      * @param copilotHome
      *            the Copilot home directory path, or {@code null} to use the CLI
@@ -452,7 +421,7 @@ public class CopilotClientOptions {
     }
 
     /**
-     * Gets the environment variables for the CLI child process.
+     * Gets the environment variables for the CLI process.
      * <p>
      * Returns a shallow copy of the internal map, or {@code null} if no environment
      * has been set.
@@ -464,12 +433,11 @@ public class CopilotClientOptions {
     }
 
     /**
-     * Sets environment variables for the CLI child process.
+     * Sets environment variables to pass to the CLI process.
      * <p>
-     * For child processes, these variables replace the inherited environment. A
+     * When set, these environment variables replace the inherited environment. A
      * shallow copy of the provided map is stored. If {@code null} or empty, the
-     * existing environment is cleared. Unsupported with an in-process runtime; use
-     * typed client/session options instead.
+     * existing environment is cleared.
      *
      * @param environment
      *            the environment variables map, or {@code null}/empty to clear
@@ -612,7 +580,9 @@ public class CopilotClientOptions {
      * <p>
      * When set to {@link CopilotClientMode#EMPTY}, the SDK validates that the app
      * has supplied the required configuration (e.g.
-     * {@link #setCopilotHome(String)}).
+     * {@link #setCopilotHome(String)}) and translates session creation requests
+     * into runtime options that flip tool filter precedence to
+     * {@code excluded}-wins so exclusions are expressible.
      *
      * @param mode
      *            the client mode
@@ -1022,16 +992,15 @@ public class CopilotClientOptions {
         copy.connection = this.connection;
         copy.clientInfo = this.clientInfo;
         copy.entra = this.entra;
-        copy.internalTestOptions = this.internalTestOptions;
         copy.copilotHome = this.copilotHome;
         copy.cwd = this.cwd;
         copy.environment = this.environment != null ? new java.util.HashMap<>(this.environment) : null;
         copy.executor = this.executor;
         copy.extensionLaunchProvider = this.extensionLaunchProvider;
         copy.installationConfirmationHandler = this.installationConfirmationHandler;
+        copy.kerberosAuth = this.kerberosAuth;
         copy.gitHubToken = this.gitHubToken;
         copy.logLevel = this.logLevel;
-        copy.network = this.network;
         copy.onListModels = this.onListModels;
         copy.requestHandler = this.requestHandler;
         copy.onGitHubTelemetry = this.onGitHubTelemetry;

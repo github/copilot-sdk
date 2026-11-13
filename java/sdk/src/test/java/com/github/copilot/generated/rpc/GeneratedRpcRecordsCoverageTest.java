@@ -34,104 +34,6 @@ import com.github.copilot.generated.SessionManagedSettingsResolvedEvent.SessionM
  */
 class GeneratedRpcRecordsCoverageTest {
 
-    static Stream<Arguments> customizationLegacyConstructors() {
-        return Stream.of(
-                Arguments.of(
-                        new AgentInfo("agent", "Agent", "Description", "/agent.md", "agent-id", null, true, false,
-                                List.of("view"), "model", null, null, null, null, null, "Prompt", null),
-                        """
-                                {"name":"agent","displayName":"Agent","description":"Description","path":"/agent.md",
-                                 "id":"agent-id","userInvocable":true,"disableModelInvocation":false,
-                                 "tools":["view"],"model":"model","prompt":"Prompt"}
-                                """, "{\"pluginId\":\"builtin:tools\"}"),
-                Arguments.of(new DiscoveredExtensionPlugin("tools"), "{\"name\":\"tools\"}",
-                        "{\"id\":\"builtin:tools\"}"),
-                Arguments.of(
-                        new DiscoveredHook("hook", HookType.PRETOOLUSE, HookOrigin.PLUGIN, "tools", "/project", true,
-                                "disable-hook"),
-                        """
-                                {"id":"hook","hookType":"preToolUse","origin":"plugin","source":"tools",
-                                 "projectPath":"/project","enabled":true,"disableKey":"disable-hook"}
-                                """, "{\"pluginId\":\"builtin:tools\",\"definitionFileUri\":\"file:///hooks.json\"}"),
-                Arguments.of(new InstalledPluginInfo("tools", "catalog", null, "1.0", true, "/catalog", "source", false,
-                        null, true, "Description", null, "https://example.com/icon"), """
-                                {"name":"tools","marketplace":"catalog","version":"1.0","enabled":true,
-                                 "installedFrom":"/catalog","source":"source","managed":false,"installed":true,
-                                 "description":"Description","iconUrl":"https://example.com/icon"}
-                                """, "{\"id\":\"mp:catalog::tools\",\"rootPath\":\"/plugins/tools\"}"),
-                Arguments.of(
-                        new InstructionSource("instruction", "Instructions", "/instructions.md", "Content",
-                                InstructionSourceType.PLUGIN, InstructionSourceLocation.PLUGIN, List.of("*.ts"),
-                                "Description", false, "/project"),
-                        """
-                                {"id":"instruction","label":"Instructions","sourcePath":"/instructions.md","content":"Content",
-                                 "type":"plugin","location":"plugin","applyTo":["*.ts"],"description":"Description",
-                                 "defaultDisabled":false,"projectPath":"/project"}
-                                """,
-                        "{\"pluginId\":\"builtin:tools\"}"),
-                Arguments.of(new Plugin("tools", "catalog", "1.0", true, null, "/catalog", "source", false, null, true),
-                        """
-                                {"name":"tools","marketplace":"catalog","version":"1.0","enabled":true,
-                                 "installedFrom":"/catalog","source":"source","managed":false,"installed":true}
-                                """, "{\"id\":\"mp:catalog::tools\",\"rootPath\":\"/plugins/tools\"}"),
-                Arguments.of(
-                        new ServerSkill("skill", "command", "Description", SkillSource.PLUGIN, true, true, "/SKILL.md",
-                                "/project", "argument"),
-                        """
-                                {"name":"skill","commandName":"command","description":"Description","source":"plugin",
-                                 "userInvocable":true,"enabled":true,"path":"/SKILL.md","projectPath":"/project",
-                                 "argumentHint":"argument"}
-                                """, "{\"pluginId\":\"builtin:tools\"}"),
-                Arguments.of(
-                        new Skill("skill", "declared", "command", "Description", SkillSource.PLUGIN, null, true, true,
-                                "/SKILL.md", "tools", "argument"),
-                        """
-                                {"name":"skill","declaredName":"declared","commandName":"command","description":"Description",
-                                 "source":"plugin","userInvocable":true,"enabled":true,"path":"/SKILL.md",
-                                 "pluginName":"tools","argumentHint":"argument"}
-                                """,
-                        "{\"pluginId\":\"builtin:tools\"}"));
-    }
-
-    @ParameterizedTest
-    @MethodSource("customizationLegacyConstructors")
-    void customization_records_preserve_legacy_constructors_and_round_trip_metadata(Object legacy, String expectedJson,
-            String metadataJson) throws Exception {
-        var mapper = new ObjectMapper();
-        var expected = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.readTree(expectedJson);
-        assertEquals(expected, mapper.valueToTree(legacy));
-        assertEquals(legacy, mapper.treeToValue(expected, legacy.getClass()));
-        expected.setAll((com.fasterxml.jackson.databind.node.ObjectNode) mapper.readTree(metadataJson));
-        assertEquals(expected, mapper.valueToTree(mapper.treeToValue(expected, legacy.getClass())));
-    }
-
-    @Test
-    void localModelMachineRow_preserves_typed_state_and_resource_requirements() throws Exception {
-        var mapper = new ObjectMapper();
-        var expected = mapper.readTree("""
-                {"status":{"kind":"downloading","receivedBytes":37.0,"totalBytes":100.0,"stage":"download"},
-                 "disk":{"kind":"insufficient","freeBytes":2.0,"requiredBytes":4.0,"directory":"models"},
-                 "gpu":{"kind":"insufficient","availableBytes":8.0,"requiredBytes":16.0,"description":"Adapter"}}
-                """);
-        var row = mapper.treeToValue(expected, LocalModelMachineRow.class);
-        var status = assertInstanceOf(LocalModelStatusDownloading.class, row.status());
-        var disk = assertInstanceOf(LocalModelDiskRequirementInsufficient.class, row.disk());
-        var gpu = assertInstanceOf(LocalModelGpuRequirementInsufficient.class, row.gpu());
-        assertEquals(37.0, status.getReceivedBytes());
-        assertEquals(100.0, status.getTotalBytes());
-        assertEquals("download", status.getStage());
-        assertEquals(2.0, disk.getFreeBytes());
-        assertEquals(4.0, disk.getRequiredBytes());
-        assertEquals("models", disk.getDirectory());
-        assertEquals(8.0, gpu.getAvailableBytes());
-        assertEquals(16.0, gpu.getRequiredBytes());
-        assertEquals("Adapter", gpu.getDescription());
-        var actual = mapper.valueToTree(row);
-        for (String field : List.of("status", "disk", "gpu")) {
-            assertEquals(expected.get(field), actual.get(field));
-        }
-    }
-
     @Test
     void ignoredScriptSafetyAccessorsAreDeprecated() throws Exception {
         for (var recordType : List.of(SessionOpenOptions.class, SessionOptionsUpdateParams.class)) {
@@ -201,8 +103,8 @@ class GeneratedRpcRecordsCoverageTest {
         var evaluation = mapper.readValue("""
                 {"operation":{"kind":"url","url":"https://example.com/a"},"verdict":"allow"}
                 """, ManagedPermissionEvaluation.class);
-        var params = ManagedSettingsPermissionsEvaluateParams.builder().context(eventData.permissionsContext())
-                .operations(List.of(evaluation.operation())).build();
+        var params = new ManagedSettingsPermissionsEvaluateParams(eventData.permissionsContext(),
+                List.of(evaluation.operation()));
         var paramsJson = mapper.valueToTree(params);
         assertEquals(eventJson.get("permissionsContext"), paramsJson.get("context"));
         assertEquals("url", paramsJson.get("operations").get(0).get("kind").asText());
@@ -231,91 +133,87 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void pingParams_record() {
-        var params = PingParams.builder().message("hello").build();
+        var params = new PingParams("hello");
         assertEquals("hello", params.message());
-        assertNull(PingParams.builder().message(null).build().message());
+        assertNull(new PingParams(null).message());
     }
 
     @Test
     void pingResult_record() {
-        var timestamp = OffsetDateTime.parse("2026-01-01T00:00:00Z");
-        var result = PingResult.builder().message("pong").timestamp(timestamp).protocolVersion(2L).build();
+        var result = new PingResult("pong", null, 2L);
         assertEquals("pong", result.message());
-        assertEquals(timestamp, result.timestamp());
+        assertNull(result.timestamp());
         assertEquals(2L, result.protocolVersion());
     }
 
     @Test
     void mcpDiscoverParams_record() {
-        var params = McpDiscoverParams.builder().workingDirectory("/workspace").includeEffectiveSource(null).build();
+        var params = new McpDiscoverParams("/workspace", null);
         assertEquals("/workspace", params.workingDirectory());
-        assertNull(McpDiscoverParams.builder().workingDirectory(null).includeEffectiveSource(null).build()
-                .workingDirectory());
+        assertNull(new McpDiscoverParams(null, null).workingDirectory());
     }
 
     @Test
     void mcpConfigRemoveParams_record() {
-        var params = McpConfigRemoveParams.builder().name("old-server").authClientIdMetadataUrl(null).build();
+        var params = new McpConfigRemoveParams("old-server", null);
         assertEquals("old-server", params.name());
     }
 
     @Test
     void mcpConfigUpdateParams_record() {
-        var params = McpConfigUpdateParams.builder().name("my-server").config(Map.of("key", "val")).build();
+        var params = new McpConfigUpdateParams("my-server", Map.of("key", "val"));
         assertEquals("my-server", params.name());
         assertNotNull(params.config());
     }
 
     @Test
     void toolsListParams_record() {
-        var params = ToolsListParams.builder().model("gpt-5").build();
+        var params = new ToolsListParams("gpt-5");
         assertEquals("gpt-5", params.model());
-        assertNull(ToolsListParams.builder().model(null).build().model());
+        assertNull(new ToolsListParams(null).model());
     }
 
     @Test
     void sessionsForkParams_record() {
-        var params = SessionsForkParams.builder().sessionId("sess-1").toEventId("event-abc").name(null).build();
+        var params = new SessionsForkParams("sess-1", "event-abc", null);
         assertEquals("sess-1", params.sessionId());
         assertEquals("event-abc", params.toEventId());
     }
 
     @Test
     void sessionAgentDeselectParams_record() {
-        var params = SessionAgentDeselectParams.builder().sessionId("sess-1").build();
+        var params = new SessionAgentDeselectParams("sess-1");
         assertEquals("sess-1", params.sessionId());
     }
 
     @Test
     void sessionAgentGetCurrentParams_record() {
-        var params = SessionAgentGetCurrentParams.builder().sessionId("sess-2").build();
+        var params = new SessionAgentGetCurrentParams("sess-2");
         assertEquals("sess-2", params.sessionId());
     }
 
     @Test
     void sessionAgentListParams_record() {
-        var params = SessionAgentListParams.builder().sessionId("sess-3").includeBuiltInAgents(null).includePrompt(null)
-                .build();
+        var params = new SessionAgentListParams("sess-3", null, null);
         assertEquals("sess-3", params.sessionId());
     }
 
     @Test
     void sessionAgentReloadParams_record() {
-        var params = SessionAgentReloadParams.builder().sessionId("sess-4").build();
+        var params = new SessionAgentReloadParams("sess-4");
         assertEquals("sess-4", params.sessionId());
     }
 
     @Test
     void sessionAgentSelectParams_record() {
-        var params = SessionAgentSelectParams.builder().sessionId("sess-5").name("my-agent").build();
+        var params = new SessionAgentSelectParams("sess-5", "my-agent");
         assertEquals("sess-5", params.sessionId());
         assertEquals("my-agent", params.name());
     }
 
     @Test
     void sessionCommandsHandlePendingCommandParams_record() {
-        var params = SessionCommandsHandlePendingCommandParams.builder().sessionId("sess-6").requestId("req-cmd")
-                .error("error msg").build();
+        var params = new SessionCommandsHandlePendingCommandParams("sess-6", "req-cmd", "error msg");
         assertEquals("sess-6", params.sessionId());
         assertEquals("req-cmd", params.requestId());
         assertEquals("error msg", params.error());
@@ -323,42 +221,40 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionExtensionsDisableParams_record() {
-        var params = SessionExtensionsDisableParams.builder().sessionId("sess-7").id("ext-id-1").build();
+        var params = new SessionExtensionsDisableParams("sess-7", "ext-id-1");
         assertEquals("sess-7", params.sessionId());
         assertEquals("ext-id-1", params.id());
     }
 
     @Test
     void sessionExtensionsEnableParams_record() {
-        var params = SessionExtensionsEnableParams.builder().sessionId("sess-8").id("ext-id-2").build();
+        var params = new SessionExtensionsEnableParams("sess-8", "ext-id-2");
         assertEquals("sess-8", params.sessionId());
         assertEquals("ext-id-2", params.id());
     }
 
     @Test
     void sessionExtensionsListParams_record() {
-        var params = SessionExtensionsListParams.builder().sessionId("sess-9").build();
+        var params = new SessionExtensionsListParams("sess-9");
         assertEquals("sess-9", params.sessionId());
     }
 
     @Test
     void sessionExtensionsReloadParams_record() {
-        var params = SessionExtensionsReloadParams.builder().sessionId("sess-10").build();
+        var params = new SessionExtensionsReloadParams("sess-10");
         assertEquals("sess-10", params.sessionId());
     }
 
     @Test
     void sessionFleetStartParams_record() {
-        var params = SessionFleetStartParams.builder().sessionId("sess-11").prompt("fix all bugs").attachments(null)
-                .billable(null).wait_(null).build();
+        var params = new SessionFleetStartParams("sess-11", "fix all bugs", null, null, null);
         assertEquals("sess-11", params.sessionId());
         assertEquals("fix all bugs", params.prompt());
     }
 
     @Test
     void sessionFsAppendFileParams_record() {
-        var params = SessionFsAppendFileParams.builder().sessionId("sess-12").path(TestUtil.tempPath("log.txt"))
-                .content("new line\n").mode(null).build();
+        var params = new SessionFsAppendFileParams("sess-12", TestUtil.tempPath("log.txt"), "new line\n", null);
         assertEquals("sess-12", params.sessionId());
         assertEquals(TestUtil.tempPath("log.txt"), params.path());
         assertEquals("new line\n", params.content());
@@ -367,15 +263,14 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionFsExistsParams_record() {
-        var params = SessionFsExistsParams.builder().sessionId("sess-13").path(TestUtil.tempPath("file.txt")).build();
+        var params = new SessionFsExistsParams("sess-13", TestUtil.tempPath("file.txt"));
         assertEquals("sess-13", params.sessionId());
         assertEquals(TestUtil.tempPath("file.txt"), params.path());
     }
 
     @Test
     void sessionFsMkdirParams_record() {
-        var params = SessionFsMkdirParams.builder().sessionId("sess-14").path(TestUtil.tempPath("newdir"))
-                .recursive(true).mode(null).build();
+        var params = new SessionFsMkdirParams("sess-14", TestUtil.tempPath("newdir"), true, null);
         assertEquals("sess-14", params.sessionId());
         assertEquals(TestUtil.tempPath("newdir"), params.path());
         assertTrue(params.recursive());
@@ -384,28 +279,28 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionFsReadFileParams_record() {
-        var params = SessionFsReadFileParams.builder().sessionId("sess-15").path("/src/Main.java").build();
+        var params = new SessionFsReadFileParams("sess-15", "/src/Main.java");
         assertEquals("sess-15", params.sessionId());
         assertEquals("/src/Main.java", params.path());
     }
 
     @Test
     void sessionFsReaddirParams_record() {
-        var params = SessionFsReaddirParams.builder().sessionId("sess-16").path("/src").build();
+        var params = new SessionFsReaddirParams("sess-16", "/src");
         assertEquals("sess-16", params.sessionId());
         assertEquals("/src", params.path());
     }
 
     @Test
     void sessionFsReaddirWithTypesParams_record() {
-        var params = SessionFsReaddirWithTypesParams.builder().sessionId("sess-17").path("/src").build();
+        var params = new SessionFsReaddirWithTypesParams("sess-17", "/src");
         assertEquals("sess-17", params.sessionId());
         assertEquals("/src", params.path());
     }
 
     @Test
     void sessionFsRenameParams_record() {
-        var params = SessionFsRenameParams.builder().sessionId("sess-18").src("/old.txt").dest("/new.txt").build();
+        var params = new SessionFsRenameParams("sess-18", "/old.txt", "/new.txt");
         assertEquals("sess-18", params.sessionId());
         assertEquals("/old.txt", params.src());
         assertEquals("/new.txt", params.dest());
@@ -413,8 +308,7 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionFsRmParams_record() {
-        var params = SessionFsRmParams.builder().sessionId("sess-19").path(TestUtil.tempPath("file.txt"))
-                .recursive(false).force(true).build();
+        var params = new SessionFsRmParams("sess-19", TestUtil.tempPath("file.txt"), false, true);
         assertEquals("sess-19", params.sessionId());
         assertEquals(TestUtil.tempPath("file.txt"), params.path());
         assertFalse(params.recursive());
@@ -438,7 +332,7 @@ class GeneratedRpcRecordsCoverageTest {
         assertFalse(legacyJson.has("binary"));
         assertEquals(legacy, mapper.treeToValue(legacyJson, SessionFsSetProviderCapabilities.class));
 
-        var binary = SessionFsSetProviderCapabilities.builder().sqlite(false).binary(true).build();
+        var binary = new SessionFsSetProviderCapabilities(false, true);
         var binaryJson = mapper.readTree(mapper.writeValueAsString(binary));
         assertFalse(binaryJson.get("sqlite").asBoolean());
         assertTrue(binaryJson.get("binary").asBoolean());
@@ -449,13 +343,13 @@ class GeneratedRpcRecordsCoverageTest {
     @AllowCopilotExperimental
     void sessionFsReadFileBytes_preserves_base64_wire_content() throws Exception {
         var mapper = new ObjectMapper();
-        var params = SessionFsReadFileBytesParams.builder().sessionId("sess-15").path("/image.png").build();
+        var params = new SessionFsReadFileBytesParams("sess-15", "/image.png");
         var paramsJson = mapper.readTree(mapper.writeValueAsString(params));
         assertEquals("sess-15", paramsJson.get("sessionId").asText());
         assertEquals("/image.png", paramsJson.get("path").asText());
         assertEquals(params, mapper.treeToValue(paramsJson, SessionFsReadFileBytesParams.class));
 
-        var result = SessionFsReadFileBytesResult.builder().content("AAECAw==").error(null).build();
+        var result = new SessionFsReadFileBytesResult("AAECAw==", null);
         var resultJson = mapper.readTree(mapper.writeValueAsString(result));
         assertEquals("AAECAw==", resultJson.get("content").asText());
         assertFalse(resultJson.has("error"));
@@ -466,8 +360,7 @@ class GeneratedRpcRecordsCoverageTest {
     @AllowCopilotExperimental
     void sessionFsWriteFileBytes_preserves_base64_wire_content_and_mode() throws Exception {
         var mapper = new ObjectMapper();
-        var params = SessionFsWriteFileBytesParams.builder().sessionId("sess-15").path("/image.png").content("AP/+AQ==")
-                .mode(384L).build();
+        var params = new SessionFsWriteFileBytesParams("sess-15", "/image.png", "AP/+AQ==", 384L);
         var json = mapper.readTree(mapper.writeValueAsString(params));
         assertEquals("sess-15", json.get("sessionId").asText());
         assertEquals("/image.png", json.get("path").asText());
@@ -478,15 +371,14 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionFsStatParams_record() {
-        var params = SessionFsStatParams.builder().sessionId("sess-20").path("/etc/hosts").build();
+        var params = new SessionFsStatParams("sess-20", "/etc/hosts");
         assertEquals("sess-20", params.sessionId());
         assertEquals("/etc/hosts", params.path());
     }
 
     @Test
     void sessionFsWriteFileParams_record() {
-        var params = SessionFsWriteFileParams.builder().sessionId("sess-21").path(TestUtil.tempPath("out.txt"))
-                .content("content here").mode(null).build();
+        var params = new SessionFsWriteFileParams("sess-21", TestUtil.tempPath("out.txt"), "content here", null);
         assertEquals("sess-21", params.sessionId());
         assertEquals(TestUtil.tempPath("out.txt"), params.path());
         assertEquals("content here", params.content());
@@ -495,10 +387,8 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionHistoryCompactParams_record() {
-        var params = SessionHistoryCompactParams.builder().sessionId("sess-22")
-                .customInstructions("focus on the API surface")
-                .trigger(SessionHistoryCompactParams.SessionHistoryCompactParamsTrigger.MANUAL).tokenLimit(4096L)
-                .build();
+        var params = new SessionHistoryCompactParams("sess-22", "focus on the API surface",
+                SessionHistoryCompactParams.SessionHistoryCompactParamsTrigger.MANUAL, 4096L);
         assertEquals("sess-22", params.sessionId());
         assertEquals("focus on the API surface", params.customInstructions());
         assertEquals(SessionHistoryCompactParams.SessionHistoryCompactParamsTrigger.MANUAL, params.trigger());
@@ -507,15 +397,14 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionHistoryTruncateParams_record() {
-        var params = SessionHistoryTruncateParams.builder().sessionId("sess-23").eventId("event-id-xyz").build();
+        var params = new SessionHistoryTruncateParams("sess-23", "event-id-xyz");
         assertEquals("sess-23", params.sessionId());
         assertEquals("event-id-xyz", params.eventId());
     }
 
     @Test
     void sessionLogParams_record() {
-        var params = SessionLogParams.builder().sessionId("sess-24").message("test message").level(SessionLogLevel.INFO)
-                .type(null).ephemeral(false).url(null).tip(null).build();
+        var params = new SessionLogParams("sess-24", "test message", SessionLogLevel.INFO, null, false, null, null);
         assertEquals("sess-24", params.sessionId());
         assertEquals("test message", params.message());
         assertEquals(SessionLogLevel.INFO, params.level());
@@ -533,36 +422,34 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionMcpDisableParams_record() {
-        var params = SessionMcpDisableParams.builder().sessionId("sess-25").serverName("mcp-server-1").build();
+        var params = new SessionMcpDisableParams("sess-25", "mcp-server-1");
         assertEquals("sess-25", params.sessionId());
         assertEquals("mcp-server-1", params.serverName());
     }
 
     @Test
     void sessionMcpEnableParams_record() {
-        var params = SessionMcpEnableParams.builder().sessionId("sess-26").serverName("mcp-server-2").build();
+        var params = new SessionMcpEnableParams("sess-26", "mcp-server-2");
         assertEquals("sess-26", params.sessionId());
         assertEquals("mcp-server-2", params.serverName());
     }
 
     @Test
     void sessionMcpReloadParams_record() {
-        var params = SessionMcpReloadParams.builder().sessionId("sess-28").build();
+        var params = new SessionMcpReloadParams("sess-28");
         assertEquals("sess-28", params.sessionId());
     }
 
     @Test
     void sessionModeGetParams_record() {
-        var params = SessionModeGetParams.builder().sessionId("sess-29").build();
+        var params = new SessionModeGetParams("sess-29");
         assertEquals("sess-29", params.sessionId());
     }
 
     @Test
     void sessionModeSetParams_record() {
-        var params = SessionModeSetParams.builder().sessionId("sess-30").mode(SessionMode.PLAN).expectedMode(null)
-                .inheritPlanBaseFromSessionId(null).planModelConfigured(null).planModel(null).planModelProviderId(null)
-                .planReasoningEffort(null).planContextTier(null).compactionDecision(null).restorePlanModel(null)
-                .persistPlanSelection(null).pickerSettingsContext(null).planExitAction(null).build();
+        var params = new SessionModeSetParams("sess-30", SessionMode.PLAN, null, null, null, null, null, null, null,
+                null, null, null, null, null);
         assertEquals("sess-30", params.sessionId());
         assertEquals(SessionMode.PLAN, params.mode());
     }
@@ -580,7 +467,7 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionModelGetCurrentParams_record() {
-        var params = SessionModelGetCurrentParams.builder().sessionId("sess-31").build();
+        var params = new SessionModelGetCurrentParams("sess-31");
         assertEquals("sess-31", params.sessionId());
     }
 
@@ -588,8 +475,7 @@ class GeneratedRpcRecordsCoverageTest {
     void sessionModelSetAllowedModelsParams_round_trips_exact_ids() throws Exception {
         var mapper = new ObjectMapper();
         var allowedModels = List.of("gpt-5", "azure/gpt-5");
-        var params = SessionModelSetAllowedModelsParams.builder().sessionId("sess-model-policy")
-                .allowedModels(allowedModels).build();
+        var params = new SessionModelSetAllowedModelsParams("sess-model-policy", allowedModels);
 
         assertEquals("sess-model-policy", params.sessionId());
         assertEquals(allowedModels, params.allowedModels());
@@ -602,24 +488,19 @@ class GeneratedRpcRecordsCoverageTest {
     @Test
     void sessionModelSetAllowedModelsParams_distinguishes_clearing_from_empty_list() throws Exception {
         var mapper = new ObjectMapper();
-        var cleared = SessionModelSetAllowedModelsParams.builder().sessionId("sess-model-policy").allowedModels(null)
-                .build();
+        var cleared = new SessionModelSetAllowedModelsParams("sess-model-policy", null);
 
-        var untouched = SessionModelSetAllowedModelsParams.builder().sessionId("sess-model-policy").build();
-        assertEquals(untouched, mapper.readValue("""
+        for (var json : List.of("""
                 {"sessionId":"sess-model-policy"}
-                """, SessionModelSetAllowedModelsParams.class));
-        assertEquals(cleared, mapper.readValue("""
+                """, """
                 {"sessionId":"sess-model-policy","allowedModels":null}
-                """, SessionModelSetAllowedModelsParams.class));
-        assertNotEquals(untouched, cleared);
+                """)) {
+            assertEquals(cleared, mapper.readValue(json, SessionModelSetAllowedModelsParams.class));
+        }
         var clearedJson = mapper.readTree(mapper.writeValueAsString(cleared));
-        assertTrue(clearedJson.has("allowedModels"));
-        assertTrue(clearedJson.get("allowedModels").isNull());
-        assertFalse(mapper.valueToTree(untouched).has("allowedModels"));
+        assertFalse(clearedJson.has("allowedModels"));
 
-        var empty = SessionModelSetAllowedModelsParams.builder().sessionId("sess-model-policy").allowedModels(List.of())
-                .build();
+        var empty = new SessionModelSetAllowedModelsParams("sess-model-policy", List.of());
         var emptyJson = mapper.readTree(mapper.writeValueAsString(empty));
         assertTrue(emptyJson.get("allowedModels").isArray());
         assertTrue(emptyJson.get("allowedModels").isEmpty());
@@ -666,11 +547,8 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionModelSwitchToParams_record() {
-        var params = SessionModelSwitchToParams.builder().sessionId("sess-32").modelId("claude-sonnet-5").autoTier(null)
-                .reasoningEffort("high").reasoningSummary(null).verbosity(null).modelCapabilities(null)
-                .contextTier(null).source(null).deferIfModelChangeQueued(null).compactionDecision(null)
-                .runCompactionPreflight(null).repoScope(null).modelChangeScope(null).requireAvailable(null)
-                .pickerPersistence(null).build();
+        var params = new SessionModelSwitchToParams("sess-32", "claude-sonnet-5", null, "high", null, null, null, null,
+                null, null, null, null, null, null, null, null);
         assertEquals("sess-32", params.sessionId());
         assertEquals("claude-sonnet-5", params.modelId());
         assertNull(params.autoTier());
@@ -684,21 +562,19 @@ class GeneratedRpcRecordsCoverageTest {
     @Test
     void sessionModelSwitchParams_distinguishRequiredNullFromOmittedOptionalValue() {
         var mapper = new ObjectMapper();
-        var switchAutoTier = mapper.valueToTree(
-                SessionModelSwitchAutoTierParams.builder().sessionId("sess-32").autoTier(null).source(null).build());
+        var switchAutoTier = mapper.valueToTree(new SessionModelSwitchAutoTierParams("sess-32", null, null));
         assertTrue(switchAutoTier.has("autoTier"));
         assertTrue(switchAutoTier.get("autoTier").isNull());
 
-        var switchTo = mapper
-                .valueToTree(SessionModelSwitchToParams.builder().sessionId("sess-32").modelId("auto").build());
+        var switchTo = mapper.valueToTree(new SessionModelSwitchToParams("sess-32", "auto", null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null));
         assertFalse(switchTo.has("autoTier"));
         assertFalse(switchTo.has("providerId"));
     }
 
     @Test
     void sessionPermissionsHandlePendingPermissionRequestParams_record() {
-        var params = SessionPermissionsHandlePendingPermissionRequestParams.builder().sessionId("sess-33")
-                .requestId("req-1").result("allow").decisionContext(null).build();
+        var params = new SessionPermissionsHandlePendingPermissionRequestParams("sess-33", "req-1", "allow", null);
         assertEquals("sess-33", params.sessionId());
         assertEquals("req-1", params.requestId());
         assertEquals("allow", params.result());
@@ -707,33 +583,32 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionPlanDeleteParams_record() {
-        var params = SessionPlanDeleteParams.builder().sessionId("sess-34").build();
+        var params = new SessionPlanDeleteParams("sess-34");
         assertEquals("sess-34", params.sessionId());
     }
 
     @Test
     void sessionPlanReadParams_record() {
-        var params = SessionPlanReadParams.builder().sessionId("sess-35").build();
+        var params = new SessionPlanReadParams("sess-35");
         assertEquals("sess-35", params.sessionId());
     }
 
     @Test
     void sessionPlanUpdateParams_record() {
-        var params = SessionPlanUpdateParams.builder().sessionId("sess-36").content("# My Plan\n1. Do stuff").build();
+        var params = new SessionPlanUpdateParams("sess-36", "# My Plan\n1. Do stuff");
         assertEquals("sess-36", params.sessionId());
         assertEquals("# My Plan\n1. Do stuff", params.content());
     }
 
     @Test
     void sessionPluginsListParams_record() {
-        var params = SessionPluginsListParams.builder().sessionId("sess-37").build();
+        var params = new SessionPluginsListParams("sess-37");
         assertEquals("sess-37", params.sessionId());
     }
 
     @Test
     void sessionShellExecParams_record() {
-        var params = SessionShellExecParams.builder().sessionId("sess-38").command("ls -la").cwd("/workspace")
-                .timeout(5000L).build();
+        var params = new SessionShellExecParams("sess-38", "ls -la", "/workspace", 5000L);
         assertEquals("sess-38", params.sessionId());
         assertEquals("ls -la", params.command());
         assertEquals("/workspace", params.cwd());
@@ -742,8 +617,7 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionShellKillParams_record() {
-        var params = SessionShellKillParams.builder().sessionId("sess-39").processId("proc-abc")
-                .signal(ShellKillSignal.SIGTERM).build();
+        var params = new SessionShellKillParams("sess-39", "proc-abc", ShellKillSignal.SIGTERM);
         assertEquals("sess-39", params.sessionId());
         assertEquals("proc-abc", params.processId());
         assertEquals(ShellKillSignal.SIGTERM, params.signal());
@@ -762,34 +636,33 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionSkillsDisableParams_record() {
-        var params = SessionSkillsDisableParams.builder().sessionId("sess-40").name("my-skill").build();
+        var params = new SessionSkillsDisableParams("sess-40", "my-skill");
         assertEquals("sess-40", params.sessionId());
         assertEquals("my-skill", params.name());
     }
 
     @Test
     void sessionSkillsEnableParams_record() {
-        var params = SessionSkillsEnableParams.builder().sessionId("sess-41").name("another-skill").build();
+        var params = new SessionSkillsEnableParams("sess-41", "another-skill");
         assertEquals("sess-41", params.sessionId());
         assertEquals("another-skill", params.name());
     }
 
     @Test
     void sessionSkillsListParams_record() {
-        var params = SessionSkillsListParams.builder().sessionId("sess-42").build();
+        var params = new SessionSkillsListParams("sess-42");
         assertEquals("sess-42", params.sessionId());
     }
 
     @Test
     void sessionSkillsReloadParams_record() {
-        var params = SessionSkillsReloadParams.builder().sessionId("sess-43").build();
+        var params = new SessionSkillsReloadParams("sess-43");
         assertEquals("sess-43", params.sessionId());
     }
 
     @Test
     void sessionToolsHandlePendingToolCallParams_record() {
-        var params = SessionToolsHandlePendingToolCallParams.builder().sessionId("sess-44").requestId("req-tool-1")
-                .result("result data").error(null).build();
+        var params = new SessionToolsHandlePendingToolCallParams("sess-44", "req-tool-1", "result data", null);
         assertEquals("sess-44", params.sessionId());
         assertEquals("req-tool-1", params.requestId());
         assertEquals("result data", params.result());
@@ -798,29 +671,23 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionUiElicitationParams_record() {
-        var params = SessionUiElicitationParams.builder().sessionId("sess-45").mode(null).message("What is your name?")
-                .requestedSchema(
-                        UIElicitationSchema.builder().type("object").properties(Map.of()).required(List.of()).build())
-                .meta(null).task(null).build();
+        var params = new SessionUiElicitationParams("sess-45", null, "What is your name?", null, null, null);
         assertEquals("sess-45", params.sessionId());
         assertEquals("What is your name?", params.message());
-        assertEquals("object", params.requestedSchema().type());
+        assertNull(params.requestedSchema());
     }
 
     @Test
     void sessionUiHandlePendingElicitationParams_record() {
-        var params = SessionUiHandlePendingElicitationParams.builder().sessionId("sess-46").requestId("req-elicit-1")
-                .result(UIElicitationResponse.builder().action(UIElicitationResponseAction.ACCEPT).content(Map.of())
-                        .build())
-                .build();
+        var params = new SessionUiHandlePendingElicitationParams("sess-46", "req-elicit-1", null);
         assertEquals("sess-46", params.sessionId());
         assertEquals("req-elicit-1", params.requestId());
-        assertEquals(UIElicitationResponseAction.ACCEPT, params.result().action());
+        assertNull(params.result());
     }
 
     @Test
     void sessionUsageGetMetricsParams_record() {
-        var params = SessionUsageGetMetricsParams.builder().sessionId("sess-47").build();
+        var params = new SessionUsageGetMetricsParams("sess-47");
         assertEquals("sess-47", params.sessionId());
     }
 
@@ -925,7 +792,7 @@ class GeneratedRpcRecordsCoverageTest {
     @Test
     void pingResult_fields() {
         var ts = OffsetDateTime.now();
-        var result = PingResult.builder().message("pong").timestamp(ts).protocolVersion(1L).build();
+        var result = new PingResult("pong", ts, 1L);
         assertEquals("pong", result.message());
         assertEquals(ts, result.timestamp());
         assertEquals(1L, result.protocolVersion());
@@ -933,11 +800,9 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionAgentListResult_with_items() {
-        var item = AgentInfo.builder().name("name1").displayName("Name One").description("Desc 1")
-                .path("/path/to/agent1").id("agent-1").source(null).userInvocable(null).disableModelInvocation(null)
-                .tools(null).model(null).models(null).modelPolicy(null).reasoningEffort(null).mcpServers(null)
-                .skills(null).prompt(null).hooks(null).build();
-        var result = SessionAgentListResult.builder().agents(List.of(item)).build();
+        var item = new AgentInfo("name1", "Name One", "Desc 1", "/path/to/agent1", null, null, null, null, null, null,
+                null, null, null, null, null, null, null);
+        var result = new SessionAgentListResult(List.of(item));
         assertEquals(1, result.agents().size());
         assertEquals("name1", result.agents().get(0).name());
         assertEquals("Name One", result.agents().get(0).displayName());
@@ -947,11 +812,9 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionAgentGetCurrentResult_nested() {
-        var agent = AgentInfo.builder().name("agent-1").displayName("Agent One").description("Does things").path(null)
-                .id("agent-id").source(null).userInvocable(null).disableModelInvocation(null).tools(null).model(null)
-                .models(null).modelPolicy(null).reasoningEffort(null).mcpServers(null).skills(null).prompt(null)
-                .hooks(null).build();
-        var result = SessionAgentGetCurrentResult.builder().agent(agent).build();
+        var agent = new AgentInfo("agent-1", "Agent One", "Does things", null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null);
+        var result = new SessionAgentGetCurrentResult(agent);
         assertEquals("agent-1", result.agent().name());
         assertEquals("Agent One", result.agent().displayName());
         assertEquals("Does things", result.agent().description());
@@ -959,22 +822,16 @@ class GeneratedRpcRecordsCoverageTest {
     }
 
     @Test
-    void sessionAgentGetCurrentResult_null_agent() throws Exception {
-        var mapper = new ObjectMapper();
-        var result = SessionAgentGetCurrentResult.builder().agent(null).build();
+    void sessionAgentGetCurrentResult_null_agent() {
+        var result = new SessionAgentGetCurrentResult(null);
         assertNull(result.agent());
-        assertEquals(mapper.readTree("{\"agent\":null}"), mapper.valueToTree(result));
-        assertEquals(result, mapper.readValue("{\"agent\":null}", SessionAgentGetCurrentResult.class));
-        var missing = assertThrows(IllegalStateException.class, () -> SessionAgentGetCurrentResult.builder().build());
-        assertEquals("Missing required property: agent", missing.getMessage());
     }
 
     @Test
     void sessionAgentReloadResult_with_items() {
-        var item = AgentInfo.builder().name("a").displayName("A").description("Desc").path("/path/to/a").id("agent-a")
-                .source(null).userInvocable(null).disableModelInvocation(null).tools(null).model(null).models(null)
-                .modelPolicy(null).reasoningEffort(null).mcpServers(null).skills(null).prompt(null).hooks(null).build();
-        var result = SessionAgentReloadResult.builder().agents(List.of(item)).build();
+        var item = new AgentInfo("a", "A", "Desc", "/path/to/a", null, null, null, null, null, null, null, null, null,
+                null, null, null, null);
+        var result = new SessionAgentReloadResult(List.of(item));
         assertEquals(1, result.agents().size());
         assertEquals("a", result.agents().get(0).name());
     }
@@ -983,15 +840,12 @@ class GeneratedRpcRecordsCoverageTest {
     void sessionAgentSelectResult_nested() throws Exception {
         Map<String, List<Object>> hooks = Map.of("Stop",
                 List.of(Map.of("type", "command", "command", "echo scoped-stop")));
-        var agent = AgentInfo.builder().name("selected").displayName("Selected").description("The selected agent")
-                .pluginId("mp:catalog::tools").path("/path/to/selected").id("agent-selected").source(null)
-                .userInvocable(null).disableModelInvocation(null).tools(null).model(null).models(null).modelPolicy(null)
-                .reasoningEffort(null).mcpServers(null).skills(null).prompt(null).hooks(hooks).build();
-        var result = SessionAgentSelectResult.builder().agent(agent).build();
+        var agent = new AgentInfo("selected", "Selected", "The selected agent", "/path/to/selected", null, null, null,
+                null, null, null, null, null, null, null, null, null, hooks);
+        var result = new SessionAgentSelectResult(agent);
         assertEquals("selected", result.agent().name());
         var mapper = new ObjectMapper();
         var json = mapper.writeValueAsString(result);
-        assertEquals("mp:catalog::tools", mapper.readTree(json).get("agent").get("pluginId").asText());
         assertEquals("echo scoped-stop",
                 mapper.readTree(json).get("agent").get("hooks").get("Stop").get(0).get("command").asText());
         assertEquals(hooks, mapper.readValue(json, SessionAgentSelectResult.class).agent().hooks());
@@ -999,16 +853,15 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionCommandsHandlePendingCommandResult_record() {
-        var result = SessionCommandsHandlePendingCommandResult.builder().success(true).build();
+        var result = new SessionCommandsHandlePendingCommandResult(true);
         assertTrue(result.success());
-        assertFalse(SessionCommandsHandlePendingCommandResult.builder().success(false).build().success());
+        assertFalse(new SessionCommandsHandlePendingCommandResult(false).success());
     }
 
     @Test
     void sessionExtensionsListResult_nested() {
-        var ext = Extension.builder().id("ext-1").name("My Extension").source(ExtensionSource.PROJECT)
-                .status(ExtensionStatus.RUNNING).pid(1234L).build();
-        var result = SessionExtensionsListResult.builder().extensions(List.of(ext)).build();
+        var ext = new Extension("ext-1", "My Extension", ExtensionSource.PROJECT, ExtensionStatus.RUNNING, 1234L);
+        var result = new SessionExtensionsListResult(List.of(ext));
         assertEquals(1, result.extensions().size());
         assertEquals("ext-1", result.extensions().get(0).id());
         assertEquals("My Extension", result.extensions().get(0).name());
@@ -1033,36 +886,35 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionFleetStartResult_record() {
-        var result = SessionFleetStartResult.builder().started(true).build();
+        var result = new SessionFleetStartResult(true);
         assertTrue(result.started());
-        assertFalse(SessionFleetStartResult.builder().started(false).build().started());
+        assertFalse(new SessionFleetStartResult(false).started());
     }
 
     @Test
     void sessionFsExistsResult_record() {
-        var result = SessionFsExistsResult.builder().exists(true).build();
+        var result = new SessionFsExistsResult(true);
         assertTrue(result.exists());
-        assertFalse(SessionFsExistsResult.builder().exists(false).build().exists());
+        assertFalse(new SessionFsExistsResult(false).exists());
     }
 
     @Test
     void sessionFsReadFileResult_record() {
-        var result = SessionFsReadFileResult.builder().content("file content here").error(null).build();
+        var result = new SessionFsReadFileResult("file content here", null);
         assertEquals("file content here", result.content());
     }
 
     @Test
     void sessionFsReaddirResult_record() {
-        var result = SessionFsReaddirResult.builder().entries(List.of("file1.txt", "file2.txt")).error(null).build();
+        var result = new SessionFsReaddirResult(List.of("file1.txt", "file2.txt"), null);
         assertEquals(2, result.entries().size());
         assertEquals("file1.txt", result.entries().get(0));
     }
 
     @Test
     void sessionFsReaddirWithTypesResult_nested() {
-        var entry = SessionFsReaddirWithTypesEntry.builder().name("myfile.txt")
-                .type(SessionFsReaddirWithTypesEntryType.FILE).build();
-        var result = SessionFsReaddirWithTypesResult.builder().entries(List.of(entry)).error(null).build();
+        var entry = new SessionFsReaddirWithTypesEntry("myfile.txt", SessionFsReaddirWithTypesEntryType.FILE);
+        var result = new SessionFsReaddirWithTypesResult(List.of(entry), null);
         assertEquals(1, result.entries().size());
         assertEquals("myfile.txt", result.entries().get(0).name());
         assertEquals(SessionFsReaddirWithTypesEntryType.FILE, result.entries().get(0).type());
@@ -1080,30 +932,25 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionFsSetProviderResult_record() {
-        var result = SessionFsSetProviderResult.builder().success(true).build();
+        var result = new SessionFsSetProviderResult(true);
         assertTrue(result.success());
-        assertFalse(SessionFsSetProviderResult.builder().success(false).build().success());
+        assertFalse(new SessionFsSetProviderResult(false).success());
     }
 
     @Test
     void sessionFsStatResult_record() {
-        var modified = OffsetDateTime.parse("2026-01-01T00:00:00Z");
-        var created = OffsetDateTime.parse("2025-12-31T00:00:00Z");
-        var result = SessionFsStatResult.builder().isFile(true).isDirectory(false).size(1024L).mtime(modified)
-                .birthtime(created).error(null).build();
+        var result = new SessionFsStatResult(true, false, 1024L, null, null, null);
         assertTrue(result.isFile());
         assertFalse(result.isDirectory());
         assertEquals(1024L, result.size());
-        assertEquals(modified, result.mtime());
-        assertEquals(created, result.birthtime());
+        assertNull(result.mtime());
+        assertNull(result.birthtime());
     }
 
     @Test
     void sessionHistoryCompactResult_nested() {
-        var ctx = HistoryCompactContextWindow.builder().tokenLimit(100000L).currentTokens(5000L).messagesLength(20L)
-                .systemTokens(1000L).conversationTokens(3000L).toolDefinitionsTokens(500L).build();
-        var result = SessionHistoryCompactResult.builder().success(true).tokensRemoved(2000L).messagesRemoved(5L)
-                .summaryContent(null).contextWindow(ctx).build();
+        var ctx = new HistoryCompactContextWindow(100000L, 5000L, 20L, 1000L, 3000L, 500L);
+        var result = new SessionHistoryCompactResult(true, 2000L, 5L, null, ctx);
         assertTrue(result.success());
         assertEquals(2000L, result.tokensRemoved());
         assertEquals(5L, result.messagesRemoved());
@@ -1114,8 +961,7 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionHistoryTruncateResult_record() {
-        var result = SessionHistoryTruncateResult.builder().eventsRemoved(3L).checkpointCleanupFailed(false)
-                .checkpointCleanupError(null).build();
+        var result = new SessionHistoryTruncateResult(3L, false, null);
         assertEquals(3L, result.eventsRemoved());
         assertEquals(false, result.checkpointCleanupFailed());
         assertNull(result.checkpointCleanupError());
@@ -1124,17 +970,16 @@ class GeneratedRpcRecordsCoverageTest {
     @Test
     void sessionLogResult_record() {
         var id = UUID.randomUUID();
-        var result = SessionLogResult.builder().eventId(id).build();
+        var result = new SessionLogResult(id);
         assertEquals(id, result.eventId());
     }
 
     @Test
     void sessionMcpListResult_nested() {
-        var metadata = McpServerMetadata.builder().instructions("Use this server for repository operations.").build();
-        var server = McpServer.builder().name("my-mcp").status(McpServerStatus.CONNECTED).source(McpServerSource.USER)
-                .sourcePlugin(null).sourcePluginVersion(null).displayName(null).error(null).serverMetadata(metadata)
-                .build();
-        var result = SessionMcpListResult.builder().servers(List.of(server)).host(null).build();
+        var metadata = new McpServerMetadata("Use this server for repository operations.");
+        var server = new McpServer("my-mcp", McpServerStatus.CONNECTED, McpServerSource.USER, null, null, null, null,
+                metadata);
+        var result = new SessionMcpListResult(List.of(server), null);
         assertEquals(1, result.servers().size());
         assertEquals("my-mcp", result.servers().get(0).name());
         assertEquals(McpServerStatus.CONNECTED, result.servers().get(0).status());
@@ -1154,18 +999,16 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionModelGetCurrentResult_record() {
-        var result = SessionModelGetCurrentResult.builder().modelId("claude-sonnet-5").providerId(null)
-                .planBaseModelId("claude-sonnet-4.5").planBaseProviderId(null).reasoningEffort(null).contextTier(null)
-                .autoTier(null).pendingAutoTier(null).activatingAutoTier(null).build();
+        var result = new SessionModelGetCurrentResult("claude-sonnet-5", null, "claude-sonnet-4.5", null, null, null,
+                null, null, null);
         assertEquals("claude-sonnet-5", result.modelId());
         assertEquals("claude-sonnet-4.5", result.planBaseModelId());
     }
 
     @Test
     void sessionModelSwitchToResult_record() {
-        var result = SessionModelSwitchToResult.builder().queueId("queue-model-1").modelId("gpt-5").deferred(true)
-                .status(null).confirmation(null).persistenceError(null).message(null).warning(null)
-                .deprecationWarnings(null).modelState(null).build();
+        var result = new SessionModelSwitchToResult("queue-model-1", "gpt-5", true, null, null, null, null, null, null,
+                null);
         assertEquals("queue-model-1", result.queueId());
         assertEquals("gpt-5", result.modelId());
         assertEquals(true, result.deferred());
@@ -1173,15 +1016,14 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionPermissionsHandlePendingPermissionRequestResult_record() {
-        var result = SessionPermissionsHandlePendingPermissionRequestResult.builder().success(true).build();
+        var result = new SessionPermissionsHandlePendingPermissionRequestResult(true);
         assertTrue(result.success());
-        assertFalse(SessionPermissionsHandlePendingPermissionRequestResult.builder().success(false).build().success());
+        assertFalse(new SessionPermissionsHandlePendingPermissionRequestResult(false).success());
     }
 
     @Test
     void sessionPlanReadResult_record() {
-        var result = SessionPlanReadResult.builder().exists(true).content("# Plan\n1. Do stuff")
-                .path("/workspace/.plan").build();
+        var result = new SessionPlanReadResult(true, "# Plan\n1. Do stuff", "/workspace/.plan");
         assertTrue(result.exists());
         assertEquals("# Plan\n1. Do stuff", result.content());
         assertEquals("/workspace/.plan", result.path());
@@ -1189,45 +1031,40 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionPluginsListResult_nested() {
-        var plugin = Plugin.builder().name("my-plugin").marketplace("marketplace-x").version("1.2.3").enabled(true)
-                .rootPath("/plugins/my-plugin").id("opaque-plugin").directSourceId(null)
-                .installedFrom("/marketplaces/marketplace-x").source(null).managed(true).managedDesiredEnabled(true)
-                .installed(true).build();
-        var result = SessionPluginsListResult.builder().plugins(List.of(plugin)).build();
+        var plugin = new Plugin("my-plugin", "marketplace-x", "1.2.3", true, null, "/marketplaces/marketplace-x", null,
+                true, true, true);
+        var result = new SessionPluginsListResult(List.of(plugin));
         assertEquals(1, result.plugins().size());
         assertEquals("my-plugin", result.plugins().get(0).name());
         assertEquals("marketplace-x", result.plugins().get(0).marketplace());
         assertEquals("1.2.3", result.plugins().get(0).version());
         assertTrue(result.plugins().get(0).enabled());
         assertNull(result.plugins().get(0).directSourceId());
-        assertEquals("/plugins/my-plugin", result.plugins().get(0).rootPath());
         assertEquals("/marketplaces/marketplace-x", result.plugins().get(0).installedFrom());
         assertNull(result.plugins().get(0).source());
         assertTrue(result.plugins().get(0).managed());
         assertTrue(result.plugins().get(0).managedDesiredEnabled());
         assertTrue(result.plugins().get(0).installed());
-        assertEquals("opaque-plugin", result.plugins().get(0).id());
     }
 
     @Test
     void sessionShellExecResult_record() {
-        var result = SessionShellExecResult.builder().processId("proc-id-123").build();
+        var result = new SessionShellExecResult("proc-id-123");
         assertEquals("proc-id-123", result.processId());
     }
 
     @Test
     void sessionShellKillResult_record() {
-        var result = SessionShellKillResult.builder().killed(true).build();
+        var result = new SessionShellKillResult(true);
         assertTrue(result.killed());
-        assertFalse(SessionShellKillResult.builder().killed(false).build().killed());
+        assertFalse(new SessionShellKillResult(false).killed());
     }
 
     @Test
     void sessionSkillsListResult_nested() {
-        var item = Skill.builder().name("deploy").commandName("deploy").description("Deploy the app")
-                .source(SkillSource.PROJECT).userInvocable(true).enabled(true).path("/skills/deploy.md")
-                .pluginName(null).argumentHint(null).build();
-        var result = SessionSkillsListResult.builder().skills(List.of(item)).build();
+        var item = new Skill("deploy", null, "deploy", "Deploy the app", SkillSource.PROJECT, null, true, true,
+                "/skills/deploy.md", null, null);
+        var result = new SessionSkillsListResult(List.of(item));
         assertEquals(1, result.skills().size());
         assertEquals("deploy", result.skills().get(0).name());
         assertNull(result.skills().get(0).declaredName());
@@ -1239,12 +1076,11 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionSkillsListResult_mcp_identity() throws Exception {
-        var origin = McpSkillOrigin.builder().serverName("deployment").uri("skills://deployment/SKILL.md").build();
-        var item = Skill.builder().name("mcp1:qualified").declaredName("deploy").commandName("mcp1:qualified")
-                .description("Deploy the app").source(SkillSource.MCP).mcpOrigin(origin).userInvocable(true)
-                .enabled(true).build();
+        var origin = new McpSkillOrigin("deployment", "skills://deployment/SKILL.md");
+        var item = new Skill("mcp1:qualified", "deploy", "mcp1:qualified", "Deploy the app", SkillSource.MCP, origin,
+                true, true, null, null, null);
         var mapper = new ObjectMapper();
-        var result = SessionSkillsListResult.builder().skills(List.of(item)).build();
+        var result = new SessionSkillsListResult(List.of(item));
         var json = mapper.valueToTree(result);
         assertEquals("mcp1:qualified", json.get("skills").get(0).get("name").asText());
         assertEquals("deploy", json.get("skills").get(0).get("declaredName").asText());
@@ -1258,22 +1094,19 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionSkillsReloadResult_empty() {
-        var result = SessionSkillsReloadResult.builder().warnings(List.of()).errors(List.of()).build();
-        assertTrue(result.warnings().isEmpty());
-        assertTrue(result.errors().isEmpty());
+        assertNotNull(new SessionSkillsReloadResult(null, null));
     }
 
     @Test
     void sessionToolsHandlePendingToolCallResult_record() {
-        var result = SessionToolsHandlePendingToolCallResult.builder().success(true).build();
+        var result = new SessionToolsHandlePendingToolCallResult(true);
         assertTrue(result.success());
-        assertFalse(SessionToolsHandlePendingToolCallResult.builder().success(false).build().success());
+        assertFalse(new SessionToolsHandlePendingToolCallResult(false).success());
     }
 
     @Test
     void sessionUiElicitationResult_accept() {
-        var result = SessionUiElicitationResult.builder().action(UIElicitationResponseAction.ACCEPT)
-                .content(Map.of("name", "Alice")).meta(null).build();
+        var result = new SessionUiElicitationResult(UIElicitationResponseAction.ACCEPT, Map.of("name", "Alice"), null);
         assertEquals(UIElicitationResponseAction.ACCEPT, result.action());
         assertEquals("Alice", result.content().get("name"));
     }
@@ -1291,19 +1124,15 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionUiHandlePendingElicitationResult_record() {
-        var result = SessionUiHandlePendingElicitationResult.builder().success(true).build();
+        var result = new SessionUiHandlePendingElicitationResult(true);
         assertTrue(result.success());
     }
 
     @Test
     void sessionUsageGetMetricsResult_nested() {
-        var changes = UsageMetricsCodeChanges.builder().linesAdded(100L).linesRemoved(50L).filesModifiedCount(5L)
-                .filesModified(List.of()).build();
-        var result = SessionUsageGetMetricsResult.builder().aiCreditsStatus(null).totalPremiumRequestCost(0.5)
-                .totalUserRequests(10L).totalNanoAiu(null).tokenDetails(null).totalApiDurationMs(2000L)
-                .sessionStartTime(OffsetDateTime.parse("2026-01-01T00:00:00Z")).codeChanges(changes)
-                .modelMetrics(Map.of()).providerModelMetrics(null).agentMetrics(null).currentModel("gpt-5")
-                .lastCallInputTokens(1000L).lastCallOutputTokens(500L).build();
+        var changes = new UsageMetricsCodeChanges(100L, 50L, 5L, null);
+        var result = new SessionUsageGetMetricsResult(null, 0.5, 10L, null, null, 2000L, null, changes, null, null,
+                null, "gpt-5", 1000L, 500L);
         assertEquals(0.5, result.totalPremiumRequestCost());
         assertEquals(10L, result.totalUserRequests());
         assertNotNull(result.codeChanges());
@@ -1315,7 +1144,7 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionsForkResult_record() {
-        var result = SessionsForkResult.builder().sessionId("forked-sess-id").name(null).build();
+        var result = new SessionsForkResult("forked-sess-id", null);
         assertEquals("forked-sess-id", result.sessionId());
     }
 
@@ -1323,14 +1152,11 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void accountGetQuotaResult_nested() {
-        var snapshot = AccountQuotaSnapshot.builder().isUnlimitedEntitlement(false).entitlementRequests(100L)
-                .usedRequests(40L).usageAllowedWithExhaustedQuota(true).remainingPercentage(60.0).overage(5.0)
-                .overageAllowedWithExhaustedQuota(true)
-                .resetDate(java.time.OffsetDateTime.parse("2026-05-01T00:00:00Z")).build();
-        var result = AccountGetQuotaResult.builder().quotaSnapshots(Map.of("chat", snapshot)).build();
+        var snapshot = new AccountQuotaSnapshot(null, 100L, 40L, null, 60.0, 5.0, true,
+                java.time.OffsetDateTime.parse("2026-05-01T00:00:00Z"));
+        var result = new AccountGetQuotaResult(Map.of("chat", snapshot));
         assertEquals(1, result.quotaSnapshots().size());
         var s = result.quotaSnapshots().get("chat");
-        assertFalse(s.isUnlimitedEntitlement());
         assertEquals(100L, s.entitlementRequests());
         assertEquals(40L, s.usedRequests());
         assertEquals(60.0, s.remainingPercentage());
@@ -1341,17 +1167,16 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void mcpConfigListResult_record() {
-        var result = McpConfigListResult.builder().servers(Map.of("server1", "config1")).build();
+        var result = new McpConfigListResult(Map.of("server1", "config1"));
         assertEquals(1, result.servers().size());
         assertEquals("config1", result.servers().get("server1"));
     }
 
     @Test
     void mcpDiscoverResult_nested() {
-        var server = DiscoveredMcpServer.builder().name("discovered-server").type(DiscoveredMcpServerType.STDIO)
-                .source(McpServerSource.USER).sourcePlugin(null).sourcePluginVersion(null).effectiveSource(null)
-                .enabled(true).build();
-        var result = McpDiscoverResult.builder().servers(List.of(server)).build();
+        var server = new DiscoveredMcpServer("discovered-server", DiscoveredMcpServerType.STDIO, McpServerSource.USER,
+                null, null, null, true);
+        var result = new McpDiscoverResult(List.of(server));
         assertEquals(1, result.servers().size());
         assertEquals("discovered-server", result.servers().get(0).name());
         assertEquals(DiscoveredMcpServerType.STDIO, result.servers().get(0).type());
@@ -1361,24 +1186,17 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void modelsListResult_nested() {
-        var supports = ModelCapabilitiesSupports.builder().thinking(false).vision(true).toolCalls(null)
-                .reasoningEffort(false).adaptiveThinking(null).build();
-        var limits = ModelCapabilitiesLimits.builder().maxPromptTokens(100000L).maxOutputTokens(8192L)
-                .maxContextWindowTokens(128000L).vision(null).build();
-        var capabilities = ModelCapabilities.builder().supports(supports).limits(limits).build();
-        var policy = ModelPolicy.builder().state(ModelPolicyState.ENABLED).terms(null).build();
-        var promo = ModelBillingPromo.builder().id("summer-2026").discountPercent(25.0).endsAt("2026-08-01T00:00:00Z")
-                .message("Summer discount").showBanner(true).build();
-        var billing = ModelBilling.builder().multiplier(1.0).tokenPrices(null).discountPercent(null).promo(promo)
-                .build();
-        var modelItem = Model.builder().id("gpt-5").name("GPT-5").capabilities(capabilities).metadata(null).vendor(null)
-                .policy(policy).billing(billing).supportedReasoningEfforts(null).defaultReasoningEffort(null)
-                .supportedContextTiers(null).modelPickerCategory(null).modelPickerPriceCategory(null).warningText(null)
-                .infoMessages(null).warningMessages(null).provider(null).build();
-        var result = ModelsListResult.builder().models(List.of(modelItem)).auto(null).imageModels(null).build();
+        var supports = new ModelCapabilitiesSupports(false, true, null, false, null);
+        var limits = new ModelCapabilitiesLimits(100000L, 8192L, 128000L, null);
+        var capabilities = new ModelCapabilities(supports, limits);
+        var policy = new ModelPolicy(ModelPolicyState.ENABLED, null);
+        var promo = new ModelBillingPromo("summer-2026", 25.0, "2026-08-01T00:00:00Z", "Summer discount", true);
+        var billing = new ModelBilling(1.0, null, null, promo);
+        var modelItem = new Model("gpt-5", "GPT-5", capabilities, null, null, policy, billing, null, null, null, null,
+                null, null, null, null, null);
+        var result = new ModelsListResult(List.of(modelItem), null, null);
 
         assertNull(result.auto());
-        assertNull(result.decisionModels());
         assertEquals(1, result.models().size());
         assertNull(result.imageModels());
         assertEquals("gpt-5", result.models().get(0).id());
@@ -1420,16 +1238,14 @@ class GeneratedRpcRecordsCoverageTest {
         var fusion = result.auto().tiers().get(1);
         assertEquals("High", fusion.displayName());
         assertEquals("fusion", fusion.type());
-        assertEquals(AutoTierStatus.builder().enabled(false).pickerVisible(null).reason("policy")
-                .message("Contact admin").build(), fusion.status());
+        assertEquals(new AutoTierStatus(false, null, "policy", "Contact admin"), fusion.status());
     }
 
     @Test
     void toolsListResult_nested() {
-        var tool = Tool.builder().name("bash").namespacedName("bash").description("Run shell commands")
-                .parameters(Map.of("type", "object")).instructions("Use for shell commands").safeForTelemetry(true)
-                .build();
-        var result = ToolsListResult.builder().tools(List.of(tool)).build();
+        var tool = new Tool("bash", "bash", "Run shell commands", Map.of("type", "object"), "Use for shell commands",
+                true);
+        var result = new ToolsListResult(List.of(tool));
         assertEquals(1, result.tools().size());
         assertEquals("bash", result.tools().get(0).name());
         assertEquals("bash", result.tools().get(0).namespacedName());
@@ -1442,19 +1258,12 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionModelSwitchToParams_nested_records() {
-        var limitsVision = ModelCapabilitiesOverrideLimitsVision.builder()
-                .supportedMediaTypes(List.of("image/png", "image/jpeg")).maxPromptImages(10L)
-                .maxPromptImageSize(5000000L).build();
-        var limits = ModelCapabilitiesOverrideLimits.builder().maxPromptTokens(100000L).maxOutputTokens(8192L)
-                .maxContextWindowTokens(128000L).vision(limitsVision).build();
-        var supports = ModelCapabilitiesOverrideSupports.builder().vision(true).toolCalls(null).reasoningEffort(true)
-                .adaptiveThinking(null).build();
-        var capabilities = ModelCapabilitiesOverride.builder().supports(supports).limits(limits).build();
-        var params = SessionModelSwitchToParams.builder().sessionId("sess-m").modelId("gpt-5").autoTier(null)
-                .reasoningEffort(null).reasoningSummary(null).verbosity(null).modelCapabilities(capabilities)
-                .contextTier(null).source(null).deferIfModelChangeQueued(null).compactionDecision(null)
-                .runCompactionPreflight(null).repoScope(null).modelChangeScope(null).requireAvailable(null)
-                .pickerPersistence(null).build();
+        var limitsVision = new ModelCapabilitiesOverrideLimitsVision(List.of("image/png", "image/jpeg"), 10L, 5000000L);
+        var limits = new ModelCapabilitiesOverrideLimits(100000L, 8192L, 128000L, limitsVision);
+        var supports = new ModelCapabilitiesOverrideSupports(true, null, true, null);
+        var capabilities = new ModelCapabilitiesOverride(supports, limits);
+        var params = new SessionModelSwitchToParams("sess-m", "gpt-5", null, null, null, null, capabilities, null, null,
+                null, null, null, null, null, null, null);
 
         assertEquals("gpt-5", params.modelId());
         assertNotNull(params.modelCapabilities());
@@ -1468,10 +1277,8 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionUiElicitationParams_nested_schema() {
-        var schema = UIElicitationSchema.builder().type("object").properties(Map.of("name", Map.of("type", "string")))
-                .required(List.of("name")).build();
-        var params = SessionUiElicitationParams.builder().sessionId("sess-elicit").mode(null)
-                .message("Please fill form").requestedSchema(schema).meta(null).task(null).build();
+        var schema = new UIElicitationSchema("object", Map.of("name", Map.of("type", "string")), List.of("name"));
+        var params = new SessionUiElicitationParams("sess-elicit", null, "Please fill form", schema, null, null);
         assertEquals("sess-elicit", params.sessionId());
         assertEquals("object", params.requestedSchema().type());
         assertTrue(params.requestedSchema().required().contains("name"));

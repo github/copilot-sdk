@@ -64,6 +64,20 @@ Pass the language-specific connection option when you create the client.
 <summary><strong>TypeScript</strong></summary>
 
 <!-- docs-validate: strict -->
+<!-- docs-validate: hidden -->
+```typescript
+import { CopilotClient as Client, RuntimeConnection } from "@github/copilot-sdk";
+
+async function main() {
+  const client = new Client({
+    connection: RuntimeConnection.forInProcess(),
+  });
+
+  await client.start();
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```typescript
 import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
 
@@ -145,6 +159,8 @@ await client.StartAsync();
 <details>
 <summary><strong>Rust</strong></summary>
 
+<!-- docs-validate: skip -->
+
 ```rust
 let options = ClientOptions::default()
     .with_transport(Transport::InProcess);
@@ -192,9 +208,9 @@ The SDK converts supported typed client options into native runtime arguments an
 * Session idle timeout.
 * Remote session mode.
 
-The in-process runtime receives a host environment snapshot plus supported typed overrides. It does not mutate the host environment.
+The in-process runtime receives a snapshot of the host environment plus supported SDK-managed overrides. It does not mutate the host environment.
 
-Configure working directories per session. Set genuinely process-wide values before creating the first in-process client.
+Set process-wide values before creating the first in-process client. This includes environment variables that are not represented by typed client options and the application's current working directory.
 
 ## Runtime library resolution
 
@@ -228,8 +244,8 @@ In-process hosting has these current constraints:
 
 * **Experimental API**: behavior and packaging requirements can change between releases.
 * **Shared process state**: all clients share the host process environment, current working directory, native library, and runtime worker pool.
-* **Restricted process options**: arbitrary environment maps, client working directories, executable paths, and CLI arguments are rejected where applicable.
-* **No per-client working directory**: set working directories per session instead.
+* **Restricted process options**: SDK options for an arbitrary environment, working directory, telemetry configuration, executable path, or CLI arguments are rejected where applicable. Configure process-global values on the host process and use supported typed options for runtime settings.
+* **No per-client working directory**: the runtime uses the hosting process working directory.
 * **One runtime version per process**: loading another native library path or version is not supported.
 * **Platform maturity varies**: some SDK and platform combinations have reduced model-turn or shutdown coverage. Validate the exact combination that you deploy.
 

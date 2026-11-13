@@ -62,20 +62,4 @@ public final class SessionProvidersModelsApi {
         return caller.invoke("session.providers.models.prepareConfiguration", _p, SessionProvidersModelsPrepareConfigurationResult.class);
     }
 
-    /**
-     * Reads current cached provider-model availability under the session's allowed-model policy. Does not fetch a catalog or change registration, selection, or configuration.
-     * <p>
-     * Note: the {@code sessionId} field in the params record is overridden
-     * by the session-scoped wrapper; any value provided is ignored.
-     *
-     * @apiNote This method is experimental and may change in a future version.
-     * @since 1.0.0
-     */
-    @CopilotExperimental
-    public CompletableFuture<SessionProvidersModelsDiagnoseResult> diagnose(SessionProvidersModelsDiagnoseParams params) {
-        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
-        _p.put("sessionId", this.sessionId);
-        return caller.invoke("session.providers.models.diagnose", _p, SessionProvidersModelsDiagnoseResult.class);
-    }
-
 }

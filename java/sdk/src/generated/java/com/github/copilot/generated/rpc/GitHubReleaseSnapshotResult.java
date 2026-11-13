@@ -20,7 +20,7 @@ import javax.annotation.processing.Generated;
  *
  * @since 1.0.0
  */
-@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.EXISTING_PROPERTY, property = "outcome", visible = true)
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "outcome", visible = true)
 @JsonSubTypes({
     @JsonSubTypes.Type(value = GitHubReleaseSnapshotResultSuccess.class, name = "success"),
     @JsonSubTypes.Type(value = GitHubReleaseSnapshotResultFailed.class, name = "failed")

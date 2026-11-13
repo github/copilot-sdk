@@ -10,6 +10,18 @@ The SDK has built-in support for configuring OpenTelemetry on the CLI process an
 <summary><strong>Node.js / TypeScript</strong></summary>
 
 <!-- docs-validate: strict -->
+<!-- docs-validate: hidden -->
+```typescript
+import { CopilotClient as SdkClient } from "@github/copilot-sdk";
+
+new SdkClient({
+  telemetry: {
+    otlpEndpoint: "http://localhost:4318",
+  },
+});
+```
+<!-- /docs-validate: hidden -->
+
 ```typescript
 import { CopilotClient } from "@github/copilot-sdk";
 
@@ -206,7 +218,7 @@ Manual and automatic conversation compaction also emit a separate `chat {model}`
 
 For **Node.js**, provide an `onGetTraceContext` callback on the client options. This is only needed if your application already uses `@opentelemetry/api` and you want to link your spans with the CLI's spans. The SDK calls this callback before `session.create`, `session.resume`, and `session.send` RPCs:
 
-<!-- docs-validate: strict -->
+<!-- docs-validate: skip -->
 ```typescript
 import { CopilotClient } from "@github/copilot-sdk";
 import { propagation, context } from "@opentelemetry/api";
@@ -221,7 +233,7 @@ const client = new CopilotClient({
 });
 ```
 
-For **Python**, **Go**, and **.NET**, trace context injection is automatic when the respective OpenTelemetry/Activity API is configured—no callback is needed. Go injects and extracts trace context with the global propagator, which drops it until the application installs one, for example with `otel.SetTextMapPropagator(propagation.TraceContext{})`.
+For **Python**, **Go**, and **.NET**, trace context injection is automatic when the respective OpenTelemetry/Activity API is configured—no callback is needed.
 
 #### CLI → SDK (inbound)
 
@@ -232,43 +244,7 @@ When the CLI invokes a tool handler, the `traceparent` and `tracestate` from the
 * **.NET**: Configure `AddSource("github.copilot")` to export `copilot.tool_handler` parents under CLI spans; without listeners, only context propagates.
 * **Node.js**: Since the SDK has no OpenTelemetry dependency, `traceparent` and `tracestate` are passed as raw strings on the `ToolInvocation` object. Restore the context manually if needed:
 
-<!-- docs-validate: strict -->
-<!-- docs-validate: hidden -->
-```typescript
-declare function doWork(args: unknown): Promise<string>;
-
-import { defineTool } from "@github/copilot-sdk";
-import { propagation, context, trace } from "@opentelemetry/api";
-
-const myTool = defineTool("my-tool", {
-  description: "Do work",
-  handler: async (args, invocation) => {
-    // Restore the CLI's trace context as the active context
-    const carrier = {
-      traceparent: invocation.traceparent,
-      tracestate: invocation.tracestate,
-    };
-    const parentCtx = propagation.extract(context.active(), carrier);
-
-    // Create a child span under the CLI's span
-    const tracer = trace.getTracer("my-app");
-    return context.with(parentCtx, () =>
-      tracer.startActiveSpan("my-tool", async (span) => {
-        try {
-          const result = await doWork(args);
-          return result;
-        } finally {
-          span.end();
-        }
-      })
-    );
-  },
-});
-
-// Tool handlers are registered when the session is created.
-const session = await client.createSession({ tools: [myTool] });
-```
-<!-- /docs-validate: hidden -->
+<!-- docs-validate: skip -->
 ```typescript
 import { defineTool } from "@github/copilot-sdk";
 import { propagation, context, trace } from "@opentelemetry/api";

@@ -19,7 +19,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import com.github.copilot.generated.*;
-import com.github.copilot.generated.rpc.SessionMcpIdeStateResult;
 
 /**
  * Tests for session event deserialization.
@@ -54,29 +53,6 @@ public class SessionEventDeserializationTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"{\"newModel\":\"auto\"}", "{\"newModel\":\"auto\",\"contextTier\":null}",
-            "{\"newModel\":\"auto\",\"contextTier\":\"long_context\"}"})
-    void testModelChangeContextTierPresence(String payload) throws Exception {
-        var expected = MAPPER.readTree(payload);
-        var builder = SessionModelChangeEvent.SessionModelChangeEventData.builder().newModel("auto");
-        if (expected.has("contextTier")) {
-            builder.contextTier(expected.get("contextTier").isNull()
-                    ? null
-                    : ContextTier.fromValue(expected.get("contextTier").asText()));
-        }
-        var built = builder.build();
-        assertEquals(expected, MAPPER.valueToTree(built));
-
-        try (var parser = new com.fasterxml.jackson.core.JsonFactory().createParser(payload)) {
-            assertEquals(built, MAPPER.readValue(parser, SessionModelChangeEvent.SessionModelChangeEventData.class));
-        }
-        var envelope = eventEnvelope("session.model_change", payload);
-        var event = assertInstanceOf(SessionModelChangeEvent.class, parseJson(envelope));
-        assertEquals(built, event.getData());
-        assertEquals(MAPPER.readTree(envelope), MAPPER.valueToTree(event));
-    }
-
-    @ParameterizedTest
     @ValueSource(strings = {"session.info", "future.event"})
     void testCheckpointMarkerRoundTrip(String type) throws Exception {
         for (Boolean checkpoint : new Boolean[]{null, false, true}) {
@@ -90,90 +66,12 @@ public class SessionEventDeserializationTest {
             assertEquals(checkpoint, event.getCheckpoint());
             if ("future.event".equals(type)) {
                 assertInstanceOf(UnknownSessionEvent.class, event);
+                wire.remove("data");
             } else {
                 assertInstanceOf(SessionInfoEvent.class, event);
             }
             assertEquals(wire, MAPPER.valueToTree(event));
         }
-    }
-
-    @ParameterizedTest
-    @ValueSource(booleans = {false, true})
-    void testIdeSelectionRoundTrip(boolean cleared) throws Exception {
-        String selection = cleared ? "null" : """
-                {
-                    "text": "selected",
-                    "filePath": "/workspace/file.rs",
-                    "fileUrl": "file:///workspace/file.rs",
-                    "selection": {
-                        "start": {"line": 0.0, "character": 0.0},
-                        "end": {"line": 0.0, "character": 8.0},
-                        "isEmpty": false
-                    }
-                }
-                """;
-        var wire = MAPPER.readValue(eventEnvelope("ide.selection_changed", "{\"selection\": %s}".formatted(selection)),
-                ObjectNode.class);
-
-        var event = assertInstanceOf(IdeSelectionChangedEvent.class, parseJson(wire.toString()));
-
-        if (cleared) {
-            assertNull(event.getData().selection());
-        } else {
-            assertEquals("selected", event.getData().selection().text());
-        }
-        assertEquals(wire, MAPPER.valueToTree(event));
-    }
-
-    @Test
-    void testIdeRpcStateSharesCanonicalEventModels() throws Exception {
-        String selectionJson = """
-                {
-                    "text": "selected",
-                    "filePath": "/workspace/file.rs",
-                    "fileUrl": "file:///workspace/file.rs",
-                    "selection": {
-                        "start": {"line": 2.0, "character": 3.0},
-                        "end": {"line": 4.0, "character": 5.0},
-                        "isEmpty": false
-                    },
-                    "current": true
-                }
-                """;
-        String connectionJson = """
-                {
-                    "ideName": "VS Code",
-                    "workspaceFolder": "/workspace",
-                    "pid": 42,
-                    "lockFilePath": "/workspace/ide.lock",
-                    "serverName": "ide"
-                }
-                """;
-        String stateJson = """
-                {"connectedIde": %s, "retainedIde": %s, "selection": %s}
-                """.formatted(connectionJson, connectionJson, selectionJson);
-        var state = MAPPER.readValue(stateJson, SessionMcpIdeStateResult.class);
-        var connectionEvent = assertInstanceOf(IdeConnectionChangedEvent.class,
-                parseJson(eventEnvelope("ide.connection_changed", stateJson)));
-        var selectionEvent = assertInstanceOf(IdeSelectionChangedEvent.class,
-                parseJson(eventEnvelope("ide.selection_changed", "{\"selection\": %s}".formatted(selectionJson))));
-
-        IdeSelection selection = state.selection();
-        IdeConnectedInfo connectedIde = state.connectedIde();
-        IdeConnectedInfo retainedIde = state.retainedIde();
-        IdeSelectionRange range = selection.selection();
-        IdePosition start = range.start();
-        IdePosition end = range.end();
-
-        assertEquals("selected", selection.text());
-        assertEquals("VS Code", connectedIde.ideName());
-        assertEquals(selectionEvent.getData().selection(), selection);
-        assertEquals(connectionEvent.getData().selection(), selection);
-        assertEquals(connectionEvent.getData().connectedIde(), connectedIde);
-        assertEquals(connectionEvent.getData().retainedIde(), retainedIde);
-        assertEquals(selectionEvent.getData().selection().selection(), range);
-        assertEquals(IdePosition.builder().line(2.0).character(3.0).build(), start);
-        assertEquals(IdePosition.builder().line(4.0).character(5.0).build(), end);
     }
 
     // =========================================================================
@@ -325,7 +223,7 @@ public class SessionEventDeserializationTest {
              "denialClass":null,"confidence":null,"deniedResource":null,"command":"example --write",
              "processName":"example"}
             """})
-    void testLegacySandboxDecisionFullEnvelopeRoundTrip(String payload) throws Exception {
+    void testSandboxDecisionFullEnvelopeRoundTrip(String payload) throws Exception {
         String json = eventEnvelope("sandbox.decision", payload);
         var event = assertInstanceOf(SandboxDecisionEvent.class, parseJson(json));
         var data = assertInstanceOf(SandboxDecisionEvent.SandboxDecisionEventData.class, event.getData());
@@ -357,7 +255,7 @@ public class SessionEventDeserializationTest {
         String json = eventEnvelope("session.todos_changed", "{}");
         var event = assertInstanceOf(SessionTodosChangedEvent.class, parseJson(json));
         var data = assertInstanceOf(SessionTodosChangedEvent.SessionTodosChangedEventData.class, event.getData());
-        assertEquals(SessionTodosChangedEvent.SessionTodosChangedEventData.builder().build(), data);
+        assertEquals(new SessionTodosChangedEvent.SessionTodosChangedEventData(), data);
         assertEquals("{}", MAPPER.writeValueAsString(data));
         var serialized = MAPPER.writeValueAsString(event);
         assertEquals(MAPPER.readTree(json), MAPPER.readTree(serialized));
@@ -831,19 +729,6 @@ public class SessionEventDeserializationTest {
         assertNotNull(event);
         assertInstanceOf(ToolUserRequestedEvent.class, event);
         assertEquals("tool.user_requested", event.getType());
-    }
-
-    @Test
-    void testLegacyToolStartCanonicalConstructorAcceptsNullOptionalArguments() throws Exception {
-        var data = new ToolExecutionStartEvent.ToolExecutionStartEventData("legacy-call", "shell", null, null, null,
-                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
-
-        assertEquals("legacy-call", data.toolCallId());
-        assertEquals("shell", data.toolName());
-        assertNull(data.programToolCallId());
-        assertTrue(data.$explicitNulls().isEmpty());
-        assertEquals(MAPPER.readTree("{\"toolCallId\":\"legacy-call\",\"toolName\":\"shell\"}"),
-                MAPPER.valueToTree(data));
     }
 
     @Test
@@ -2774,11 +2659,10 @@ public class SessionEventDeserializationTest {
         assertTrue(castedEvent.getData().ui().elicitation());
 
         // Verify setData round-trip
-        var newData = CapabilitiesChangedEvent.CapabilitiesChangedEventData.builder()
-                .ui(CapabilitiesChangedUI.builder().elicitation(false).mcpApps(null).canvases(null).build()).build();
+        var newData = new CapabilitiesChangedEvent.CapabilitiesChangedEventData(
+                new CapabilitiesChangedUI(false, null, null));
         castedEvent.setData(newData);
         assertFalse(castedEvent.getData().ui().elicitation());
-        assertNull(castedEvent.getData().ui().autoModeRecovery());
     }
 
     @Test
@@ -2808,10 +2692,8 @@ public class SessionEventDeserializationTest {
         assertEquals("production", castedEvent.getData().args());
 
         // Verify setData round-trip
-        castedEvent.setData(CommandExecuteEvent.CommandExecuteEventData.builder().requestId("req-002")
-                .command("/rollback").commandName("rollback").args("").build());
+        castedEvent.setData(new CommandExecuteEvent.CommandExecuteEventData("req-002", "/rollback", "rollback", null));
         assertEquals("req-002", castedEvent.getData().requestId());
-        assertEquals("", castedEvent.getData().args());
     }
 
     @Test
@@ -2856,9 +2738,8 @@ public class SessionEventDeserializationTest {
         assertTrue(castedEvent.getData().requestedSchema().required().contains("name"));
 
         // Verify setData round-trip
-        castedEvent.setData(ElicitationRequestedEvent.ElicitationRequestedEventData.builder().requestId("elix-002")
-                .toolCallId(null).elicitationSource(null).elicitationSourceDisplayName(null).message("Enter URL")
-                .mode(ElicitationRequestedMode.URL).requestedSchema(null).url("https://example.com").build());
+        castedEvent.setData(new ElicitationRequestedEvent.ElicitationRequestedEventData("elix-002", null, null, null,
+                "Enter URL", ElicitationRequestedMode.URL, null, "https://example.com"));
         assertEquals("elix-002", castedEvent.getData().requestId());
         assertEquals(ElicitationRequestedMode.URL, castedEvent.getData().mode());
     }
@@ -2913,9 +2794,8 @@ public class SessionEventDeserializationTest {
         assertNull(castedEvent.getData().blocker());
 
         // Verify setData round-trip
-        castedEvent.setData(
-                SessionTaskCompleteEvent.SessionTaskCompleteEventData.builder().summary("New summary").success(true)
-                        .outcome(TaskCompletionOutcome.COMPLETED).reason(null).objectiveId(42L).blocker(null).build());
+        castedEvent.setData(new SessionTaskCompleteEvent.SessionTaskCompleteEventData("New summary", true,
+                TaskCompletionOutcome.COMPLETED, null, 42L, null));
         assertEquals("New summary", castedEvent.getData().summary());
         assertTrue(castedEvent.getData().success());
         assertEquals(TaskCompletionOutcome.COMPLETED, castedEvent.getData().outcome());
@@ -2941,7 +2821,7 @@ public class SessionEventDeserializationTest {
         assertNotNull(castedEvent.getData());
 
         // Verify setData round-trip
-        castedEvent.setData(SubagentDeselectedEvent.SubagentDeselectedEventData.builder().build());
+        castedEvent.setData(new SubagentDeselectedEvent.SubagentDeselectedEventData());
         assertNotNull(castedEvent.getData());
     }
 }

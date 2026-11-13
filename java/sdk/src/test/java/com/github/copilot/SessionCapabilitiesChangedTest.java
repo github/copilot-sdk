@@ -81,7 +81,7 @@ public class SessionCapabilitiesChangedTest {
 
         session.dispatchEvent(changed(null, null, true));
         var noUi = new CapabilitiesChangedEvent();
-        noUi.setData(CapabilitiesChangedEventData.builder().build());
+        noUi.setData(new CapabilitiesChangedEventData(null));
         session.dispatchEvent(noUi);
 
         var ui = session.getCapabilities().getUi();
@@ -92,9 +92,7 @@ public class SessionCapabilitiesChangedTest {
 
     private static CapabilitiesChangedEvent changed(Boolean elicitation, Boolean mcpApps, Boolean canvases) {
         var event = new CapabilitiesChangedEvent();
-        event.setData(CapabilitiesChangedEventData.builder().ui(
-                CapabilitiesChangedUI.builder().elicitation(elicitation).mcpApps(mcpApps).canvases(canvases).build())
-                .build());
+        event.setData(new CapabilitiesChangedEventData(new CapabilitiesChangedUI(elicitation, mcpApps, canvases)));
         return event;
     }
 }

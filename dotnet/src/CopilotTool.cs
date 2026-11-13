@@ -22,9 +22,6 @@ public static class CopilotTool
     /// <summary>The key used in <see cref="AITool.AdditionalProperties"/> to indicate that a successful call to the tool ends the agent turn.</summary>
     internal const string IsTerminalKey = "is_terminal";
 
-    /// <summary>The key used in <see cref="AITool.AdditionalProperties"/> to indicate that repeating a call with the same arguments has no additional effect.</summary>
-    internal const string IdempotentKey = "idempotent";
-
     /// <summary>The key used in <see cref="AITool.AdditionalProperties"/> to carry the tool's <see cref="CopilotToolDefer"/> deferral mode.</summary>
     internal const string DeferKey = "defer";
 
@@ -101,7 +98,7 @@ public static class CopilotTool
 
         static void ApplyToolOptions(AIFunctionFactoryOptions factoryOptions, CopilotToolOptions? toolOptions)
         {
-            if (toolOptions is not null && (toolOptions.OverridesBuiltInTool || toolOptions.SkipPermission || toolOptions.IsTerminal || toolOptions.Idempotent || toolOptions.Defer is not null || toolOptions.Metadata is not null || toolOptions.Namespace is not null))
+            if (toolOptions is not null && (toolOptions.OverridesBuiltInTool || toolOptions.SkipPermission || toolOptions.IsTerminal || toolOptions.Defer is not null || toolOptions.Metadata is not null || toolOptions.Namespace is not null))
             {
                 Dictionary<string, object?> additionalProperties = new(StringComparer.Ordinal);
                 if (factoryOptions.AdditionalProperties is not null)
@@ -125,11 +122,6 @@ public static class CopilotTool
                 if (toolOptions.IsTerminal)
                 {
                     additionalProperties[IsTerminalKey] = true;
-                }
-
-                if (toolOptions.Idempotent)
-                {
-                    additionalProperties[IdempotentKey] = true;
                 }
 
                 if (toolOptions.Defer is { } defer)
@@ -186,16 +178,6 @@ public sealed class CopilotToolOptions
     /// The resulting <see cref="AIFunction"/> includes "is_terminal": true in its <see cref="AITool.AdditionalProperties"/>.
     /// </remarks>
     public bool IsTerminal { get; set; }
-
-    /// <summary>
-    /// Gets or sets a value indicating whether repeating a call with the same arguments has no additional effect beyond the first call,
-    /// as is true of any tool without side effects.
-    /// </summary>
-    /// <remarks>
-    /// The runtime may use this to decide that a call whose outcome was lost can be safely repeated. It does not affect
-    /// permission checks. The resulting <see cref="AIFunction"/> includes "idempotent": true in its <see cref="AITool.AdditionalProperties"/>.
-    /// </remarks>
-    public bool Idempotent { get; set; }
 
     /// <summary>
     /// Gets or sets a value controlling whether this tool may be deferred (loaded lazily via tool search) rather than always pre-loaded.

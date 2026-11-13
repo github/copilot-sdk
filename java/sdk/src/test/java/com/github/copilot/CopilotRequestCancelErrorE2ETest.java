@@ -4,8 +4,6 @@
 
 package com.github.copilot;
 
-import org.junit.jupiter.api.Tag;
-
 import static com.github.copilot.CopilotRequestTestSupport.buildNonInferenceResponse;
 import static com.github.copilot.CopilotRequestTestSupport.isInferenceUrl;
 import static com.github.copilot.CopilotRequestTestSupport.newLlmClient;
@@ -26,6 +24,7 @@ import org.junit.jupiter.api.Test;
 
 import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.PermissionHandler;
+import com.github.copilot.rpc.SessionConfig;
 
 /**
  * Cancellation and error coverage for {@link CopilotRequestHandler}. These two
@@ -42,7 +41,6 @@ import com.github.copilot.rpc.PermissionHandler;
  * handler observes the abort instead of leaking a stuck request.</li>
  * </ul>
  */
-@Tag("e2e")
 public class CopilotRequestCancelErrorE2ETest {
 
     private static E2ETestContext ctx;
@@ -107,7 +105,7 @@ public class CopilotRequestCancelErrorE2ETest {
 
         try (CopilotClient client = newLlmClient(ctx, handler)) {
             CopilotSession session = client
-                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             // The handler throws on inference; the turn surfaces an error (or completes
             // without an assistant message) rather than hanging.
@@ -129,7 +127,7 @@ public class CopilotRequestCancelErrorE2ETest {
 
         try (CopilotClient client = newLlmClient(ctx, handler)) {
             CopilotSession session = client
-                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             session.send(new MessageOptions().setPrompt("Say OK.")).get(60, TimeUnit.SECONDS);
             handler.inferenceEntered.get(60, TimeUnit.SECONDS);

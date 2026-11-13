@@ -36,16 +36,12 @@ type PreToolUseHandler = (
 <!-- docs-validate: hidden -->
 ```python
 from copilot.session import PreToolUseHookInput, PreToolUseHookOutput
-from copilot.session import PreToolUseHandler as SdkPreToolUseHandler
 from typing import Callable, Awaitable
 
 PreToolUseHandler = Callable[
     [PreToolUseHookInput, dict[str, str]],
     Awaitable[PreToolUseHookOutput | None]
 ]
-
-def check(handler: PreToolUseHandler) -> SdkPreToolUseHandler:
-    return handler
 ```
 <!-- /docs-validate: hidden -->
 ```python
@@ -66,19 +62,10 @@ package main
 
 import copilot "github.com/github/copilot-sdk/go"
 
-// Aliases let the signature below use the package's own type names.
-type (
-    PreToolUseHookInput  = copilot.PreToolUseHookInput
-    HookInvocation       = copilot.HookInvocation
-    PreToolUseHookOutput = copilot.PreToolUseHookOutput
-)
-
 type PreToolUseHandler func(
-    input PreToolUseHookInput,
-    invocation HookInvocation,
-) (*PreToolUseHookOutput, error)
-
-var _ = copilot.PreToolUseHandler(PreToolUseHandler(nil))
+    input copilot.PreToolUseHookInput,
+    invocation copilot.HookInvocation,
+) (*copilot.PreToolUseHookOutput, error)
 
 func main() {}
 ```
@@ -102,12 +89,6 @@ using GitHub.Copilot;
 public delegate Task<PreToolUseHookOutput?> PreToolUseHandler(
     PreToolUseHookInput input,
     HookInvocation invocation);
-
-static class PreToolUseHandlerCheck
-{
-    static SessionHooks Check(PreToolUseHandler handler) =>
-        new() { OnPreToolUse = handler.Invoke };
-}
 ```
 <!-- /docs-validate: hidden -->
 ```csharp
@@ -127,24 +108,8 @@ import com.github.copilot.rpc.*;
 import java.util.concurrent.CompletableFuture;
 
 public class PreToolUseSignature {
-    static class Documented {
-        @FunctionalInterface
-        public interface PreToolUseHandler {
-            CompletableFuture<PreToolUseHookOutput> handle(
-                PreToolUseHookInput input,
-                HookInvocation invocation);
-        }
-    }
-
-    // The documented interface and the SDK's accept each other's implementations.
-    static PreToolUseHandler toSdk(Documented.PreToolUseHandler documented) {
-        return documented::handle;
-    }
-
-    static Documented.PreToolUseHandler fromSdk(PreToolUseHandler sdk) {
-        return sdk::handle;
-    }
-
+    PreToolUseHandler handler = (PreToolUseHookInput input, HookInvocation invocation) ->
+        CompletableFuture.completedFuture(PreToolUseHookOutput.allow());
     public static void main(String[] args) {}
 }
 ```
@@ -272,6 +237,7 @@ import (
 func main() {
 	client := copilot.NewClient(nil)
 	session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
+		OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 		Hooks: &copilot.SessionHooks{
 			OnPreToolUse: func(input copilot.PreToolUseHookInput, inv copilot.HookInvocation) (*copilot.PreToolUseHookOutput, error) {
 				fmt.Printf("[%s] Calling %s\n", inv.SessionID, input.ToolName)
@@ -305,6 +271,33 @@ session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
 <details>
 <summary><strong>.NET</strong></summary>
 
+<!-- docs-validate: hidden -->
+```csharp
+using GitHub.Copilot;
+
+public static class PreToolUseExample
+{
+    public static async Task Main()
+    {
+        await using var client = new CopilotClient();
+        var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            Hooks = new SessionHooks
+            {
+                OnPreToolUse = (input, invocation) =>
+                {
+                    Console.WriteLine($"[{invocation.SessionId}] Calling {input.ToolName}");
+                    Console.WriteLine($"  Args: {input.ToolArgs}");
+                    return Task.FromResult<PreToolUseHookOutput?>(
+                        new PreToolUseHookOutput { PermissionDecision = "allow" }
+                    );
+                },
+            },
+        });
+    }
+}
+```
+<!-- /docs-validate: hidden -->
 ```csharp
 var session = await client.CreateSessionAsync(new SessionConfig
 {
@@ -327,32 +320,7 @@ var session = await client.CreateSessionAsync(new SessionConfig
 <details>
 <summary><strong>Java</strong></summary>
 
-<!-- docs-validate: hidden -->
-```java
-import com.github.copilot.*;
-import com.github.copilot.rpc.*;
-import java.util.concurrent.CompletableFuture;
-
-public class LogAllToolCallsExample {
-    public static void main(String[] args) throws Exception {
-        try (var client = new CopilotClient()) {
-            var hooks = new SessionHooks()
-                .setOnPreToolUse((input, invocation) -> {
-                    System.out.println("[" + invocation.getSessionId() + "] Calling " + input.getToolName());
-                    System.out.println("  Args: " + input.getToolArgs());
-                    return CompletableFuture.completedFuture(PreToolUseHookOutput.allow());
-                });
-
-            var session = client.createSession(
-                new SessionConfig()
-                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
-                    .setHooks(hooks)
-            ).get();
-        }
-    }
-}
-```
-<!-- /docs-validate: hidden -->
+<!-- docs-validate: skip -->
 ```java
 import com.github.copilot.*;
 import com.github.copilot.rpc.*;

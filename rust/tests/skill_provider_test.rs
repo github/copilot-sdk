@@ -491,7 +491,7 @@ async fn serves_early_create_and_resume_callbacks() {
     let _ = timeout(TIMEOUT, resume).await.unwrap().unwrap();
 }
 
-#[tokio::test(start_paused = true)]
+#[tokio::test]
 async fn cloud_sessions_reject_provider_before_rpc() {
     let (client, mut server) = make_client();
     let provider = Arc::new(RecordingProvider::new());

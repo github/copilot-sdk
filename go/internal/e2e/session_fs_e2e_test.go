@@ -17,7 +17,6 @@ import (
 )
 
 func TestSessionFSE2E(t *testing.T) {
-	t.Parallel()
 	ctx := testharness.NewTestContext(t)
 	providerRoot := t.TempDir()
 	sessionStatePath := createSessionStatePath(t)
@@ -642,7 +641,6 @@ func waitForFileContent(path string, needle string, timeout time.Duration) error
 // It exercises every operation on testSessionFSHandler directly to ensure the test helper
 // implementation routes file operations correctly to the per-session provider root.
 func TestSessionFSHandlerOperationsE2E(t *testing.T) {
-	t.Parallel()
 	providerRoot := t.TempDir()
 	sessionID := "handler-session"
 	handler := &testSessionFSHandler{root: providerRoot, sessionID: sessionID}

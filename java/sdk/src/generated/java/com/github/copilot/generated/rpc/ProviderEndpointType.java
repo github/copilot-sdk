@@ -21,9 +21,7 @@ public enum ProviderEndpointType {
     /** The {@code azure} variant. */
     AZURE("azure"),
     /** The {@code anthropic} variant. */
-    ANTHROPIC("anthropic"),
-    /** The {@code google} variant. */
-    GOOGLE("google");
+    ANTHROPIC("anthropic");
 
     private final String value;
     ProviderEndpointType(String value) { this.value = value; }

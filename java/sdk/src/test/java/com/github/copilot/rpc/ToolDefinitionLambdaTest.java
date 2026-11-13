@@ -11,7 +11,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -50,9 +49,6 @@ import com.github.copilot.tool.Param;
 class ToolDefinitionLambdaTest {
 
     private record CustomDateTime(String value) {
-    }
-
-    private record Reading(String sensor, Double value) {
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -584,28 +580,6 @@ class ToolDefinitionLambdaTest {
         assertEquals("42", result);
     }
 
-    @Test
-    void resultFormatting_mapKeepsNullValue() throws Exception {
-        ToolDefinition tool = ToolDefinition.from("status", "Returns a status map", () -> {
-            Map<String, Object> status = new HashMap<>();
-            status.put("status", "ok");
-            status.put("error", null);
-            return status;
-        });
-        Object result = tool.handler().invoke(invocationOf(Map.of())).get();
-        JsonNode node = new ObjectMapper().readTree((String) result);
-        assertEquals("ok", node.get("status").asText());
-        assertTrue(node.has("error"), "A null map value must be serialized, got: " + result);
-        assertTrue(node.get("error").isNull());
-    }
-
-    @Test
-    void resultFormatting_recordOmitsNullComponent() throws Exception {
-        ToolDefinition tool = ToolDefinition.from("reading", "Returns a reading", () -> new Reading("s1", null));
-        Object result = tool.handler().invoke(invocationOf(Map.of())).get();
-        assertEquals("{\"sensor\":\"s1\"}", result);
-    }
-
     // ── Group 10: Argument coercion
     // ───────────────────────────────────────────────
 
@@ -648,21 +622,6 @@ class ToolDefinitionLambdaTest {
         // No argument provided — should use default 99
         Object result = tool.handler().invoke(invocationOf(Map.of())).get();
         assertEquals("got=99", result);
-    }
-
-    @Test
-    void coercion_mapArgKeepsExplicitNull() throws Exception {
-        @SuppressWarnings("rawtypes")
-        Param<Map> p = Param.of(Map.class, "filter", "A filter map");
-        ToolDefinition tool = ToolDefinition.from("apply_filter", "Applies a filter", p,
-                filter -> filter.containsKey("owner") + ":" + filter.get("owner") + ":" + filter.size());
-        ObjectNode filter = JsonNodeFactory.instance.objectNode();
-        filter.putNull("owner");
-        filter.put("limit", 5);
-        ObjectNode args = JsonNodeFactory.instance.objectNode();
-        args.set("filter", filter);
-        Object result = tool.handler().invoke(new ToolInvocation().setArguments(args)).get();
-        assertEquals("true:null:2", result);
     }
 
     // ── Inner types for test helpers

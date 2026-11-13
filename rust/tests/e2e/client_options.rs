@@ -854,9 +854,7 @@ impl ShutdownCli {
 
     fn options(&self) -> ClientOptions {
         let script = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../test/harness/stdio-shutdown-runtime.cjs")
-            .canonicalize()
-            .unwrap();
+            .join("../test/harness/stdio-shutdown-runtime.cjs");
         ClientOptions::new()
             .with_program(CliProgram::Path("node".into()))
             .with_prefix_args([

@@ -7,6 +7,9 @@ use super::support::with_e2e_context;
 
 #[tokio::test]
 async fn session_uses_client_token_when_no_session_token_is_supplied() {
+    if super::support::skip_inprocess("client-level GitHub tokens are not supported in-process") {
+        return;
+    }
     with_e2e_context(
         "per-session-auth",
         "session_uses_client_token_when_no_session_token_is_supplied",
@@ -47,6 +50,9 @@ async fn session_uses_client_token_when_no_session_token_is_supplied() {
 
 #[tokio::test]
 async fn session_token_overrides_client_token() {
+    if super::support::skip_inprocess("client-level GitHub tokens are not supported in-process") {
+        return;
+    }
     with_e2e_context(
         "per-session-auth",
         "session_token_overrides_client_token",

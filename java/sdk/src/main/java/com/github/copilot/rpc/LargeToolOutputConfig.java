@@ -11,9 +11,9 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 /**
  * Configuration for large tool output handling.
  * <p>
- * When a tool produces output exceeding {@link #getMaxSizeBytes()}, the runtime
+ * When a tool produces output exceeding {@link #getMaxSizeBytes()}, the SDK
  * writes the full output to a file in {@link #getOutputDirectory()} and returns
- * the file path and a truncated preview to the model.
+ * a truncated preview to the model.
  *
  * @since 1.3.0
  */
@@ -63,7 +63,6 @@ public class LargeToolOutputConfig {
 
     /**
      * Sets the maximum tool output size in bytes before it is redirected to a file.
-     * Uses the runtime's configured threshold when unset (20480 bytes by default).
      *
      * @param maxSizeBytes
      *            the maximum size in bytes

@@ -14,8 +14,7 @@ from .testharness import E2ETestContext
 
 @pytest_asyncio.fixture(loop_scope="module")
 async def ctx(request):
-    # This tests process-environment precedence, not an embedded runtime option.
-    context = E2ETestContext(use_stdio=True)
+    context = E2ETestContext()
     await context.setup()
     yield context
     await context.teardown(

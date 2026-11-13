@@ -23,12 +23,8 @@ import javax.annotation.processing.Generated;
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
-@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.EXISTING_PROPERTY, property = "type", visible = true, defaultImpl = UnknownSessionEvent.class)
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type", visible = true, defaultImpl = UnknownSessionEvent.class)
 @JsonSubTypes({
-    @JsonSubTypes.Type(value = IdeConnectionChangedEvent.class, name = "ide.connection_changed"),
-    @JsonSubTypes.Type(value = IdeSelectionChangedEvent.class, name = "ide.selection_changed"),
-    @JsonSubTypes.Type(value = IdeAddFileReferenceEvent.class, name = "ide.add_file_reference"),
-    @JsonSubTypes.Type(value = IdeElicitationCompleteEvent.class, name = "ide.elicitation_complete"),
     @JsonSubTypes.Type(value = SessionJournalLinkEvent.class, name = "session.journal_link"),
     @JsonSubTypes.Type(value = SessionStartEvent.class, name = "session.start"),
     @JsonSubTypes.Type(value = SessionResumeEvent.class, name = "session.resume"),
@@ -65,7 +61,6 @@ import javax.annotation.processing.Generated;
     @JsonSubTypes.Type(value = SessionUsageInfoEvent.class, name = "session.usage_info"),
     @JsonSubTypes.Type(value = SessionContextClearedEvent.class, name = "session.context_cleared"),
     @JsonSubTypes.Type(value = SessionCompactionStartEvent.class, name = "session.compaction_start"),
-    @JsonSubTypes.Type(value = SessionCompactionSummarizedEvent.class, name = "session.compaction_summarized"),
     @JsonSubTypes.Type(value = SessionCompactionCompleteEvent.class, name = "session.compaction_complete"),
     @JsonSubTypes.Type(value = SessionTaskCompleteEvent.class, name = "session.task_complete"),
     @JsonSubTypes.Type(value = SessionCompletionReceiptEvent.class, name = "session.completion_receipt"),
@@ -154,9 +149,6 @@ import javax.annotation.processing.Generated;
     @JsonSubTypes.Type(value = CommandCompletedEvent.class, name = "command.completed"),
     @JsonSubTypes.Type(value = AutoModeSwitchRequestedEvent.class, name = "auto_mode_switch.requested"),
     @JsonSubTypes.Type(value = AutoModeSwitchCompletedEvent.class, name = "auto_mode_switch.completed"),
-    @JsonSubTypes.Type(value = AutoModeRecoveryConsentRequestedEvent.class, name = "auto_mode_recovery_consent.requested"),
-    @JsonSubTypes.Type(value = AutoModeRecoveryConsentCompletedEvent.class, name = "auto_mode_recovery_consent.completed"),
-    @JsonSubTypes.Type(value = AutoModeRecoveryOutcomeEvent.class, name = "auto_mode_recovery.outcome"),
     @JsonSubTypes.Type(value = SessionLimitsExhaustedRequestedEvent.class, name = "session_limits_exhausted.requested"),
     @JsonSubTypes.Type(value = SessionLimitsExhaustedCompletedEvent.class, name = "session_limits_exhausted.completed"),
     @JsonSubTypes.Type(value = SessionAutoModeResolvedEvent.class, name = "session.auto_mode_resolved"),
@@ -195,10 +187,6 @@ import javax.annotation.processing.Generated;
 })
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 public abstract sealed class SessionEvent permits
-        IdeConnectionChangedEvent,
-        IdeSelectionChangedEvent,
-        IdeAddFileReferenceEvent,
-        IdeElicitationCompleteEvent,
         SessionJournalLinkEvent,
         SessionStartEvent,
         SessionResumeEvent,
@@ -235,7 +223,6 @@ public abstract sealed class SessionEvent permits
         SessionUsageInfoEvent,
         SessionContextClearedEvent,
         SessionCompactionStartEvent,
-        SessionCompactionSummarizedEvent,
         SessionCompactionCompleteEvent,
         SessionTaskCompleteEvent,
         SessionCompletionReceiptEvent,
@@ -324,9 +311,6 @@ public abstract sealed class SessionEvent permits
         CommandCompletedEvent,
         AutoModeSwitchRequestedEvent,
         AutoModeSwitchCompletedEvent,
-        AutoModeRecoveryConsentRequestedEvent,
-        AutoModeRecoveryConsentCompletedEvent,
-        AutoModeRecoveryOutcomeEvent,
         SessionLimitsExhaustedRequestedEvent,
         SessionLimitsExhaustedCompletedEvent,
         SessionAutoModeResolvedEvent,

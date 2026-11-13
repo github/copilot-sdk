@@ -18,7 +18,6 @@ import com.github.copilot.CopilotExperimental;
 import com.github.copilot.SkillProvider;
 import com.github.copilot.generated.SessionEvent;
 import com.github.copilot.generated.rpc.DiagnosticsConfiguration;
-import com.github.copilot.generated.rpc.PermissionMode;
 import com.github.copilot.generated.rpc.SandboxConfig;
 import com.github.copilot.generated.rpc.SessionLimitsConfig;
 import com.github.copilot.generated.rpc.AutopilotOptions;
@@ -51,7 +50,6 @@ public class SessionConfig {
     private String model;
     private String reasoningEffort;
     private String reasoningSummary;
-    private Boolean allowMultipleToolCalls;
     private String contextTier;
     private AskUserVariant askUserVariant;
     private List<ToolDefinition> tools;
@@ -59,7 +57,6 @@ public class SessionConfig {
     private List<String> availableTools;
     private List<String> excludedTools;
     private List<String> excludedBuiltInAgents;
-    private List<String> includedBuiltInAgents;
     private ProviderConfig provider;
     private CapiSessionOptions capi;
     private List<NamedProviderConfig> providers;
@@ -77,7 +74,6 @@ public class SessionConfig {
     private PermissionHandler onPermissionRequest;
     private McpAuthHandler onMcpAuthRequest;
     private UserInputHandler onUserInputRequest;
-    private ShellAuthenticationHandler onShellAuthenticationRequest;
     private SessionHooks hooks;
     private String workingDirectory;
     private List<String> additionalDirectories;
@@ -123,7 +119,6 @@ public class SessionConfig {
     private ElicitationHandler onElicitationRequest;
     private ExitPlanModeHandler onExitPlanMode;
     private AutoModeSwitchHandler onAutoModeSwitch;
-    private boolean autoModeRecovery;
     private boolean enableMcpApps;
     private GitHubMcpToolConfig githubMcpToolConfig;
     private String gitHubToken;
@@ -135,7 +130,6 @@ public class SessionConfig {
     private List<String> excludedManagedSettings;
     private Boolean enforceManagedModelDefaults;
     private Boolean interactiveUser;
-    private PermissionMode permissionMode;
     private Map<String, Boolean> featureFlags;
     private ManagedSettings managedSettings;
 
@@ -278,40 +272,6 @@ public class SessionConfig {
      */
     public SessionConfig setReasoningSummary(String reasoningSummary) {
         this.reasoningSummary = reasoningSummary;
-        return this;
-    }
-
-    /**
-     * Gets the model multiple-tool-call preference.
-     *
-     * @return the preference, or an empty optional for the default (true)
-     */
-    @JsonIgnore
-    public Optional<Boolean> getAllowMultipleToolCalls() {
-        return Optional.ofNullable(allowMultipleToolCalls);
-    }
-
-    /**
-     * Sets whether the model may request multiple tool calls per response. False is
-     * a provider hint, not an execution guarantee: all returned calls are handled
-     * and handlers may run concurrently. Re-supply on cold resume.
-     *
-     * @param allowMultipleToolCalls
-     *            the preference
-     * @return this config for method chaining
-     */
-    public SessionConfig setAllowMultipleToolCalls(boolean allowMultipleToolCalls) {
-        this.allowMultipleToolCalls = allowMultipleToolCalls;
-        return this;
-    }
-
-    /**
-     * Clears the model multiple-tool-call preference, restoring the default.
-     *
-     * @return this config for method chaining
-     */
-    public SessionConfig clearAllowMultipleToolCalls() {
-        this.allowMultipleToolCalls = null;
         return this;
     }
 
@@ -481,26 +441,6 @@ public class SessionConfig {
      */
     public SessionConfig setExcludedBuiltInAgents(List<String> excludedBuiltInAgents) {
         this.excludedBuiltInAgents = excludedBuiltInAgents != null ? new ArrayList<>(excludedBuiltInAgents) : null;
-        return this;
-    }
-
-    /** Gets the built-in subagent allowlist. @return the allowlist, or null */
-    public List<String> getIncludedBuiltInAgents() {
-        return includedBuiltInAgents == null ? null : Collections.unmodifiableList(includedBuiltInAgents);
-    }
-
-    /**
-     * Allows only the named built-in subagents, subject to availability and
-     * exclusions. An empty list disables all built-in subagents; custom agents
-     * remain available, including same-name agents. Null uses defaults. Not
-     * persisted; re-supply on resume after restart.
-     *
-     * @param includedBuiltInAgents
-     *            the built-in subagent allowlist, or null for defaults
-     * @return this config instance for method chaining
-     */
-    public SessionConfig setIncludedBuiltInAgents(List<String> includedBuiltInAgents) {
-        this.includedBuiltInAgents = includedBuiltInAgents != null ? new ArrayList<>(includedBuiltInAgents) : null;
         return this;
     }
 
@@ -1068,33 +1008,6 @@ public class SessionConfig {
      */
     public SessionConfig setOnUserInputRequest(UserInputHandler onUserInputRequest) {
         this.onUserInputRequest = onUserInputRequest;
-        return this;
-    }
-
-    /**
-     * Gets the shell authentication request handler.
-     *
-     * @return the shell authentication handler
-     */
-    public ShellAuthenticationHandler getOnShellAuthenticationRequest() {
-        return onShellAuthenticationRequest;
-    }
-
-    /**
-     * Sets a handler for passwords and other answers that shell commands run by the
-     * agent ask for.
-     * <p>
-     * When provided, {@code sudo -A}, {@code ssh}, and {@code git} prompts reach
-     * this handler instead of failing for lack of a terminal. Return
-     * {@link ShellAuthenticationResponse#cancel()} when nobody can answer.
-     *
-     * @param onShellAuthenticationRequest
-     *            the shell authentication handler
-     * @return this config instance for method chaining
-     * @see ShellAuthenticationHandler
-     */
-    public SessionConfig setOnShellAuthenticationRequest(ShellAuthenticationHandler onShellAuthenticationRequest) {
-        this.onShellAuthenticationRequest = onShellAuthenticationRequest;
         return this;
     }
 
@@ -2410,30 +2323,6 @@ public class SessionConfig {
     }
 
     /**
-     * Returns whether retained-request Auto recovery is explicitly enabled.
-     *
-     * @return {@code false} by default
-     */
-    public boolean isAutoModeRecovery() {
-        return autoModeRecovery;
-    }
-
-    /**
-     * Enables runtime-owned recovery of an eligible active request. Requires
-     * {@link #setOnAutoModeSwitch(AutoModeSwitchHandler)} and a positive runtime
-     * capability acknowledgment; unsupported enrollment fails and detaches. Consent
-     * has no runtime deadline. The handler must not resend or rewind.
-     *
-     * @param autoModeRecovery
-     *            whether to opt in
-     * @return this instance for method chaining
-     */
-    public SessionConfig setAutoModeRecovery(boolean autoModeRecovery) {
-        this.autoModeRecovery = autoModeRecovery;
-        return this;
-    }
-
-    /**
      * Gets the GitHub token for per-session authentication.
      *
      * @return the GitHub token, or {@code null} if not set
@@ -2473,10 +2362,9 @@ public class SessionConfig {
      * Sets the rotating GitHub token provider for this session.
      * <p>
      * The provider receives only the effective host, optional assigned session ID,
-     * and acquisition reason. It must return the remaining lifetime in seconds when
-     * its callback completes. More than 3600 seconds must still remain after token
-     * validation; validation time counts against the lifetime. Production GitHub
-     * tokens typically last eight hours. This option is mutually exclusive with
+     * and acquisition reason. It must return a positive remaining lifetime in
+     * seconds when its callback completes. Production GitHub tokens typically last
+     * eight hours. This option is mutually exclusive with
      * {@link #setGitHubToken(String)}.
      *
      * @param gitHubTokenProvider
@@ -2672,35 +2560,6 @@ public class SessionConfig {
     }
 
     /**
-     * Gets the initial permission mode.
-     *
-     * @return an optional containing the mode, or empty when unset
-     */
-    @JsonIgnore
-    @CopilotExperimental
-    public Optional<PermissionMode> getPermissionMode() {
-        return Optional.ofNullable(permissionMode);
-    }
-
-    /**
-     * Permission mode applied before the session's first turn, before session
-     * creation returns. Uses the same checks as
-     * {@code session.permissions.setMode}; a mode that managed policy or session
-     * capabilities refuse leaves the current mode in place, so read
-     * {@code session.permissions.getMode} for the effective mode. Leave unset to
-     * keep the default mode. Not supported for cloud sessions.
-     *
-     * @param permissionMode
-     *            the permission mode to apply
-     * @return this config instance for method chaining
-     */
-    @CopilotExperimental
-    public SessionConfig setPermissionMode(PermissionMode permissionMode) {
-        this.permissionMode = permissionMode;
-        return this;
-    }
-
-    /**
      * Gets host-injected managed settings for this session.
      *
      * @return the managed settings, or {@code null} when unset
@@ -2742,7 +2601,6 @@ public class SessionConfig {
         copy.model = this.model;
         copy.reasoningEffort = this.reasoningEffort;
         copy.reasoningSummary = this.reasoningSummary;
-        copy.allowMultipleToolCalls = this.allowMultipleToolCalls;
         copy.contextTier = this.contextTier;
         copy.askUserVariant = this.askUserVariant;
         copy.tools = this.tools != null ? new ArrayList<>(this.tools) : null;
@@ -2751,9 +2609,6 @@ public class SessionConfig {
         copy.excludedTools = this.excludedTools != null ? new ArrayList<>(this.excludedTools) : null;
         copy.excludedBuiltInAgents = this.excludedBuiltInAgents != null
                 ? new ArrayList<>(this.excludedBuiltInAgents)
-                : null;
-        copy.includedBuiltInAgents = this.includedBuiltInAgents != null
-                ? new ArrayList<>(this.includedBuiltInAgents)
                 : null;
         copy.provider = this.provider;
         copy.capi = this.capi;
@@ -2771,7 +2626,6 @@ public class SessionConfig {
         copy.manageScheduleEnabled = this.manageScheduleEnabled;
         copy.onPermissionRequest = this.onPermissionRequest;
         copy.onUserInputRequest = this.onUserInputRequest;
-        copy.onShellAuthenticationRequest = this.onShellAuthenticationRequest;
         copy.hooks = this.hooks;
         copy.workingDirectory = this.workingDirectory;
         copy.additionalDirectories = this.additionalDirectories != null
@@ -2824,7 +2678,6 @@ public class SessionConfig {
         copy.onMcpAuthRequest = this.onMcpAuthRequest;
         copy.onExitPlanMode = this.onExitPlanMode;
         copy.onAutoModeSwitch = this.onAutoModeSwitch;
-        copy.autoModeRecovery = this.autoModeRecovery;
         copy.enableMcpApps = this.enableMcpApps;
         copy.githubMcpToolConfig = this.githubMcpToolConfig;
         copy.gitHubToken = this.gitHubToken;
@@ -2838,7 +2691,6 @@ public class SessionConfig {
                 : new ArrayList<>(this.excludedManagedSettings);
         copy.enforceManagedModelDefaults = this.enforceManagedModelDefaults;
         copy.interactiveUser = this.interactiveUser;
-        copy.permissionMode = this.permissionMode;
         copy.managedSettings = this.managedSettings;
         return copy;
     }

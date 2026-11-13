@@ -11,14 +11,6 @@ use crate::types::{RequestId, SessionId};
 /// Identifies the kind of session event.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SessionEventType {
-    #[serde(rename = "ide.connection_changed")]
-    IdeConnectionChanged,
-    #[serde(rename = "ide.selection_changed")]
-    IdeSelectionChanged,
-    #[serde(rename = "ide.add_file_reference")]
-    IdeAddFileReference,
-    #[serde(rename = "ide.elicitation_complete")]
-    IdeElicitationComplete,
     #[serde(rename = "session.journal_link")]
     SessionJournalLink,
     #[serde(rename = "session.start")]
@@ -112,8 +104,6 @@ pub enum SessionEventType {
     SessionContextCleared,
     #[serde(rename = "session.compaction_start")]
     SessionCompactionStart,
-    #[serde(rename = "session.compaction_summarized")]
-    SessionCompactionSummarized,
     #[serde(rename = "session.compaction_complete")]
     SessionCompactionComplete,
     #[serde(rename = "session.task_complete")]
@@ -432,12 +422,6 @@ pub enum SessionEventType {
     AutoModeSwitchRequested,
     #[serde(rename = "auto_mode_switch.completed")]
     AutoModeSwitchCompleted,
-    #[serde(rename = "auto_mode_recovery_consent.requested")]
-    AutoModeRecoveryConsentRequested,
-    #[serde(rename = "auto_mode_recovery_consent.completed")]
-    AutoModeRecoveryConsentCompleted,
-    #[serde(rename = "auto_mode_recovery.outcome")]
-    AutoModeRecoveryOutcome,
     #[serde(rename = "session_limits_exhausted.requested")]
     SessionLimitsExhaustedRequested,
     #[serde(rename = "session_limits_exhausted.completed")]
@@ -611,14 +595,6 @@ pub enum SessionEventType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "data")]
 pub enum SessionEventData {
-    #[serde(rename = "ide.connection_changed")]
-    IdeConnectionChanged(IdeConnectionChangedData),
-    #[serde(rename = "ide.selection_changed")]
-    IdeSelectionChanged(IdeSelectionChangedData),
-    #[serde(rename = "ide.add_file_reference")]
-    IdeAddFileReference(IdeAddFileReferenceData),
-    #[serde(rename = "ide.elicitation_complete")]
-    IdeElicitationComplete(IdeElicitationCompleteData),
     #[serde(rename = "session.journal_link")]
     SessionJournalLink(SessionJournalLinkData),
     #[serde(rename = "session.start")]
@@ -712,8 +688,6 @@ pub enum SessionEventData {
     SessionContextCleared(SessionContextClearedData),
     #[serde(rename = "session.compaction_start")]
     SessionCompactionStart(SessionCompactionStartData),
-    #[serde(rename = "session.compaction_summarized")]
-    SessionCompactionSummarized(SessionCompactionSummarizedData),
     #[serde(rename = "session.compaction_complete")]
     SessionCompactionComplete(SessionCompactionCompleteData),
     #[serde(rename = "session.task_complete")]
@@ -1004,12 +978,6 @@ pub enum SessionEventData {
     AutoModeSwitchRequested(AutoModeSwitchRequestedData),
     #[serde(rename = "auto_mode_switch.completed")]
     AutoModeSwitchCompleted(AutoModeSwitchCompletedData),
-    #[serde(rename = "auto_mode_recovery_consent.requested")]
-    AutoModeRecoveryConsentRequested(AutoModeRecoveryConsentRequestedData),
-    #[serde(rename = "auto_mode_recovery_consent.completed")]
-    AutoModeRecoveryConsentCompleted(AutoModeRecoveryConsentCompletedData),
-    #[serde(rename = "auto_mode_recovery.outcome")]
-    AutoModeRecoveryOutcome(AutoModeRecoveryOutcomeData),
     #[serde(rename = "session_limits_exhausted.requested")]
     SessionLimitsExhaustedRequested(SessionLimitsExhaustedRequestedData),
     #[serde(rename = "session_limits_exhausted.completed")]
@@ -1198,124 +1166,6 @@ pub struct TypedSessionEvent {
     /// The typed event payload (discriminated by event type).
     #[serde(flatten)]
     pub payload: SessionEventData,
-}
-
-/// An IDE connection on the runtime host.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct IdeConnectedInfo {
-    /// IDE display name.
-    pub ide_name: String,
-    /// IDE lock file path on the runtime host.
-    pub lock_file_path: String,
-    /// IDE process identifier on the runtime host.
-    pub pid: i64,
-    /// Registered MCP server name.
-    pub server_name: String,
-    /// Absolute workspace path on the runtime host.
-    pub workspace_folder: String,
-}
-
-/// A zero-based location in an IDE document.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct IdePosition {
-    /// Zero-based character offset.
-    pub character: f64,
-    /// Zero-based line number.
-    pub line: f64,
-}
-
-/// The active selection range in an IDE document.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct IdeSelectionRange {
-    /// End position.
-    pub end: IdePosition,
-    /// Whether the selection contains no text.
-    pub is_empty: bool,
-    /// Start position.
-    pub start: IdePosition,
-}
-
-/// A validated live IDE selection.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct IdeSelection {
-    /// Whether the selection is current.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub current: Option<bool>,
-    /// Document path on the runtime host.
-    pub file_path: String,
-    /// Document URL supplied by the IDE.
-    pub file_url: String,
-    /// Selection endpoints and empty state.
-    pub selection: IdeSelectionRange,
-    /// Selected document text.
-    pub text: String,
-}
-
-/// Session event "ide.connection_changed". Live IDE state. This state never restores a connection from session history.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct IdeConnectionChangedData {
-    /// Currently available IDE, absent during an outage.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub connected_ide: Option<IdeConnectedInfo>,
-    /// IDE whose tool definitions remain registered, including during an outage.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub retained_ide: Option<IdeConnectedInfo>,
-    /// Latest observed selection, absent after disconnect.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub selection: Option<IdeSelection>,
-}
-
-/// Session event "ide.selection_changed". A validated selection from the live IDE, or an explicit clear.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct IdeSelectionChangedData {
-    /// Selection path, text, and source range, or null when the selection is cleared.
-    pub selection: Option<IdeSelection>,
-}
-
-/// The endpoints of an IDE file reference.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct IdeRange {
-    /// End position.
-    pub end: IdePosition,
-    /// Start position.
-    pub start: IdePosition,
-}
-
-/// A validated IDE request to attach a file or selected text.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct IdeFileReference {
-    /// Document path on the runtime host.
-    pub file_path: String,
-    /// Document URL supplied by the IDE.
-    pub file_url: String,
-    /// Selected text, or null for a whole file.
-    pub selected_text: Option<String>,
-    /// Selected range, or null for a whole file.
-    pub selection: Option<IdeRange>,
-}
-
-/// Session event "ide.add_file_reference". An IDE request to attach a file or selection to the composer.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct IdeAddFileReferenceData {
-    /// Validated file reference or selected range.
-    pub reference: IdeFileReference,
-}
-
-/// Session event "ide.elicitation_complete". An IDE elicitation completion notification.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct IdeElicitationCompleteData {
-    /// Elicitation identifier returned by the IDE.
-    pub elicitation_id: String,
 }
 
 /// Session event "session.journal_link". Links a standalone replay head to its complete preceding numbered journal archive.
@@ -1528,7 +1378,7 @@ pub struct SessionRemoteSteerableChangedData {
     pub remote_steerable: bool,
 }
 
-/// Session event "session.error". Session error details for timeline display. Request-correlated completion RPC failures carry the terminal error's same fields in their error data, with stack and completionEventId.
+/// Session event "session.error". Error details for timeline display including message and optional diagnostic information
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionErrorData {
@@ -1548,9 +1398,6 @@ pub struct SessionErrorData {
     /// GitHub request tracing ID (x-github-request-id header) for correlating with server-side logs
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider_call_id: Option<String>,
-    /// Provider-defined error code, when available; unset otherwise. Unlike errorCode, this is not a runtime or Copilot API classification and does not imply a remediation or retry policy.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub provider_error_code: Option<String>,
     /// Sanitized provider-defined error parameter preserved from a structured upstream error envelope, when available.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider_error_param: Option<String>,
@@ -1671,18 +1518,6 @@ pub struct SessionAutopilotObjectiveChangedData {
     pub status: Option<AutopilotObjectiveChangedStatus>,
 }
 
-/// Original request-level and effective conversation reasoning effort for a provider history boundary; the historical type name is retained for compatibility
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ResponsesReasoning {
-    /// Effective effort selected before this message, independent of the response-level reasoning field
-    pub effort: String,
-    /// Original request-level effort, retained while replaying this conversation prefix
-    pub initial_effort: String,
-    /// Provider model whose reasoning settings this boundary records
-    pub model: String,
-}
-
 /// Session event "session.info". Informational message for timeline display with categorization
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1691,10 +1526,6 @@ pub struct SessionInfoData {
     pub info_type: String,
     /// Human-readable informational message for display in the timeline
     pub message: String,
-    /// Reasoning configuration consumed at this conversation boundary. Present on reasoning_effort updates; preserves the original request baseline and applied effort without creating a user message.
-    #[doc(hidden)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub responses_reasoning: Option<ResponsesReasoning>,
     /// Optional actionable tip displayed with this message
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tip: Option<String>,
@@ -1813,7 +1644,7 @@ pub struct SessionModelChangeData {
     /// True when autoTier is a managed-policy default. Omitted for user-authored and legacy values.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub auto_tier_managed: Option<bool>,
-    /// Reason the change happened, when not user-initiated. `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path, `"auto_mode_recovery"` when a prepared Auto route commits and a recovered inference is allowed to proceed before provider dispatch, or `"refusal_fallback"` when the active model declined a request (content refusal) and the runtime switched to the configured refusal-fallback model. UI clients can use this to render contextual copy.
+    /// Reason the change happened, when not user-initiated. `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path, or `"refusal_fallback"` when the active model declined a request (content refusal) and the runtime switched to the configured refusal-fallback model. UI clients can use this to render contextual copy.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cause: Option<String>,
     /// Context tier after the model change; null explicitly clears a previously selected tier
@@ -2684,7 +2515,7 @@ pub struct SessionUsageInfoData {
     pub tool_definitions_tokens: Option<i64>,
 }
 
-/// Session event "session.context_cleared". Context-cleared details emitted when the conversation is cleared (the session.history.clearContext RPC, or the runtime starting a fresh context window)
+/// Session event "session.context_cleared". Context-cleared details emitted when the host clears the conversation (the session.history.clearContext RPC / Session.clearContextMessages)
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionContextClearedData {
@@ -2739,28 +2570,6 @@ pub struct SessionCompactionStartData {
     pub trigger: Option<CompactionTrigger>,
 }
 
-/// Session event "session.compaction_summarized". A background compaction's summarizer settled; its summary is not applied to the conversation yet. The matching session.compaction_complete follows once it is applied (or discarded) and remains authoritative.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionCompactionSummarizedData {
-    /// Always true: the settled outcome still awaits being applied, which session.compaction_complete reports
-    pub apply_pending: bool,
-    /// Identifier shared with the matching compaction start and completion events
-    pub compaction_attempt_id: String,
-    /// Error message if the summarizer failed
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub error: Option<String>,
-    /// How the compaction ran relative to the conversation, as on the start event ("background"). Open set; readers must tolerate other values.
-    pub execution: String,
-    /// Bounded reason for a failed summarizer, using the same values as the completion event's failureReason. Unknown future values are preserved.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub failure_reason: Option<String>,
-    /// How the summarizer settled: "succeeded", "failed", or "cancelled". Open set; readers must tolerate other values.
-    pub outcome: String,
-    /// Whether the summarizer produced a summary that can be applied
-    pub success: bool,
-}
-
 /// End-to-end timing of a compaction attempt and the configuration it ran under, measured from the start of the compaction to its terminal event.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -2789,10 +2598,6 @@ pub(crate) struct CompactionCompleteAttemptMetrics {
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) deadline_policy: Option<String>,
-    /// Time a background compaction's summarizer was held for the turn's in-flight request to start responding before it was sent, in milliseconds. The compaction's deadline starts when the summarizer is sent. Absent when the summarizer was not held.
-    #[doc(hidden)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) dispatch_wait_ms: Option<i64>,
     /// Time from the start of the compaction to this event, in milliseconds, whatever the outcome
     #[doc(hidden)]
     pub(crate) duration_ms: i64,
@@ -2940,6 +2745,18 @@ pub(crate) struct CompactionCompleteFailureDiagnostics {
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) transport_error_kind: Option<String>,
+}
+
+/// Original request-level and effective conversation reasoning effort for a provider history boundary; the historical type name is retained for compatibility
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResponsesReasoning {
+    /// Effective effort selected before this message, independent of the response-level reasoning field
+    pub effort: String,
+    /// Original request-level effort, retained while replaying this conversation prefix
+    pub initial_effort: String,
+    /// Provider model whose reasoning settings this boundary records
+    pub model: String,
 }
 
 /// How far the compaction's summarizer model calls had progressed when the compaction's outcome was decided. Stream statistics describe the latest model request; durationMs and attemptCount cover every request.
@@ -3715,17 +3532,11 @@ pub struct UserMessageData {
     /// IDs of accepted assistant messages that caused this delivered inter-agent prompt, referring to assistant.message.data.messageId across the agent tree. Captured when sending and retained through queued or immediate delivery. An empty list means no model-produced dependency; absence means provenance is unavailable.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub causal_dependencies: Option<Vec<String>>,
-    /// Opaque clientTurnId the caller supplied on the send that delivered this message, echoed when the message is consumed, whether it started a turn, drained from the queue or was consumed as steering. Absent when that send supplied none.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub client_turn_id: Option<String>,
     /// The user's message text as displayed in the timeline
     pub content: String,
     /// How this message was delivered to the agentic loop relative to loop state (idle-start vs. steering/queued while busy). The timing axis; combine with `source` (origin) for the full picture. Used for telemetry attribution.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub delivery: Option<UserMessageDelivery>,
-    /// Whether the submitted prompt or attachments contain a task, before adding generated context such as timestamps; independent of timeline display text. Absent in older events.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub has_submitted_task: Option<bool>,
     /// CAPI interaction ID for correlating this user message with its turn
     #[serde(skip_serializing_if = "Option::is_none")]
     pub interaction_id: Option<String>,
@@ -4423,7 +4234,7 @@ pub struct AssistantMessageData {
     /// Logical ID of the primary user message that initiated this run, matching the messageId returned by session.send (or the last messageId of session.sendMessages). Stable across model/tool iterations, steering messages, and stop-hook corrections. Subagent runs use their own initiating message ID, not the parent's. Absent for runs without an associated initiating message, such as empty batches.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub originating_message_id: Option<String>,
-    /// Output tokens this message adds to replayed context, for token accounting: the API response's completion_tokens, plus reasoning tokens a wire replays as input but reports separately, shared across the response's message chunks. Use assistant.usage for billed usage.
+    /// Actual output token count from the API response (completion_tokens), used for accurate token accounting
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output_tokens: Option<i64>,
     /// Tool call ID of the parent tool invocation when this event originates from a sub-agent
@@ -4768,7 +4579,7 @@ pub struct AssistantUsageData {
     /// GitHub request tracing ID (x-github-request-id header) for server-side log correlation
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider_call_id: Option<String>,
-    /// Fixed-set configured provider type of the bring-your-own-key model: "openai", "azure", "anthropic", "google", "local_model" (a user-configured local model), "winml" (a Copilot-managed Windows ML model), or "other". Never the caller-supplied provider name. Absent for Copilot-served models.
+    /// Fixed-set configured provider type of the bring-your-own-key model: "openai", "azure", "anthropic", "local_model" (a user-configured local model), "winml" (a Copilot-managed Windows ML model), or "other". Never the caller-supplied provider name. Absent for Copilot-served models.
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) provider_type: Option<String>,
@@ -5082,7 +4893,7 @@ pub struct ModelCallFailureData {
     /// GitHub request tracing ID (x-github-request-id header) for server-side log correlation
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider_call_id: Option<String>,
-    /// Fixed-set configured provider type of the bring-your-own-key model for the failed call: "openai", "azure", "anthropic", "google", "local_model" (a user-configured local model), "winml" (a Copilot-managed Windows ML model), or "other". Never the caller-supplied provider name. Absent for Copilot-served models.
+    /// Fixed-set configured provider type of the bring-your-own-key model for the failed call: "openai", "azure", "anthropic", "local_model" (a user-configured local model), "winml" (a Copilot-managed Windows ML model), or "other". Never the caller-supplied provider name. Absent for Copilot-served models.
     #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) provider_type: Option<String>,
@@ -6945,7 +6756,7 @@ pub struct PermissionRequestShellPossibleUrl {
     pub url: String,
 }
 
-/// A sandbox filesystem policy edit that would let a blocked operation run inside the sandbox instead of outside it. Offered only on a sandbox escalation request whose denial adding this path lifts, and only when managed policy permits the grant. A host accepts it with session.sandbox.grantPathForRequest, which adds the path to the session's sandbox policy and re-runs the operation sandboxed. A host that persists sandbox settings must save the optional policy spelling when present; otherwise it must escape every literal `$` in the concrete path as `$$` before saving that path.
+/// A sandbox filesystem policy edit that would let a blocked operation run inside the sandbox instead of outside it. Offered only on a sandbox escalation request whose denial adding this path lifts, and only when managed policy permits the grant. A host accepts it with session.sandbox.grantPathForRequest, which adds the path to the session's sandbox policy and re-runs the operation sandboxed; a host that persists sandbox settings may also save the path there.
 ///
 /// <div class="warning">
 ///
@@ -6963,9 +6774,6 @@ pub struct PermissionSandboxPathGrant {
     pub denied_path: Option<String>,
     /// Absolute path to add to the sandbox filesystem policy
     pub path: String,
-    /// Policy spelling to persist for the grant. This can differ from path when a managed allowlist names the same location through an environment expression. Hosts that persist sandbox settings must save this value when present. When it is absent, they must escape every literal `$` in path as `$$` before saving path so the policy grammar does not interpret it as an environment reference.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub persisted_path: Option<String>,
     /// readonlyPaths entries the grant removes, exactly as written in the policy, because a read-only entry for the same location would otherwise keep the path read-only. A host that persists the path must remove these entries from its stored readonlyPaths too.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub removed_readonly_paths: Option<Vec<String>>,
@@ -7255,16 +7063,6 @@ pub struct PermissionApprovalEvaluation {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionAssistedApproval {
-    /// Zero-based indexes into the shell request's `commandSegments` that a `requireApproval` recommendation identified as needing approval, validated by the runtime against that request. Absent when the recommendation did not attribute approval to specific segments; the whole command then needs approval.
-    ///
-    /// <div class="warning">
-    ///
-    /// **Experimental.** This type is part of an experimental wire-protocol surface
-    /// and may change or be removed in future SDK or CLI releases.
-    ///
-    /// </div>
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub approval_required_command_segments: Option<Vec<i64>>,
     /// Runtime reason and judge-call metadata. Absent on older events; missing metadata means unknown, not that the judge was skipped.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub evaluation: Option<PermissionApprovalEvaluation>,
@@ -7700,9 +7498,6 @@ pub struct PermissionPromptRequestUrl {
     /// Whether managed policy requires a human response and forbids host auto-approval
     #[serde(skip_serializing_if = "Option::is_none")]
     pub managed_approval_required: Option<bool>,
-    /// Wildcard pattern covering the registrable domain of the URL and its subdomains, for example https://*.example.com for https://api.example.com/x. The runtime computes it from the Public Suffix List, keeping the URL's scheme and non-default port, so every host offers the same scope. Absent when no parent-domain approval can be offered safely (IP addresses, private-network names, public suffixes) and for sandbox-bypass requests. Hosts may offer it as a broader alternative to approving the exact origin for the running session and, when the user chooses it, return it as the domain of an approve-for-session response. It is session-only: the runtime matches it by registrable domain, so a subdomain the Public Suffix List lists as a separate owner (for example a bucket under s3.amazonaws.com) is not covered, and the runtime never persists it. Do not offer it as a permanent approval; an approve-permanently response carrying this exact pattern is kept for the session only and writes nothing to settings. The pattern also matches the registrable domain itself.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub parent_domain_pattern: Option<String>,
     /// Immediately preceding URL when this prompt is for a redirect target
     #[serde(skip_serializing_if = "Option::is_none")]
     pub redirected_from: Option<String>,
@@ -8927,9 +8722,6 @@ pub struct CommandQueuedData {
     pub command: String,
     /// Unique identifier for this request; used to respond via session.respondToQueuedCommand()
     pub request_id: RequestId,
-    /// Whether a schedule dispatched this command. Consumers must reject commands marked as not schedulable before executing a scheduled request. Absent for ordinary queued commands.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub scheduled: Option<bool>,
 }
 
 /// Session event "command.execute". Registered command dispatch request routed to the owning client
@@ -8976,58 +8768,6 @@ pub struct AutoModeSwitchCompletedData {
     pub request_id: RequestId,
     /// The user's auto-mode-switch choice
     pub response: AutoModeSwitchResponse,
-}
-
-/// Session event "auto_mode_recovery_consent.requested". Recovery consent for a still-active request. Respond using session.ui.handlePendingAutoModeSwitch. The offer has no timer. Entering Autopilot before recovery admission withdraws it. Dismiss it on auto_mode_recovery_consent.completed or on session resume, rebuild, or disconnect; resume can invalidate it without a completed event.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AutoModeRecoveryConsentRequestedData {
-    /// Whether this offer permits remembering consent with yes_always. Currently true only for per-model rate limits.
-    pub allow_always: bool,
-    /// Eligible upstream failure code: model_degraded, model_overloaded, or user_model_rate_limited.
-    pub error_code: String,
-    /// Original logical interaction identity, when available. Do not infer it from transcript order.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub interaction_id: Option<String>,
-    /// Explicit model selected for the failed request before Auto recovery.
-    pub original_model: String,
-    /// Initiating user-message identity, when available, distinct from later steering messages.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub originating_message_id: Option<String>,
-    /// One-use offer or recovery episode identifier bound to the originating live session. It cannot be carried across resume or used to replay a settled request.
-    pub request_id: RequestId,
-    /// Rate-limit reset information when supplied by the provider. This is not a consent deadline.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub retry_after_seconds: Option<f64>,
-}
-
-/// Session event "auto_mode_recovery_consent.completed". Recovery consent offer closed; clients must dismiss its UI. Completion does not imply consent or recovery success. Events belong to the originating live session; resume can invalidate an offer without this event.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AutoModeRecoveryConsentCompletedData {
-    /// Settlement reason, distinguishing user acceptance/decline and saved-preference acceptance from cancellation, handler loss, supersession, and emergency disablement. mode_changed withdraws an unanswered offer when the session enters Autopilot before recovery admission.
-    pub reason: String,
-    /// Identifier of the settled offer; clients must dismiss the matching consent UI.
-    pub request_id: RequestId,
-    /// User response when one was supplied. Absent when the runtime settled the offer without a user answer.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub response: Option<AutoModeSwitchResponse>,
-}
-
-/// Session event "auto_mode_recovery.outcome". Authoritative final outcome of an active-request Auto recovery episode, not a retry-start notification or manual response regeneration. Normal response/error and session completion signals still settle the logical request.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AutoModeRecoveryOutcomeData {
-    /// Whether a recovered Auto inference was allowed to proceed, reported on the final outcome rather than as a live start notification. True does not imply success. False when consent or preparation ended without a retry.
-    pub auto_mode_recovery_admitted: bool,
-    /// Original upstream failure code that qualified the request for recovery.
-    pub error_code: String,
-    /// Explicit model selected for the original failed request.
-    pub original_model: String,
-    /// Recovery episode identifier, also used by its consent offer when one was displayed.
-    pub request_id: RequestId,
-    /// Final recovery disposition, such as succeeded, failed, declined, cancelled, superseded, or unavailable. mode_changed means entering Autopilot stopped recovery before admission, including after consent was accepted.
-    pub status: String,
 }
 
 /// Session event "session_limits_exhausted.requested". Session limit exhaustion notification requiring user action.
@@ -9383,10 +9123,7 @@ pub struct ExitPlanModeCompletedData {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HumanResponseRecordedResponseAskUser {
-    /// How the person refused the question; absent for an accepted answer.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub action: Option<HumanResponseAskUserAction>,
-    /// Exact answer content accepted from the user; empty when the person refused the question.
+    /// Exact answer content accepted from the user.
     pub content: HashMap<String, serde_json::Value>,
     /// Exact question displayed to the user.
     pub message: String,
@@ -9402,14 +9139,11 @@ pub struct HumanResponseRecordedResponseUserInput {
     /// Whether the displayed request allowed a free-form answer.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allow_freeform: Option<bool>,
-    /// Exact selected or free-form answer submitted by the user; empty when the person dismissed the question.
+    /// Exact selected or free-form answer submitted by the user.
     pub answer: String,
     /// Exact choices displayed to the user, when the request offered choices.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub choices: Option<Vec<String>>,
-    /// True when the person dismissed the question instead of answering it.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub dismissed: Option<bool>,
     /// Exact question displayed to the user.
     pub question: String,
     /// Runtime-owned response kind discriminator.
@@ -9437,7 +9171,7 @@ pub struct HumanResponseRecordedResponseExitPlanMode {
     pub recommended_action: ExitPlanModeAction,
     /// Runtime-owned response kind discriminator.
     pub response_kind: HumanResponseRecordedResponseExitPlanModeResponseKind,
-    /// Action the runtime applied for an approved plan: the user's selection, or the default an approval without one applies.
+    /// Action selected by the user, when applicable.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub selected_action: Option<ExitPlanModeAction>,
     /// Exact plan summary displayed to the user.
@@ -9753,7 +9487,7 @@ pub struct ExtensionsLoadedExtension {
     pub name: String,
     /// Discovery source
     pub source: ExtensionsLoadedExtensionSource,
-    /// Current status: running, dormant, disabled, failed, or starting
+    /// Current status: running, disabled, failed, or starting
     pub status: ExtensionsLoadedExtensionStatus,
 }
 
@@ -10294,18 +10028,6 @@ pub enum IndexedSearchDisabledReason {
     /// The workspace is not available on the runtime's local filesystem.
     #[serde(rename = "workspace_not_local")]
     WorkspaceNotLocal,
-    /// Another process holds the machine-wide indexed-search server slot.
-    #[serde(rename = "server_limit")]
-    ServerLimit,
-    /// The workspace is a filesystem or network-share root.
-    #[serde(rename = "filesystem_root")]
-    FilesystemRoot,
-    /// The workspace is the user's home directory.
-    #[serde(rename = "home_directory")]
-    HomeDirectory,
-    /// The user's home directory could not be determined.
-    #[serde(rename = "home_directory_detection_failed")]
-    HomeDirectoryDetectionFailed,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -11450,9 +11172,6 @@ pub enum AssistantUsageApiEndpoint {
     /// WebSocket Responses API endpoint.
     #[serde(rename = "ws:/responses")]
     WsResponses,
-    /// Gemini Interactions API endpoint.
-    #[serde(rename = "/interactions")]
-    Interactions,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -11853,7 +11572,7 @@ pub enum PersistedBinaryImageType {
     Unknown,
 }
 
-/// Why the binary data is absent: it exceeded the inline size limit, its asset was unavailable, or its image format was unsupported
+/// Why the binary data is absent: it exceeded the inline size limit, or its asset was unavailable
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum OmittedBinaryOmittedReason {
     /// Bytes exceeded the session's inline size limit.
@@ -11862,9 +11581,6 @@ pub enum OmittedBinaryOmittedReason {
     /// The referenced binary asset could not be found (e.g. a truncated log).
     #[serde(rename = "asset_unavailable")]
     AssetUnavailable,
-    /// The image format or MIME label is not accepted by the model.
-    #[serde(rename = "unsupported_format")]
-    UnsupportedFormat,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -13826,21 +13542,6 @@ pub enum HumanResponseActor {
     Unknown,
 }
 
-/// How the person refused a built-in `ask_user` question instead of answering it.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum HumanResponseAskUserAction {
-    /// The person explicitly declined the question.
-    #[serde(rename = "decline")]
-    Decline,
-    /// The person dismissed the question.
-    #[serde(rename = "cancel")]
-    Cancel,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
 /// Runtime-owned response kind discriminator.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HumanResponseRecordedResponseAskUserResponseKind {
@@ -13865,7 +13566,7 @@ pub enum HumanResponseRecordedResponseExitPlanModeResponseKind {
     ExitPlanMode,
 }
 
-/// Exact runtime-owned question or reviewed plan paired with the typed response that settled it. A refusal records the question without an answer and never grants authority.
+/// Exact runtime-owned question or reviewed plan paired with the typed response that settled it.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum HumanResponseRecordedResponse {
@@ -14000,15 +13701,12 @@ pub enum ExtensionsLoadedExtensionSource {
     Unknown,
 }
 
-/// Current status: running, dormant, disabled, failed, or starting
+/// Current status: running, disabled, failed, or starting
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ExtensionsLoadedExtensionStatus {
     /// The extension process is running.
     #[serde(rename = "running")]
     Running,
-    /// The extension is enabled and discoverable but not yet requested.
-    #[serde(rename = "dormant")]
-    Dormant,
     /// The extension is installed but disabled.
     #[serde(rename = "disabled")]
     Disabled,

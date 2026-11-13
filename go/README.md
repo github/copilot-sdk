@@ -7,7 +7,7 @@ A Go SDK for programmatic access to the GitHub Copilot CLI.
 To use the SDK, you'll need:
 
 - Go 1.26.0 or later
-- The Copilot CLI, embedded with the [bundler tool](#distributing-your-application-with-an-embedded-github-copilot-cli) or located through `COPILOT_CLI_PATH` or an explicit connection path. The SDK does not look up `copilot` on `PATH`.
+- GitHub Copilot CLI installed and in `PATH` (or set `COPILOT_CLI_PATH`)
 
 ## Installation
 
@@ -32,22 +32,6 @@ The manual permission/tool-result resume sample can be run from the same directo
 ```bash
 go run ./manual_tool_resume
 ```
-
-Print an edited permission request without starting the CLI:
-
-```bash
-go run chat.go --permission-envelope
-```
-
-The output retains unknown fields, explicit nulls, and large integers.
-
-Run both permission-envelope and MCP refresh callbacks on an isolated JSON-RPC session, without the CLI:
-
-```bash
-go run chat.go --permission-envelope-mcp-refresh
-```
-
-The output contains the original `futureDetails` value and the correlated `runtimeRefresh` response.
 
 ## Quick Start
 
@@ -273,7 +257,7 @@ Provider methods can be called concurrently by the runtime, including from
 sub-agents that inherit the root session binding. Implementations must be safe
 for concurrent calls and should observe the `context.Context`. The context is
 cancelled when the runtime abandons the request: the call times out, the
-session disconnects or is deleted, or a resume replaces the provider. It is also
+session disconnects or is deleted, or a resume replaces the provider. It is not
 cancelled when the connection closes or the client is force-stopped.
 
 ### Supporting files (experimental)
@@ -292,14 +276,13 @@ import (
 	"github.com/github/copilot-sdk/go/rpc"
 )
 
-var _ =
-	rpc.SkillProviderDescriptor{
+func main() {
+	_ = rpc.SkillProviderDescriptor{
 		Name:        "release-notes",
 		Description: "Writes release notes in the team's format.",
 		Directory:   copilot.String("/srv/skills/release-notes"),
 	}
-
-func main() {}
+}
 ```
 -->
 <!-- /docs-validate: hidden -->
@@ -359,17 +342,9 @@ instead of falling back to raw configuration writes. Generated presence and
 transport tests do not establish live OAuth, activation or cross-process
 recovery.
 
-## Network callbacks (experimental)
+## Kerberos authentication callback
 
-Set `ClientOptions.Network` to a `NetworkConfig` when the SDK host should take over parts of the runtime's networking, for example when the runtime runs in WSL or a container and should use VS Code's proxy settings and the host's Kerberos tickets. Registration happens during `Start` (including the auto-start in `CreateSession` and `ResumeSession`), before sessions can be created. Without this option, or for a callback you leave nil, the runtime handles that part itself.
-
-- `ResolveProxy(ctx, request)` decides the proxies for every request the runtime would otherwise route by ambient proxy settings: proxy environment variables, `NO_PROXY` and operating-system proxy settings are not consulted unless it returns `""`. The `NetworkResolveProxyRequest`'s `URL` is the request target as a PAC script sees it: without credentials or fragment, and for `https` and `wss` also without path and query. Return a PAC-style list such as `PROXY proxy.example:8080; HTTPS proxy.example:443; DIRECT` (the format of Electron's `session.resolveProxy`); return `"DIRECT"` for a direct connection, or `""` to let the runtime resolve the proxy itself, as if no callback were registered. Entry types the runtime doesn't support, such as SOCKS and QUIC, are skipped. If the callback returns an error, the request fails rather than connecting directly. Requests to loopback targets, and requests with an explicitly configured proxy, never consult it. The runtime caches answers, including `""`, for 5 seconds and waits at most 10 seconds for the callback.
-- `AuthenticateNegotiate(ctx, request)` supplies the Kerberos token for a proxy's Negotiate challenge instead of the runtime's native credential lookup. The `NetworkAuthenticateNegotiateRequest`'s `Spn` is a service principal in the platform-independent `service/host[@REALM]` form; validate it before issuing credentials. Return a fresh base64 SPNEGO token without the `Negotiate ` prefix, or `""` when credentials are unavailable, which fails the request unless the proxy also offers Basic and `AuthenticateBasic` supplies credentials. The runtime waits at most 30 seconds for the callback (less when the request's own deadline is sooner). Tokens are not cached and must not be logged or persisted. The callback supplies the initial SPNEGO token only; exchanges requiring continuation tokens are not supported. Proxies chosen by `ResolveProxy` are authenticated the same way.
-- `AuthenticateBasic(ctx, request)` supplies credentials for a proxy's Basic challenge on requests the runtime tunnels through the proxy (`https` and `wss` targets). The `NetworkAuthenticateBasicRequest` names the challenging `Proxy` (`http://host:port` or `https://host:port`), the proxy's optional `Realm`, which is untrusted text, and `PreviousRejected`, which is true when the proxy rejected the credentials the connection sent last. Return a `NetworkAuthenticateBasicResult` with `Username` and `Password` (nil means an empty password), or `nil` when credentials are unavailable, which fails the request with the proxy's challenge, as does an empty user name. The user name must not contain a colon, and neither the user name nor the password may contain control characters; the runtime fails the request otherwise. The runtime remembers the answer for that proxy and uses it for later connections, until the proxy rejects it; then it calls again with `PreviousRejected` set, so return different credentials, for example by asking the user, or `nil`. A later connection sends the answer without waiting for a challenge, unless the runtime may try Negotiate with that proxy first. A connection submits at most three sets of credentials. While a call is pending, other requests through that proxy wait for its answer. When a proxy offers both Negotiate and Basic, the runtime prefers Negotiate and answers with Basic when Negotiate is unavailable or the proxy rejects it. The runtime does not time the callback out: a request whose own deadline passes stops waiting, but the answer is still remembered. Credentials must not be logged or persisted.
-
-A returned error, or a panic, is reported to the runtime as a callback failure. Each callback's `ctx` is cancelled when the runtime stops waiting (it cancels the request, for example after its timeout, or the connection closes); the SDK then stops waiting for the callback and ignores any later result, so a lookup that can hang should abandon its work once the context is done. If that happens before the callback starts, the callback is not called at all.
-
-By default the callbacks serve only requests made for sessions this client creates or resumes. With `Scope: copilot.NetworkScopeRuntime` they also serve the runtime's shared background traffic, such as catalog refreshes and telemetry; only one connection at a time can hold that scope, so startup fails if another client holds it. The registration ends when the connection closes; a failed `Start`, including one whose context is cancelled, closes it.
+Set `ClientOptions.KerberosAuth` to a `KerberosAuthConfig{Mode, Callback}` when Kerberos tickets must be obtained by the SDK host, for example from Windows when the runtime runs in WSL. The runtime currently uses it for proxy authentication. The callback receives a `context.Context` and a `KerberosAuthAcquireRequest` whose `Spn` is a service principal in the platform-independent `service/host[@REALM]` form, and returns a fresh base64 SPNEGO token without the `Negotiate ` prefix, or `""` when credentials are unavailable. A returned error is reported to the runtime as a callback failure. The callback should validate the principal before issuing credentials.
 
 <!-- docs-validate: hidden -->
 <!--
@@ -382,30 +357,16 @@ import (
 	copilot "github.com/github/copilot-sdk/go"
 )
 
-func lookUpProxy(ctx context.Context, url string) (string, error) {
-	return "", nil
-}
-
 func acquireSPNEGOToken(ctx context.Context, spn string) (string, error) {
 	return "", nil
 }
 
-func lookUpProxyCredentials(ctx context.Context, proxy string, previousRejected bool) (*copilot.NetworkAuthenticateBasicResult, error) {
-	return nil, nil
-}
-
 func main() {
 	client := copilot.NewClient(&copilot.ClientOptions{
-		Network: &copilot.NetworkConfig{
-			Scope: copilot.NetworkScopeRuntime,
-			ResolveProxy: func(ctx context.Context, request copilot.NetworkResolveProxyRequest) (string, error) {
-				return lookUpProxy(ctx, request.URL) // for example "PROXY proxy.example:8080; DIRECT"
-			},
-			AuthenticateNegotiate: func(ctx context.Context, request copilot.NetworkAuthenticateNegotiateRequest) (string, error) {
+		KerberosAuth: &copilot.KerberosAuthConfig{
+			Mode: copilot.KerberosAuthModeFallback,
+			Callback: func(ctx context.Context, request copilot.KerberosAuthAcquireRequest) (string, error) {
 				return acquireSPNEGOToken(ctx, request.Spn) // host-side credential lookup
-			},
-			AuthenticateBasic: func(ctx context.Context, request copilot.NetworkAuthenticateBasicRequest) (*copilot.NetworkAuthenticateBasicResult, error) {
-				return lookUpProxyCredentials(ctx, request.Proxy, request.PreviousRejected) // nil when unavailable
 			},
 		},
 	})
@@ -417,20 +378,19 @@ func main() {
 
 ```go
 client := copilot.NewClient(&copilot.ClientOptions{
-    Network: &copilot.NetworkConfig{
-        Scope: copilot.NetworkScopeRuntime,
-        ResolveProxy: func(ctx context.Context, request copilot.NetworkResolveProxyRequest) (string, error) {
-            return lookUpProxy(ctx, request.URL) // for example "PROXY proxy.example:8080; DIRECT"
-        },
-        AuthenticateNegotiate: func(ctx context.Context, request copilot.NetworkAuthenticateNegotiateRequest) (string, error) {
+    KerberosAuth: &copilot.KerberosAuthConfig{
+        Mode: copilot.KerberosAuthModeFallback,
+        Callback: func(ctx context.Context, request copilot.KerberosAuthAcquireRequest) (string, error) {
             return acquireSPNEGOToken(ctx, request.Spn) // host-side credential lookup
-        },
-        AuthenticateBasic: func(ctx context.Context, request copilot.NetworkAuthenticateBasicRequest) (*copilot.NetworkAuthenticateBasicResult, error) {
-            return lookUpProxyCredentials(ctx, request.Proxy, request.PreviousRejected) // nil when unavailable
         },
     },
 })
 ```
+
+With `KerberosAuthModeFallback`, native credential acquisition (including the first token) is tried first; only failure invokes the callback. With `KerberosAuthModeAlways`, native credential lookup is never attempted. Without this option, behavior is unchanged. Registration happens during `Start` (including the auto-start in `CreateSession` and `ResumeSession`), before sessions can be created. `NewClient` panics if `Mode` or `Callback` is missing.
+
+By default the callback authenticates only requests made for sessions this client creates or resumes. With the `runtime` scope it also authenticates the runtime's shared background traffic, such as catalog refreshes and telemetry; only one connection at a time can hold that scope, so startup fails if another client holds it. The registration ends when the connection closes; a failed `Start`, including one whose context is cancelled, closes it. In fallback mode, if the callback cannot supply a valid token, the native credential error is reported. In always mode, a disconnected, failing, or empty callback fails authentication. The runtime waits at most 30 seconds for the callback (less when the request's own deadline is sooner) and treats a timeout as a callback failure. When the runtime stops waiting or the connection closes, the callback's context is cancelled and any later result is ignored, so a lookup that can hang should abandon its work once the context is done. If that happens before the callback starts, the callback is not called at all. Tokens are not cached and must not be logged or persisted. The callback supplies the initial SPNEGO token only; exchanges requiring continuation tokens still need native negotiation.
+
 ## Distributing your application with an embedded GitHub Copilot CLI
 
 The SDK supports bundling, using Go's `embed` package, the Copilot CLI binary within your application's distribution.
@@ -445,14 +405,6 @@ Follow these steps to embed the CLI:
 2. Run `go tool bundler` in your build environment just before building your application.
 
 That's it! When your application calls `copilot.NewClient` without a `Connection` field (or with an empty `StdioConnection{}`), the SDK automatically installs the embedded `copilot-runtime` executable and adjacent `runtime.node` to a cache directory for managed child-process connections.
-
-If the user cache cannot be determined, Unix uses
-`<temp>/copilot-sdk-cache-<uid>` with owner-only permissions (`0700`), checking
-ownership and permissions before reuse. No `HOME` is required. The selected
-temporary base is trusted, like `COPILOT_HOME` or `embeddedcli.Config.Dir`;
-the application must keep these locations protected from replacement by other
-users. Other platforms retain the existing temporary-directory fallback.
-Legacy shared Unix caches are not reused, so the first fallback install is cold.
 
 The bundler prepares the native runtime library required by the [in-process transport](#in-process-transport-experimental). It is included in the application only when building with the `copilot_inprocess` build tag.
 
@@ -492,10 +444,11 @@ Resolution and requirements:
 - Linux in-process bundles include both glibc and musl runtime packages and select the matching package automatically at startup.
 - Only one native runtime version may be loaded per process.
 
-`Telemetry` configures per-runtime startup, including in-process. Omitted settings inherit the environment; policy takes precedence. `NewClient` rejects process-wide options:
+The in-process transport rejects options that cannot be honored by a runtime hosted in your shared process (each panics at `NewClient`):
 
-- `Env` — set variables in the host process environment instead.
-- `WorkingDirectory` — the runtime shares the host process's working directory. Set `SessionConfig.WorkingDirectory` instead.
+- `Env` — the host process has a single environment block. Set variables on the host process environment instead.
+- `WorkingDirectory` — the runtime shares the host process's working directory. Change the process working directory before creating the client.
+- `Telemetry` — per-client telemetry is lowered to native-runtime environment variables. Use a child-process transport for per-client telemetry.
 
 Implemented with pure-Go FFI (via [purego](https://github.com/ebitengine/purego)), so `CGO_ENABLED=0` and cross-compilation are preserved; no C toolchain is required.
 
@@ -522,6 +475,34 @@ Implemented with pure-Go FFI (via [purego](https://github.com/ebitengine/purego)
 - `OnEventType(eventType SessionLifecycleEventType, handler SessionLifecycleHandler) func()` - Subscribe to specific lifecycle event type
 
 **Session Lifecycle Events:**
+
+<!-- docs-validate: hidden -->
+<!--
+```go
+package main
+
+import (
+	"fmt"
+
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+	client := copilot.NewClient(nil)
+
+	unsubscribe := client.On(func(event copilot.SessionLifecycleEvent) {
+		fmt.Printf("Session %s: %s\n", event.SessionID, event.Type)
+	})
+	defer unsubscribe()
+
+	unsubscribeForeground := client.OnEventType(copilot.SessionLifecycleForeground, func(event copilot.SessionLifecycleEvent) {
+		fmt.Printf("Session %s is now in foreground\n", event.SessionID)
+	})
+	defer unsubscribeForeground()
+}
+```
+-->
+<!-- /docs-validate: hidden -->
 
 ```go
 // Subscribe to all lifecycle events
@@ -553,10 +534,10 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `WorkingDirectory` (string): Working directory for the runtime process (default: current process working directory)
 - `BaseDirectory` (string): Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned runtime. When empty, the runtime defaults to `~/.copilot`. Ignored with `URIConnection`. This does **not** affect where the Go SDK extracts the embedded CLI binary; use `embeddedcli.Config.Dir` for the extraction/cache location.
 - `ExtensionLaunchProvider` (ExtensionLaunchProvider): Experimental connection-level resolver for extension launch profiles. `Start` installs the reverse-RPC handler and registers the provider before sessions can be created.
-- `Network` (\*NetworkConfig): **Experimental.** Network callbacks through which the SDK host resolves the runtime's proxies (`ResolveProxy`), supplies Kerberos tokens for proxies' Negotiate challenges (`AuthenticateNegotiate`) and supplies credentials for proxies' Basic challenges (`AuthenticateBasic`). `Start` installs the `network.resolveProxy`, `network.authenticateNegotiate` and `network.authenticateBasic` handlers for the configured callbacks and registers them with the optional `Scope` (`NetworkScopeConnection` by default, or `NetworkScopeRuntime`) before sessions can be created. See [Network callbacks](#network-callbacks-experimental).
+- `KerberosAuth` (\*KerberosAuthConfig): Supplies Kerberos credentials from the SDK host. `Start` installs the `kerberosAuth.acquire` handler and registers the callback with its `Mode` and optional `Scope` (`KerberosAuthScopeConnection` by default, or `KerberosAuthScopeRuntime`) before sessions can be created. See [Kerberos authentication callback](#kerberos-authentication-callback).
 - `InstallationConfirmationHandler` (InstallationConfirmationHandler): Experimental connection-global human review for `installations.confirm`. Receives the typed request, a per-request cancellation context and a separate connection-closed signal, then returns an explicit decision. Does not enable installation capabilities.
 - `LogLevel` (string): Log level. When empty (default), the runtime uses its own default level (the SDK does not pass `--log-level`).
-- `Env` ([]string): Environment variables for a child runtime process (default: inherits from current process). Rejected in-process.
+- `Env` ([]string): Environment variables for the runtime process (default: inherits from current process)
 
   For the native standalone runtime, include
   `"COPILOT_TELEMETRY_DISABLED=true"` in `Env` before startup to disable
@@ -590,19 +571,15 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `Autopilot` (\*rpc.AutopilotOptions, experimental): Autopilot policy, also accepted by `ResumeSessionConfig` and options update. `ContinuationEnabled` defaults to true and does not change session mode; `MaxContinues` limits continuations outside an active objective (non-negative integer, default five, zero allows none). Updates and warm resumes preserve omitted fields; an empty object changes nothing. Re-supply on cold resume.
 - `WorkingDirectory` (string): Working directory for the session (default: runtime process working directory)
 - `EnableSessionStore` (\*bool): Enables the cross-session store for search and retrieval across sessions. When unset in `ModeCopilotCli`, the runtime default applies (enabled). In `ModeEmpty`, defaults to disabled.
-- `GitHubTokenProvider` (GitHubTokenProvider): Acquires session-scoped GitHub tokens on demand. Return `GitHubTokenResult` with an `ExpiresIn` value that leaves more than one hour after the runtime validates the token (production GitHub tokens typically use `8 * 60 * 60` seconds), or `GitHubTokenCancelled`. Cannot be combined with `GitHubToken`.
+- `GitHubTokenProvider` (GitHubTokenProvider): Acquires session-scoped GitHub tokens on demand. Return `GitHubTokenResult` with a positive `ExpiresIn` value (production GitHub tokens typically use `8 * 60 * 60` seconds), or `GitHubTokenCancelled`. Cannot be combined with `GitHubToken`.
 - `OnPermissionRequest` (PermissionHandlerFunc): Optional handler called before each tool execution to approve or deny it. When nil, permission requests are emitted as events and left pending for manual resolution. `copilot.PermissionHandler.ApproveAll` approves requests when managed settings are disabled and returns an error when `EnableManagedSettings` is true. Custom handlers can inspect `RequiresManagedApproval()` for human-facing confirmation logic. See [Permission Handling](#permission-handling) section.
 - `OnPermissionRequestWithPrompt` (PermissionHandlerWithPromptFunc): Optional compatibility-preserving alternative that also receives the derived user-facing prompt. Takes precedence when both permission handlers are set. See [Permission Handling](#permission-handling) section.
 - `OnUserInputRequest` (UserInputHandler): Handler for legacy question-and-answer requests from the agent. Enables the legacy `ask_user` tool. See [User Input Requests](#user-input-requests) section.
-- `OnAttributedUserInputRequest` (AttributedUserInputHandler): Same as `OnUserInputRequest`, but its result can say a person answered. Takes precedence when both are set. See [Reporting a person's answers](#reporting-a-persons-answers).
-- `OnShellAuthenticationRequest` (ShellAuthenticationHandler): Handler for passwords and other answers that shell commands run by the agent ask for, such as `sudo -A`, `ssh`, and `git` over HTTPS. The answer goes only to the program that asked; the model never sees it. Without a handler, those commands fail as they do without a terminal. See [Shell password prompts](../docs/features/shell-password-prompts.md).
-- `AskUserVariant` (AskUserVariant): Selects the model-facing shape of the `ask_user` tool. The zero value preserves legacy behavior; use `AskUserVariantElicitation` with `OnElicitationRequest` or `OnAttributedElicitationRequest`.
+- `AskUserVariant` (AskUserVariant): Selects the model-facing shape of the `ask_user` tool. The zero value preserves legacy behavior; use `AskUserVariantElicitation` with `OnElicitationRequest`.
 - `InteractiveUser` (\*bool): Declares that a person types this session's messages, as in an editor chat panel. Enables the runtime's user-message analysis telemetry for user-authored messages; automated messages stay excluded. Nil or false keeps the SDK default of off. Ignored for cloud sessions.
-- `PermissionMode` (rpc.PermissionMode): Applies `manual`, `assisted`, or `allow-all` before the session's first turn, before `CreateSession` returns. Uses the same checks as `session.RPC.Permissions.SetMode`; `Session.PermissionModeResult()` reports whether it was applied and the authoritative mode. Not supported for cloud sessions.
 - `Hooks` (\*SessionHooks): Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
 - `Commands` ([]CommandDefinition): Slash-commands registered for this session. See [Commands](#commands) section.
 - `OnElicitationRequest` (ElicitationHandler): Handler for elicitation requests from the server. See [Elicitation Requests](#elicitation-requests-serverclient) section.
-- `OnAttributedElicitationRequest` (AttributedElicitationHandler) and `OnAttributedExitPlanModeRequest` (AttributedExitPlanModeRequestHandler): Same as `OnElicitationRequest` and `OnExitPlanModeRequest`, but their results can say a person answered. Each takes precedence over its plain handler when both are set. See [Reporting a person's answers](#reporting-a-persons-answers).
 
 **ResumeSessionConfig:**
 
@@ -614,10 +591,8 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `Streaming` (*bool): Enable streaming delta events (nil = runtime default)
 - `Commands` ([]CommandDefinition): Slash-commands. See [Commands](#commands) section.
 - `OnElicitationRequest` (ElicitationHandler): Elicitation handler. See [Elicitation Requests](#elicitation-requests-serverclient) section.
-- `OnAttributedUserInputRequest`, `OnAttributedExitPlanModeRequest`, and `OnAttributedElicitationRequest`: Re-supply the attributed prompt handlers on resume. See `SessionConfig`.
-- `AskUserVariant` (AskUserVariant): Selects the model-facing shape of the `ask_user` tool on cold resume. Re-supply `AskUserVariantElicitation` with `OnElicitationRequest` or `OnAttributedElicitationRequest`; the zero value preserves legacy behavior.
+- `AskUserVariant` (AskUserVariant): Selects the model-facing shape of the `ask_user` tool on cold resume. Re-supply `AskUserVariantElicitation` with `OnElicitationRequest`; the zero value preserves legacy behavior.
 - `InteractiveUser` (\*bool): Re-supplies the interactive-user declaration on cold resume. It is ignored when resuming a session that is already active.
-- `PermissionMode` (rpc.PermissionMode): Applied before resumed pending work continues. If it is refused (for example by managed policy), continued work runs under the mode `session.PermissionModeResult()` reports. See `SessionConfig.PermissionMode`.
 - `GitHubTokenProvider` (GitHubTokenProvider): Replaces the session-scoped token provider when resuming. Cannot be combined with `GitHubToken`.
 
 <!-- docs-validate: hidden -->
@@ -693,6 +668,36 @@ context, not as a substitute for agent provenance. Use `copilot.MessageSourceUse
 for explicit user provenance, or leave it empty to omit `source` from the request
 and preserve the runtime's default behavior.
 
+<!-- docs-validate: hidden -->
+<!--
+```go
+package main
+
+import (
+	"context"
+
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+	ctx := context.Background()
+	client := copilot.NewClient(nil)
+	session, err := client.CreateSession(ctx, &copilot.SessionConfig{})
+	if err != nil {
+		return
+	}
+
+	_, err = session.Send(ctx, copilot.MessageOptions{
+		Prompt: "Review complete. The build passed.",
+		Source: copilot.MessageSourceAgent("reviewer"),
+		Mode:   "enqueue",
+	})
+	_ = err
+}
+```
+-->
+<!-- /docs-validate: hidden -->
+
 ```go
 _, err := session.Send(ctx, copilot.MessageOptions{
     Prompt: "Review complete. The build passed.",
@@ -704,10 +709,6 @@ _, err := session.Send(ctx, copilot.MessageOptions{
 `MessageSourceAgent` returns a `MessageSource` containing `agent-` followed by the
 unchanged ID, so `"reviewer"` becomes `"agent-reviewer"`. It does not trim
 whitespace, change case, or remove an existing prefix.
-
-Use `copilot.MessageSourceAutomation(id)` for a turn sent on behalf of an automation
-the user configured, such as a recurring check-in; it becomes `automation-<id>`.
-An automation turn defines the session's task like a user message but carries no human authority; see [Message provenance](../docs/features/steering-and-queueing.md#message-provenance).
 
 Source is independent of delivery `Mode` and `AgentMode`; it does not replace the
 session's `SystemMessage` configuration. `SendAndWait` accepts the same options
@@ -726,6 +727,32 @@ supply its reply.
 
 Control the system prompt using `SystemMessage` in session config:
 
+<!-- docs-validate: hidden -->
+<!--
+```go
+package main
+
+import (
+	"context"
+
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+	ctx := context.Background()
+	client := copilot.NewClient(nil)
+
+	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
+		SystemMessage: &copilot.SystemMessageConfig{
+			Content: "Always check for security vulnerabilities before suggesting changes.",
+		},
+	})
+	_, _ = session, err
+}
+```
+-->
+<!-- /docs-validate: hidden -->
+
 ```go
 session, err := client.CreateSession(ctx, &copilot.SessionConfig{
     SystemMessage: &copilot.SystemMessageConfig{
@@ -739,6 +766,42 @@ The SDK auto-injects environment context, tool instructions, and security guardr
 #### Customize Mode
 
 Use `Mode: "customize"` to selectively override individual sections of the prompt while preserving the rest:
+
+<!-- docs-validate: hidden -->
+<!--
+```go
+package main
+
+import (
+	"context"
+
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+	ctx := context.Background()
+	client := copilot.NewClient(nil)
+
+	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
+		SystemMessage: &copilot.SystemMessageConfig{
+			Mode: "customize",
+			Sections: map[string]copilot.SectionOverride{
+				// Replace the tone/style section
+				copilot.SectionTone: {Action: "replace", Content: "Respond in a warm, professional tone. Be thorough in explanations."},
+				// Remove coding-specific rules
+				copilot.SectionCodeChangeRules: {Action: "remove"},
+				// Append to existing guidelines
+				copilot.SectionGuidelines: {Action: "append", Content: "\n* Always cite data sources"},
+			},
+			// Additional instructions appended after all sections
+			Content: "Focus on financial analysis and reporting.",
+		},
+	})
+	_, _ = session, err
+}
+```
+-->
+<!-- /docs-validate: hidden -->
 
 ```go
 session, err := client.CreateSession(ctx, &copilot.SessionConfig{
@@ -773,6 +836,39 @@ Each section override supports five static actions:
 - **`preserve`** — No-op that opts an individually-addressable section out of a group-level `remove`
 
 A sixth operation, `transform`, computes the new content from the current content. Set the `Transform` callback on a `SectionOverride` instead of `Action`; it takes precedence over `Action` and `Content`. The SDK calls it with the section's current content and uses the string it returns. Transform callbacks apply in `customize` mode only. If the callback returns an error, the section keeps its current content.
+
+<!-- docs-validate: hidden -->
+<!--
+```go
+package main
+
+import (
+	"context"
+
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+	ctx := context.Background()
+	client := copilot.NewClient(nil)
+
+	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
+		SystemMessage: &copilot.SystemMessageConfig{
+			Mode: "customize",
+			Sections: map[string]copilot.SectionOverride{
+				copilot.SectionGuidelines: {
+					Transform: func(current string) (string, error) {
+						return current + "\n* Always cite data sources", nil
+					},
+				},
+			},
+		},
+	})
+	_, _ = session, err
+}
+```
+-->
+<!-- /docs-validate: hidden -->
 
 ```go
 session, err := client.CreateSession(ctx, &copilot.SessionConfig{
@@ -816,8 +912,6 @@ _, err = session.SetAutoTier(ctx, nil)
 ```
 
 `SetModel` accepts the same preference through `SetModelOptions.AutoTier`, which stages the tier atomically with selecting `auto`. Set `ResetAutoTier` instead to return to provider-default routing; the two options are mutually exclusive.
-
-For Copilot Fusion, use the CLI's names: model `"fusion"` with `CapiSessionOptions.FusionTier` on create or resume, `SetModelOptions.FusionTier` on `SetModel`, or `session.SetFusionTier`. The tiers are `FusionTierStandard`, `FusionTierHigh`, and `FusionTierMax`. The routing identifiers these replace (`balance`, `hydrafusion`, and `hydrafusion-max`, and the `hydrafusion` and `hydrafusion-max` model IDs) remain accepted but are deprecated. See [Copilot Fusion names](../docs/features/session-persistence.md#copilot-fusion-names).
 
 See [Auto tier persistence](../docs/features/session-persistence.md#auto-tier-persistence) for the full lifecycle rules.
 
@@ -1108,7 +1202,6 @@ func main() {
 editFile := copilot.DefineTool("edit_file", "Custom file editor with project-specific validation",
     func(params EditFileParams, inv copilot.ToolInvocation) (any, error) {
         // your logic
-        return nil, nil
     })
 editFile.OverridesBuiltInTool = true
 ```
@@ -1199,7 +1292,6 @@ func main() {
 lookupIssue := copilot.DefineTool("lookup_issue", "Fetch issue details",
     func(params LookupParams, inv copilot.ToolInvocation) (any, error) {
         // your logic
-        return nil, nil
     })
 lookupIssue.Defer = copilot.ToolDeferAuto
 ```
@@ -1492,7 +1584,7 @@ The SDK supports custom OpenAI-compatible API providers (BYOK - Bring Your Own K
 
 **ProviderConfig:**
 
-- `Type` (string): Provider type - "openai", "azure", "anthropic", or "google" (default: "openai"). "google" (experimental) uses Google's native Gemini Interactions API.
+- `Type` (string): Provider type - "openai", "azure", or "anthropic" (default: "openai")
 - `BaseURL` (string): API endpoint URL (required)
 - `APIKey` (string): API key (optional for local providers like Ollama)
 - `BearerToken` (string): Bearer token for authentication (takes precedence over APIKey)
@@ -1549,7 +1641,7 @@ session, err := client.CreateSession(context.Background(), &copilot.SessionConfi
 
 ## Telemetry
 
-The SDK supports OpenTelemetry for distributed tracing. Provide a `Telemetry` config to enable trace export and W3C Trace Context propagation.
+The SDK supports OpenTelemetry for distributed tracing. Provide a `Telemetry` config to enable trace export and automatic W3C Trace Context propagation.
 
 ```go
 client := copilot.NewClient(&copilot.ClientOptions{
@@ -1568,43 +1660,17 @@ client := copilot.NewClient(&copilot.ClientOptions{
 - `SourceName` (string): Instrumentation scope name
 - `CaptureContent` (bool): Whether to capture message content
 
-Trace context (`traceparent`/`tracestate`) is propagated between the SDK and CLI on `CreateSession`, `ResumeSession`, and `Send` calls, and inbound when the CLI invokes tool handlers. The SDK injects and extracts it with the global OpenTelemetry propagator, which drops trace context until your application installs one, so set a W3C Trace Context propagator at startup:
+Trace context (`traceparent`/`tracestate`) is automatically propagated between the SDK and CLI on `CreateSession`, `ResumeSession`, and `Send` calls, and inbound when the CLI invokes tool handlers.
 
-```go
-import (
-    "go.opentelemetry.io/otel"
-    "go.opentelemetry.io/otel/propagation"
-)
-
-otel.SetTextMapPropagator(propagation.TraceContext{})
-```
-
-In a tool handler, `ToolInvocation.TraceContext` is a `context.Context` with the CLI's `execute_tool` span restored. Start your spans from it, for example with `otel.Tracer("my-app").Start(inv.TraceContext, "my-tool")`, so they are parented to that span.
+> **Note:** The current `ToolHandler` signature does not accept a `context.Context`, so the inbound trace context cannot be passed to handler code. Spans created inside a tool handler will not be automatically parented to the CLI's `execute_tool` span. A future version may add a context parameter.
 
 Dependency: `go.opentelemetry.io/otel`
 
 ## Permission Handling
 
-Permission handlers are optional when you create or resume a session. The selected handler returns a decision before each tool executes. With no handler, permission requests remain pending as events for manual resolution.
+Permission handlers are optional when you create or resume a session. When provided, the selected handler is called before the agent executes each tool (file writes, shell commands, custom tools, etc.) and returns a decision. When both handlers are nil, permission requests are emitted as events and left pending for the consumer to resolve with the pending permission RPC.
 
-Use `OnPermissionRequestWithPrompt` when the callback needs optional derived prompt context as `invocation.PromptRequest`, matching `PermissionRequestedData.PromptRequest`. Both callbacks expose `ProgramToolCallID` (nil for ordinary requests); positional `PermissionInvocation` literals need updating. The raw request's managed-approval marker remains managed-policy provenance and enforces one-shot restrictions. Only derived `commands`, `read`, `write`, `url`, and `workflow` prompts can clear the human requirement after Assisted approval; for missing or other prompt kinds, keep the raw marker authoritative.
-
-Use `client.CreateSessionWithPermissionEnvelope(ctx, config, handler)` or `client.ResumeSessionWithPermissionEnvelope(ctx, sessionID, config, handler)` for lossless forwarding.
-The handler receives a `*copilot.PermissionRequestEnvelope` and `PermissionHandlerInvocation`; `envelope.Request` retains the concrete typed variant.
-It overrides the config's permission handlers; a nil handler retains their existing behavior without changing the config.
-
-Use `CreateSessionWithPermissionEnvelopeAndMCPAuthRuntimeRefresh` or `ResumeSessionWithPermissionEnvelopeAndMCPAuthRuntimeRefresh` when both opt-in callbacks must share a session.
-Pass the permission handler first and the MCP refresh handler second.
-Each nil handler retains the corresponding config callbacks without changing the config.
-
-Pass the envelope itself as `rpc.SessionPermissionsManagedReviewRequiredRequest.Request`, not `envelope.Request`.
-The envelope owns the original JSON and initial typed state, so it remains usable after the callback returns.
-
-Typed edits preserve untouched unknown fields, nulls, and numeric precision in objects and same-length arrays (by index).
-Nil optional fields are removed; resized arrays and scalars replace originals.
-Call `envelope.Replace(request)` to replace the entire payload and discard original unknown fields.
-
-Legacy callbacks and plain typed values keep their original field layout and encoding; they do not retain unknown JSON.
+Use `OnPermissionRequestWithPrompt` when the callback needs optional derived prompt context as `invocation.PromptRequest`, matching `PermissionRequestedData.PromptRequest`. The existing `OnPermissionRequest` callback remains available with its original two-field `PermissionInvocation` for source compatibility. The raw request's managed-approval marker remains managed-policy provenance and enforces one-shot restrictions. Only derived `commands`, `read`, `write`, `url`, and `workflow` prompts can clear the human requirement after Assisted approval; for missing or other prompt kinds, keep the raw marker authoritative.
 
 ### Approve All (simplest)
 
@@ -1677,7 +1743,7 @@ Richer decisions (`PermissionDecisionApproveForSession`, `PermissionDecisionAppr
 
 ### Resuming Sessions
 
-You may pass either config permission handler when resuming a session:
+You may pass either permission handler when resuming a session too:
 
 ```go
 session, err := client.ResumeSession(context.Background(), sessionID, &copilot.ResumeSessionConfig{
@@ -1726,44 +1792,6 @@ session, err := client.CreateSession(context.Background(), &copilot.SessionConfi
     },
 })
 ```
-
-### Reporting a person's answers
-
-When a person answers a prompt in your UI, register the attributed handler for that prompt and set `DecisionContext` on its result so Assisted Permissions can treat the answer as the person's own authority. Use `OnAttributedUserInputRequest` (`AttributedUserInputResponse`), `OnAttributedExitPlanModeRequest` (`AttributedExitPlanModeResult`), and `OnAttributedElicitationRequest` (`AttributedElicitationResult`); each result embeds the plain result. For permission handlers, use `copilot.NewAttributedPermissionResult`:
-
-```go
-interactive := copilot.PermissionResponseCapabilityInteractive
-personAnswered := &copilot.PermissionDecisionContext{
-    Source:             copilot.PermissionDecisionSourceHumanResponse,
-    ResponseCapability: &interactive,
-    Surface:            copilot.PermissionDecisionSurfaceSDK,
-    Outcome:            copilot.PermissionDecisionOutcomePromptedUser,
-}
-
-session, err := client.CreateSession(context.Background(), &copilot.SessionConfig{
-    Model: "gpt-5",
-    OnAttributedUserInputRequest: func(request copilot.UserInputRequest, invocation copilot.UserInputInvocation) (copilot.AttributedUserInputResponse, error) {
-        return copilot.AttributedUserInputResponse{
-            UserInputResponse: copilot.UserInputResponse{Answer: "Only src/app.ts", WasFreeform: true},
-            DecisionContext:   personAnswered,
-        }, nil
-    },
-    OnAttributedExitPlanModeRequest: func(request copilot.ExitPlanModeRequest, invocation copilot.ExitPlanModeInvocation) (copilot.AttributedExitPlanModeResult, error) {
-        return copilot.AttributedExitPlanModeResult{
-            ExitPlanModeResult: copilot.ExitPlanModeResult{Approved: true, SelectedAction: "interactive"},
-            DecisionContext:    personAnswered,
-        }, nil
-    },
-    OnAttributedElicitationRequest: func(ctx copilot.ElicitationContext) (copilot.AttributedElicitationResult, error) {
-        return copilot.AttributedElicitationResult{
-            ElicitationResult: copilot.ElicitationResult{Action: copilot.ElicitationActionDecline},
-            DecisionContext:   personAnswered,
-        }, nil
-    },
-})
-```
-
-Label a person's declines and dismissals too; the runtime decides which answers carry authority. It accepts the label only from the connection that owns the session, so other connections' answers still settle, without it. Leave automated answers unlabeled: a nil `DecisionContext` sends no label. Each attributed handler enables its prompt just like the plain one. When a config sets both, the attributed handler answers and the plain one is not called.
 
 ## Session Hooks
 
@@ -2055,6 +2083,23 @@ When `OnElicitationRequest` is provided, the SDK automatically:
 ### stdio (Default)
 
 Communicates with CLI via stdin/stdout pipes. Recommended for most use cases.
+
+<!-- docs-validate: hidden -->
+<!--
+```go
+package main
+
+import (
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+func main() {
+	client := copilot.NewClient(nil) // Uses stdio by default
+	_ = client
+}
+```
+-->
+<!-- /docs-validate: hidden -->
 
 ```go
 client := copilot.NewClient(nil) // Uses stdio by default

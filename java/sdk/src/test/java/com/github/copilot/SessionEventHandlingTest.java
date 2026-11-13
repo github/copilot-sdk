@@ -11,7 +11,6 @@ import static org.mockito.Mockito.*;
 import java.io.Closeable;
 import java.lang.reflect.Method;
 import java.time.Duration;
-import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -52,19 +51,6 @@ import com.github.copilot.rpc.ToolDefinition;
 public class SessionEventHandlingTest {
 
     private CopilotSession session;
-
-    @Test
-    @SuppressWarnings("deprecation")
-    void externalToolRequestPreservesPositionalConstructors() {
-        var omitted = new ExternalToolRequestedEvent.ExternalToolRequestedEventData("request", "session", "call",
-                "tool", "provider", null, null, null, null);
-        var explicit = new ExternalToolRequestedEvent.ExternalToolRequestedEventData("request", "session", "call",
-                "tool", null, null, null, null, null, java.util.Set.of("providerId"));
-        assertEquals("provider", omitted.providerId());
-        assertNull(omitted.hasHandler());
-        assertTrue(explicit.$nullableProperties().containsKey("providerId"));
-        assertNull(explicit.hasHandler());
-    }
 
     @BeforeEach
     void setup() throws Exception {
@@ -144,15 +130,13 @@ public class SessionEventHandlingTest {
         })));
 
         var requested = new ExternalToolRequestedEvent();
-        requested.setData(ExternalToolRequestedEvent.ExternalToolRequestedEventData.builder().requestId("request-1")
-                .sessionId("test-session-id").toolCallId("tool-call-1").toolName("blocked_tool").providerId(null)
-                .arguments(Map.of()).workingDirectory(null).traceparent(null).tracestate(null).build());
+        requested.setData(new ExternalToolRequestedEvent.ExternalToolRequestedEventData("request-1", "test-session-id",
+                "tool-call-1", "blocked_tool", null, Map.of(), null, null, null));
         dispatchEvent(requested);
         assertTrue(started.await(1, TimeUnit.SECONDS));
 
         var completed = new ExternalToolCompletedEvent();
-        completed.setData(
-                ExternalToolCompletedEvent.ExternalToolCompletedEventData.builder().requestId("request-1").build());
+        completed.setData(new ExternalToolCompletedEvent.ExternalToolCompletedEventData("request-1"));
         dispatchEvent(completed);
 
         assertThrows(CancellationException.class, () -> toolFuture.get(1, TimeUnit.SECONDS));
@@ -172,9 +156,8 @@ public class SessionEventHandlingTest {
         })));
 
         var requested = new ExternalToolRequestedEvent();
-        requested.setData(ExternalToolRequestedEvent.ExternalToolRequestedEventData.builder().requestId("request-close")
-                .sessionId("test-session-id").toolCallId("tool-call-close").toolName("blocked_tool").providerId(null)
-                .arguments(Map.of()).workingDirectory(null).traceparent(null).tracestate(null).build());
+        requested.setData(new ExternalToolRequestedEvent.ExternalToolRequestedEventData("request-close",
+                "test-session-id", "tool-call-close", "blocked_tool", null, Map.of(), null, null, null));
         dispatchEvent(requested);
         assertTrue(started.await(1, TimeUnit.SECONDS));
 
@@ -199,15 +182,13 @@ public class SessionEventHandlingTest {
                 })));
 
         var requested = new ExternalToolRequestedEvent();
-        requested.setData(ExternalToolRequestedEvent.ExternalToolRequestedEventData.builder().requestId("request-sync")
-                .sessionId("test-session-id").toolCallId("tool-call-sync").toolName("blocked_tool").providerId(null)
-                .arguments(Map.of()).workingDirectory(null).traceparent(null).tracestate(null).build());
+        requested.setData(new ExternalToolRequestedEvent.ExternalToolRequestedEventData("request-sync",
+                "test-session-id", "tool-call-sync", "blocked_tool", null, Map.of(), null, null, null));
         dispatchEvent(requested);
         assertTrue(started.await(1, TimeUnit.SECONDS));
 
         var completed = new ExternalToolCompletedEvent();
-        completed.setData(
-                ExternalToolCompletedEvent.ExternalToolCompletedEventData.builder().requestId("request-sync").build());
+        completed.setData(new ExternalToolCompletedEvent.ExternalToolCompletedEventData("request-sync"));
         try {
             assertTimeoutPreemptively(Duration.ofSeconds(1), () -> dispatchEvent(completed));
         } finally {
@@ -229,10 +210,8 @@ public class SessionEventHandlingTest {
         })));
 
         var requested = new ExternalToolRequestedEvent();
-        requested.setData(ExternalToolRequestedEvent.ExternalToolRequestedEventData.builder()
-                .requestId("request-search").sessionId("test-session-id").toolCallId("tool-call-search")
-                .toolName("tool_search_tool").providerId(null).arguments(Map.of()).workingDirectory(null)
-                .traceparent(null).tracestate(null).build());
+        requested.setData(new ExternalToolRequestedEvent.ExternalToolRequestedEventData("request-search",
+                "test-session-id", "tool-call-search", "tool_search_tool", null, Map.of(), null, null, null));
         dispatchEvent(requested);
 
         assertTrue(invoked.await(1, TimeUnit.SECONDS));
@@ -321,10 +300,8 @@ public class SessionEventHandlingTest {
             dispatchEvent(childMessage);
             var childError = new SessionErrorEvent();
             childError.setAgentId("child-1");
-            childError.setData(SessionErrorEvent.SessionErrorEventData.builder().originatingMessageId("message-1")
-                    .errorType("query").errorCode(null).providerErrorType(null).providerErrorParam(null)
-                    .eligibleForAutoSwitch(null).message("child failed").remediation(null).stack(null).statusCode(null)
-                    .providerCallId(null).serviceRequestId(null).url(null).build());
+            childError.setData(new SessionErrorEvent.SessionErrorEventData("message-1", "query", null, null, null, null,
+                    "child failed", null, null, null, null, null, null));
             dispatchEvent(childError);
             var childIdle = createSessionIdleEvent();
             childIdle.setAgentId("child-1");
@@ -1120,11 +1097,8 @@ public class SessionEventHandlingTest {
 
     private SessionStartEvent createSessionStartEvent(String sessionId) {
         var event = new SessionStartEvent();
-        var data = SessionStartEvent.SessionStartEventData.builder().sessionId(sessionId).version(1L).producer("test")
-                .copilotVersion("test").startTime(OffsetDateTime.parse("2026-01-01T00:00:00Z")).selectedModel(null)
-                .reasoningEffort(null).reasoningEffortModel(null).reasoningSummary(null).verbosity(null)
-                .contextTier(null).autoTier(null).sessionLimits(null).context(null).gitHubMcpToolConfig(null)
-                .alreadyInUse(null).remoteSteerable(null).detachedFromSpawningParentSessionId(null).build();
+        var data = new SessionStartEvent.SessionStartEventData(sessionId, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null);
         event.setData(data);
         return event;
     }
@@ -1137,12 +1111,9 @@ public class SessionEventHandlingTest {
 
     private AssistantMessageEvent createAssistantMessageEvent(String content) {
         var event = new AssistantMessageEvent();
-        var data = AssistantMessageEvent.AssistantMessageEventData.builder().messageId("assistant-message")
-                .originatingMessageId(null).model(null).providerId(null).content(content).toolRequests(null)
-                .reasoningOpaque(null).reasoningText(null).reasoningWireField(null).encryptedContent(null).phase(null)
-                .chunkIndex(null).chunkCount(null).outputTokens(null).interactionId(null).requestId(null)
-                .clientRequestId(null).serviceRequestId(null).rte(null).apiCallId(null).serverTools(null)
-                .reasoningBlocks(null).turnId(null).parentToolCallId(null).citations(null).fusion(null).build();
+        var data = new AssistantMessageEvent.AssistantMessageEventData(null, null, null, null, content, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null);
         event.setData(data);
         return event;
     }
@@ -1153,7 +1124,7 @@ public class SessionEventHandlingTest {
 
     private SessionIdleEvent createSessionIdleEvent(SessionMode mode) {
         var event = new SessionIdleEvent();
-        event.setData(SessionIdleEvent.SessionIdleEventData.builder().aborted(null).mode(mode).build());
+        event.setData(new SessionIdleEvent.SessionIdleEventData(null, mode));
         return event;
     }
 }

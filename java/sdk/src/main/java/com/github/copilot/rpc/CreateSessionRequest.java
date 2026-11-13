@@ -13,7 +13,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 import com.github.copilot.CopilotExperimental;
 import com.github.copilot.generated.rpc.DiagnosticsConfiguration;
-import com.github.copilot.generated.rpc.PermissionMode;
 import com.github.copilot.generated.rpc.SandboxConfig;
 import com.github.copilot.generated.rpc.SessionLimitsConfig;
 import com.github.copilot.generated.rpc.AutopilotOptions;
@@ -49,9 +48,6 @@ public final class CreateSessionRequest {
     @JsonProperty("reasoningSummary")
     private String reasoningSummary;
 
-    @JsonProperty("allowMultipleToolCalls")
-    private Boolean allowMultipleToolCalls;
-
     @JsonProperty("contextTier")
     private String contextTier;
 
@@ -72,8 +68,9 @@ public final class CreateSessionRequest {
 
     @JsonProperty("excludedBuiltinAgents")
     private List<String> excludedBuiltInAgents;
-    @JsonProperty("includedBuiltinAgents")
-    private List<String> includedBuiltInAgents;
+
+    @JsonProperty("toolFilterPrecedence")
+    private String toolFilterPrecedence;
 
     @JsonProperty("provider")
     private ProviderConfig provider;
@@ -106,9 +103,6 @@ public final class CreateSessionRequest {
 
     @JsonProperty("requestUserInput")
     private Boolean requestUserInput;
-
-    @JsonProperty("requestShellAuthentication")
-    private Boolean requestShellAuthentication;
 
     @JsonProperty("hooks")
     private Boolean hooks;
@@ -238,10 +232,6 @@ public final class CreateSessionRequest {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private Boolean hasSkillProvider;
 
-    @JsonProperty("hasMemoryStore")
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private Boolean hasMemoryStore;
-
     @JsonProperty("embeddingCacheStorage")
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private String embeddingCacheStorage;
@@ -267,9 +257,6 @@ public final class CreateSessionRequest {
 
     @JsonProperty("requestAutoModeSwitch")
     private Boolean requestAutoModeSwitch;
-
-    @JsonProperty("requestAutoModeRecovery")
-    private Boolean requestAutoModeRecovery;
 
     @JsonProperty("modelCapabilities")
     private ModelCapabilitiesOverride modelCapabilities;
@@ -306,10 +293,6 @@ public final class CreateSessionRequest {
     @JsonProperty("interactiveUser")
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private Boolean interactiveUser;
-
-    @JsonProperty("permissionMode")
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private PermissionMode permissionMode;
 
     @JsonProperty("managedSettings")
     @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -378,19 +361,6 @@ public final class CreateSessionRequest {
      */
     public void setReasoningSummary(String reasoningSummary) {
         this.reasoningSummary = reasoningSummary;
-    }
-
-    /** Gets the model multiple-tool-call preference. @return the preference */
-    public Boolean getAllowMultipleToolCalls() {
-        return allowMultipleToolCalls;
-    }
-
-    /**
-     * Sets the model multiple-tool-call preference. @param allowMultipleToolCalls
-     * the preference
-     */
-    public void setAllowMultipleToolCalls(boolean allowMultipleToolCalls) {
-        this.allowMultipleToolCalls = allowMultipleToolCalls;
     }
 
     /** Gets the context window tier. @return the context window tier */
@@ -465,17 +435,17 @@ public final class CreateSessionRequest {
         this.excludedBuiltInAgents = excludedBuiltInAgents;
     }
 
-    /** Gets the built-in subagent allowlist. @return the allowlist, or null */
-    public List<String> getIncludedBuiltInAgents() {
-        return includedBuiltInAgents == null ? null : Collections.unmodifiableList(includedBuiltInAgents);
+    /** Gets the tool filter precedence. @return the precedence value */
+    public String getToolFilterPrecedence() {
+        return toolFilterPrecedence;
     }
 
     /**
-     * Sets the built-in subagent allowlist. @param includedBuiltInAgents the
-     * allowlist
+     * Sets the tool filter precedence. @param toolFilterPrecedence the precedence
+     * ("excluded" or null)
      */
-    public void setIncludedBuiltInAgents(List<String> includedBuiltInAgents) {
-        this.includedBuiltInAgents = includedBuiltInAgents;
+    public void setToolFilterPrecedence(String toolFilterPrecedence) {
+        this.toolFilterPrecedence = toolFilterPrecedence;
     }
 
     /** Gets the provider config. @return the provider */
@@ -620,27 +590,6 @@ public final class CreateSessionRequest {
      */
     public void clearRequestUserInput() {
         this.requestUserInput = null;
-    }
-
-    /** Gets request shell authentication flag. @return the flag */
-    public Boolean getRequestShellAuthentication() {
-        return requestShellAuthentication;
-    }
-
-    /**
-     * Sets request shell authentication flag. @param requestShellAuthentication the
-     * flag
-     */
-    public void setRequestShellAuthentication(boolean requestShellAuthentication) {
-        this.requestShellAuthentication = requestShellAuthentication;
-    }
-
-    /**
-     * Clears the requestShellAuthentication setting, reverting to the default
-     * behavior.
-     */
-    public void clearRequestShellAuthentication() {
-        this.requestShellAuthentication = null;
     }
 
     /** Gets hooks flag. @return the flag */
@@ -1151,21 +1100,6 @@ public final class CreateSessionRequest {
         this.hasSkillProvider = null;
     }
 
-    /** Gets memory-store availability flag. @return the flag */
-    public Boolean getHasMemoryStore() {
-        return hasMemoryStore;
-    }
-
-    /** Sets memory-store availability flag. @param hasMemoryStore the flag */
-    public void setHasMemoryStore(boolean hasMemoryStore) {
-        this.hasMemoryStore = hasMemoryStore;
-    }
-
-    /** Clears the hasMemoryStore setting, reverting to the default behavior. */
-    public void clearHasMemoryStore() {
-        this.hasMemoryStore = null;
-    }
-
     /** Gets embedding cache storage mode. @return the mode */
     public String getEmbeddingCacheStorage() {
         return embeddingCacheStorage;
@@ -1323,16 +1257,6 @@ public final class CreateSessionRequest {
         this.requestAutoModeSwitch = requestAutoModeSwitch;
     }
 
-    /** Gets the recovery enrollment flag. @return the flag, or {@code null} */
-    public Boolean getRequestAutoModeRecovery() {
-        return requestAutoModeRecovery;
-    }
-
-    /** Sets recovery enrollment. @param requestAutoModeRecovery the flag */
-    public void setRequestAutoModeRecovery(Boolean requestAutoModeRecovery) {
-        this.requestAutoModeRecovery = requestAutoModeRecovery;
-    }
-
     /** Gets the model capabilities override. @return the override */
     public ModelCapabilitiesOverride getModelCapabilities() {
         return modelCapabilities;
@@ -1481,21 +1405,6 @@ public final class CreateSessionRequest {
     /** Clears the interactiveUser setting, reverting to the default behavior. */
     public void clearInteractiveUser() {
         this.interactiveUser = null;
-    }
-
-    /** @return the initial permission mode, or {@code null} when unset */
-    @CopilotExperimental
-    public PermissionMode getPermissionMode() {
-        return permissionMode;
-    }
-
-    /**
-     * @param permissionMode
-     *            the permission mode to apply before the session's first turn
-     */
-    @CopilotExperimental
-    public void setPermissionMode(PermissionMode permissionMode) {
-        this.permissionMode = permissionMode;
     }
 
     /** @return host-injected managed settings, or {@code null} when unset */

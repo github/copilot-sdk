@@ -68,10 +68,6 @@ export interface RuntimeLifecycleSystemStateData {
  * Observed state of one readiness or convergence operation.
  */
 export interface RuntimeLifecycleOperation {
-  /**
-   * Complete dependency blocker set after this operation change.
-   */
-  blockers: RuntimeLifecycleBlocker[];
   disposition?: RuntimeLifecycleDisposition;
   /**
    * Opaque operation identifier, unique within the lifecycle incarnation and system.
@@ -94,50 +90,6 @@ export interface RuntimeLifecycleOperation {
    * System-owned reason the operation started.
    */
   trigger: string;
-}
-/**
- * Exact lifecycle operation awaited by a real dependency wait.
- */
-export interface RuntimeLifecycleBlocker {
-  /**
-   * Opaque blocker identifier, stable for one guard lifetime and scoped to its owner.
-   */
-  blockerId: string;
-  /**
-   * Current phase of the awaited operation.
-   */
-  currentPhase: string;
-  /**
-   * Current production boundary of the awaited operation.
-   */
-  currentStep: string;
-  operationDisposition?: RuntimeLifecycleDisposition;
-  /**
-   * Opaque awaited operation identifier.
-   */
-  operationId: string;
-  /**
-   * Awaited operation revision observed by this blocker.
-   */
-  operationRevision: number;
-  /**
-   * System-owned capability required by the blocker owner.
-   */
-  requirement: string;
-  /**
-   * System that owns the awaited operation.
-   */
-  system: string;
-  timing: RuntimeLifecycleBlockerTiming;
-}
-/**
- * Timing of one real dependency wait.
- */
-export interface RuntimeLifecycleBlockerTiming {
-  /**
-   * ISO 8601 timestamp when this dependency began blocking its owner.
-   */
-  blockingSince: string;
 }
 /**
  * Fixed timestamps for one observed operation revision.
@@ -175,10 +127,6 @@ export interface RuntimeLifecycleProgressStateDiagnosticEvent {
  */
 export interface RuntimeLifecycleProgressStateData {
   /**
-   * Agent that owns this progress. Absent for the primary agent and progress without an agent owner.
-   */
-  agentId?: string;
-  /**
    * Complete dependency blocker set after this progress change.
    */
   blockers: RuntimeLifecycleBlocker[];
@@ -209,6 +157,46 @@ export interface RuntimeLifecycleProgressStateData {
    */
   sessionId: string;
   timing: RuntimeLifecycleProgressTiming;
+}
+/**
+ * Exact lifecycle operation awaited by a real dependency wait.
+ */
+export interface RuntimeLifecycleBlocker {
+  /**
+   * Current phase of the awaited operation.
+   */
+  currentPhase: string;
+  /**
+   * Current production boundary of the awaited operation.
+   */
+  currentStep: string;
+  operationDisposition?: RuntimeLifecycleDisposition;
+  /**
+   * Opaque awaited operation identifier.
+   */
+  operationId: string;
+  /**
+   * Awaited operation revision observed by this blocker.
+   */
+  operationRevision: number;
+  /**
+   * System-owned capability required by the progress owner.
+   */
+  requirement: string;
+  /**
+   * System that owns the awaited operation.
+   */
+  system: string;
+  timing: RuntimeLifecycleBlockerTiming;
+}
+/**
+ * Timing of one real dependency wait.
+ */
+export interface RuntimeLifecycleBlockerTiming {
+  /**
+   * ISO 8601 timestamp when this dependency began blocking progress.
+   */
+  blockingSince: string;
 }
 /**
  * Immutable causal origin of a progress record with independent identity and settlement.

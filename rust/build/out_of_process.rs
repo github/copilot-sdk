@@ -462,10 +462,7 @@ fn extract_binary_bytes(archive: &[u8], platform: Platform) -> Vec<u8> {
             let name = entry
                 .name()
                 .unwrap_or_else(|e| panic!("failed to read zip entry {i} name: {e}"));
-            if name == platform.binary_name
-                || name
-                    .strip_suffix(platform.binary_name)
-                    .is_some_and(|prefix| prefix.ends_with('/'))
+            if name == platform.binary_name || name.ends_with(&format!("/{}", platform.binary_name))
             {
                 let mut bytes = Vec::with_capacity(entry.size() as usize);
                 std::io::copy(&mut entry, &mut bytes)
@@ -485,10 +482,7 @@ fn extract_binary_bytes(archive: &[u8], platform: Platform) -> Vec<u8> {
                 .path()
                 .unwrap_or_else(|e| panic!("failed to read tar entry path: {e}"));
             let name = path.to_string_lossy().into_owned();
-            if name == platform.binary_name
-                || name
-                    .strip_suffix(platform.binary_name)
-                    .is_some_and(|prefix| prefix.ends_with('/'))
+            if name == platform.binary_name || name.ends_with(&format!("/{}", platform.binary_name))
             {
                 let mut bytes = Vec::with_capacity(entry.size() as usize);
                 entry
@@ -651,11 +645,7 @@ fn archive_contains_tar_entry(targz: &[u8], binary_name: &str) -> bool {
             continue;
         };
         let name = path.to_string_lossy();
-        if name == binary_name
-            || name
-                .strip_suffix(binary_name)
-                .is_some_and(|prefix| prefix.ends_with('/'))
-        {
+        if name == binary_name || name.ends_with(&format!("/{binary_name}")) {
             return true;
         }
     }
@@ -674,11 +664,7 @@ fn archive_contains_zip_entry(zip_bytes: &[u8], binary_name: &str) -> bool {
         let name = entry
             .name()
             .unwrap_or_else(|e| panic!("failed to read zip entry {i} name: {e}"));
-        if name == binary_name
-            || name
-                .strip_suffix(binary_name)
-                .is_some_and(|prefix| prefix.ends_with('/'))
-        {
+        if name == binary_name || name.ends_with(&format!("/{binary_name}")) {
             return true;
         }
     }
@@ -686,11 +672,5 @@ fn archive_contains_zip_entry(zip_bytes: &[u8], binary_name: &str) -> bool {
 }
 
 fn hex_sha256(data: &[u8]) -> String {
-    use std::fmt::Write as _;
-
-    let mut encoded = String::with_capacity(64);
-    for byte in sha256(data) {
-        write!(encoded, "{byte:02x}").expect("writing to a String cannot fail");
-    }
-    encoded
+    sha256(data).iter().map(|b| format!("{b:02x}")).collect()
 }

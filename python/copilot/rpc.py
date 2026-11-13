@@ -15,11 +15,5 @@ from .generated.rpc import (
 )
 from .generated.rpc import __all__ as _generated_all
 from .generated.session_events import PermissionDecisionSource
-from .provider_configuration import to_saved_provider_configuration
 
-__all__ = [
-    *_generated_all,
-    "PermissionDecisionSource",
-    "UIElicitationSchemaType",
-    "to_saved_provider_configuration",
-]
+__all__ = [*_generated_all, "PermissionDecisionSource", "UIElicitationSchemaType"]

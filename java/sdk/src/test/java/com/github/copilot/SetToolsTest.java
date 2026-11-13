@@ -62,8 +62,6 @@ class SetToolsTest {
         assertEquals("", payload.at("/tools/0/description").asText());
         assertEquals("object", payload.at("/tools/0/parameters/type").asText());
         assertFalse(payload.at("/tools/0").has("handler"));
-        assertTrue(payload.at("/tools/0/hasHandler").booleanValue());
-        assertFalse(payload.at("/tools/1/hasHandler").booleanValue());
         assertEquals("declaration_only", payload.at("/tools/1/name").asText());
         assertEquals("", payload.at("/tools/1/description").asText());
         assertTrue(payload.at("/tools/1/overridesBuiltInTool").asBoolean());
@@ -103,23 +101,6 @@ class SetToolsTest {
         dispatchToolRequest("request-after-reject", "lookup");
         waitForCalls(originalCalls, List.of("lookup"));
         assertTrue(replacementCalls.isEmpty());
-    }
-
-    @Test
-    void nullToolAndNamespaceNamesRemainOmittedOnTheWire() throws Exception {
-        var rejected = new CompletableFuture<Void>();
-        List<ObjectNode> requests = captureSetToolsRequests(rejected);
-        var tool = new ToolDefinition(null, "Description", Map.of("type", "object"), null, null, null, null, null, null)
-                .namespace(new ToolNamespace(null, "Namespace"));
-
-        var pending = assertDoesNotThrow(() -> session.setTools(List.of(tool)));
-
-        assertEquals(1, requests.size());
-        assertFalse(requests.get(0).at("/tools/0").has("name"));
-        assertFalse(requests.get(0).at("/tools/0/namespace").has("name"));
-        rejected.completeExceptionally(new IllegalArgumentException("invalid params"));
-        var error = assertThrows(ExecutionException.class, () -> pending.get(1, TimeUnit.SECONDS));
-        assertInstanceOf(IllegalArgumentException.class, error.getCause());
     }
 
     @Test
@@ -241,9 +222,8 @@ class SetToolsTest {
 
     private void dispatchToolRequest(String requestId, String toolName) {
         var requested = new ExternalToolRequestedEvent();
-        requested.setData(ExternalToolRequestedEvent.ExternalToolRequestedEventData.builder().requestId(requestId)
-                .sessionId("set-tools-session").toolCallId("tool-call-" + requestId).toolName(toolName).providerId(null)
-                .arguments(Map.of()).workingDirectory(null).traceparent(null).tracestate(null).build());
+        requested.setData(new ExternalToolRequestedEvent.ExternalToolRequestedEventData(requestId, "set-tools-session",
+                "tool-call-" + requestId, toolName, null, Map.of(), null, null, null));
         try {
             Method dispatchMethod = CopilotSession.class.getDeclaredMethod("dispatchEvent",
                     com.github.copilot.generated.SessionEvent.class);

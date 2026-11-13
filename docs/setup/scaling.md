@@ -65,47 +65,7 @@ flowchart TB
 * Users with different auth credentials
 * Compliance requirements (SOC 2, HIPAA)
 
-<!-- docs-validate: hidden -->
 ```typescript
-import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
-
-declare function spawnCLI(port: number, token?: string): Promise<void>;
-
-class CLIPool {
-    private instances = new Map<string, { client: CopilotClient; port: number }>();
-    private nextPort = 5000;
-
-    async getClientForUser(userId: string, token?: string): Promise<CopilotClient> {
-        if (this.instances.has(userId)) {
-            return this.instances.get(userId)!.client;
-        }
-
-        const port = this.nextPort++;
-
-        // Spawn a dedicated CLI for this user
-        await spawnCLI(port, token);
-
-        const client = new CopilotClient({
-            connection: RuntimeConnection.forUri(`localhost:${port}`),
-        });
-
-        this.instances.set(userId, { client, port });
-        return client;
-    }
-
-    async releaseUser(userId: string): Promise<void> {
-        const instance = this.instances.get(userId);
-        if (instance) {
-            await instance.client.stop();
-            this.instances.delete(userId);
-        }
-    }
-}
-```
-<!-- /docs-validate: hidden -->
-```typescript
-import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
-
 // CLI pool manager — one CLI per user
 class CLIPool {
     private instances = new Map<string, { client: CopilotClient; port: number }>();
@@ -177,8 +137,6 @@ flowchart TB
 * Lower isolation requirements
 
 ```typescript
-import { CopilotClient, RuntimeConnection, type CopilotSession } from "@github/copilot-sdk";
-
 const sharedClient = new CopilotClient({
     connection: RuntimeConnection.forUri("localhost:4321"),
 });
@@ -192,7 +150,7 @@ function getSessionId(userId: string, purpose: string): string {
 async function resumeSessionWithAuth(
     sessionId: string,
     currentUserId: string
-): Promise<CopilotSession> {
+): Promise<Session> {
     const [sessionUserId] = sessionId.split("-");
     if (sessionUserId !== currentUserId) {
         throw new Error("Access denied: session belongs to another user");
@@ -238,21 +196,8 @@ flowchart TB
 
 > ⚠️ **Important:** The SDK doesn't provide built-in session locking. You **must** serialize access to prevent concurrent writes to the same session.
 
-<!-- docs-validate: hidden -->
 ```typescript
-import { Redis } from "ioredis";
-
-declare const app: {
-    post(
-        path: string,
-        middleware: unknown,
-        handler: (
-            req: { body: { message: string } },
-            res: { json(body: unknown): void },
-        ) => Promise<void>,
-    ): void;
-};
-declare const authMiddleware: unknown;
+import Redis from "ioredis";
 
 const redis = new Redis();
 
@@ -265,48 +210,7 @@ async function withSessionLock<T>(
     const lockId = crypto.randomUUID();
 
     // Acquire lock
-    const acquired = await redis.set(lockKey, lockId, "EX", timeoutSec, "NX");
-    if (!acquired) {
-        throw new Error("Session is in use by another user");
-    }
-
-    try {
-        return await fn();
-    } finally {
-        // Release lock (only if we still own it)
-        const currentLock = await redis.get(lockKey);
-        if (currentLock === lockId) {
-            await redis.del(lockKey);
-        }
-    }
-}
-
-// Usage: serialize access to shared session
-app.post("/team-chat", authMiddleware, async (req, res) => {
-    const result = await withSessionLock("team-project-review", async () => {
-        const session = await client.resumeSession("team-project-review", {});
-        return session.sendAndWait({ prompt: req.body.message });
-    });
-
-    res.json({ content: result?.data.content });
-});
-```
-<!-- /docs-validate: hidden -->
-```typescript
-import { Redis } from "ioredis";
-
-const redis = new Redis();
-
-async function withSessionLock<T>(
-    sessionId: string,
-    fn: () => Promise<T>,
-    timeoutSec = 300
-): Promise<T> {
-    const lockKey = `session-lock:${sessionId}`;
-    const lockId = crypto.randomUUID();
-
-    // Acquire lock
-    const acquired = await redis.set(lockKey, lockId, "EX", timeoutSec, "NX");
+    const acquired = await redis.set(lockKey, lockId, "NX", "EX", timeoutSec);
     if (!acquired) {
         throw new Error("Session is in use by another user");
     }
@@ -375,74 +279,7 @@ flowchart TB
 
 **Key requirement:** Session state must be on **shared storage** so any CLI server can resume any session.
 
-<!-- docs-validate: hidden -->
 ```typescript
-import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
-
-declare const app: {
-    post(
-        path: string,
-        handler: (
-            req: { user: { id: string }; body: { message: string; prompt: string; sessionId: string } },
-            res: { json(body: unknown): void },
-        ) => Promise<void>,
-    ): void;
-};
-
-class CLILoadBalancer {
-    private servers: string[];
-    private currentIndex = 0;
-
-    constructor(servers: string[]) {
-        this.servers = servers;
-    }
-
-    // Round-robin selection
-    getNextServer(): string {
-        const server = this.servers[this.currentIndex];
-        this.currentIndex = (this.currentIndex + 1) % this.servers.length;
-        return server;
-    }
-
-    // Sticky sessions: same user always hits same server
-    getServerForUser(userId: string): string {
-        const hash = this.hashCode(userId);
-        return this.servers[hash % this.servers.length];
-    }
-
-    private hashCode(str: string): number {
-        let hash = 0;
-        for (let i = 0; i < str.length; i++) {
-            hash = (hash << 5) - hash + str.charCodeAt(i);
-            hash |= 0;
-        }
-        return Math.abs(hash);
-    }
-}
-
-const lb = new CLILoadBalancer([
-    "cli-1:4321",
-    "cli-2:4321",
-    "cli-3:4321",
-]);
-
-app.post("/chat", async (req, res) => {
-    const server = lb.getServerForUser(req.user.id);
-    const client = new CopilotClient({ connection: RuntimeConnection.forUri(server) });
-
-    const session = await client.createSession({
-        sessionId: `user-${req.user.id}-chat`,
-        model: "auto",
-    });
-
-    const response = await session.sendAndWait({ prompt: req.body.message });
-    res.json({ content: response?.data.content });
-});
-```
-<!-- /docs-validate: hidden -->
-```typescript
-import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
-
 // Route sessions to CLI servers
 class CLILoadBalancer {
     private servers: string[];
@@ -487,7 +324,7 @@ app.post("/chat", async (req, res) => {
 
     const session = await client.createSession({
         sessionId: `user-${req.user.id}-chat`,
-        model: "auto",
+        model: "gpt-5.4",
     });
 
     const response = await session.sendAndWait({ prompt: req.body.message });
@@ -544,18 +381,16 @@ flowchart TB
 **Session lifecycle management** is key to vertical scaling:
 
 ```typescript
-import type { CopilotSession } from "@github/copilot-sdk";
-
 // Limit concurrent active sessions
 class SessionManager {
-    private activeSessions = new Map<string, CopilotSession>();
+    private activeSessions = new Map<string, Session>();
     private maxConcurrent: number;
 
     constructor(maxConcurrent = 50) {
         this.maxConcurrent = maxConcurrent;
     }
 
-    async getSession(sessionId: string): Promise<CopilotSession> {
+    async getSession(sessionId: string): Promise<Session> {
         // Return existing active session
         if (this.activeSessions.has(sessionId)) {
             return this.activeSessions.get(sessionId)!;
@@ -569,7 +404,7 @@ class SessionManager {
         // Create or resume
         const session = await client.createSession({
             sessionId,
-            model: "auto",
+            model: "gpt-5.4",
         });
 
         this.activeSessions.set(sessionId, session);
@@ -612,38 +447,10 @@ flowchart LR
 
 For stateless API endpoints where each request is independent:
 
-<!-- docs-validate: hidden -->
-```typescript
-declare const app: {
-    post(
-        path: string,
-        handler: (
-            req: { user: { id: string }; body: { message: string; prompt: string; sessionId: string } },
-            res: { json(body: unknown): void },
-        ) => Promise<void>,
-    ): void;
-};
-
-app.post("/api/analyze", async (req, res) => {
-    const session = await client.createSession({
-        model: "auto",
-    });
-
-    try {
-        const response = await session.sendAndWait({
-            prompt: req.body.prompt,
-        });
-        res.json({ result: response?.data.content });
-    } finally {
-        await session.disconnect();  // Clean up immediately
-    }
-});
-```
-<!-- /docs-validate: hidden -->
 ```typescript
 app.post("/api/analyze", async (req, res) => {
     const session = await client.createSession({
-        model: "auto",
+        model: "gpt-5.4",
     });
 
     try {
@@ -661,49 +468,6 @@ app.post("/api/analyze", async (req, res) => {
 
 For conversational interfaces or long-running workflows:
 
-<!-- docs-validate: hidden -->
-```typescript
-declare const app: {
-    post(
-        path: string,
-        handler: (
-            req: { user: { id: string }; body: { message: string; prompt: string; sessionId: string } },
-            res: { json(body: unknown): void },
-        ) => Promise<void>,
-    ): void;
-};
-
-// Create a resumable session
-app.post("/api/chat/start", async (req, res) => {
-    const sessionId = `user-${req.user.id}-${Date.now()}`;
-
-    const session = await client.createSession({
-        sessionId,
-        model: "auto",
-        infiniteSessions: {
-            enabled: true,
-            backgroundCompactionThreshold: 0.80,
-        },
-    });
-
-    res.json({ sessionId });
-});
-
-// Continue the conversation
-app.post("/api/chat/message", async (req, res) => {
-    const session = await client.resumeSession(req.body.sessionId, {});
-    const response = await session.sendAndWait({ prompt: req.body.message });
-
-    res.json({ content: response?.data.content });
-});
-
-// Clean up when done
-app.post("/api/chat/end", async (req, res) => {
-    await client.deleteSession(req.body.sessionId);
-    res.json({ success: true });
-});
-```
-<!-- /docs-validate: hidden -->
 ```typescript
 // Create a resumable session
 app.post("/api/chat/start", async (req, res) => {
@@ -711,7 +475,7 @@ app.post("/api/chat/start", async (req, res) => {
 
     const session = await client.createSession({
         sessionId,
-        model: "auto",
+        model: "gpt-5.4",
         infiniteSessions: {
             enabled: true,
             backgroundCompactionThreshold: 0.80,
@@ -765,14 +529,6 @@ spec:
                 secretKeyRef:
                   name: copilot-secrets
                   key: github-token
-            # A non-loopback bind (--host 0.0.0.0) requires a connection token,
-            # or the server refuses to start. Clients pass the same value as
-            # `connectionToken` to RuntimeConnection.forUri (see backend-services.md).
-            - name: COPILOT_CONNECTION_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: copilot-secrets
-                  key: connection-token
           ports:
             - containerPort: 4321
           volumeMounts:
@@ -824,14 +580,6 @@ containers:
   - name: copilot-cli
     image: your-registry/copilot-cli:latest  # See backend-services.md for how to build and push this image
     command: ["copilot", "--headless", "--host", "0.0.0.0", "--port", "4321"]
-    # A non-loopback bind (--host 0.0.0.0) requires COPILOT_CONNECTION_TOKEN to be
-    # set to a non-empty value, or the server refuses to start. Supply it from your
-    # secret store and pass the same value as `connectionToken` from the SDK client.
-    environmentVariables:
-      - name: COPILOT_GITHUB_TOKEN
-        secureValue: your-github-token
-      - name: COPILOT_CONNECTION_TOKEN
-        secureValue: your-connection-token
     volumeMounts:
       - name: session-storage
         mountPath: /root/.copilot/session-state

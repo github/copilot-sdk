@@ -4,8 +4,6 @@
 
 package com.github.copilot;
 
-import org.junit.jupiter.api.Tag;
-
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.List;
@@ -21,6 +19,7 @@ import com.github.copilot.generated.SessionEvent;
 import com.github.copilot.generated.SessionUsageInfoEvent;
 import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.PermissionHandler;
+import com.github.copilot.rpc.SessionConfig;
 
 /**
  * E2E tests for event fidelity — verifying the shape, ordering, and presence of
@@ -30,7 +29,6 @@ import com.github.copilot.rpc.PermissionHandler;
  * Snapshots are stored in {@code test/snapshots/event_fidelity/}.
  * </p>
  */
-@Tag("e2e")
 public class EventFidelityTest {
 
     private static E2ETestContext ctx;
@@ -60,7 +58,7 @@ public class EventFidelityTest {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             List<SessionEvent> events = new CopyOnWriteArrayList<>();
             session.on(events::add);
@@ -94,7 +92,7 @@ public class EventFidelityTest {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             List<SessionEvent> events = new CopyOnWriteArrayList<>();
             session.on(events::add);

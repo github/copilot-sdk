@@ -71,9 +71,7 @@ behavior.
 download, binary discovery, launch implementation, or native runtime embedding.
 Use `Client::from_streams(reader, writer, cwd)`, or
 `Client::from_streams_with_entra(reader, writer, cwd, Some(entra))` for Entra.
-Then call `client.verify_protocol_version().await?` to complete the handshake,
-and `client.register_network(config).await?` for
-[network callbacks](#network-callbacks-experimental).
+Then call `client.verify_protocol_version().await?` to complete the handshake.
 `Client::start` returns a configuration error without runtime support.
 
 The default `bundled-cli` feature still enables runtime management. To manage a
@@ -128,14 +126,12 @@ the backup is written on the next append rather than during resume.
 
 After `Client::start` succeeds, inspect its startup cost without parsing logs:
 
-```rust,no_run
-# fn example(client: &github_copilot_sdk::Client) {
+```rust,ignore
 let timings = client.startup_timings().expect("started by Client::start");
 println!(
     "startup={}ms transport={}ms handshake={}ms",
     timings.total_ms, timings.transport_setup_ms, timings.handshake_ms
 );
-# }
 ```
 
 Transport-specific phases are optional. For example, `port_wait_ms` is present
@@ -160,7 +156,7 @@ leaves only direct-child cleanup, without crash-safe SDK-host-exit ownership.
 | `extra_args`        | `Vec<String>`               | Extra CLI flags                                                   |
 | `transport`         | `Transport`                 | `Default`, `Stdio`, `InProcess`, `Tcp`, or `External`             |
 | `extension_launch_provider` | `Option<Arc<dyn ExtensionLaunchProvider>>` | Connection-global extension launch resolver |
-| `network` | `Option<NetworkConfig>` | Experimental host-supplied proxy resolution and Negotiate and Basic proxy authentication; see [Network callbacks](#network-callbacks-experimental) |
+| `kerberos_auth` | `Option<KerberosAuthConfig>` | Host-supplied Kerberos credentials; see [Kerberos authentication callback](#kerberos-authentication-callback) |
 | `installation_confirmation_handler` | `Option<Arc<dyn InstallationConfirmationHandler>>` | Experimental connection-global human installation review |
 
 Set `ClientOptions::disable_client_telemetry` with
@@ -190,14 +186,10 @@ Both are `None` when the runtime doesn't report them, such as for sessions persi
 `last_client_name` existed. `SessionMetadata` is not `#[non_exhaustive]`, so code that builds
 it with a struct literal or destructures every field must add the two fields.
 
-```rust,no_run
-# use github_copilot_sdk::{Client, SessionId};
-# async fn example(client: &Client, session_id: SessionId) -> Result<(), github_copilot_sdk::Error> {
+```rust,ignore
 if let Some(metadata) = client.get_session_metadata(&session_id).await? {
     let ran_elsewhere = metadata.last_client_name.as_deref() != Some("my-host");
 }
-# Ok(())
-# }
 ```
 
 #### AHP listeners (experimental)
@@ -395,8 +387,7 @@ host remains a distinct participant on the same runtime and session.
 Hosts that own legacy extension process assets can supply a typed, asynchronous
 launch resolver:
 
-```rust,no_run
-# async fn example() -> github_copilot_sdk::Result<()> {
+```rust,ignore
 use std::collections::HashMap;
 
 use async_trait::async_trait;
@@ -430,9 +421,6 @@ impl ExtensionLaunchProvider for AppExtensionLaunchProvider {
 let client = Client::start(
     ClientOptions::new().with_extension_launch_provider(AppExtensionLaunchProvider),
 ).await?;
-# let _ = client;
-# Ok(())
-# }
 ```
 
 `Client::start` registers the provider before returning, and reverse requests
@@ -448,127 +436,55 @@ executable is a version-matched standalone Copilot binary, omit that variable
 and set `COPILOT_AUTO_UPDATE=false` so its embedded distribution remains
 selected.
 
-#### Network callbacks (experimental)
+#### Kerberos authentication callback
 
-Use `ClientOptions::with_network(config)` when the SDK host should take over
-parts of the runtime's networking, for example when the runtime runs in WSL or
-a container and should use VS Code's proxy settings, the host's Kerberos
-tickets or its proxy credentials. A `network::NetworkConfig` holds an optional
-scope and three optional callbacks; async functions and closures implement each
-provider trait.
-`Client::start` registers the configured callbacks before returning, so they
-precede every session; a failed registration fails startup. Without this
-option, or for a callback you leave out, the runtime handles that part itself.
-
-- `NetworkConfig::with_resolve_proxy(provider)` decides the proxies for every
-  request the runtime would otherwise route by ambient proxy settings: proxy
-  environment variables, `NO_PROXY` and operating-system proxy settings are not
-  consulted unless it returns `None`. The `network::ResolveProxyProvider`
-  receives the generated `NetworkResolveProxyRequest`, whose `url` is the
-  request target as a PAC script sees it: without credentials or fragment, and
-  for `https` and `wss` also without path and query. It returns a PAC-style
-  list such as `PROXY proxy.example:8080; HTTPS proxy.example:443; DIRECT` (the
-  format of Electron's `session.resolveProxy`); return `DIRECT` for a direct
-  connection, or `None` to let the runtime resolve the proxy itself, as if no
-  provider were configured. Entry types the runtime doesn't support, such as
-  SOCKS and QUIC, are skipped. If the provider fails,
-  the request fails rather than connecting directly. Requests to loopback
-  targets, and requests with an explicitly configured proxy, never consult it.
-  The runtime caches answers, including `None`, for 5 seconds and waits at most
-  10 seconds for the provider.
-- `NetworkConfig::with_authenticate_negotiate(provider)` supplies the Kerberos
-  token for a proxy's Negotiate challenge instead of the runtime's native
-  credential lookup. The `network::AuthenticateNegotiateProvider` receives the
-  generated `NetworkAuthenticateNegotiateRequest`, whose `spn` is a service
-  principal in the platform-independent `service/host[@REALM]` form; validate
-  it before issuing credentials. It returns a fresh base64 SPNEGO token without
-  the `Negotiate ` prefix, or `None` when credentials are unavailable, which
-  fails the request unless the proxy also offers Basic and the Basic provider
-  supplies credentials. The runtime waits at most 30 seconds for the provider
-  (less when the request's own deadline is sooner). Tokens are not cached and
-  must not be logged or persisted. The provider supplies the initial SPNEGO
-  token only; exchanges requiring continuation tokens are not supported.
-  Proxies chosen by the proxy resolution callback are authenticated the same
-  way.
-- `NetworkConfig::with_authenticate_basic(provider)` supplies the credentials
-  for a proxy's Basic challenge on requests the runtime tunnels through the
-  proxy (`https` and `wss`). The `network::AuthenticateBasicProvider` receives
-  the generated `NetworkAuthenticateBasicRequest` with the challenging `proxy`
-  (`http://host:port` or `https://host:port`), the optional `realm`, which
-  comes from the proxy and is untrusted text, and `previous_rejected`, which is
-  true when the proxy rejected the credentials the connection sent last. It
-  returns a `NetworkAuthenticateBasicResult`, or `None` (or an empty user name)
-  when credentials are unavailable, which fails the request with the proxy's
-  challenge. The user name must not contain a colon, and neither the user name
-  nor the password may contain control characters; an omitted password is
-  empty. The runtime remembers the answer for that proxy and uses it for later
-  connections, until the proxy rejects it; then it asks again with
-  `previous_rejected` set, so return different credentials, for example by
-  asking the user, or `None`. A later connection sends the answer without
-  waiting for a challenge, unless the runtime may try Negotiate with that proxy
-  first. A connection submits at most three sets of credentials. While a call is
-  pending, other requests through that proxy wait for its answer. When a proxy
-  offers both Negotiate and Basic, the runtime prefers Negotiate and answers
-  with Basic when Negotiate is unavailable or the proxy rejects it. The runtime
-  does not time the provider out: a request whose own deadline passes stops
-  waiting, but the answer is still remembered.
-  Credentials must not be logged or persisted. Proxies chosen by the proxy
-  resolution callback are authenticated the same way.
-
-A provider error is returned to the runtime as a JSON-RPC error. When the
-runtime stops waiting (it cancels the request, for example after its timeout,
-or the connection closes), the SDK drops the provider's future and answers a
-cancelled request with the standard request-cancelled error, so any separately
-spawned work must stop on its own.
-
-By default the callbacks serve only requests made for sessions this client
-creates or resumes. With `NetworkConfig::with_scope(NetworkScope::Runtime)`
-they also serve the runtime's shared background traffic, such as catalog
-refreshes and telemetry; only one connection at a time can hold that scope, so
-startup fails if another client holds it. The registration ends when the
-connection closes. A client created with `Client::from_streams` takes no
-options and registers its callbacks with `client.register_network(config)`
-after `verify_protocol_version`.
+Use `ClientOptions::with_kerberos_auth(mode, provider)` when Kerberos tickets
+must be obtained by the SDK host, for example from Windows when the runtime
+runs in WSL. The runtime currently uses it for proxy authentication. The
+`kerberos_auth::KerberosAuthProvider` receives the generated
+`KerberosAuthAcquireRequest`, whose `spn` is a service principal in the
+platform-independent `service/host[@REALM]` form, and returns a fresh base64
+SPNEGO token without the `Negotiate ` prefix, or `None` when credentials are
+unavailable. Async functions and closures implement the trait. The provider
+should validate the principal before issuing credentials.
 
 ```rust,no_run
-use github_copilot_sdk::network::{
-    NetworkAuthenticateBasicRequest, NetworkAuthenticateBasicResult,
-    NetworkAuthenticateNegotiateRequest, NetworkConfig, NetworkResolveProxyRequest, NetworkScope,
-};
+use github_copilot_sdk::kerberos_auth::{KerberosAuthAcquireRequest, KerberosAuthMode};
 use github_copilot_sdk::{Client, ClientOptions, Result};
 # async fn example() -> Result<()> {
 
-async fn resolve_proxy(request: NetworkResolveProxyRequest) -> Result<Option<String>> {
-    // Look up the proxies for `request.url`, for example "PROXY proxy.example:8080; DIRECT".
-    todo!()
-}
-
-async fn authenticate_negotiate(
-    request: NetworkAuthenticateNegotiateRequest,
-) -> Result<Option<String>> {
+async fn acquire_token(request: KerberosAuthAcquireRequest) -> Result<Option<String>> {
     // Validate `request.spn`, then return a fresh base64 SPNEGO token.
     todo!()
 }
 
-async fn authenticate_basic(
-    request: NetworkAuthenticateBasicRequest,
-) -> Result<Option<NetworkAuthenticateBasicResult>> {
-    // Return the user name and password for `request.proxy`; never log them.
-    todo!()
-}
-
 let client = Client::start(
-    ClientOptions::new().with_network(
-        NetworkConfig::new()
-            .with_scope(NetworkScope::Runtime)
-            .with_resolve_proxy(resolve_proxy)
-            .with_authenticate_negotiate(authenticate_negotiate)
-            .with_authenticate_basic(authenticate_basic),
-    ),
+    ClientOptions::new().with_kerberos_auth(KerberosAuthMode::Fallback, acquire_token),
 ).await?;
 # Ok(())
 # }
 ```
+
+With `KerberosAuthMode::Fallback`, native credential acquisition (including the
+first token) is tried first; only failure invokes the provider. With
+`KerberosAuthMode::Always`, native credential lookup is never attempted.
+Without this option, behavior is unchanged. `Client::start` registers the
+provider before returning, so it precedes every session; a failed registration
+fails startup.
+
+By default the provider authenticates only requests made for sessions this
+client creates or resumes. With `KerberosAuthScope::Runtime` it also
+authenticates the runtime's shared background traffic, such as catalog
+refreshes and telemetry; only one connection at a time can hold that scope, so
+startup fails if another client holds it. The registration ends when the
+connection closes. In `Fallback` mode, if the provider cannot supply a valid
+token, the native credential error is reported. In `Always` mode, a
+disconnected, failing, or empty provider fails authentication. A provider error
+is returned to the runtime as a JSON-RPC error. The runtime waits at most 30
+seconds for the provider (less when the request's own deadline is sooner) and
+treats a timeout as a provider failure. Tokens are not cached and must not be
+logged or persisted. The provider supplies the initial SPNEGO token only;
+exchanges requiring continuation tokens still need native negotiation.
 
 ### Azure ML model acquisition (experimental)
 
@@ -883,25 +799,37 @@ behaviour; existing handwritten builder calls remain compatible.
 
 #### Generated type-name migration
 
-Some generated names now resolve to their canonical schema type. The
-installation confirmation review keeps its earlier names as generated
-`pub type` aliases; the subagent-settings request field does not:
+Resolving a named object through a schema wrapper now uses the canonical schema
+name. Where that resolution directly records the earlier containing-property
+name, a generated `pub type` alias retains it. Aliases point directly to an emitted
+type; conflicting names or targets fail generation rather than selecting one.
+Nested helper names are not reconstructed by comparing old and new type graphs.
+
+The affected request/result surfaces are experimental. Earlier nested helpers
+did not consistently repeat their owning type's experimental annotation. The
+complete naming disposition is:
 
 | Earlier generated name | Canonical name | Disposition |
 | --- | --- | --- |
 | `InstallationConfirmationRequestReview` | `InstallationReview` | Direct alias; typed review migration below |
-| `InstallationConfirmationRequestReviewResource` | `InstallationReviewResource` | Direct alias |
+| `MetadataContextAttributionResultContextAttribution` | `SessionContextAttribution` | Direct alias |
+| `MetadataContextInfoResultContextInfo` | `SessionContextInfo` | Direct alias |
+| `SendMessagesRequestResponseFormat` | `ResponseFormat` | Direct alias |
+| `SendRequestResponseFormat` | `ResponseFormat` | Direct alias |
+| `SessionMetadataSnapshotWorkspace` | `WorkspaceSummary` | Direct alias |
 | `UpdateSubagentSettingsRequestSubagents` | `SubagentSettingsConfig` | No alias |
-
-The affected request/result surfaces are experimental. Other generated types
-that repeat a canonical schema shape keep their released names as distinct
-types, not aliases: `SendRequestResponseFormat` and
-`SendMessagesRequestResponseFormat` are separate from `ResponseFormat`,
-`SessionMetadataSnapshotWorkspace` and `SessionMetadataSnapshotResultWorkspace`
-from `WorkspaceSummary`, and the `ContextInfo` and `ContextAttribution` metadata
-result types from `SessionContextInfo` and `SessionContextAttribution`. Their
-nested helpers keep their own names too. Code that names them compiles
-unchanged, but a value of the canonical type does not convert to them.
+| `SessionMetadataSnapshotResultWorkspace` | `WorkspaceSummary` | Direct alias |
+| `SessionMetadataContextInfoResultContextInfo` | `SessionContextInfo` | Direct alias |
+| `SessionMetadataGetContextAttributionResultContextAttribution` | `SessionContextAttribution` | Direct alias |
+| `MetadataContextAttributionResultContextAttributionCategories` | `SessionContextAttributionCategories` | Import the canonical nested helper |
+| `MetadataContextAttributionResultContextAttributionCompactions` | `SessionContextAttributionCompactions` | Import the canonical nested helper |
+| `MetadataContextAttributionResultContextAttributionEntriesItem` | `SessionContextAttributionEntriesItem` | Import the canonical nested helper |
+| `SessionMetadataGetContextAttributionResultContextAttributionCategories` | `SessionContextAttributionCategories` | Import the canonical nested helper |
+| `SessionMetadataGetContextAttributionResultContextAttributionCompactions` | `SessionContextAttributionCompactions` | Import the canonical nested helper |
+| `SessionMetadataGetContextAttributionResultContextAttributionEntriesItem` | `SessionContextAttributionEntriesItem` | Import the canonical nested helper |
+| `InstallationConfirmationRequestReviewResource` | `InstallationReviewResource` | Import the canonical nested enum |
+| `SendMessagesRequestResponseFormatType` | `ResponseFormatType` | Import the canonical nested enum |
+| `SendRequestResponseFormatType` | `ResponseFormatType` | Import the canonical nested enum |
 
 Retaining a name does not restore an incorrect earlier field representation.
 In particular, `InstallationReview` is now the required typed review union, not
@@ -917,7 +845,7 @@ compatibility.
 
 ### Handler Traits
 
-The SDK exposes six focused handler traits, one per CLI callback type. Implement only the traits you need and install each with the matching `SessionConfig` setter. Each trait has an `async fn handle(...)` method:
+The SDK exposes five focused handler traits, one per CLI callback type. Implement only the traits you need and install each with the matching `SessionConfig` setter. Each trait has a single `async fn handle(...)` method:
 
 | Trait                   | Setter                            | Purpose                                       |
 | ----------------------- | --------------------------------- | --------------------------------------------- |
@@ -925,10 +853,9 @@ The SDK exposes six focused handler traits, one per CLI callback type. Implement
 | `ElicitationHandler`    | `with_elicitation_handler(...)`   | Respond to structured elicitation prompts     |
 | `UserInputHandler`      | `with_user_input_handler(...)`    | Answer free-form / choice user-input prompts  |
 | `ExitPlanModeHandler`   | `with_exit_plan_mode_handler(...)`| Respond when the agent exits plan mode        |
-| `AutoModeSwitchHandler` | `with_auto_mode_switch_handler(...)`| Respond to automatic mode-switch proposals, and Auto recovery offers |
-| `ShellAuthenticationHandler`    | `with_shell_authentication_handler(...)`  | Answer password prompts from shell commands   |
+| `AutoModeSwitchHandler` | `with_auto_mode_switch_handler(...)`| Respond to automatic mode-switch proposals  |
 
-The CLI's `requestPermission` / `requestElicitation` / `requestUserInput` / `requestShellAuthentication` / etc. wire flags are derived automatically from which traits you've installed — clients that don't install a handler are silently skipped, letting another connected client handle the request.
+The CLI's `requestPermission` / `requestElicitation` / `requestUserInput` / etc. wire flags are derived automatically from which traits you've installed — clients that don't install a handler are silently skipped, letting another connected client handle the request.
 
 `Session::subscribe()` exposes permission events through an observation-only stream, and `PermissionHandler` receives the same `PermissionRequestData`. Call `data.prompt_request()` for optional derived prompt context. The raw `managed_approval_required` field remains managed-policy provenance and enforces one-shot restrictions. Only derived `Commands`, `Read`, `Write`, `Url`, and `Workflow` prompts can clear the human requirement after Assisted approval; for missing or other prompt kinds, keep the raw marker authoritative.
 
@@ -1052,12 +979,6 @@ analysis telemetry for user-authored messages; automated messages stay
 excluded. The default is off, and cloud sessions ignore it. Re-supply it through
 `ResumeSessionConfig` on a cold resume.
 
-Use `with_permission_mode(PermissionMode::AllowAll)` to apply a permission mode
-before the session's first turn: before `create_session` returns, and before a
-resume continues pending work. It uses the same checks as
-`session.permissions.setMode`; `Session::permission_mode_result()` reports
-whether it was applied and the authoritative mode. Cloud sessions reject it.
-
 For rotating per-session GitHub credentials, install a `GitHubTokenProvider`
 instead of setting `github_token`:
 
@@ -1080,10 +1001,10 @@ let provider = Arc::new(|args: GitHubTokenProviderArgs| async move {
 let config = SessionConfig::default().with_github_token_provider(provider);
 ```
 
-The remaining lifetime, in seconds at callback completion, must exceed 3600
-seconds after token validation. Production GitHub tokens typically last eight
-hours. Static `github_token` and a provider are mutually exclusive. This API also
-supports `ResumeSessionConfig`.
+The remaining lifetime is required and must be positive when the callback
+completes; production GitHub tokens typically last eight hours. Static
+`github_token` and a provider are mutually exclusive. The same provider API is
+available on `ResumeSessionConfig`.
 
 Initial acquisition runs during session creation or resume. Cancellation,
 provider errors, and invalid token responses reject that operation instead of
@@ -1137,8 +1058,6 @@ session.set_auto_tier(None).await?;
 ```
 
 `set_model` accepts the same preference through `SetModelOptions::with_auto_tier`, which stages the tier atomically with selecting `auto`. Use `with_reset_auto_tier` instead to return to provider-default routing.
-
-For Copilot Fusion, use the CLI's names: model `"fusion"` with `CapiSessionOptions::with_fusion_tier` on create or resume, `SetModelOptions::with_fusion_tier` on `set_model`, or `session.set_fusion_tier`. The tiers are `FusionTier::Standard`, `FusionTier::High`, and `FusionTier::Max`. The routing identifiers these replace (`balance`, `hydrafusion`, and `hydrafusion-max`, and the `hydrafusion` and `hydrafusion-max` model IDs) remain accepted but are deprecated. See [Copilot Fusion names](../docs/features/session-persistence.md#copilot-fusion-names).
 
 See [Auto tier persistence](../docs/features/session-persistence.md#auto-tier-persistence)
 for the lifecycle rules.
@@ -1235,13 +1154,7 @@ Transforms customize system message sections during session creation. The SDK in
 
 `last_instructions` includes configured subagent-model guidance when the `task` tool is available. Removing or replacing this section in customize mode also removes that guidance; a `SystemMessageTransform` handling this section receives its complete content, including the guidance, and any replacement it returns is authoritative. Append, prepend, and preserve retain their usual section semantics. These overrides change prompt prose only, not configured subagent models, tool availability, or runtime dispatch policy. `runtime_instructions` is a separate section: removing it does not remove `last_instructions`.
 
-```rust,no_run
-# use std::sync::Arc;
-# use github_copilot_sdk::{Client, SessionConfig};
-# use github_copilot_sdk::handler::ApproveAllHandler;
-# async fn example(client: Client) -> Result<(), github_copilot_sdk::Error> {
-# let config = SessionConfig::default();
-# let handler = Arc::new(ApproveAllHandler);
+```rust,ignore
 use github_copilot_sdk::transforms::*;
 use async_trait::async_trait;
 
@@ -1270,9 +1183,6 @@ let session = client
             .with_system_message_transform(Arc::new(MyTransform)),
     )
     .await?;
-# let _ = session;
-# Ok(())
-# }
 ```
 
 ### Tool Registration
@@ -1285,10 +1195,7 @@ derive expands to code that names the `schemars` crate, so your own
 `Cargo.toml` needs `schemars = "1"` as a direct dependency next to the feature
 (`cargo add schemars@1`).
 
-```rust,no_run
-# #[cfg(feature = "derive")]
-# mod example {
-# async fn example(client: github_copilot_sdk::Client) -> Result<(), github_copilot_sdk::Error> {
+```rust,ignore
 use std::sync::Arc;
 use github_copilot_sdk::handler::ApproveAllHandler;
 use github_copilot_sdk::tool::{schema_for, JsonSchema, ToolHandler};
@@ -1323,10 +1230,6 @@ let config = SessionConfig::default()
     .with_permission_handler(Arc::new(ApproveAllHandler))
     .with_tools(vec![tool]);
 let session = client.create_session(config).await?;
-# let _ = session;
-# Ok(())
-# }
-# }
 ```
 
 Tools are named types (not closures) — visible in stack traces and navigable via "go to definition". The SDK registers each tool's handler under its `Tool::name` and surfaces the same `Tool` definitions to the CLI automatically.
@@ -1335,13 +1238,7 @@ Tools without an attached handler (`Tool::with_handler` never called) are declar
 
 For trivial tools that don't need a named type, the `define_tool` helper function (available with the `derive` feature) collapses the definition to a single expression and returns a fully-formed `Tool` with handler attached:
 
-```rust,no_run
-# #[cfg(feature = "derive")]
-# mod example {
-# use std::sync::Arc;
-# use github_copilot_sdk::SessionConfig;
-# use github_copilot_sdk::handler::ApproveAllHandler;
-# fn example() {
+```rust,ignore
 use github_copilot_sdk::tool::{define_tool, JsonSchema};
 use github_copilot_sdk::ToolResult;
 use serde::Deserialize;
@@ -1360,9 +1257,6 @@ let tool = define_tool(
 let config = SessionConfig::default()
     .with_permission_handler(Arc::new(ApproveAllHandler))
     .with_tools(vec![tool]);
-# let _ = config;
-# }
-# }
 ```
 
 The closure receives the full [`ToolInvocation`](crate::types::ToolInvocation) alongside the deserialized parameters, so handlers that need `inv.session_id` or `inv.tool_call_id` for telemetry, streaming updates, or scoped lookups can use them directly. Use `_inv` when you don't need the metadata.
@@ -1381,7 +1275,7 @@ session.set_tools(vec![search_tool, filter_tool]).await?;
 # }
 ```
 
-The agent sees the new tools from its next model request. The new handlers take effect as soon as the runtime accepts the replacement, and calls already running finish on the handlers that started them. If the runtime rejects the replacement, nothing changes. A model request already in flight was made with the previous tools, so the agent can still call a tool you removed. If no connected client supplies a tool with that name any more, the call fails with an error that tells the agent the tool is no longer available, and the turn continues. If you don't want the agent to see that failure, replace tools while the session is idle. See [Changing tools during a session](../docs/features/changing-tools.md) for the behavior shared by all SDKs.
+The agent sees the new tools from its next model request. The new handlers take effect as soon as the runtime accepts the replacement, and calls already running finish on the handlers that started them. If the runtime rejects the replacement, nothing changes. A model request already in flight was made with the previous tools, so the agent can still call a tool you removed; this session won't answer that call, so replace tools while the session is idle if a running turn might still call a tool you remove. See [Changing tools during a session](../docs/features/changing-tools.md) for the behavior shared by all SDKs.
 
 #### String-schema `apply_patch` overrides
 
@@ -1544,106 +1438,6 @@ Return `None` to signal "no answer available" (the CLI falls back to its own pro
 
 **Migration (breaking change):** `UserInputHandler::handle` and `ExitPlanModeHandler::handle` now take `request_id: Option<RequestId>` immediately after `session_id`. Add that parameter to existing implementations; handlers that don't need the ID can ignore it.
 
-#### Reporting a person's answers
-
-When a person answers in your UI, override `handle_attributed` and return an `AttributedResult` so Assisted Permissions can treat the answer as the person's own authority. `UserInputHandler`, `ExitPlanModeHandler`, and `ElicitationHandler` all have it; the SDK calls it, and its default returns `handle`'s answer unlabeled:
-
-```rust,no_run
-use async_trait::async_trait;
-use github_copilot_sdk::handler::{AttributedResult, UserInputHandler, UserInputResponse};
-use github_copilot_sdk::types::{RequestId, SessionId};
-use github_copilot_sdk::{
-    PermissionDecisionContext, PermissionDecisionOutcome, PermissionDecisionSource,
-    PermissionDecisionSurface, PermissionResponseCapability,
-};
-
-struct PersonAnswers;
-
-#[async_trait]
-impl UserInputHandler for PersonAnswers {
-    async fn handle(
-        &self,
-        sid: SessionId,
-        request_id: Option<RequestId>,
-        question: String,
-        choices: Option<Vec<String>>,
-        allow_freeform: Option<bool>,
-    ) -> Option<UserInputResponse> {
-        self.handle_attributed(sid, request_id, question, choices, allow_freeform)
-            .await
-            .map(|answer| answer.result)
-    }
-
-    async fn handle_attributed(
-        &self,
-        _sid: SessionId,
-        _request_id: Option<RequestId>,
-        _question: String,
-        _choices: Option<Vec<String>>,
-        _allow_freeform: Option<bool>,
-    ) -> Option<AttributedResult<UserInputResponse>> {
-        let answer = UserInputResponse {
-            answer: "Only src/app.rs".to_string(),
-            was_freeform: true,
-        };
-        Some(AttributedResult::new(
-            answer,
-            PermissionDecisionContext {
-                outcome: PermissionDecisionOutcome::PromptedUser,
-                response_capability: Some(PermissionResponseCapability::Interactive),
-                source: PermissionDecisionSource::HumanResponse,
-                surface: PermissionDecisionSurface::Sdk,
-                user_feedback: None,
-            },
-        ))
-    }
-}
-```
-
-Label a person's declines too; the runtime decides which answers carry authority. It accepts the label only from the connection that owns the session, so other connections' answers still settle, without it. Leave automated answers unlabeled. For permission decisions, use `PermissionResult::with_context`.
-
-### Shell Password Prompts
-
-When a shell command the agent runs asks for a password or another answer (for example `sudo -A`, `ssh`, or `git` over HTTPS), install a `ShellAuthenticationHandler` to ask the user. The answer goes only to the program that asked; it is not shown to the model or recorded in session events. Without a handler, those commands fail as they would without a terminal. See [Shell password prompts](../docs/features/shell-password-prompts.md) for when the runtime asks.
-
-```rust,no_run
-use std::sync::Arc;
-use async_trait::async_trait;
-use github_copilot_sdk::handler::{ShellAuthenticationHandler, ShellAuthenticationRequest, ShellAuthenticationResponse};
-use github_copilot_sdk::types::{SessionConfig, SessionId};
-use tokio_util::sync::CancellationToken;
-# async fn ask_user(_request: &ShellAuthenticationRequest) -> Option<String> {
-#     None
-# }
-
-struct MyPasswordPrompt;
-
-#[async_trait]
-impl ShellAuthenticationHandler for MyPasswordPrompt {
-    async fn handle(
-        &self,
-        _sid: SessionId,
-        request: ShellAuthenticationRequest,
-        cancellation: CancellationToken,
-    ) -> ShellAuthenticationResponse {
-        // `ask_user` is your app's UI: show `request.prompt`, masked when
-        // `input_kind` is `Secret`, and close it when `cancellation` fires.
-        tokio::select! {
-            _ = cancellation.cancelled() => ShellAuthenticationResponse::Cancel,
-            answer = ask_user(&request) => match answer {
-                Some(answer) => ShellAuthenticationResponse::Accept(answer),
-                None => ShellAuthenticationResponse::Cancel,
-            },
-        }
-    }
-}
-
-let config = SessionConfig::default()
-    .with_shell_authentication_handler(Arc::new(MyPasswordPrompt));
-```
-
-For a `Confirm` request, accept with `"yes"` or cancel to decline.
-
 ### Slash Commands
 
 Register named commands so users can invoke them as `/name args` from the TUI:
@@ -1710,7 +1504,7 @@ When the event loop retires, it also releases registered tool-handler captures, 
 
 On resume with no active prepared subscriber, the SDK instead retains all routed startup events, durable and ephemeral, in an ordered bootstrap queue. The first `session.subscribe()` call claims that queue synchronously, even before the subscription is polled. It receives the complete prefix and any events dispatched while catching up, then atomically switches to bounded live delivery. Later subscribers receive newly dispatched live events immediately, even while the owner is draining.
 
-**The resume bootstrap is unbounded until its owner catches up.** Subscribe and drain promptly: a caller that never subscribes or cannot catch up can retain arbitrarily many events. Dropping the owner discards its unread backlog without transferring it to another subscriber. Stopping the session event loop releases an unclaimed backlog; a claimed backlog can still drain after ordinary shutdown without keeping the sender alive. Client force-stop discards the backlog even after it has been claimed. The client routes every session event it reads to its session without a bound, so a busy connection does not drop events before they reach the session.
+**The resume bootstrap is unbounded until its owner catches up.** Subscribe and drain promptly: a caller that never subscribes or cannot catch up can retain arbitrarily many events. Dropping the owner discards its unread backlog without transferring it to another subscriber. Stopping the session event loop releases an unclaimed backlog; a claimed backlog can still drain after ordinary shutdown without keeping the sender alive. Client force-stop discards the backlog even after it has been claimed. This guarantee covers events routed to the session, not overflow in the bounded client-global notification router.
 
 For create and resume calls with a client-known session ID, the SDK starts its event loop before sending the RPC so it can answer session-scoped requests issued during startup. Cloud creates with a server-assigned ID register the loop after the response identifies the session.
 
@@ -1784,8 +1578,6 @@ let config = SessionConfig::default().with_memory(MemoryConfiguration::enabled()
 
 The client mode affects the default: in the default `ClientMode::CopilotCli` the SDK leaves `memory` unset so the runtime applies its own default, while `ClientMode::Empty` defaults `memory` to disabled unless you set it explicitly.
 
-**Experimental:** `with_memory_store(Arc<dyn MemoryStore>)` stores approved memories in your app instead of the built-in backends. It requires `with_memory(MemoryConfiguration::enabled())`; otherwise session setup fails with `memory_store requires memory to be enabled with with_memory(...).` before any request is sent. Cloud sessions reject it. The SDK advertises the store with `hasMemoryStore: true` on `session.create` / `session.resume` and registers it before sending either request. `store_memory` succeeds only when `MemoryStore::store` returns `Ok`; errors reach the model as a generic failure. While a store is set, the runtime retrieves no memories and `vote_memory` is unavailable, so supply recall yourself (for example through the system message). Re-supply the store on every resume.
-
 ### Custom Providers (BYOK)
 
 Route model traffic through your own inference endpoint instead of GitHub's hosted models:
@@ -1805,7 +1597,7 @@ config.provider = Some(provider);
 # }
 ```
 
-Provider types include `"openai"`, `"azure"`, `"anthropic"`, and `"google"` (experimental; Google's native Gemini Interactions API). Set `wire_api` to `"completions"` or `"responses"` (OpenAI/Azure only). Custom headers go in `provider.headers`. The SDK forwards the configuration to the CLI verbatim — the CLI handles the upstream call, including authentication.
+Provider types include `"openai"`, `"azure"`, and `"anthropic"`. Set `wire_api` to `"completions"` or `"responses"` (OpenAI/Azure only). Custom headers go in `provider.headers`. The SDK forwards the configuration to the CLI verbatim — the CLI handles the upstream call, including authentication.
 
 ### Telemetry
 
@@ -1835,8 +1627,6 @@ The SDK injects the appropriate environment variables (`COPILOT_OTEL_EXPORTER_TY
 Use `MessageSource::System` for automated messages sent by your application. Ordinary human sends leave `source` unset, so the field is omitted from the request. Use `MessageSource::User` when you need to set it explicitly.
 
 For messages from another agent, use `MessageSource::Agent("sender-id".into())` with the trusted sender ID. It serializes as `"agent-sender-id"` and works with both `MessageOptions::with_source` and `rpc::SendRequest::with_source`. Unlike internal system context, an identified agent message retains agent provenance.
-
-For a turn sent on behalf of an automation the user configured, such as a recurring check-in, use `MessageSource::Automation("merge-check".into())`. It serializes as `"automation-merge-check"`. An automation turn defines the session's task like a user message but carries no human authority; see [Message provenance](../docs/features/steering-and-queueing.md#message-provenance).
 
 ```rust,no_run
 use github_copilot_sdk::{MessageOptions, MessageSource, session::Session};
@@ -1962,32 +1752,22 @@ let raw: String = id.into_inner();       // unwrap when needed
 
 ### Error Handling
 
-Fallible calls return `github_copilot_sdk::Error`. Match on `err.kind()`, a
-`#[non_exhaustive]` `ErrorKind`; `err.message()` holds the error text:
+The SDK uses a typed error enum:
 
-```rust,no_run
-# use github_copilot_sdk::{Client, ClientOptions, Error};
-# async fn example(err: Error, client: &mut Client, options: ClientOptions) -> Result<(), Error> {
-use github_copilot_sdk::ErrorKind;
-
-match err.kind() {
-    ErrorKind::Protocol(kind) => eprintln!("{kind}"), // JSON-RPC framing, CLI startup, version mismatch
-    ErrorKind::Rpc { code } => eprintln!("{code}: {:?}", err.message()), // CLI returned an error response
-    ErrorKind::Session(kind) => eprintln!("{kind}"), // Session not found, agent error, timeout, conflicts
-    ErrorKind::Io => eprintln!("{err}"),              // Transport I/O error
-    ErrorKind::Json => eprintln!("{err}"),            // Serialization error
-    ErrorKind::BinaryNotFound { name, hint } => eprintln!("{name}: {hint:?}"), // CLI binary not found
-    ErrorKind::InvalidConfig => eprintln!("{err}"),   // Invalid combination of options
-    ErrorKind::GitHubTokenProvider => eprintln!("{err}"), // Session token provider failed
-    _ => eprintln!("{err}"),
+```rust,ignore
+pub enum Error {
+    Protocol(ProtocolError),       // JSON-RPC framing, CLI startup, version mismatch
+    Rpc { code: i32, message: String }, // CLI returned an error response
+    Session(SessionError),         // Session not found, agent error, timeout, conflicts
+    Io(std::io::Error),            // Transport I/O error
+    Json(serde_json::Error),       // Serialization error
+    BinaryNotFound { name, hint }, // CLI binary not found
 }
 
 // Check if the transport is broken (caller should discard the client)
 if err.is_transport_failure() {
-    *client = Client::start(options).await?;
+    client = Client::start(options).await?;
 }
-# Ok(())
-# }
 ```
 
 JSON-RPC failures retain structured `error.data` separately from their primary
@@ -1995,8 +1775,7 @@ code and message. Only applicable `session.create`/`session.resume` errors attac
 `PolicyHelperFailure`. Activation callers instead read
 `client.rpc().managed_settings().resolve_with_params(...).await?.resolved.policy_helper_failure`.
 
-```rust,no_run
-# fn example(err: github_copilot_sdk::Error) -> Result<(), serde_json::Error> {
+```rust,ignore
 use github_copilot_sdk::session_events::PolicyHelperFailure;
 
 if let Some(value) = err
@@ -2006,8 +1785,6 @@ if let Some(value) = err
     let failure: PolicyHelperFailure = serde_json::from_value(value.clone())?;
     eprintln!("{}", failure.message);
 }
-# Ok(())
-# }
 ```
 
 ## Differences From Other SDKs
@@ -2030,17 +1807,7 @@ ergonomics the dynamically-typed SDKs don't.
   `SessionHooks`,
   `SystemMessageTransform`).
 
-```rust,no_run
-# use github_copilot_sdk::{Client, ClientOptions, SessionConfig};
-# use github_copilot_sdk::handler::ApproveAllHandler;
-# struct MyProvider;
-# impl MyProvider {
-#     fn new() -> Self {
-#         MyProvider
-#     }
-# }
-# impl github_copilot_sdk::session_fs::SessionFsProvider for MyProvider {}
-# async fn example() -> Result<(), github_copilot_sdk::Error> {
+```rust,ignore
 use std::sync::Arc;
 use github_copilot_sdk::session_fs::{SessionFsConfig, SessionFsConventions};
 
@@ -2059,9 +1826,6 @@ let session = client
             .with_session_fs_provider(Arc::new(MyProvider::new())),
     )
     .await?;
-# let _ = session;
-# Ok(())
-# }
 ```
 
 See [`examples/session_fs.rs`](examples/session_fs.rs) for a complete
@@ -2130,7 +1894,7 @@ none of them are scheduled for removal.
 | `extension_launch_provider.rs` | Connection-global `ExtensionLaunchProvider` trait and launch profile DTOs                                      |
 | `session.rs`      | `Session` struct, `PreparedSession`, event loop, `send`/`send_and_wait`, `Client::create_session`/`resume_session`/`prepare_session`/`prepare_resume_session` |
 | `subscription.rs` | `EventSubscription` / `LifecycleSubscription` (`Stream`-able observer handles for `subscribe()` / `subscribe_lifecycle()`) |
-| `handler.rs`      | `PermissionHandler`, `ElicitationHandler`, `UserInputHandler`, `ExitPlanModeHandler`, `AutoModeSwitchHandler`, `ShellAuthenticationHandler` traits; `ApproveAllHandler`, `DenyAllHandler` |
+| `handler.rs`      | `PermissionHandler`, `ElicitationHandler`, `UserInputHandler`, `ExitPlanModeHandler`, `AutoModeSwitchHandler` traits; `ApproveAllHandler`, `DenyAllHandler`           |
 | `hooks.rs`        | `SessionHooks` trait, `HookEvent`/`HookOutput` enums, typed hook inputs/outputs                                            |
 | `transforms.rs`   | `SystemMessageTransform` trait, section-level system message customization                                                 |
 | `tool.rs`         | `ToolHandler` trait, `define_tool`, `schema_for::<T>()` (with `derive` feature)                                            |
@@ -2256,15 +2020,7 @@ explicit program path is supplied.
 
    Public unstable cache directories use
    `copilot-sdk-runtime-<version>` instead of `<version>` to keep release
-   destinations separate. Other version names remain unchanged.
-
-   If the user cache cannot be determined, Unix uses
-   `<temp>/copilot-sdk-cache-<uid>` with owner-only permissions (`0700`), checking
-   ownership and permissions before reuse. No `HOME` is required. The selected
-   temporary base is trusted, like an explicit extraction directory; the
-   application must keep it protected from replacement by other users.
-   Other platforms retain the existing temporary-directory fallback.
-   Legacy shared Unix caches are not reused, so the first fallback install is cold.
+   destinations separate. Legacy cache paths remain unchanged.
 
 ### Overriding the extraction location
 
@@ -2302,14 +2058,14 @@ resolution requires `COPILOT_CLI_PATH` to identify the supplied package.
 `COPILOT_SKIP_CLI_DOWNLOAD=1` remains available as an explicit build-time
 override for managed child-process consumers. It works regardless of the
 `bundled-cli` feature state; runtime resolution falls through to
-`ErrorKind::BinaryNotFound` unless an applicable explicit source resolves.
+`Error::BinaryNotFound` unless an applicable explicit source resolves.
 
 ### Resolution priority
 
 For managed child-process transports (`runtime` enabled), `Client::start` resolves the program in this order:
 
 1. Explicit `CliProgram::Path(path)` on `ClientOptions::program`.
-2. Effective child `COPILOT_CLI_PATH`; nonempty invalid paths fail without fallback.
+2. `COPILOT_CLI_PATH` environment variable, if it points at a real file.
 3. **`bundled-cli` on:** the embedded wrapper pair, lazily extracted on first call.
 4. **`bundled-cli` and `local-runtime` off:** the build-time-extracted wrapper pair in the per-user cache.
 

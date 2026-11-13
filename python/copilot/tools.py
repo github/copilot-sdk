@@ -118,12 +118,6 @@ class Tool:
     #: **Experimental.** Optional namespace grouping this tool with related
     #: tools for model tool discovery. The tool keeps its unique ``name``.
     namespace: ToolNamespace | None = None
-    #: When true, declares that repeating a call with the same arguments has
-    #: no additional effect beyond the first call, as is true of any tool
-    #: without side effects. The runtime may use this to decide that a call
-    #: whose outcome was lost can be safely repeated. It does not affect
-    #: permission checks.
-    idempotent: bool = False
 
 
 T = TypeVar("T", bound=BaseModel)
@@ -141,7 +135,6 @@ def define_tool(
     metadata: dict[str, Any] | None = None,
     is_terminal: bool = False,
     namespace: ToolNamespace | None = None,
-    idempotent: bool = False,
 ) -> Callable[[Callable[..., Any]], Tool]:
     pass
 
@@ -159,7 +152,6 @@ def define_tool(
     metadata: dict[str, Any] | None = None,
     is_terminal: bool = False,
     namespace: ToolNamespace | None = None,
-    idempotent: bool = False,
 ) -> Tool:
     pass
 
@@ -177,7 +169,6 @@ def define_tool(
     metadata: dict[str, Any] | None = None,
     is_terminal: bool = False,
     namespace: ToolNamespace | None = None,
-    idempotent: bool = False,
 ) -> Tool:
     pass
 
@@ -194,7 +185,6 @@ def define_tool(
     metadata: dict[str, Any] | None = None,
     is_terminal: bool = False,
     namespace: ToolNamespace | None = None,
-    idempotent: bool = False,
 ) -> Tool | Callable[[Callable[[Any, ToolInvocation], Any]], Tool]:
     """
     Define a tool with automatic JSON schema generation from Pydantic models.
@@ -255,11 +245,6 @@ def define_tool(
                     tools. Where the model provider supports native tool namespaces,
                     deferred tools sharing a namespace are presented as one group;
                     elsewhere the tool stays flat. The tool keeps its unique name.
-        idempotent: When True, declares that repeating a call with the same
-                    arguments has no additional effect beyond the first call, as is
-                    true of any tool without side effects. The runtime may use this
-                    to decide that a call whose outcome was lost can be safely
-                    repeated. It does not affect permission checks.
 
     Returns:
         A Tool instance
@@ -341,7 +326,7 @@ def define_tool(
                         "Detailed information is not available."
                     ),
                     result_type="failure",
-                    error=str(exc) or type(exc).__name__,
+                    error=str(exc),
                     tool_telemetry={},
                     _from_exception=True,
                 )
@@ -357,7 +342,6 @@ def define_tool(
             metadata=metadata,
             is_terminal=is_terminal,
             namespace=namespace,
-            idempotent=idempotent,
         )
 
     # If handler is provided, call decorator immediately
@@ -380,7 +364,6 @@ def define_tool(
             metadata=metadata,
             is_terminal=is_terminal,
             namespace=namespace,
-            idempotent=idempotent,
         )
 
     # Otherwise return decorator for @define_tool(...) usage

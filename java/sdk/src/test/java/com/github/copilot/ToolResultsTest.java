@@ -4,8 +4,6 @@
 
 package com.github.copilot;
 
-import org.junit.jupiter.api.Tag;
-
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.List;
@@ -22,6 +20,7 @@ import com.github.copilot.generated.SessionEvent;
 import com.github.copilot.generated.ToolExecutionCompleteEvent;
 import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.PermissionHandler;
+import com.github.copilot.rpc.SessionConfig;
 import com.github.copilot.rpc.ToolDefinition;
 import com.github.copilot.rpc.ToolResultObject;
 
@@ -33,7 +32,6 @@ import com.github.copilot.rpc.ToolResultObject;
  * Snapshots are stored in {@code test/snapshots/tool_results/}.
  * </p>
  */
-@Tag("e2e")
 public class ToolResultsTest {
 
     private static E2ETestContext ctx;
@@ -74,7 +72,7 @@ public class ToolResultsTest {
                 });
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(ctx.newSessionConfig().setTools(List.of(deployTool))
+            CopilotSession session = client.createSession(new SessionConfig().setTools(List.of(deployTool))
                     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             List<SessionEvent> events = new CopyOnWriteArrayList<>();
@@ -122,7 +120,7 @@ public class ToolResultsTest {
                 });
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(ctx.newSessionConfig().setTools(List.of(accessTool))
+            CopilotSession session = client.createSession(new SessionConfig().setTools(List.of(accessTool))
                     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             List<SessionEvent> events = new CopyOnWriteArrayList<>();

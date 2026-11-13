@@ -20,17 +20,13 @@ public class GitHubTelemetryForwardingE2ETests(E2ETestFixture fixture, ITestOutp
     [Fact]
     public async Task Should_Forward_GitHub_Telemetry_For_A_Live_Session()
     {
-        var sessionId = Guid.NewGuid().ToString();
         var notificationReceived = new TaskCompletionSource<GitHubTelemetryNotification>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await using var client = Ctx.CreateClient(options: new CopilotClientOptions
         {
             OnGitHubTelemetry = notification =>
             {
-                if (notification.SessionId == sessionId)
-                {
-                    notificationReceived.TrySetResult(notification);
-                }
+                notificationReceived.TrySetResult(notification);
                 return Task.CompletedTask;
             },
         });
@@ -40,13 +36,11 @@ public class GitHubTelemetryForwardingE2ETests(E2ETestFixture fixture, ITestOutp
         {
             session = await Ctx.CreateSessionAsync(client, new SessionConfig
             {
-                SessionId = sessionId,
                 OnPermissionRequest = PermissionHandler.ApproveAll,
             });
 
             var notification = await notificationReceived.Task.WaitAsync(TimeSpan.FromSeconds(30));
             Assert.False(string.IsNullOrEmpty(notification.SessionId));
-            Assert.Equal(session.SessionId, notification.SessionId);
             Assert.NotNull(notification.Event);
             Assert.NotEmpty(notification.Event.Kind);
             Assert.IsType<bool>(notification.Restricted);

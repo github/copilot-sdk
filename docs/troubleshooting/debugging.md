@@ -70,11 +70,13 @@ client := copilot.NewClient(&copilot.ClientOptions{
 <details>
 <summary><strong>.NET</strong></summary>
 
+<!-- docs-validate: skip -->
+
 ```csharp
 using GitHub.Copilot;
 using Microsoft.Extensions.Logging;
 
-// Using ILogger (AddConsole comes from the Microsoft.Extensions.Logging.Console package)
+// Using ILogger
 var loggerFactory = LoggerFactory.Create(builder =>
 {
     builder.SetMinimumLevel(LogLevel.Debug);
@@ -119,8 +121,6 @@ not start a separate logging process.
 <summary><strong>Node.js / TypeScript</strong></summary>
 
 ```typescript
-import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
-
 const client = new CopilotClient({
   connection: RuntimeConnection.forStdio({ args: ["--log-dir", "/path/to/logs"] }),
 });
@@ -186,6 +186,7 @@ var client = new CopilotClient(new CopilotClientOptions
 <details>
 <summary><strong>Java</strong></summary>
 
+<!-- docs-validate: skip -->
 ```java
 import com.github.copilot.CopilotClient;
 import com.github.copilot.rpc.CopilotClientOptions;
@@ -200,7 +201,7 @@ var client = new CopilotClient(new CopilotClientOptions()
 
 ### "CLI not found" / "Copilot: command not found"
 
-**Cause:** The Copilot CLI is missing or its configured path is invalid.
+**Cause:** The Copilot CLI is not installed or not in PATH.
 
 **Solution:**
 
@@ -211,14 +212,12 @@ var client = new CopilotClient(new CopilotClientOptions()
    copilot --version
    ```
 
-1. Specify the full path:
+1. Or specify the full path:
 
    <details open>
    <summary><strong>Node.js</strong></summary>
 
    ```typescript
-   import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
-
    const client = new CopilotClient({
      connection: RuntimeConnection.forStdio({ path: "/usr/local/bin/copilot" }),
    });
@@ -300,8 +299,6 @@ var client = new CopilotClient(new CopilotClientOptions()
    <summary><strong>Node.js</strong></summary>
 
    ```typescript
-   import { CopilotClient } from "@github/copilot-sdk";
-
    const client = new CopilotClient({
      gitHubToken: process.env.GITHUB_TOKEN,
    });
@@ -400,8 +397,6 @@ var client = new CopilotClient(new CopilotClientOptions()
 
 1. Check for port conflicts if using TCP mode:
    ```typescript
-   import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
-
    const client = new CopilotClient({
      connection: RuntimeConnection.forTcp({ port: 0 }),  // Use random available port
    });
@@ -417,7 +412,7 @@ MCP (Model Context Protocol) servers can be tricky to debug. For comprehensive M
 * [ ] Command path is correct (use absolute paths)
 * [ ] Tools are enabled: `tools: ["*"]`
 * [ ] Server responds to `initialize` request correctly
-* [ ] Working directory (`workingDirectory`) is set if needed
+* [ ] Working directory (`cwd`) is set if needed
 
 ### Test your MCP server
 
@@ -433,7 +428,7 @@ See [MCP Debugging Guide](./mcp-debugging.md) for detailed troubleshooting.
 
 ### stdio vs TCP mode
 
-Out of process, the SDK talks to the runtime over one of two transports:
+The SDK supports two transport modes:
 
 | Mode | Description | Use Case |
 |------|-------------|----------|
@@ -442,8 +437,6 @@ Out of process, the SDK talks to the runtime over one of two transports:
 
 **Stdio mode (default):**
 ```typescript
-import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
-
 const client = new CopilotClient({
   connection: RuntimeConnection.forStdio(),  // This is the default
 });
@@ -451,8 +444,6 @@ const client = new CopilotClient({
 
 **TCP mode:**
 ```typescript
-import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
-
 const client = new CopilotClient({
   connection: RuntimeConnection.forTcp({ port: 8080 }),  // Or 0 for random port
 });
@@ -460,14 +451,10 @@ const client = new CopilotClient({
 
 **Connect to existing server:**
 ```typescript
-import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
-
 const client = new CopilotClient({
   connection: RuntimeConnection.forUri("localhost:8080"),  // Connect to running server
 });
 ```
-
-The experimental in-process transport loads the runtime into your process instead, so there is no child process or socket to check; see [In-process runtime](../setup/in-process-runtime.md).
 
 ### Diagnosing connection failures
 
@@ -489,17 +476,6 @@ The experimental in-process transport loads the runtime into your process instea
 ### Custom tool not being called
 
 1. **Verify tool registration:**
-   <!-- docs-validate: hidden -->
-   ```typescript
-   import type { Tool } from "@github/copilot-sdk";
-
-   declare const myTool: Tool<{ location: string }>;
-
-   const session = await client.createSession({
-     tools: [myTool],
-   });
-   ```
-   <!-- /docs-validate: hidden -->
    ```typescript
    const session = await client.createSession({
      tools: [myTool],
@@ -518,7 +494,7 @@ The experimental in-process transport loads the runtime into your process instea
        },
        required: ["location"],
      },
-     handler: async (args: { location: string }) => {
+     handler: async (args) => {
        return { temperature: 72 };
      },
    };
@@ -526,7 +502,7 @@ The experimental in-process transport loads the runtime into your process instea
 
 1. **Ensure handler returns valid result:**
    ```typescript
-   handler: async (args: { location: string }) => {
+   handler: async (args) => {
      // Must return something JSON-serializable
      return { success: true, data: "result" };
      
@@ -588,8 +564,6 @@ session.on("session.error", (event) => {
 
 1. **PATH issues in GUI apps:** GUI applications may not inherit shell PATH:
    ```typescript
-   import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
-
    const client = new CopilotClient({
      connection: RuntimeConnection.forStdio({ path: "/opt/homebrew/bin/copilot" }),  // Full path
    });

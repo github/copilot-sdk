@@ -63,9 +63,7 @@ public class SessionEventDispatchTests
 
             Assert.IsType<SessionEvent>(actual);
             Assert.Equal("child", actual.AgentId);
-            Assert.True(JsonNode.DeepEquals(
-                JsonNode.Parse(DeserializeReference(json)?.ToJson() ?? "null"),
-                JsonNode.Parse(actual.ToJson())));
+            Assert.Equal(JsonSerializer.Deserialize(json, PolymorphicTypeInfo)?.ToJson(), actual.ToJson());
         }
     }
 
@@ -87,7 +85,7 @@ public class SessionEventDispatchTests
     [InlineData("null")]
     public void FromJson_PreservesPolymorphicDeserialization(string json)
     {
-        var expected = DeserializeReference(json);
+        var expected = JsonSerializer.Deserialize(json, PolymorphicTypeInfo);
         var actual = SessionEvent.FromJson(json);
 
         Assert.Equal(expected?.GetType(), actual?.GetType());
@@ -210,25 +208,7 @@ public class SessionEventDispatchTests
         Assert.Equal("hello", decoded.Data.Content);
     }
 
-    private static SessionEvent? DeserializeReference(string json)
-    {
-        var expected = JsonSerializer.Deserialize(json, PolymorphicTypeInfo);
-        if (expected?.GetType() == typeof(SessionEvent))
-        {
-            using var document = JsonDocument.Parse(json);
-            foreach (var property in document.RootElement.EnumerateObject())
-            {
-                if (string.Equals(property.Name, "type", StringComparison.OrdinalIgnoreCase))
-                {
-                    // System.Text.Json consumes or ignores this field; the SDK retains it.
-                    (expected.AdditionalProperties ??= new Dictionary<string, JsonElement>())[property.Name] = property.Value.Clone();
-                }
-            }
-        }
-        return expected;
-    }
-
-    // Source-generated metadata remains the reference for typed fields and dispatch.
+    // The unchanged source-generated context is the reference contract, not reflection metadata.
     private static JsonTypeInfo<SessionEvent> PolymorphicTypeInfo
     {
         get

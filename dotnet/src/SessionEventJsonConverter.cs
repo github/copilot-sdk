@@ -5,7 +5,6 @@
 using System.Buffers;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 #if !NETSTANDARD2_0
 using System.Text.Unicode;
@@ -42,7 +41,7 @@ internal sealed partial class SessionEventJsonConverter
             }
 #endif
             ReadOnlySpan<byte> utf8 = buffer.Slice(0, byteCount);
-            var reader = new Utf8JsonReader(utf8, new JsonReaderOptions { MaxDepth = JsonRpc.MaxIncomingMessageDepth });
+            var reader = new Utf8JsonReader(utf8);
 
             // Select metadata without entering the converter: reader-based nested deserialization
             // would scan the entire object again to scope its input before parsing it.
@@ -92,15 +91,4 @@ internal sealed partial class SessionEventJsonConverter
             throw new JsonException(ex.Message, ex);
         }
     }
-}
-
-public partial class SessionEvent
-{
-    /// <summary>
-    /// Event fields not recognized by this SDK, including the type and data of unknown events.
-    /// Entries can be inspected, replaced, or removed before serializing or forwarding an event.
-    /// Use raw history instead when exact original JSON is required.
-    /// </summary>
-    [JsonExtensionData]
-    public IDictionary<string, JsonElement>? AdditionalProperties { get; set; }
 }

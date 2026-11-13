@@ -10,10 +10,6 @@ export type JsonValue = null | boolean | number | string | JsonValue[] | { [key:
  * Union of all session event variants emitted by the Copilot CLI runtime.
  */
 export type SessionEvent =
-  | IdeConnectionChangedEvent
-  | IdeSelectionChangedEvent
-  | IdeAddFileReferenceEvent
-  | IdeElicitationCompleteEvent
   | JournalLinkEvent
   | StartEvent
   | ResumeEvent
@@ -50,7 +46,6 @@ export type SessionEvent =
   | UsageInfoEvent
   | ContextClearedEvent
   | CompactionStartEvent
-  | CompactionSummarizedEvent
   | CompactionCompleteEvent
   | TaskCompleteEvent
   | CompletionReceiptEvent
@@ -130,9 +125,6 @@ export type SessionEvent =
   | CommandCompletedEvent
   | AutoModeSwitchRequestedEvent
   | AutoModeSwitchCompletedEvent
-  | AutoModeRecoveryConsentRequestedEvent
-  | AutoModeRecoveryConsentCompletedEvent
-  | AutoModeRecoveryOutcomeEvent
   | SessionLimitsExhaustedRequestedEvent
   | SessionLimitsExhaustedCompletedEvent
   | AutoModeResolvedEvent
@@ -416,15 +408,7 @@ export type IndexedSearchDisabledReason =
   /** The Windows cloud-sync safety check failed. */
   | "cloud_sync_detection_failed"
   /** The workspace is not available on the runtime's local filesystem. */
-  | "workspace_not_local"
-  /** Another process holds the machine-wide indexed-search server slot. */
-  | "server_limit"
-  /** The workspace is a filesystem or network-share root. */
-  | "filesystem_root"
-  /** The workspace is the user's home directory. */
-  | "home_directory"
-  /** The user's home directory could not be determined. */
-  | "home_directory_detection_failed";
+  | "workspace_not_local";
 /**
  * Result of an indexed-search startup attempt.
  */
@@ -920,15 +904,13 @@ export type Attachment =
   | AttachmentExtensionContext
   | AttachmentSessionReference;
 /**
- * Why the binary data is absent: it exceeded the inline size limit, its asset was unavailable, or its image format was unsupported
+ * Why the binary data is absent: it exceeded the inline size limit, or its asset was unavailable
  */
 export type OmittedBinaryOmittedReason =
   /** Bytes exceeded the session's inline size limit. */
   | "too_large"
   /** The referenced binary asset could not be found (e.g. a truncated log). */
-  | "asset_unavailable"
-  /** The image format or MIME label is not accepted by the model. */
-  | "unsupported_format";
+  | "asset_unavailable";
 /**
  * Type of GitHub reference
  */
@@ -1022,9 +1004,7 @@ export type AssistantUsageApiEndpoint =
   /** Responses API endpoint. */
   | "/responses"
   /** WebSocket Responses API endpoint. */
-  | "ws:/responses"
-  /** Gemini Interactions API endpoint. */
-  | "/interactions";
+  | "ws:/responses";
 /**
  * How the runtime fell back to an uncompressed request body after a compressed body was rejected
  */
@@ -1852,16 +1832,12 @@ export type HumanResponseActor =
   /** The response came through a legacy or otherwise unattributed ingress. */
   | "unknown";
 /**
- * Exact runtime-owned question or reviewed plan paired with the typed response that settled it. A refusal records the question without an answer and never grants authority.
+ * Exact runtime-owned question or reviewed plan paired with the typed response that settled it.
  */
 export type HumanResponseRecordedResponse =
   | {
       /**
-       * How the person refused the question; absent for an accepted answer.
-       */
-      action?: HumanResponseAskUserAction;
-      /**
-       * Exact answer content accepted from the user; empty when the person refused the question.
+       * Exact answer content accepted from the user.
        */
       content: {
         [k: string]: ElicitationCompletedContent | undefined;
@@ -1885,17 +1861,13 @@ export type HumanResponseRecordedResponse =
        */
       allowFreeform?: boolean;
       /**
-       * Exact selected or free-form answer submitted by the user; empty when the person dismissed the question.
+       * Exact selected or free-form answer submitted by the user.
        */
       answer: string;
       /**
        * Exact choices displayed to the user, when the request offered choices.
        */
       choices?: string[];
-      /**
-       * True when the person dismissed the question instead of answering it.
-       */
-      dismissed?: boolean;
       /**
        * Exact question displayed to the user.
        */
@@ -1939,7 +1911,7 @@ export type HumanResponseRecordedResponse =
        */
       responseKind: "exit_plan_mode";
       /**
-       * Action the runtime applied for an approved plan: the user's selection, or the default an approval without one applies.
+       * Action selected by the user, when applicable.
        */
       selectedAction?: ExitPlanModeAction;
       /**
@@ -1947,14 +1919,6 @@ export type HumanResponseRecordedResponse =
        */
       summary: string;
     };
-/**
- * How the person refused a built-in `ask_user` question instead of answering it.
- */
-export type HumanResponseAskUserAction =
-  /** The person explicitly declined the question. */
-  | "decline"
-  /** The person dismissed the question. */
-  | "cancel";
 /**
  * Terminal status a workflow run committed. A settled run is never `pending` or `running`, so those two members of the run-status domain are deliberately absent.
  */
@@ -2030,13 +1994,11 @@ export type ExtensionsLoadedExtensionSource =
   /** Extension discovered from the current session's state directory. */
   | "session";
 /**
- * Current status: running, dormant, disabled, failed, or starting
+ * Current status: running, disabled, failed, or starting
  */
 export type ExtensionsLoadedExtensionStatus =
   /** The extension process is running. */
   | "running"
-  /** The extension is enabled and discoverable but not yet requested. */
-  | "dormant"
   /** The extension is installed but disabled. */
   | "disabled"
   /** The extension failed to start or crashed. */
@@ -2044,312 +2006,6 @@ export type ExtensionsLoadedExtensionStatus =
   /** The extension process is starting. */
   | "starting";
 
-/**
- * Session event "ide.connection_changed". Live IDE state. This state never restores a connection from session history.
- */
-export interface IdeConnectionChangedEvent {
-  /**
-   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-   */
-  agentId?: string;
-  /**
-   * Whether this physical journal record belongs to a replay checkpoint rather than original session history.
-   */
-  checkpoint?: boolean;
-  /**
-   * Live IDE state. This state never restores a connection from session history.
-   */
-  data: IdeConnectionState;
-  /**
-   * Always true for events that are transient and not persisted to the session event log on disk.
-   */
-  ephemeral: true;
-  /**
-   * Unique event identifier (UUID v4), generated when the event is emitted
-   */
-  id: string;
-  /**
-   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
-   */
-  parentId: string | null;
-  /**
-   * ISO 8601 timestamp when the event was created
-   */
-  timestamp: string;
-  /**
-   * Type discriminator. Always "ide.connection_changed".
-   */
-  type: "ide.connection_changed";
-}
-/**
- * Live IDE state. This state never restores a connection from session history.
- */
-export interface IdeConnectionState {
-  /**
-   * Currently available IDE, absent during an outage.
-   */
-  connectedIde?: IdeConnectedInfo;
-  /**
-   * IDE whose tool definitions remain registered, including during an outage.
-   */
-  retainedIde?: IdeConnectedInfo;
-  /**
-   * Latest observed selection, absent after disconnect.
-   */
-  selection?: IdeSelection;
-}
-/**
- * An IDE connection on the runtime host.
- */
-export interface IdeConnectedInfo {
-  /**
-   * IDE display name.
-   */
-  ideName: string;
-  /**
-   * IDE lock file path on the runtime host.
-   */
-  lockFilePath: string;
-  /**
-   * IDE process identifier on the runtime host.
-   */
-  pid: number;
-  /**
-   * Registered MCP server name.
-   */
-  serverName: string;
-  /**
-   * Absolute workspace path on the runtime host.
-   */
-  workspaceFolder: string;
-}
-/**
- * A validated live IDE selection.
- */
-export interface IdeSelection {
-  /**
-   * Whether the selection is current.
-   */
-  current?: boolean;
-  /**
-   * Document path on the runtime host.
-   */
-  filePath: string;
-  /**
-   * Document URL supplied by the IDE.
-   */
-  fileUrl: string;
-  /**
-   * Selection endpoints and empty state.
-   */
-  selection: IdeSelectionRange;
-  /**
-   * Selected document text.
-   */
-  text: string;
-}
-/**
- * The active selection range in an IDE document.
- */
-export interface IdeSelectionRange {
-  /**
-   * End position.
-   */
-  end: IdePosition;
-  /**
-   * Whether the selection contains no text.
-   */
-  isEmpty: boolean;
-  /**
-   * Start position.
-   */
-  start: IdePosition;
-}
-/**
- * A zero-based location in an IDE document.
- */
-export interface IdePosition {
-  /**
-   * Zero-based character offset.
-   */
-  character: number;
-  /**
-   * Zero-based line number.
-   */
-  line: number;
-}
-/**
- * Session event "ide.selection_changed". A validated selection from the live IDE, or an explicit clear.
- */
-export interface IdeSelectionChangedEvent {
-  /**
-   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-   */
-  agentId?: string;
-  /**
-   * Whether this physical journal record belongs to a replay checkpoint rather than original session history.
-   */
-  checkpoint?: boolean;
-  /**
-   * A validated selection from the live IDE, or an explicit clear.
-   */
-  data: IdeSelectionChangedData;
-  /**
-   * Always true for events that are transient and not persisted to the session event log on disk.
-   */
-  ephemeral: true;
-  /**
-   * Unique event identifier (UUID v4), generated when the event is emitted
-   */
-  id: string;
-  /**
-   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
-   */
-  parentId: string | null;
-  /**
-   * ISO 8601 timestamp when the event was created
-   */
-  timestamp: string;
-  /**
-   * Type discriminator. Always "ide.selection_changed".
-   */
-  type: "ide.selection_changed";
-}
-/**
- * A validated selection from the live IDE, or an explicit clear.
- */
-export interface IdeSelectionChangedData {
-  /**
-   * Selection path, text, and source range, or null when the selection is cleared.
-   */
-  selection: IdeSelection | null;
-}
-/**
- * Session event "ide.add_file_reference". An IDE request to attach a file or selection to the composer.
- */
-export interface IdeAddFileReferenceEvent {
-  /**
-   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-   */
-  agentId?: string;
-  /**
-   * Whether this physical journal record belongs to a replay checkpoint rather than original session history.
-   */
-  checkpoint?: boolean;
-  /**
-   * An IDE request to attach a file or selection to the composer.
-   */
-  data: IdeAddFileReferenceData;
-  /**
-   * Always true for events that are transient and not persisted to the session event log on disk.
-   */
-  ephemeral: true;
-  /**
-   * Unique event identifier (UUID v4), generated when the event is emitted
-   */
-  id: string;
-  /**
-   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
-   */
-  parentId: string | null;
-  /**
-   * ISO 8601 timestamp when the event was created
-   */
-  timestamp: string;
-  /**
-   * Type discriminator. Always "ide.add_file_reference".
-   */
-  type: "ide.add_file_reference";
-}
-/**
- * An IDE request to attach a file or selection to the composer.
- */
-export interface IdeAddFileReferenceData {
-  /**
-   * Validated file reference or selected range.
-   */
-  reference: IdeFileReference;
-}
-/**
- * A validated IDE request to attach a file or selected text.
- */
-export interface IdeFileReference {
-  /**
-   * Document path on the runtime host.
-   */
-  filePath: string;
-  /**
-   * Document URL supplied by the IDE.
-   */
-  fileUrl: string;
-  /**
-   * Selected text, or null for a whole file.
-   */
-  selectedText: string | null;
-  /**
-   * Selected range, or null for a whole file.
-   */
-  selection: IdeRange | null;
-}
-/**
- * The endpoints of an IDE file reference.
- */
-export interface IdeRange {
-  /**
-   * End position.
-   */
-  end: IdePosition;
-  /**
-   * Start position.
-   */
-  start: IdePosition;
-}
-/**
- * Session event "ide.elicitation_complete". An IDE elicitation completion notification.
- */
-export interface IdeElicitationCompleteEvent {
-  /**
-   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-   */
-  agentId?: string;
-  /**
-   * Whether this physical journal record belongs to a replay checkpoint rather than original session history.
-   */
-  checkpoint?: boolean;
-  /**
-   * An IDE elicitation completion notification.
-   */
-  data: IdeElicitationCompleteData;
-  /**
-   * Always true for events that are transient and not persisted to the session event log on disk.
-   */
-  ephemeral: true;
-  /**
-   * Unique event identifier (UUID v4), generated when the event is emitted
-   */
-  id: string;
-  /**
-   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
-   */
-  parentId: string | null;
-  /**
-   * ISO 8601 timestamp when the event was created
-   */
-  timestamp: string;
-  /**
-   * Type discriminator. Always "ide.elicitation_complete".
-   */
-  type: "ide.elicitation_complete";
-}
-/**
- * An IDE elicitation completion notification.
- */
-export interface IdeElicitationCompleteData {
-  /**
-   * Elicitation identifier returned by the IDE.
-   */
-  elicitationId: string;
-}
 /**
  * Session event "session.journal_link". Links a standalone replay head to its complete preceding numbered journal archive.
  */
@@ -2774,7 +2430,7 @@ export interface RemoteSteerableChangedData {
   remoteSteerable: boolean;
 }
 /**
- * Session event "session.error". Session error details for timeline display. Request-correlated completion RPC failures carry the terminal error's same fields in their error data, with stack and completionEventId.
+ * Session event "session.error". Error details for timeline display including message and optional diagnostic information
  */
 export interface ErrorEvent {
   /**
@@ -2786,7 +2442,7 @@ export interface ErrorEvent {
    */
   checkpoint?: boolean;
   /**
-   * Session error details for timeline display. Request-correlated completion RPC failures carry the terminal error's same fields in their error data, with stack and completionEventId.
+   * Error details for timeline display including message and optional diagnostic information
    */
   data: ErrorData;
   /**
@@ -2811,7 +2467,7 @@ export interface ErrorEvent {
   type: "session.error";
 }
 /**
- * Session error details for timeline display. Request-correlated completion RPC failures carry the terminal error's same fields in their error data, with stack and completionEventId.
+ * Error details for timeline display including message and optional diagnostic information
  */
 export interface ErrorData {
   /**
@@ -2838,10 +2494,6 @@ export interface ErrorData {
    * GitHub request tracing ID (x-github-request-id header) for correlating with server-side logs
    */
   providerCallId?: string;
-  /**
-   * Provider-defined error code, when available; unset otherwise. Unlike errorCode, this is not a runtime or Copilot API classification and does not imply a remediation or retry policy.
-   */
-  providerErrorCode?: string;
   /**
    * Sanitized provider-defined error parameter preserved from a structured upstream error envelope, when available.
    */
@@ -3299,12 +2951,6 @@ export interface InfoData {
    */
   message: string;
   /**
-   * Reasoning configuration consumed at this conversation boundary. Present on reasoning_effort updates; preserves the original request baseline and applied effort without creating a user message.
-   *
-   * @internal
-   */
-  responsesReasoning?: ResponsesReasoning;
-  /**
    * Optional actionable tip displayed with this message
    */
   tip?: string;
@@ -3312,23 +2958,6 @@ export interface InfoData {
    * Optional URL associated with this message that the user can open in a browser
    */
   url?: string;
-}
-/**
- * Original request-level and effective conversation reasoning effort for a provider history boundary; the historical type name is retained for compatibility
- */
-export interface ResponsesReasoning {
-  /**
-   * Effective effort selected before this message, independent of the response-level reasoning field
-   */
-  effort: string;
-  /**
-   * Original request-level effort, retained while replaying this conversation prefix
-   */
-  initialEffort: string;
-  /**
-   * Provider model whose reasoning settings this boundary records
-   */
-  model: string;
 }
 /**
  * Session event "session.indexed_search". Transient indexed-search status and diagnostics from the live runtime service. Never persisted or used to infer activation from session history.
@@ -3479,7 +3108,7 @@ export interface ModelChangeData {
    */
   autoTierManaged?: boolean;
   /**
-   * Reason the change happened, when not user-initiated. `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path, `"auto_mode_recovery"` when a prepared Auto route commits and a recovered inference is allowed to proceed before provider dispatch, or `"refusal_fallback"` when the active model declined a request (content refusal) and the runtime switched to the configured refusal-fallback model. UI clients can use this to render contextual copy.
+   * Reason the change happened, when not user-initiated. `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path, or `"refusal_fallback"` when the active model declined a request (content refusal) and the runtime switched to the configured refusal-fallback model. UI clients can use this to render contextual copy.
    */
   cause?: string;
   /**
@@ -5211,7 +4840,7 @@ export interface UsageInfoData {
   toolDefinitionsTokens?: number;
 }
 /**
- * Session event "session.context_cleared". Context-cleared details emitted when the conversation is cleared (the session.history.clearContext RPC, or the runtime starting a fresh context window)
+ * Session event "session.context_cleared". Context-cleared details emitted when the host clears the conversation (the session.history.clearContext RPC / Session.clearContextMessages)
  */
 export interface ContextClearedEvent {
   /**
@@ -5223,7 +4852,7 @@ export interface ContextClearedEvent {
    */
   checkpoint?: boolean;
   /**
-   * Context-cleared details emitted when the conversation is cleared (the session.history.clearContext RPC, or the runtime starting a fresh context window)
+   * Context-cleared details emitted when the host clears the conversation (the session.history.clearContext RPC / Session.clearContextMessages)
    */
   data: ContextClearedData;
   /**
@@ -5248,7 +4877,7 @@ export interface ContextClearedEvent {
   type: "session.context_cleared";
 }
 /**
- * Context-cleared details emitted when the conversation is cleared (the session.history.clearContext RPC, or the runtime starting a fresh context window)
+ * Context-cleared details emitted when the host clears the conversation (the session.history.clearContext RPC / Session.clearContextMessages)
  */
 export interface ContextClearedData {
   /**
@@ -5353,76 +4982,6 @@ export interface CompactionStartData {
    * What initiated this compaction, when known
    */
   trigger?: CompactionTrigger;
-}
-/**
- * Session event "session.compaction_summarized". A background compaction's summarizer settled; its summary is not applied to the conversation yet. The matching session.compaction_complete follows once it is applied (or discarded) and remains authoritative.
- */
-export interface CompactionSummarizedEvent {
-  /**
-   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-   */
-  agentId?: string;
-  /**
-   * Whether this physical journal record belongs to a replay checkpoint rather than original session history.
-   */
-  checkpoint?: boolean;
-  /**
-   * A background compaction's summarizer settled; its summary is not applied to the conversation yet. The matching session.compaction_complete follows once it is applied (or discarded) and remains authoritative.
-   */
-  data: CompactionSummarizedData;
-  /**
-   * Always true for events that are transient and not persisted to the session event log on disk.
-   */
-  ephemeral: true;
-  /**
-   * Unique event identifier (UUID v4), generated when the event is emitted
-   */
-  id: string;
-  /**
-   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
-   */
-  parentId: string | null;
-  /**
-   * ISO 8601 timestamp when the event was created
-   */
-  timestamp: string;
-  /**
-   * Type discriminator. Always "session.compaction_summarized".
-   */
-  type: "session.compaction_summarized";
-}
-/**
- * A background compaction's summarizer settled; its summary is not applied to the conversation yet. The matching session.compaction_complete follows once it is applied (or discarded) and remains authoritative.
- */
-export interface CompactionSummarizedData {
-  /**
-   * Always true: the settled outcome still awaits being applied, which session.compaction_complete reports
-   */
-  applyPending: boolean;
-  /**
-   * Identifier shared with the matching compaction start and completion events
-   */
-  compactionAttemptId: string;
-  /**
-   * Error message if the summarizer failed
-   */
-  error?: string;
-  /**
-   * How the compaction ran relative to the conversation, as on the start event ("background"). Open set; readers must tolerate other values.
-   */
-  execution: string;
-  /**
-   * Bounded reason for a failed summarizer, using the same values as the completion event's failureReason. Unknown future values are preserved.
-   */
-  failureReason?: string;
-  /**
-   * How the summarizer settled: "succeeded", "failed", or "cancelled". Open set; readers must tolerate other values.
-   */
-  outcome: string;
-  /**
-   * Whether the summarizer produced a summary that can be applied
-   */
-  success: boolean;
 }
 /**
  * Session event "session.compaction_complete". Conversation compaction results including success status, metrics, and optional error details
@@ -5672,12 +5231,6 @@ export interface CompactionCompleteAttemptMetrics {
    */
   deadlinePolicy?: string;
   /**
-   * Time a background compaction's summarizer was held for the turn's in-flight request to start responding before it was sent, in milliseconds. The compaction's deadline starts when the summarizer is sent. Absent when the summarizer was not held.
-   *
-   * @internal
-   */
-  dispatchWaitMs?: number;
-  /**
    * Time from the start of the compaction to this event, in milliseconds, whatever the outcome
    *
    * @internal
@@ -5883,6 +5436,23 @@ export interface CompactionCompleteFailureDiagnostics {
    * @internal
    */
   transportErrorKind?: string;
+}
+/**
+ * Original request-level and effective conversation reasoning effort for a provider history boundary; the historical type name is retained for compatibility
+ */
+export interface ResponsesReasoning {
+  /**
+   * Effective effort selected before this message, independent of the response-level reasoning field
+   */
+  effort: string;
+  /**
+   * Original request-level effort, retained while replaying this conversation prefix
+   */
+  initialEffort: string;
+  /**
+   * Provider model whose reasoning settings this boundary records
+   */
+  model: string;
 }
 /**
  * How far the compaction's summarizer model calls had progressed when the compaction's outcome was decided. Stream statistics describe the latest model request; durationMs and attemptCount cover every request.
@@ -6907,10 +6477,6 @@ export interface UserMessageData {
    */
   causalDependencies?: string[];
   /**
-   * Opaque clientTurnId the caller supplied on the send that delivered this message, echoed when the message is consumed, whether it started a turn, drained from the queue or was consumed as steering. Absent when that send supplied none.
-   */
-  clientTurnId?: string;
-  /**
    * The user's message text as displayed in the timeline
    */
   content: string;
@@ -6918,10 +6484,6 @@ export interface UserMessageData {
    * How this message was delivered to the agentic loop relative to loop state (idle-start vs. steering/queued while busy). The timing axis; combine with `source` (origin) for the full picture. Used for telemetry attribution.
    */
   delivery?: UserMessageDelivery;
-  /**
-   * Whether the submitted prompt or attachments contain a task, before adding generated context such as timestamps; independent of timeline display text. Absent in older events.
-   */
-  hasSubmittedTask?: boolean;
   /**
    * CAPI interaction ID for correlating this user message with its turn
    */
@@ -8420,7 +7982,7 @@ export interface AssistantMessageData {
    */
   originatingMessageId?: string;
   /**
-   * Output tokens this message adds to replayed context, for token accounting: the API response's completion_tokens, plus reasoning tokens a wire replays as input but reports separately, shared across the response's message chunks. Use assistant.usage for billed usage.
+   * Actual output token count from the API response (completion_tokens), used for accurate token accounting
    */
   outputTokens?: number;
   /**
@@ -9221,7 +8783,7 @@ export interface AssistantUsageData {
    */
   providerCallId?: string;
   /**
-   * Fixed-set configured provider type of the bring-your-own-key model: "openai", "azure", "anthropic", "google", "local_model" (a user-configured local model), "winml" (a Copilot-managed Windows ML model), or "other". Never the caller-supplied provider name. Absent for Copilot-served models.
+   * Fixed-set configured provider type of the bring-your-own-key model: "openai", "azure", "anthropic", "local_model" (a user-configured local model), "winml" (a Copilot-managed Windows ML model), or "other". Never the caller-supplied provider name. Absent for Copilot-served models.
    *
    * @internal
    */
@@ -9638,7 +9200,7 @@ export interface ModelCallFailureData {
    */
   providerCallId?: string;
   /**
-   * Fixed-set configured provider type of the bring-your-own-key model for the failed call: "openai", "azure", "anthropic", "google", "local_model" (a user-configured local model), "winml" (a Copilot-managed Windows ML model), or "other". Never the caller-supplied provider name. Absent for Copilot-served models.
+   * Fixed-set configured provider type of the bring-your-own-key model for the failed call: "openai", "azure", "anthropic", "local_model" (a user-configured local model), "winml" (a Copilot-managed Windows ML model), or "other". Never the caller-supplied provider name. Absent for Copilot-served models.
    *
    * @internal
    */
@@ -10052,12 +9614,6 @@ export interface ToolExecutionStartData {
    */
   parentToolCallId?: string;
   /**
-   * Host-owned call ID of the run_program invocation that requested this child tool. Its result is program input, not a model message; agent attribution remains independent.
-   *
-   * @experimental
-   */
-  programToolCallId?: string;
-  /**
    * Whether the selected tool descriptor explicitly classifies this call as read-only.
    */
   readOnly?: boolean;
@@ -10404,12 +9960,6 @@ export interface ToolExecutionCompleteData {
    * Tool call ID of the parent tool invocation when this event originates from a sub-agent
    */
   parentToolCallId?: string;
-  /**
-   * Host-owned call ID of the run_program invocation that requested this child tool. Its result is program input, not a model message; agent attribution remains independent.
-   *
-   * @experimental
-   */
-  programToolCallId?: string;
   /**
    * Tool execution result on success
    */
@@ -12469,10 +12019,6 @@ export interface PermissionRequestedData {
    */
   permissionRequest: PermissionRequest;
   /**
-   * Program invocation owning this permission request. Its child call must not be resumed independently.
-   */
-  programToolCallId?: string;
-  /**
    * Derived user-facing permission prompt details for UI consumers
    */
   promptRequest?: PermissionPromptRequest;
@@ -12614,7 +12160,7 @@ export interface PermissionRequestShellPossibleUrl {
   url: string;
 }
 /**
- * A sandbox filesystem policy edit that would let a blocked operation run inside the sandbox instead of outside it. Offered only on a sandbox escalation request whose denial adding this path lifts, and only when managed policy permits the grant. A host accepts it with session.sandbox.grantPathForRequest, which adds the path to the session's sandbox policy and re-runs the operation sandboxed. A host that persists sandbox settings must save the optional policy spelling when present; otherwise it must escape every literal `$` in the concrete path as `$$` before saving that path.
+ * A sandbox filesystem policy edit that would let a blocked operation run inside the sandbox instead of outside it. Offered only on a sandbox escalation request whose denial adding this path lifts, and only when managed policy permits the grant. A host accepts it with session.sandbox.grantPathForRequest, which adds the path to the session's sandbox policy and re-runs the operation sandboxed; a host that persists sandbox settings may also save the path there.
  */
 /** @experimental */
 export interface PermissionSandboxPathGrant {
@@ -12630,10 +12176,6 @@ export interface PermissionSandboxPathGrant {
    * Absolute path to add to the sandbox filesystem policy
    */
   path: string;
-  /**
-   * Policy spelling to persist for the grant. This can differ from path when a managed allowlist names the same location through an environment expression. Hosts that persist sandbox settings must save this value when present. When it is absent, they must escape every literal `$` in path as `$$` before saving path so the policy grammar does not interpret it as an environment reference.
-   */
-  persistedPath?: string;
   /**
    * readonlyPaths entries the grant removes, exactly as written in the policy, because a read-only entry for the same location would otherwise keep the path read-only. A host that persists the path must remove these entries from its stored readonlyPaths too.
    */
@@ -12909,12 +12451,6 @@ export interface PermissionRequestMemory {
  */
 /** @experimental */
 export interface PermissionAssistedApproval {
-  /**
-   * Zero-based indexes into the shell request's `commandSegments` that a `requireApproval` recommendation identified as needing approval, validated by the runtime against that request. Absent when the recommendation did not attribute approval to specific segments; the whole command then needs approval.
-   *
-   * @experimental
-   */
-  approvalRequiredCommandSegments?: number[];
   /**
    * Runtime reason and judge-call metadata. Absent on older events; missing metadata means unknown, not that the judge was skipped.
    */
@@ -13479,10 +13015,6 @@ export interface PermissionPromptRequestUrl {
    * Whether managed policy requires a human response and forbids host auto-approval
    */
   managedApprovalRequired?: boolean;
-  /**
-   * Wildcard pattern covering the registrable domain of the URL and its subdomains, for example https://*.example.com for https://api.example.com/x. The runtime computes it from the Public Suffix List, keeping the URL's scheme and non-default port, so every host offers the same scope. Absent when no parent-domain approval can be offered safely (IP addresses, private-network names, public suffixes) and for sandbox-bypass requests. Hosts may offer it as a broader alternative to approving the exact origin for the running session and, when the user chooses it, return it as the domain of an approve-for-session response. It is session-only: the runtime matches it by registrable domain, so a subdomain the Public Suffix List lists as a separate owner (for example a bucket under s3.amazonaws.com) is not covered, and the runtime never persists it. Do not offer it as a permanent approval; an approve-permanently response carrying this exact pattern is kept for the session only and writes nothing to settings. The pattern also matches the registrable domain itself.
-   */
-  parentDomainPattern?: string;
   /**
    * Immediately preceding URL when this prompt is for a redirect target
    */
@@ -15482,12 +15014,6 @@ export interface ExternalToolRequestedData {
    */
   arguments?: JsonValue;
   /**
-   * Whether the tool definition had an SDK handler when this request was dispatched.
-   *
-   * @internal
-   */
-  hasHandler?: boolean;
-  /**
    * Stable provider identity captured with an extension-owned tool definition; hosts use it to route the request to the same provider that was offered to the model
    */
   providerId?: string | null;
@@ -15615,10 +15141,6 @@ export interface CommandQueuedData {
    * Unique identifier for this request; used to respond via session.respondToQueuedCommand()
    */
   requestId: string;
-  /**
-   * Whether a schedule dispatched this command. Consumers must reject commands marked as not schedulable before executing a scheduled request. Absent for ordinary queued commands.
-   */
-  scheduled?: boolean;
 }
 /**
  * Session event "command.execute". Registered command dispatch request routed to the owning client
@@ -15827,192 +15349,6 @@ export interface AutoModeSwitchCompletedData {
    * The user's auto-mode-switch choice
    */
   response: AutoModeSwitchResponse;
-}
-/**
- * Session event "auto_mode_recovery_consent.requested". Recovery consent for a still-active request. Respond using session.ui.handlePendingAutoModeSwitch. The offer has no timer. Entering Autopilot before recovery admission withdraws it. Dismiss it on auto_mode_recovery_consent.completed or on session resume, rebuild, or disconnect; resume can invalidate it without a completed event.
- */
-export interface AutoModeRecoveryConsentRequestedEvent {
-  /**
-   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-   */
-  agentId?: string;
-  /**
-   * Whether this physical journal record belongs to a replay checkpoint rather than original session history.
-   */
-  checkpoint?: boolean;
-  /**
-   * Recovery consent for a still-active request. Respond using session.ui.handlePendingAutoModeSwitch. The offer has no timer. Entering Autopilot before recovery admission withdraws it. Dismiss it on auto_mode_recovery_consent.completed or on session resume, rebuild, or disconnect; resume can invalidate it without a completed event.
-   */
-  data: AutoModeRecoveryConsentRequestedData;
-  /**
-   * Always true for events that are transient and not persisted to the session event log on disk.
-   */
-  ephemeral: true;
-  /**
-   * Unique event identifier (UUID v4), generated when the event is emitted
-   */
-  id: string;
-  /**
-   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
-   */
-  parentId: string | null;
-  /**
-   * ISO 8601 timestamp when the event was created
-   */
-  timestamp: string;
-  /**
-   * Type discriminator. Always "auto_mode_recovery_consent.requested".
-   */
-  type: "auto_mode_recovery_consent.requested";
-}
-/**
- * Recovery consent for a still-active request. Respond using session.ui.handlePendingAutoModeSwitch. The offer has no timer. Entering Autopilot before recovery admission withdraws it. Dismiss it on auto_mode_recovery_consent.completed or on session resume, rebuild, or disconnect; resume can invalidate it without a completed event.
- */
-export interface AutoModeRecoveryConsentRequestedData {
-  /**
-   * Whether this offer permits remembering consent with yes_always. Currently true only for per-model rate limits.
-   */
-  allowAlways: boolean;
-  /**
-   * Eligible upstream failure code: model_degraded, model_overloaded, or user_model_rate_limited.
-   */
-  errorCode: string;
-  /**
-   * Original logical interaction identity, when available. Do not infer it from transcript order.
-   */
-  interactionId?: string;
-  /**
-   * Explicit model selected for the failed request before Auto recovery.
-   */
-  originalModel: string;
-  /**
-   * Initiating user-message identity, when available, distinct from later steering messages.
-   */
-  originatingMessageId?: string;
-  /**
-   * One-use offer or recovery episode identifier bound to the originating live session. It cannot be carried across resume or used to replay a settled request.
-   */
-  requestId: string;
-  /**
-   * Rate-limit reset information when supplied by the provider. This is not a consent deadline.
-   */
-  retryAfterSeconds?: number;
-}
-/**
- * Session event "auto_mode_recovery_consent.completed". Recovery consent offer closed; clients must dismiss its UI. Completion does not imply consent or recovery success. Events belong to the originating live session; resume can invalidate an offer without this event.
- */
-export interface AutoModeRecoveryConsentCompletedEvent {
-  /**
-   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-   */
-  agentId?: string;
-  /**
-   * Whether this physical journal record belongs to a replay checkpoint rather than original session history.
-   */
-  checkpoint?: boolean;
-  /**
-   * Recovery consent offer closed; clients must dismiss its UI. Completion does not imply consent or recovery success. Events belong to the originating live session; resume can invalidate an offer without this event.
-   */
-  data: AutoModeRecoveryConsentCompletedData;
-  /**
-   * Always true for events that are transient and not persisted to the session event log on disk.
-   */
-  ephemeral: true;
-  /**
-   * Unique event identifier (UUID v4), generated when the event is emitted
-   */
-  id: string;
-  /**
-   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
-   */
-  parentId: string | null;
-  /**
-   * ISO 8601 timestamp when the event was created
-   */
-  timestamp: string;
-  /**
-   * Type discriminator. Always "auto_mode_recovery_consent.completed".
-   */
-  type: "auto_mode_recovery_consent.completed";
-}
-/**
- * Recovery consent offer closed; clients must dismiss its UI. Completion does not imply consent or recovery success. Events belong to the originating live session; resume can invalidate an offer without this event.
- */
-export interface AutoModeRecoveryConsentCompletedData {
-  /**
-   * Settlement reason, distinguishing user acceptance/decline and saved-preference acceptance from cancellation, handler loss, supersession, and emergency disablement. mode_changed withdraws an unanswered offer when the session enters Autopilot before recovery admission.
-   */
-  reason: string;
-  /**
-   * Identifier of the settled offer; clients must dismiss the matching consent UI.
-   */
-  requestId: string;
-  /**
-   * User response when one was supplied. Absent when the runtime settled the offer without a user answer.
-   */
-  response?: AutoModeSwitchResponse;
-}
-/**
- * Session event "auto_mode_recovery.outcome". Authoritative final outcome of an active-request Auto recovery episode, not a retry-start notification or manual response regeneration. Normal response/error and session completion signals still settle the logical request.
- */
-export interface AutoModeRecoveryOutcomeEvent {
-  /**
-   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
-   */
-  agentId?: string;
-  /**
-   * Whether this physical journal record belongs to a replay checkpoint rather than original session history.
-   */
-  checkpoint?: boolean;
-  /**
-   * Authoritative final outcome of an active-request Auto recovery episode, not a retry-start notification or manual response regeneration. Normal response/error and session completion signals still settle the logical request.
-   */
-  data: AutoModeRecoveryOutcomeData;
-  /**
-   * Always true for events that are transient and not persisted to the session event log on disk.
-   */
-  ephemeral: true;
-  /**
-   * Unique event identifier (UUID v4), generated when the event is emitted
-   */
-  id: string;
-  /**
-   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
-   */
-  parentId: string | null;
-  /**
-   * ISO 8601 timestamp when the event was created
-   */
-  timestamp: string;
-  /**
-   * Type discriminator. Always "auto_mode_recovery.outcome".
-   */
-  type: "auto_mode_recovery.outcome";
-}
-/**
- * Authoritative final outcome of an active-request Auto recovery episode, not a retry-start notification or manual response regeneration. Normal response/error and session completion signals still settle the logical request.
- */
-export interface AutoModeRecoveryOutcomeData {
-  /**
-   * Whether a recovered Auto inference was allowed to proceed, reported on the final outcome rather than as a live start notification. True does not imply success. False when consent or preparation ended without a retry.
-   */
-  autoModeRecoveryAdmitted: boolean;
-  /**
-   * Original upstream failure code that qualified the request for recovery.
-   */
-  errorCode: string;
-  /**
-   * Explicit model selected for the original failed request.
-   */
-  originalModel: string;
-  /**
-   * Recovery episode identifier, also used by its consent offer when one was displayed.
-   */
-  requestId: string;
-  /**
-   * Final recovery disposition, such as succeeded, failed, declined, cancelled, superseded, or unavailable. mode_changed means entering Autopilot stopped recovery before admission, including after consent was accepted.
-   */
-  status: string;
 }
 /**
  * Session event "session_limits_exhausted.requested". Session limit exhaustion notification requiring user action.
@@ -16679,10 +16015,6 @@ export interface CapabilitiesChangedData {
  * UI capability changes
  */
 export interface CapabilitiesChangedUI {
-  /**
-   * Whether a recovery-aware Auto-switch responder is registered. This does not imply current eligibility or override model policy.
-   */
-  autoModeRecovery?: boolean;
   /**
    * Whether canvas rendering is now supported
    */
@@ -17835,7 +17167,7 @@ export interface ExtensionsLoadedExtension {
    */
   source: ExtensionsLoadedExtensionSource;
   /**
-   * Current status: running, dormant, disabled, failed, or starting
+   * Current status: running, disabled, failed, or starting
    */
   status: ExtensionsLoadedExtensionStatus;
 }

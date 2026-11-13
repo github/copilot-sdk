@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net"
 	"os"
 	"reflect"
 	"sync"
@@ -84,18 +83,16 @@ type Client struct {
 	pendingInlineCallbacks map[string]func(json.RawMessage) error
 	requestHandlers        map[string]RequestContextHandler
 	requestPreparations    map[string]func(json.RawMessage) *Error
-	requestScope           func(json.RawMessage) func()
 	incomingRequestCancels map[string]*incomingRequestCancel
 	running                atomic.Bool
 	stopChan               chan struct{}
 	connectionClosed       chan struct{}
 	connectionClosedOnce   sync.Once
 	wg                     sync.WaitGroup
-	processDone            chan struct{}  // closed when the underlying process exits
-	processErrorPtr        *error         // points to the process error
-	processErrorMu         sync.RWMutex   // protects processErrorPtr
-	onClose                func()         // called when the read loop exits unexpectedly
-	onCloseRunning         sync.WaitGroup // held while onClose runs; Add only under mu while running
+	processDone            chan struct{} // closed when the underlying process exits
+	processErrorPtr        *error        // points to the process error
+	processErrorMu         sync.RWMutex  // protects processErrorPtr
+	onClose                func()        // called when the read loop exits unexpectedly
 }
 
 // NewClient creates a new JSON-RPC client.
@@ -147,51 +144,26 @@ func (c *Client) Start() {
 	go c.readLoop()
 }
 
-// Stop stops the client and cleans up, waiting for the read loop to finish.
-// A handler running on the read loop must not call it; use Close instead.
+// Stop stops the client and cleans up
 func (c *Client) Stop() {
-	if c.close() {
-		c.wg.Wait()
-	}
-}
-
-// Close stops the client like Stop without waiting for the read loop, which
-// exits once the handler it is running returns. It cancels in-flight request
-// handlers and closes ConnectionClosed now. The close callback does not run
-// afterwards; if the read loop had already started it, Close waits for it, so
-// the callback's cleanup cannot reach whatever the caller sets up next.
-func (c *Client) Close() {
-	if !c.close() {
-		return
-	}
-	c.onCloseRunning.Wait()
-	// The read loop does the same when it exits, but it may be running a
-	// handler that does not return soon, and nothing reaches the peer now.
-	// Stop leaves this to the read loop: a handler that calls the client while
-	// Stop waits for it must still see the connection open.
-	c.cancelIncomingRequests()
-	c.connectionClosedOnce.Do(func() { close(c.connectionClosed) })
-}
-
-// close stops the client and reports whether this call stopped it.
-func (c *Client) close() bool {
 	c.mu.Lock()
 	if !c.running.Load() {
 		c.mu.Unlock()
-		return false
+		return
 	}
 	c.running.Store(false)
 	close(c.stopChan)
 	c.mu.Unlock()
 
-	if err := c.stdin.Close(); err != nil && !errors.Is(err, io.ErrClosedPipe) && !errors.Is(err, os.ErrClosed) && !errors.Is(err, net.ErrClosed) {
+	if err := c.stdin.Close(); err != nil && !errors.Is(err, io.ErrClosedPipe) && !errors.Is(err, os.ErrClosed) {
 		log.Printf("Failed to close JSON-RPC writer: %v", err)
 	}
 	// Close stdout to unblock the readLoop
 	if c.stdout != nil {
 		c.stdout.Close()
 	}
-	return true
+
+	c.wg.Wait()
 }
 
 func NotificationHandlerFor[In any](handler func(params In)) RequestHandler {
@@ -268,14 +240,6 @@ func (c *Client) SetRequestContextHandler(method string, handler RequestContextH
 		return
 	}
 	c.requestHandlers[method] = handler
-}
-
-// SetRequestScope brackets server-to-client calls with connection-owned admission state.
-// The returned function runs when the handler returns, including during panic unwinding.
-func (c *Client) SetRequestScope(scope func(json.RawMessage) func()) {
-	c.mu.Lock()
-	c.requestScope = scope
-	c.mu.Unlock()
 }
 
 // SetRequestHandlerWithPreparation registers request state in read order before
@@ -380,7 +344,7 @@ func (c *Client) RequestWithInlineResponse(ctx context.Context, method string, p
 		}
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
-	if method == "session.sendAndWait" || method == "session.featureFlags.read" || method == "localModels.watch" || method == "taskAnalytics.classifyTrajectory" {
+	if method == "session.sendAndWait" {
 		defer func() {
 			if ctx.Err() != nil {
 				c.mu.Lock()
@@ -520,23 +484,10 @@ func (c *Client) SetOnClose(fn func()) {
 func (c *Client) readLoop() {
 	defer c.wg.Done()
 	defer func() {
-		// No response can reach the peer once the connection is gone, so stop
-		// in-flight handlers. readLoop dispatches every request, so none can
-		// register after this.
-		c.cancelIncomingRequests()
 		// If still running, the read loop exited unexpectedly (process died or
 		// connection dropped). Notify the caller so it can update its state.
-		// Decide under mu, which close holds while it stops the client, so
-		// Close either prevents the callback or waits for it.
-		c.mu.Lock()
-		notify := c.onClose != nil && c.running.Load()
-		if notify {
-			c.onCloseRunning.Add(1)
-		}
-		c.mu.Unlock()
-		if notify {
+		if c.onClose != nil && c.running.Load() {
 			c.onClose()
-			c.onCloseRunning.Done()
 		}
 		c.connectionClosedOnce.Do(func() { close(c.connectionClosed) })
 	}()
@@ -545,7 +496,7 @@ func (c *Client) readLoop() {
 		// Read the next frame.
 		data, err := c.reader.Read()
 		if err != nil {
-			if !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrClosedPipe) && !errors.Is(err, os.ErrClosed) && !errors.Is(err, net.ErrClosed) && c.running.Load() {
+			if !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrClosedPipe) && !errors.Is(err, os.ErrClosed) && c.running.Load() {
 				fmt.Printf("Error reading message: %v\n", err)
 			}
 			return
@@ -622,7 +573,6 @@ func (c *Client) handleRequest(request *Request) {
 	c.mu.Lock()
 	handler := c.requestHandlers[request.Method]
 	prepare := c.requestPreparations[request.Method]
-	scope := c.requestScope
 	c.mu.Unlock()
 
 	if handler == nil {
@@ -684,12 +634,7 @@ func (c *Client) handleRequest(request *Request) {
 			}
 		}()
 
-		result, err := func() (json.RawMessage, *Error) {
-			if scope != nil {
-				defer scope(request.Params)()
-			}
-			return handler(handlerCtx, request.Params)
-		}()
+		result, err := handler(handlerCtx, request.Params)
 		if err != nil {
 			c.sendErrorResponse(context.Background(), request.ID, err)
 			return
@@ -713,18 +658,6 @@ func (c *Client) handleCancelRequest(params json.RawMessage) {
 	entry := c.incomingRequestCancels[key]
 	c.mu.Unlock()
 	if entry != nil {
-		entry.cancel()
-	}
-}
-
-func (c *Client) cancelIncomingRequests() {
-	c.mu.Lock()
-	entries := make([]*incomingRequestCancel, 0, len(c.incomingRequestCancels))
-	for _, entry := range c.incomingRequestCancels {
-		entries = append(entries, entry)
-	}
-	c.mu.Unlock()
-	for _, entry := range entries {
 		entry.cancel()
 	}
 }

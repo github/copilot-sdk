@@ -24,7 +24,7 @@ use crate::generated::api_types::{
     AutopilotOptions, ModelCapabilitiesOverride, OpenCanvasInstance, RemoteSessionMode,
     SandboxConfig,
 };
-use crate::generated::session_events::{PermissionMode, ReasoningSummary};
+use crate::generated::session_events::ReasoningSummary;
 use crate::types::{
     AskUserVariant, CanvasProviderIdentity, CapiSessionOptions, CloudSessionOptions,
     CustomAgentConfig, DefaultAgentConfig, ExtensionInfo, GitHubMcpToolConfig,
@@ -49,8 +49,6 @@ pub(crate) struct CommandWireDefinition {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct SessionCreateWire {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub allow_multiple_tool_calls: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<SessionId>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -93,8 +91,9 @@ pub(crate) struct SessionCreateWire {
     pub excluded_tools: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub excluded_builtin_agents: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub included_builtin_agents: Option<Vec<String>>,
+    /// SDK always sends `"excluded"` so include + exclude lists compose
+    /// naturally (everything matching X except Y).
+    pub tool_filter_precedence: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp_servers: Option<IndexMap<String, McpServerConfig>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -134,18 +133,12 @@ pub(crate) struct SessionCreateWire {
     pub enable_skills: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub has_skill_provider: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub has_memory_store: Option<bool>,
     pub request_user_input: bool,
     pub request_permission: bool,
     pub request_exit_plan_mode: bool,
     pub request_auto_mode_switch: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_auto_mode_recovery: Option<bool>,
     pub request_elicitation: bool,
     pub request_mcp_apps: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_shell_authentication: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub github_mcp_tool_config: Option<GitHubMcpToolConfig>,
     pub hooks: bool,
@@ -242,8 +235,6 @@ pub(crate) struct SessionCreateWire {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub interactive_user: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub permission_mode: Option<PermissionMode>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub is_experimental_mode: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub managed_settings: Option<crate::types::ManagedSettings>,
@@ -253,8 +244,6 @@ pub(crate) struct SessionCreateWire {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct SessionResumeWire {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub allow_multiple_tool_calls: Option<bool>,
     pub session_id: SessionId,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
@@ -296,8 +285,8 @@ pub(crate) struct SessionResumeWire {
     pub excluded_tools: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub excluded_builtin_agents: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub included_builtin_agents: Option<Vec<String>>,
+    /// SDK always sends `"excluded"`. See create-wire docs.
+    pub tool_filter_precedence: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp_servers: Option<IndexMap<String, McpServerConfig>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -333,18 +322,12 @@ pub(crate) struct SessionResumeWire {
     pub enable_skills: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub has_skill_provider: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub has_memory_store: Option<bool>,
     pub request_user_input: bool,
     pub request_permission: bool,
     pub request_exit_plan_mode: bool,
     pub request_auto_mode_switch: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_auto_mode_recovery: Option<bool>,
     pub request_elicitation: bool,
     pub request_mcp_apps: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_shell_authentication: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub github_mcp_tool_config: Option<GitHubMcpToolConfig>,
     pub hooks: bool,
@@ -445,8 +428,6 @@ pub(crate) struct SessionResumeWire {
     pub enforce_managed_model_defaults: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub interactive_user: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub permission_mode: Option<PermissionMode>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_experimental_mode: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]

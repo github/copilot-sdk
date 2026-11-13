@@ -25,8 +25,6 @@ public final class ServerRpc {
 
     private final RpcCaller caller;
 
-    /** API methods for the {@code localModels} namespace. */
-    public final ServerLocalModelsApi localModels;
     /** API methods for the {@code sandbox} namespace. */
     public final ServerSandboxApi sandbox;
     /** API methods for the {@code persistence} namespace. */
@@ -51,12 +49,6 @@ public final class ServerRpc {
     public final ServerModelsApi models;
     /** API methods for the {@code azureMl} namespace. */
     public final ServerAzureMlApi azureMl;
-    /** API methods for the {@code decisions} namespace. */
-    public final ServerDecisionsApi decisions;
-    /** API methods for the {@code providers} namespace. */
-    public final ServerProvidersApi providers;
-    /** API methods for the {@code providersSource} namespace. */
-    final ServerProvidersSourceApi providersSource;
     /** API methods for the {@code contentExclusion} namespace. */
     public final ServerContentExclusionApi contentExclusion;
     /** API methods for the {@code tools} namespace. */
@@ -97,22 +89,14 @@ public final class ServerRpc {
     public final ServerSessionFsApi sessionFs;
     /** API methods for the {@code llmInference} namespace. */
     public final ServerLlmInferenceApi llmInference;
-    /** API methods for the {@code fetch} namespace. */
-    public final ServerFetchApi fetch;
-    /** API methods for the {@code network} namespace. */
-    public final ServerNetworkApi network;
+    /** API methods for the {@code kerberosAuth} namespace. */
+    public final ServerKerberosAuthApi kerberosAuth;
     /** API methods for the {@code sessions} namespace. */
     public final ServerSessionsApi sessions;
-    /** API methods for the {@code shell} namespace. */
-    public final ServerShellApi shell;
     /** API methods for the {@code agentRegistry} namespace. */
     public final ServerAgentRegistryApi agentRegistry;
     /** API methods for the {@code connectors} namespace. */
     public final ServerConnectorsApi connectors;
-    /** API methods for the {@code lsp} namespace. */
-    public final ServerLspApi lsp;
-    /** API methods for the {@code taskAnalytics} namespace. */
-    public final ServerTaskAnalyticsApi taskAnalytics;
     /** API methods for the {@code gitHubFetch} namespace. */
     final ServerGitHubFetchApi gitHubFetch;
     /** API methods for the {@code gitHubRelease} namespace. */
@@ -129,7 +113,6 @@ public final class ServerRpc {
      */
     public ServerRpc(RpcCaller caller) {
         this.caller = caller;
-        this.localModels = new ServerLocalModelsApi(caller);
         this.sandbox = new ServerSandboxApi(caller);
         this.persistence = new ServerPersistenceApi(caller);
         this.user = new ServerUserApi(caller);
@@ -142,9 +125,6 @@ public final class ServerRpc {
         this.hooks = new ServerHooksApi(caller);
         this.models = new ServerModelsApi(caller);
         this.azureMl = new ServerAzureMlApi(caller);
-        this.decisions = new ServerDecisionsApi(caller);
-        this.providers = new ServerProvidersApi(caller);
-        this.providersSource = new ServerProvidersSourceApi(caller);
         this.contentExclusion = new ServerContentExclusionApi(caller);
         this.tools = new ServerToolsApi(caller);
         this.account = new ServerAccountApi(caller);
@@ -165,14 +145,10 @@ public final class ServerRpc {
         this.runtime = new ServerRuntimeApi(caller);
         this.sessionFs = new ServerSessionFsApi(caller);
         this.llmInference = new ServerLlmInferenceApi(caller);
-        this.fetch = new ServerFetchApi(caller);
-        this.network = new ServerNetworkApi(caller);
+        this.kerberosAuth = new ServerKerberosAuthApi(caller);
         this.sessions = new ServerSessionsApi(caller);
-        this.shell = new ServerShellApi(caller);
         this.agentRegistry = new ServerAgentRegistryApi(caller);
         this.connectors = new ServerConnectorsApi(caller);
-        this.lsp = new ServerLspApi(caller);
-        this.taskAnalytics = new ServerTaskAnalyticsApi(caller);
         this.gitHubFetch = new ServerGitHubFetchApi(caller);
         this.gitHubRelease = new ServerGitHubReleaseApi(caller);
         this.cloudTasks = new ServerCloudTasksApi(caller);

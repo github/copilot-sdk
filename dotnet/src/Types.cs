@@ -358,6 +358,9 @@ public enum CopilotClientMode
     ///     <see cref="CopilotClientOptions.SessionFs"/> to be set.</item>
     /// <item><see cref="SessionConfigBase.AvailableTools"/> must be supplied on
     ///     every session — no tools are exposed by default.</item>
+    /// <item><c>session.create</c> always sets
+    ///     <c>toolFilterPrecedence: "excluded"</c> so the allowlist and denylist
+    ///     compose naturally.</item>
     /// <item>The SDK injects safe defaults for ambient session features
     ///     (telemetry, custom instructions, plugins, environment context, etc.).</item>
     /// <item><c>COPILOT_DISABLE_KEYTAR=1</c> is set on the spawned runtime so
@@ -380,58 +383,10 @@ public enum CopilotClientMode
 }
 
 /// <summary>
-/// Unsupported SDK test infrastructure configuration. Supplied values override
-/// the owned runtime's startup environment without changing the host environment.
-/// Null preserves the inherited value; an empty string clears an override.
-/// </summary>
-[EditorBrowsable(EditorBrowsableState.Never)]
-public sealed class InternalTestOptions
-{
-    /// <summary>Replay endpoint for Copilot API requests.</summary>
-    public string? CopilotApiUrl { get; init; }
-    /// <summary>Replay endpoint for GitHub API requests, including startup authentication.</summary>
-    public string? GitHubApiUrl { get; init; }
-    /// <summary>HTTP/HTTPS interception proxy for the runtime and its subprocesses.</summary>
-    public string? ProxyUrl { get; init; }
-    /// <summary>Comma-separated destinations that bypass the interception proxy.</summary>
-    public string? NoProxy { get; init; }
-    /// <summary>PEM CA-bundle path trusted by the runtime and its subprocesses.</summary>
-    public string? CaCertificatePath { get; init; }
-
-    internal IEnumerable<KeyValuePair<string, string>> ToEnvironment()
-    {
-        foreach (var (key, value) in new Dictionary<string, string?>
-        {
-            ["COPILOT_API_URL"] = CopilotApiUrl,
-            ["COPILOT_DEBUG_GITHUB_API_URL"] = GitHubApiUrl,
-            ["HTTP_PROXY"] = ProxyUrl,
-            ["HTTPS_PROXY"] = ProxyUrl,
-            ["http_proxy"] = ProxyUrl,
-            ["https_proxy"] = ProxyUrl,
-            ["NO_PROXY"] = NoProxy,
-            ["no_proxy"] = NoProxy,
-            ["NODE_EXTRA_CA_CERTS"] = CaCertificatePath,
-            ["SSL_CERT_FILE"] = CaCertificatePath,
-            ["REQUESTS_CA_BUNDLE"] = CaCertificatePath,
-            ["CURL_CA_BUNDLE"] = CaCertificatePath,
-            ["GIT_SSL_CAINFO"] = CaCertificatePath,
-        })
-        {
-            if (value is not null) yield return new(key, value);
-        }
-    }
-}
-
-/// <summary>
 /// Configuration options for creating a <see cref="CopilotClient"/> instance.
 /// </summary>
 public sealed class CopilotClientOptions
 {
-    /// <summary>
-    /// Unsupported SDK test infrastructure configuration for runtimes owned by this client.
-    /// </summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public InternalTestOptions? InternalTestOptions { get; set; }
     /// <summary>
     /// Initializes a new instance of the <see cref="CopilotClientOptions"/> class.
     /// </summary>
@@ -446,7 +401,6 @@ public sealed class CopilotClientOptions
         if (other is null) return;
 
         Connection = other.Connection;
-        InternalTestOptions = other.InternalTestOptions;
         WorkingDirectory = other.WorkingDirectory;
         BaseDirectory = other.BaseDirectory;
         BuiltinPluginDirectories = other.BuiltinPluginDirectories is null ? null : [.. other.BuiltinPluginDirectories];
@@ -460,7 +414,7 @@ public sealed class CopilotClientOptions
         SessionFs = other.SessionFs;
         RequestHandler = other.RequestHandler;
         ExtensionLaunchProvider = other.ExtensionLaunchProvider;
-        Network = other.Network;
+        KerberosAuth = other.KerberosAuth;
         InstallationConfirmationHandler = other.InstallationConfirmationHandler;
         OnGitHubTelemetry = other.OnGitHubTelemetry;
         SessionIdleTimeoutSeconds = other.SessionIdleTimeoutSeconds;
@@ -476,7 +430,10 @@ public sealed class CopilotClientOptions
     /// When set to <see cref="CopilotClientMode.Empty"/>, the SDK validates that
     /// the app has supplied the required configuration
     /// (<see cref="BaseDirectory"/> or <see cref="SessionFs"/>, plus
-    /// <see cref="SessionConfigBase.AvailableTools"/> on each session).
+    /// <see cref="SessionConfigBase.AvailableTools"/> on each session) and
+    /// translates session creation requests into runtime options that flip
+    /// tool filter precedence to <c>excluded</c>-wins so exclusions are
+    /// expressible.
     /// </remarks>
     public CopilotClientMode Mode { get; set; } = CopilotClientMode.CopilotCli;
 
@@ -488,14 +445,12 @@ public sealed class CopilotClientOptions
 
     /// <summary>
     /// Working directory for the runtime process.
-    /// Not supported in-process; use <see cref="SessionConfigBase.WorkingDirectory"/> instead.
     /// </summary>
     public string? WorkingDirectory { get; set; }
 
     /// <summary>
     /// Base directory for Copilot data (session state, config, etc.).
-    /// Sets the <c>COPILOT_HOME</c> environment variable for the runtime host.
-    /// In-process hosts also keep their runtime cache in its <c>cache</c> subdirectory.
+    /// Sets the <c>COPILOT_HOME</c> environment variable on the spawned runtime.
     /// When <see langword="null"/>, the runtime defaults to <c>~/.copilot</c>.
     /// Ignored when connecting to an existing runtime via
     /// <see cref="RuntimeConnection.ForUri(string, string?)"/>.
@@ -520,11 +475,12 @@ public sealed class CopilotClientOptions
     public CopilotLogLevel? LogLevel { get; set; }
 
     /// <summary>
-    /// Gets or sets runtime environment values, replacing the inherited environment for child processes.
+    /// Gets or sets environment variables passed to the runtime process.
     /// </summary>
     /// <remarks>
-    /// Unsupported with <see cref="RuntimeConnection.ForInProcess"/>; use typed client/session options.
-    /// For child-process transports, prefer
+    /// Not supported with the in-process transport (<see cref="RuntimeConnection.ForInProcess"/>),
+    /// which runs the runtime in the host process; setting this option there throws an
+    /// <see cref="ArgumentException"/>. For child-process transports, prefer
     /// <see cref="ChildProcessRuntimeConnection.Environment"/>; setting both throws.
     /// </remarks>
     public IReadOnlyDictionary<string, string>? Environment { get; set; }
@@ -584,12 +540,12 @@ public sealed class CopilotClientOptions
     public IExtensionLaunchProviderHandler? ExtensionLaunchProvider { get; set; }
 
     /// <summary>
-    /// Network callbacks through which the SDK host decides the runtime's proxies
-    /// and supplies its proxy credentials. When at least one callback is set, the SDK
-    /// registers the callbacks during <c>StartAsync()</c> before any session can be created.
+    /// Supplies Kerberos credentials from the SDK host.
+    /// When set, the SDK registers the callback during <c>StartAsync()</c>
+    /// before any session can be created.
     /// </summary>
     [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-    public NetworkConfig? Network { get; set; }
+    public KerberosAuthConfig? KerberosAuth { get; set; }
 
     /// <summary>
     /// Connection-global human review for experimental installation operations.
@@ -921,8 +877,7 @@ public sealed class ToolResultObject
     /// <summary>
     /// Converts the result of an <see cref="AIFunction"/> invocation into a
     /// <see cref="ToolResultObject"/>. Handles <see cref="ToolResultAIContent"/>,
-    /// <see cref="AIContent"/>, sends a string (or JSON string) as-is, and falls back to
-    /// JSON serialization.
+    /// <see cref="AIContent"/>, and falls back to JSON serialization.
     /// </summary>
     internal static ToolResultObject ConvertFromInvocationResult(object? result, JsonSerializerOptions jsonOptions)
     {
@@ -939,12 +894,9 @@ public sealed class ToolResultObject
         return new ToolResultObject
         {
             ResultType = "success",
-            TextResultForLlm = result switch
-            {
-                string text => text,
-                JsonElement { ValueKind: JsonValueKind.String } je => je.GetString()!,
-                _ => JsonSerializer.Serialize(result, jsonOptions.GetTypeInfo(typeof(object))),
-            },
+            TextResultForLlm = result is JsonElement { ValueKind: JsonValueKind.String } je
+                ? je.GetString()!
+                : JsonSerializer.Serialize(result, jsonOptions.GetTypeInfo(typeof(object))),
         };
     }
 
@@ -1072,12 +1024,6 @@ public sealed class PermissionInvocation
     public bool ManagedSettingsEnabled { get; set; }
 
     /// <summary>
-    /// Program invocation owning this permission request; absent for ordinary requests.
-    /// </summary>
-    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-    public string? ProgramToolCallId { get; set; }
-
-    /// <summary>
     /// Canonical runtime-owned Assisted Permissions assessment.
     /// </summary>
     /// <remarks>
@@ -1132,9 +1078,9 @@ public sealed class UserInputRequest
     /// Runtime request ID of the pending <c>user_input.requested</c> request.
     /// </summary>
     /// <remarks>
-    /// Pass it as <c>RequestId</c> to the session's
-    /// <see cref="UiApi.HandlePendingUserInputAsync(UIHandlePendingUserInputRequest, System.Threading.CancellationToken)"/>,
-    /// with a <c>DecisionContext</c> when a person answered, to correlate an out-of-band answer
+    /// Pass it as <c>requestId</c> to the session's
+    /// <see cref="UiApi.HandlePendingUserInputAsync"/> (or the trusted
+    /// <c>session.ui.handleHumanUserInput</c> path) to correlate an out-of-band answer
     /// with this request. <see langword="null"/> when the runtime predates this field.
     /// </remarks>
     [JsonPropertyName("requestId")]
@@ -1157,21 +1103,6 @@ public sealed class UserInputResponse
     /// </summary>
     [JsonPropertyName("wasFreeform")]
     public bool WasFreeform { get; set; }
-
-    /// <summary>
-    /// Who answered and how. Leave <see langword="null"/> for automated answers.
-    /// </summary>
-    /// <remarks>
-    /// When a person answered in your UI, set a context with
-    /// <see cref="PermissionDecisionSource.HumanResponse"/> and
-    /// <see cref="PermissionResponseCapability.Interactive"/>. The runtime then counts the
-    /// answer as the person's own authority for Assisted Permissions, but only from the
-    /// session's owning connection; an answer from any other connection settles without it.
-    /// </remarks>
-    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-    [JsonPropertyName("decisionContext")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public PermissionDecisionContext? DecisionContext { get; set; }
 }
 
 /// <summary>
@@ -1183,205 +1114,6 @@ public sealed class UserInputInvocation
     /// Identifier of the session that triggered the user input request.
     /// </summary>
     public string SessionId { get; set; } = string.Empty;
-}
-
-/// <summary>
-/// A password or other answer that a shell command run by the agent asks for, for example
-/// <c>sudo -A</c>, <c>ssh</c>, or <c>git</c> over HTTPS. The answer goes only to the program
-/// that asked: it is not shown to the model and is not recorded in session events.
-/// </summary>
-public sealed class ShellAuthenticationRequest
-{
-    /// <summary>Identifier of the session whose command asked.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-
-    /// <summary>Identifies the request. A cancellation for it carries the same id.</summary>
-    [JsonPropertyName("requestId")]
-    public string RequestId { get; set; } = string.Empty;
-
-    /// <summary>The program that asked: <c>sudo</c>, <c>ssh</c>, or <c>git</c>.</summary>
-    [JsonPropertyName("program")]
-    public string Program { get; set; } = string.Empty;
-
-    /// <summary>The prompt text the program supplied.</summary>
-    [JsonPropertyName("prompt")]
-    public string Prompt { get; set; } = string.Empty;
-
-    /// <summary>
-    /// How to present the prompt: <see cref="ShellAuthenticationInputKind.Secret"/> for a password
-    /// or passphrase (mask the input), <see cref="ShellAuthenticationInputKind.Text"/> for a visible
-    /// answer such as a user name, or <see cref="ShellAuthenticationInputKind.Confirm"/> for a yes
-    /// or no question such as an ssh host-key check.
-    /// </summary>
-    [JsonPropertyName("inputKind")]
-    public ShellAuthenticationInputKind InputKind { get; set; }
-
-    /// <summary>The shell command that triggered the prompt.</summary>
-    [JsonPropertyName("command")]
-    public string Command { get; set; } = string.Empty;
-
-    /// <summary>The command's working directory.</summary>
-    [JsonPropertyName("cwd")]
-    public string Cwd { get; set; } = string.Empty;
-}
-
-/// <summary>How to present a <see cref="ShellAuthenticationRequest"/>.</summary>
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct ShellAuthenticationInputKind : IEquatable<ShellAuthenticationInputKind>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="ShellAuthenticationInputKind"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="ShellAuthenticationInputKind"/>.</param>
-    [JsonConstructor]
-    public ShellAuthenticationInputKind(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="ShellAuthenticationInputKind"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>A password or passphrase. Mask the input.</summary>
-    public static ShellAuthenticationInputKind Secret { get; } = new("secret");
-
-    /// <summary>A visible answer, such as a user name.</summary>
-    public static ShellAuthenticationInputKind Text { get; } = new("text");
-
-    /// <summary>
-    /// A yes or no question, such as an ssh host-key check. Answer <c>"yes"</c> to confirm, or
-    /// cancel to decline.
-    /// </summary>
-    public static ShellAuthenticationInputKind Confirm { get; } = new("confirm");
-
-    /// <summary>Returns a value indicating whether two <see cref="ShellAuthenticationInputKind"/> instances are equivalent.</summary>
-    public static bool operator ==(ShellAuthenticationInputKind left, ShellAuthenticationInputKind right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="ShellAuthenticationInputKind"/> instances are not equivalent.</summary>
-    public static bool operator !=(ShellAuthenticationInputKind left, ShellAuthenticationInputKind right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is ShellAuthenticationInputKind other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(ShellAuthenticationInputKind other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{ShellAuthenticationInputKind}"/> for serializing <see cref="ShellAuthenticationInputKind"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<ShellAuthenticationInputKind>
-    {
-        /// <inheritdoc />
-        public override ShellAuthenticationInputKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, ShellAuthenticationInputKind value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ShellAuthenticationInputKind));
-        }
-    }
-}
-
-/// <summary>
-/// Answer to a <see cref="ShellAuthenticationRequest"/>, created with <see cref="Accept"/> or
-/// <see cref="Cancel"/>. Answer a <see cref="ShellAuthenticationInputKind.Confirm"/> request with
-/// <c>"yes"</c>, or cancel it to decline.
-/// </summary>
-public sealed class ShellAuthenticationResponse
-{
-    /// <summary>
-    /// <see cref="ShellAuthenticationResponseAction.Accept"/> to answer with <see cref="Value"/>, or
-    /// <see cref="ShellAuthenticationResponseAction.Cancel"/>.
-    /// </summary>
-    [JsonPropertyName("action")]
-    public ShellAuthenticationResponseAction Action { get; set; } = ShellAuthenticationResponseAction.Cancel;
-
-    /// <summary>The answer when <see cref="Action"/> is <see cref="ShellAuthenticationResponseAction.Accept"/>.</summary>
-    [JsonPropertyName("value")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? Value { get; set; }
-
-    /// <summary>Answers the request with <paramref name="value"/>.</summary>
-    /// <param name="value">The answer.</param>
-    /// <returns>An accepting response.</returns>
-    public static ShellAuthenticationResponse Accept(string value) =>
-        new() { Action = ShellAuthenticationResponseAction.Accept, Value = value };
-
-    /// <summary>Declines the request. The program that asked fails.</summary>
-    /// <returns>A cancelling response.</returns>
-    public static ShellAuthenticationResponse Cancel() => new() { Action = ShellAuthenticationResponseAction.Cancel };
-}
-
-/// <summary>The outcome of a <see cref="ShellAuthenticationRequest"/>.</summary>
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct ShellAuthenticationResponseAction : IEquatable<ShellAuthenticationResponseAction>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="ShellAuthenticationResponseAction"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="ShellAuthenticationResponseAction"/>.</param>
-    [JsonConstructor]
-    public ShellAuthenticationResponseAction(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="ShellAuthenticationResponseAction"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Answers the request with <see cref="ShellAuthenticationResponse.Value"/>.</summary>
-    public static ShellAuthenticationResponseAction Accept { get; } = new("accept");
-
-    /// <summary>Declines the request. The program that asked fails.</summary>
-    public static ShellAuthenticationResponseAction Cancel { get; } = new("cancel");
-
-    /// <summary>Returns a value indicating whether two <see cref="ShellAuthenticationResponseAction"/> instances are equivalent.</summary>
-    public static bool operator ==(ShellAuthenticationResponseAction left, ShellAuthenticationResponseAction right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="ShellAuthenticationResponseAction"/> instances are not equivalent.</summary>
-    public static bool operator !=(ShellAuthenticationResponseAction left, ShellAuthenticationResponseAction right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is ShellAuthenticationResponseAction other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(ShellAuthenticationResponseAction other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{ShellAuthenticationResponseAction}"/> for serializing <see cref="ShellAuthenticationResponseAction"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<ShellAuthenticationResponseAction>
-    {
-        /// <inheritdoc />
-        public override ShellAuthenticationResponseAction Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, ShellAuthenticationResponseAction value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ShellAuthenticationResponseAction));
-        }
-    }
 }
 
 /// <summary>
@@ -1417,9 +1149,9 @@ public sealed class ExitPlanModeRequest
     /// Runtime request ID of the pending <c>exit_plan_mode.requested</c> request.
     /// </summary>
     /// <remarks>
-    /// Pass it as <c>RequestId</c> to the session's
-    /// <see cref="UiApi.HandlePendingExitPlanModeAsync(UIHandlePendingExitPlanModeRequest, System.Threading.CancellationToken)"/>,
-    /// with a <c>DecisionContext</c> when a person decided, to correlate an out-of-band
+    /// Pass it as <c>requestId</c> to the session's
+    /// <see cref="UiApi.HandlePendingExitPlanModeAsync"/> (or the trusted
+    /// <c>session.ui.handleHumanExitPlanMode</c> path) to correlate an out-of-band
     /// decision with this request. <see langword="null"/> when the runtime predates this field.
     /// </remarks>
     [JsonPropertyName("requestId")]
@@ -1448,21 +1180,6 @@ public sealed class ExitPlanModeResult
     /// </summary>
     [JsonPropertyName("feedback")]
     public string? Feedback { get; set; }
-
-    /// <summary>
-    /// Who reviewed the plan and how. Leave <see langword="null"/> for automated reviews.
-    /// </summary>
-    /// <remarks>
-    /// When a person reviewed the plan in your UI, set a context with
-    /// <see cref="PermissionDecisionSource.HumanResponse"/> and
-    /// <see cref="PermissionResponseCapability.Interactive"/>. The runtime then counts the
-    /// review as the person's own for Assisted Permissions, but only from the session's
-    /// owning connection; a review from any other connection settles without it.
-    /// </remarks>
-    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-    [JsonPropertyName("decisionContext")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public PermissionDecisionContext? DecisionContext { get; set; }
 }
 
 /// <summary>
@@ -1477,38 +1194,12 @@ public sealed class ExitPlanModeInvocation
 }
 
 /// <summary>
-/// Identifies an offer to recover the active request using Auto, without resending or rewinding.
-/// </summary>
-public sealed class AutoModeRecoveryContext
-{
-    /// <summary>The one-use offer identifier.</summary>
-    [JsonPropertyName("requestId")]
-    public required string RequestId { get; set; }
-
-    /// <summary>The original explicit model selection.</summary>
-    [JsonPropertyName("originalModel")]
-    public required string OriginalModel { get; set; }
-
-    /// <summary>Whether this offer permits remembering consent. Currently true only for per-model rate limits.</summary>
-    [JsonPropertyName("allowAlways")]
-    public bool AllowAlways { get; set; }
-
-    /// <summary>The retained interaction identifier, when available.</summary>
-    [JsonPropertyName("interactionId")]
-    public string? InteractionId { get; set; }
-
-    /// <summary>The original user-message identifier, when available.</summary>
-    [JsonPropertyName("originatingMessageId")]
-    public string? OriginatingMessageId { get; set; }
-}
-
-/// <summary>
-/// Request for a legacy Auto switch or eligible active-request recovery.
+/// Request to switch to auto mode after an eligible rate limit.
 /// </summary>
 public sealed class AutoModeSwitchRequest
 {
     /// <summary>
-    /// The upstream error code that triggered the request.
+    /// The rate-limit error code that triggered the request.
     /// </summary>
     [JsonPropertyName("errorCode")]
     public string? ErrorCode { get; set; }
@@ -1518,10 +1209,6 @@ public sealed class AutoModeSwitchRequest
     /// </summary>
     [JsonPropertyName("retryAfterSeconds")]
     public double? RetryAfterSeconds { get; set; }
-
-    /// <summary>Recovery context; absent for legacy future-message switching.</summary>
-    [JsonPropertyName("autoModeRecovery")]
-    public AutoModeRecoveryContext? AutoModeRecovery { get; set; }
 }
 
 /// <summary>
@@ -1644,22 +1331,6 @@ public sealed class ElicitationResult
     /// Form values submitted by the user (present when <see cref="Action"/> is <c>Accept</c>).
     /// </summary>
     public IDictionary<string, object>? Content { get; set; }
-
-    /// <summary>
-    /// Who answered and how, when this result is returned from an
-    /// <see cref="SessionConfigBase.OnElicitationRequest"/> handler. Leave
-    /// <see langword="null"/> for automated answers.
-    /// </summary>
-    /// <remarks>
-    /// When a person answered in your UI, including when they declined or dismissed the
-    /// dialog, set a context with <see cref="PermissionDecisionSource.HumanResponse"/> and
-    /// <see cref="PermissionResponseCapability.Interactive"/>. The SDK sends it beside the
-    /// answer, and the runtime counts the answer as the person's own authority for Assisted
-    /// Permissions, but only from the session's owning connection. Results returned by
-    /// <see cref="ISessionUiApi.ElicitAsync"/> never carry a context.
-    /// </remarks>
-    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-    public PermissionDecisionContext? DecisionContext { get; set; }
 }
 
 /// <summary>
@@ -1862,9 +1533,6 @@ public sealed class SessionUiCapabilities
     /// </summary>
     public bool? Elicitation { get; set; }
 
-    /// <summary>Whether the runtime acknowledges retained-request Auto recovery. Absent means unsupported.</summary>
-    public bool? AutoModeRecovery { get; set; }
-
     /// <summary>
     /// Whether the runtime has accepted the session's MCP Apps (SEP-1865) opt-in.
     /// <c>true</c> when the consumer set <see cref="SessionConfigBase.EnableMcpApps"/>
@@ -1958,35 +1626,30 @@ public sealed class PreToolUseHookOutput
     /// </list>
     /// </summary>
     [JsonPropertyName("permissionDecision")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? PermissionDecision { get; set; }
 
     /// <summary>
     /// Human-readable reason for the permission decision.
     /// </summary>
     [JsonPropertyName("permissionDecisionReason")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? PermissionDecisionReason { get; set; }
 
     /// <summary>
     /// Modified arguments to pass to the tool instead of the original ones.
     /// </summary>
     [JsonPropertyName("modifiedArgs")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public object? ModifiedArgs { get; set; }
 
     /// <summary>
     /// Additional context to inject into the conversation for the language model.
     /// </summary>
     [JsonPropertyName("additionalContext")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? AdditionalContext { get; set; }
 
     /// <summary>
     /// Whether to suppress the tool's output from the conversation.
     /// </summary>
     [JsonPropertyName("suppressOutput")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? SuppressOutput { get; set; }
 }
 
@@ -2064,7 +1727,7 @@ public sealed class PreMcpToolCallHookInput
 /// <para>The <see cref="MetaToUse"/> property controls outgoing MCP request metadata:</para>
 /// <list type="bullet">
 /// <item><description>Return <c>null</c> from the hook handler: preserve existing <c>_meta</c> (no-op).</description></item>
-/// <item><description>Return a <see cref="PreMcpToolCallHookOutput"/> with <see cref="MetaToUse"/> left as <c>null</c>: drop hook-controlled <c>_meta</c>; the runtime still sends its own keys, <c>com.github.copilot/toolCallId</c> and <c>com.github.copilot/turnId</c> (present only when the turn was started with a <see cref="MessageOptions.ClientTurnId"/>).</description></item>
+/// <item><description>Return a <see cref="PreMcpToolCallHookOutput"/> with <see cref="MetaToUse"/> left as <c>null</c>: omit <c>_meta</c> from the request.</description></item>
 /// <item><description>Return a <see cref="PreMcpToolCallHookOutput"/> with <see cref="MetaToUse"/> set to a <see cref="JsonElement"/> object: replace <c>_meta</c> with that object.</description></item>
 /// </list>
 /// </remarks>
@@ -2147,21 +1810,18 @@ public sealed class PostToolUseHookOutput
     /// Modified result to replace the original tool result.
     /// </summary>
     [JsonPropertyName("modifiedResult")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public object? ModifiedResult { get; set; }
 
     /// <summary>
     /// Additional context to inject into the conversation for the language model.
     /// </summary>
     [JsonPropertyName("additionalContext")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? AdditionalContext { get; set; }
 
     /// <summary>
     /// Whether to suppress the tool's output from the conversation.
     /// </summary>
     [JsonPropertyName("suppressOutput")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? SuppressOutput { get; set; }
 }
 
@@ -3038,19 +2698,6 @@ public sealed record MessageSource
         return new("agent-" + id);
     }
 
-    /// <summary>
-    /// Identifies a turn sent on behalf of an automation the user configured, such as a recurring check-in.
-    /// The turn defines the session's task like a user message but carries no human authority.
-    /// </summary>
-    /// <param name="id">The opaque automation identifier, preserved exactly after <c>automation-</c>. It must not be empty: the runtime does not treat <c>automation-</c> alone as an automation turn.</param>
-    /// <returns>The automation message source.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="id"/> is null.</exception>
-    public static MessageSource Automation(string id)
-    {
-        ArgumentNullException.ThrowIfNull(id);
-        return new("automation-" + id);
-    }
-
     /// <inheritdoc/>
     public override string ToString() => Value;
 
@@ -3066,7 +2713,6 @@ public sealed record MessageSource
                 "user" => User,
                 "system" => System,
                 _ when value.StartsWith("agent-", StringComparison.Ordinal) => new MessageSource(value),
-                _ when value.StartsWith("automation-", StringComparison.Ordinal) => new MessageSource(value),
                 _ => throw new JsonException($"Unknown MessageSource value: {value}")
             };
         }
@@ -3280,7 +2926,9 @@ public sealed class ProviderConfig
     /// Product serving the model, such as <c>ollama</c> or <c>lm_studio</c>, reported in telemetry
     /// as <c>model_provider</c>. Allowed values are <c>openai</c>, <c>anthropic</c>,
     /// <c>azure_openai</c>, <c>ollama</c>, <c>lm_studio</c>, <c>foundry_local</c>, and
-    /// <c>llama_cpp</c>; only affects telemetry.
+    /// <c>llama_cpp</c>. <c>azure_openai</c> also omits explicit prompt-cache breakpoints, which
+    /// limit cross-turn cache reuse on Azure; set it for a proxy or custom domain in front of
+    /// Azure OpenAI.
     /// </summary>
     [JsonPropertyName("modelProvider")]
     public string? ModelProvider { get; set; }
@@ -3413,29 +3061,9 @@ public sealed class CapiSessionOptions
     /// takes effect after resume succeeds and never disturbs a turn that is already running.
     /// To change the preference on a live session, use
     /// <see cref="CopilotSession.SetAutoTierAsync"/>.
-    /// For Copilot Fusion, prefer <see cref="FusionTier"/>. The <c>balance</c>,
-    /// <c>hydrafusion</c> and <c>hydrafusion-max</c> identifiers it replaces remain
-    /// accepted but are deprecated.
     /// </remarks>
     [JsonPropertyName("autoTier")]
     public AutoTier? AutoTier { get; set; }
-
-    /// <summary>
-    /// Copilot Fusion tier for model <c>fusion</c> or <c>auto</c>, matching the CLI's
-    /// <c>--fusion-tier</c>.
-    /// </summary>
-    /// <remarks>
-    /// The runtime resolves the tier to the Auto routing preference it stands for and then
-    /// applies it exactly like <see cref="AutoTier"/>, so <c>session.Rpc.Model.GetCurrentAsync</c>
-    /// and <c>session.model_change</c> events report that preference as <c>AutoTier</c>;
-    /// <c>GetCurrentAsync</c> also reports the resolved tier as <c>FusionTier</c> once the
-    /// session's Auto tier metadata is known.
-    /// Cannot be combined with <see cref="AutoTier"/>. To change the tier on a live session,
-    /// use <see cref="CopilotSession.SetFusionTierAsync"/>.
-    /// </remarks>
-    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-    [JsonPropertyName("fusionTier")]
-    public FusionTier? FusionTier { get; set; }
 }
 
 /// <summary>
@@ -3465,12 +3093,6 @@ public sealed class AzureOptions
 public sealed class NamedProviderConfig
 {
     /// <summary>
-    /// Forward-compatible runtime options for a local model.
-    /// </summary>
-    [JsonPropertyName("localModel")]
-    public JsonElement? LocalModel { get; set; }
-
-    /// <summary>
     /// Stable identifier referenced by <see cref="ProviderModelConfig.Provider"/>.
     /// Must not contain '/'.
     /// </summary>
@@ -3493,7 +3115,9 @@ public sealed class NamedProviderConfig
     /// Product serving this provider's models, such as <c>ollama</c> or <c>lm_studio</c>, reported
     /// in telemetry as <c>model_provider</c>. Allowed values are <c>openai</c>, <c>anthropic</c>,
     /// <c>azure_openai</c>, <c>ollama</c>, <c>lm_studio</c>, <c>foundry_local</c>, and
-    /// <c>llama_cpp</c>; only affects telemetry.
+    /// <c>llama_cpp</c>. <c>azure_openai</c> also omits explicit prompt-cache breakpoints, which
+    /// limit cross-turn cache reuse on Azure; set it for a proxy or custom domain in front of
+    /// Azure OpenAI.
     /// </summary>
     [JsonPropertyName("modelProvider")]
     public string? ModelProvider { get; set; }
@@ -3562,18 +3186,6 @@ public sealed class NamedProviderConfig
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 public sealed class ProviderModelConfig
 {
-    /// <summary>
-    /// Persisted on-device Auto annotation.
-    /// </summary>
-    [JsonPropertyName("autoLocal")]
-    public JsonElement? AutoLocal { get; set; }
-
-    /// <summary>
-    /// Provider-published model metadata, including live Auto routing annotations.
-    /// </summary>
-    [JsonPropertyName("metadata")]
-    public IDictionary<string, JsonElement>? Metadata { get; set; }
-
     /// <summary>
     /// Provider-local model id, unique within its provider.
     /// </summary>
@@ -3708,7 +3320,6 @@ public abstract class McpServerConfig
     /// Optional timeout in milliseconds for tool calls to this server.
     /// </summary>
     [JsonPropertyName("timeout")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? Timeout { get; set; }
 }
 
@@ -3731,21 +3342,18 @@ public sealed class McpStdioServerConfig : McpServerConfig
     /// Arguments to pass to the command.
     /// </summary>
     [JsonPropertyName("args")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IList<string>? Args { get; set; }
 
     /// <summary>
     /// Environment variables to pass to the server.
     /// </summary>
     [JsonPropertyName("env")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IDictionary<string, string>? Env { get; set; }
 
     /// <summary>
     /// Working directory for the server process.
     /// </summary>
     [JsonPropertyName("cwd")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? WorkingDirectory { get; set; }
 }
 
@@ -3768,35 +3376,30 @@ public sealed class McpHttpServerConfig : McpServerConfig
     /// Optional HTTP headers to include in requests.
     /// </summary>
     [JsonPropertyName("headers")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IDictionary<string, string>? Headers { get; set; }
 
     /// <summary>
     /// Optional OAuth client ID for the remote server.
     /// </summary>
     [JsonPropertyName("oauthClientId")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? OauthClientId { get; set; }
 
     /// <summary>
     /// Whether this is a public OAuth client.
     /// </summary>
     [JsonPropertyName("oauthPublicClient")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? OauthPublicClient { get; set; }
 
     /// <summary>
     /// Optional OAuth grant type for the remote server.
     /// </summary>
     [JsonPropertyName("oauthGrantType")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public McpHttpServerConfigOauthGrantType? OauthGrantType { get; set; }
 
     /// <summary>
     /// Optional OAuth scopes to request for the statically configured client.
     /// </summary>
     [JsonPropertyName("oauthScopes")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IList<string>? OauthScopes { get; set; }
 }
 
@@ -3957,9 +3560,6 @@ public sealed class LargeToolOutputConfig
     /// <summary>
     /// Maximum size in bytes before output is written to a temp file.
     /// </summary>
-    /// <remarks>
-    /// Uses the runtime's configured threshold when unset (20480 bytes by default).
-    /// </remarks>
     [JsonPropertyName("maxSizeBytes")]
     public long? MaxSizeBytes { get; set; }
 
@@ -4065,50 +3665,6 @@ public sealed class MemoryConfiguration
     [JsonPropertyName("mode")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public MemoryMode? Mode { get; set; }
-
-    /// <summary>
-    /// Stores memories in the app instead of the built-in memory backends.
-    /// </summary>
-    /// <remarks>
-    /// The runtime validates the memory, filters secrets and requests approval,
-    /// then calls this callback. <c>store_memory</c> succeeds only after the returned
-    /// task completes; a failure fails the tool call with a generic message and
-    /// nothing is stored elsewhere. While set, the runtime retrieves no memories and
-    /// <c>vote_memory</c> is unavailable, so supply recall yourself, for example
-    /// through <see cref="SessionConfigBase.SystemMessage"/>. Requires
-    /// <see cref="Enabled"/> to be <see langword="true"/>; creating or resuming a session
-    /// otherwise throws <see cref="ArgumentException"/>. Not supported for cloud sessions.
-    /// </remarks>
-    [Experimental(Diagnostics.Experimental)]
-    [JsonIgnore]
-    public Func<StoredMemory, CancellationToken, Task>? StoreMemory { get; set; }
-}
-
-/// <summary>
-/// A memory the agent asked to store, after validation, secret filtering and approval.
-/// </summary>
-[Experimental(Diagnostics.Experimental)]
-public sealed class StoredMemory
-{
-    /// <summary>ID of the session that stored the memory.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-
-    /// <summary>Short topic the memory is about.</summary>
-    [JsonPropertyName("subject")]
-    public string Subject { get; set; } = string.Empty;
-
-    /// <summary>The fact to remember.</summary>
-    [JsonPropertyName("fact")]
-    public string Fact { get; set; } = string.Empty;
-
-    /// <summary>Sources supporting the fact, such as file paths with line numbers.</summary>
-    [JsonPropertyName("citations")]
-    public string Citations { get; set; } = string.Empty;
-
-    /// <summary>Why the agent considers the fact worth remembering.</summary>
-    [JsonPropertyName("reason")]
-    public string Reason { get; set; } = string.Empty;
 }
 
 /// <summary>
@@ -4172,9 +3728,7 @@ public struct SetModelOptions
     /// <see cref="ResetAutoTier"/> instead to return to the provider's default Auto
     /// routing. The runtime rejects this option when the model is anything other than
     /// <c>auto</c>; use <see cref="CopilotSession.SetAutoTierAsync"/> to change the
-    /// preference without changing the selected model. For Copilot Fusion, prefer
-    /// <see cref="FusionTier"/>. The <c>balance</c>, <c>hydrafusion</c> and
-    /// <c>hydrafusion-max</c> identifiers it replaces remain accepted but are deprecated.
+    /// preference without changing the selected model.
     /// </remarks>
     [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
     public AutoTier? AutoTier { get; set; }
@@ -4185,19 +3739,6 @@ public struct SetModelOptions
     /// </summary>
     [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
     public bool ResetAutoTier { get; set; }
-
-    /// <summary>
-    /// Copilot Fusion tier to stage atomically with selecting the <c>fusion</c> or
-    /// <c>auto</c> model, matching the CLI's <c>--fusion-tier</c>.
-    /// </summary>
-    /// <remarks>
-    /// The runtime resolves the tier to the Auto routing preference it stands for and stages
-    /// it exactly like <see cref="AutoTier"/>. Mutually exclusive with <see cref="AutoTier"/>
-    /// and <see cref="ResetAutoTier"/>. Use <see cref="CopilotSession.SetFusionTierAsync"/> to
-    /// change the tier without changing the selected model.
-    /// </remarks>
-    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-    public FusionTier? FusionTier { get; set; }
 }
 
 /// <summary>
@@ -4391,13 +3932,6 @@ public enum AskUserVariant
 /// </summary>
 public abstract class SessionConfigBase
 {
-    /// <summary>
-    /// Whether the model may request multiple tool calls per response. Defaults to true.
-    /// False sends a provider hint, not an execution guarantee: all returned calls
-    /// are still handled and handlers may run concurrently. Re-supply on cold resume.
-    /// </summary>
-    public bool? AllowMultipleToolCalls { get; set; }
-
     /// <summary>Initializes a new instance of the <see cref="SessionConfigBase"/> class.</summary>
     protected SessionConfigBase() { }
 
@@ -4447,7 +3981,6 @@ public abstract class SessionConfigBase
                 DisableFormDeferral = other.GitHubMcpToolConfig.DisableFormDeferral,
             };
         ExcludedBuiltInAgents = other.ExcludedBuiltInAgents is not null ? [.. other.ExcludedBuiltInAgents] : null;
-        IncludedBuiltInAgents = other.IncludedBuiltInAgents is not null ? [.. other.IncludedBuiltInAgents] : null;
         ExcludedTools = other.ExcludedTools is not null ? [.. other.ExcludedTools] : null;
         Hooks = other.Hooks;
         InfiniteSessions = other.InfiniteSessions;
@@ -4467,13 +4000,11 @@ public abstract class SessionConfigBase
         Model = other.Model;
         ModelCapabilities = other.ModelCapabilities;
         OnAutoModeSwitchRequest = other.OnAutoModeSwitchRequest;
-        AutoModeRecovery = other.AutoModeRecovery;
         OnElicitationRequest = other.OnElicitationRequest;
         OnEvent = other.OnEvent;
         OnExitPlanModeRequest = other.OnExitPlanModeRequest;
         OnMcpAuthRequest = other.OnMcpAuthRequest;
         OnPermissionRequest = other.OnPermissionRequest;
-        OnShellAuthenticationRequest = other.OnShellAuthenticationRequest;
         OnUserInputRequest = other.OnUserInputRequest;
         Provider = other.Provider;
         Capi = other.Capi;
@@ -4486,7 +4017,6 @@ public abstract class SessionConfigBase
         CoauthorEnabled = other.CoauthorEnabled;
         ManageScheduleEnabled = other.ManageScheduleEnabled;
         ReasoningEffort = other.ReasoningEffort;
-        AllowMultipleToolCalls = other.AllowMultipleToolCalls;
         ReasoningSummary = other.ReasoningSummary;
         ContextTier = other.ContextTier;
         AskUserVariant = other.AskUserVariant;
@@ -4501,7 +4031,6 @@ public abstract class SessionConfigBase
         ExcludedManagedSettings = other.ExcludedManagedSettings?.ToList();
         EnforceManagedModelDefaults = other.EnforceManagedModelDefaults;
         InteractiveUser = other.InteractiveUser;
-        PermissionMode = other.PermissionMode;
         ManagedSettings = other.ManagedSettings;
         SkillProvider = other.SkillProvider;
 #pragma warning disable GHCP001
@@ -4706,16 +4235,6 @@ public abstract class SessionConfigBase
     [JsonPropertyName("excludedBuiltinAgents")]
     public IList<string>? ExcludedBuiltInAgents { get; set; }
 
-    /// <summary>Built-in subagent names to allow, subject to availability and exclusions.</summary>
-    /// <remarks>
-    /// An empty list disables all built-in subagents; custom agents remain available,
-    /// including same-name agents. Null uses defaults on create or cold resume and
-    /// preserves the current allowlist on warm resume. Not persisted; re-supply on
-    /// resume after restart.
-    /// </remarks>
-    [JsonPropertyName("includedBuiltinAgents")]
-    public IList<string>? IncludedBuiltInAgents { get; set; }
-
     /// <summary>Custom model provider configuration for the session.</summary>
     public ProviderConfig? Provider { get; set; }
 
@@ -4806,17 +4325,6 @@ public abstract class SessionConfigBase
     /// </summary>
     public Func<UserInputRequest, UserInputInvocation, Task<UserInputResponse>>? OnUserInputRequest { get; set; }
 
-    /// <summary>
-    /// Handler for passwords and other answers that shell commands run by the agent ask for.
-    /// When provided, <c>sudo -A</c>, <c>ssh</c>, and <c>git</c> prompts reach this handler
-    /// instead of failing for lack of a terminal. Return <see cref="ShellAuthenticationResponse.Cancel"/>
-    /// when nobody can answer. The <see cref="CancellationToken"/> is cancelled when the answer is
-    /// no longer needed, for example because the command ended, the prompt timed out, or the
-    /// session ended or switched to autopilot; close the input when it is. An exception, a response
-    /// that isn't an accept, or an answer after the token is cancelled cancels the prompt.
-    /// </summary>
-    public Func<ShellAuthenticationRequest, CancellationToken, Task<ShellAuthenticationResponse>>? OnShellAuthenticationRequest { get; set; }
-
     /// <summary>Slash commands registered for this session.</summary>
     public IList<CommandDefinition>? Commands { get; set; }
 
@@ -4828,15 +4336,6 @@ public abstract class SessionConfigBase
 
     /// <summary>Handler for auto-mode-switch requests from the server.</summary>
     public Func<AutoModeSwitchRequest, AutoModeSwitchInvocation, Task<AutoModeSwitchResponse>>? OnAutoModeSwitchRequest { get; set; }
-
-    /// <summary>
-    /// Opt in to runtime-owned recovery of an eligible active request using Auto.
-    /// Requires <see cref="OnAutoModeSwitchRequest"/> and a positive
-    /// <c>session.Capabilities.Ui.AutoModeRecovery</c> acknowledgment. Unsupported
-    /// enrollment rejects create/resume and detaches the session. Defaults to false;
-    /// re-supply when resuming. Consent has no runtime deadline. Do not resend or rewind.
-    /// </summary>
-    public bool AutoModeRecovery { get; set; }
 
     /// <summary>
     /// Enable MCP Apps (SEP-1865) UI passthrough on this session.
@@ -5150,19 +4649,6 @@ public abstract class SessionConfigBase
     public bool? InteractiveUser { get; set; }
 
     /// <summary>
-    /// Permission mode applied before the session's first turn: before
-    /// session creation returns, and before a resume continues pending work.
-    /// Uses the same checks as <c>session.Rpc.Permissions.SetModeAsync</c>; a
-    /// mode that managed policy or session capabilities refuse leaves the
-    /// current mode in place. <see cref="CopilotSession.PermissionModeResult"/>
-    /// reports whether it was applied and the authoritative mode. Leave unset to
-    /// keep the default mode on create, or the restored mode on resume. Not
-    /// supported for cloud sessions.
-    /// </summary>
-    [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
-    public PermissionMode? PermissionMode { get; set; }
-
-    /// <summary>
     /// Optional managed-settings layer injected at session bootstrap. Currently
     /// carries a permissions object that composes restrictively with any
     /// server- or device-level managed settings. This layer is startup-only and
@@ -5359,11 +4845,6 @@ public sealed class ResumeSessionConfig : SessionConfigBase
     /// wait for caller-supplied results via the corresponding low-level RPC methods.
     /// Resuming does not re-emit restored permission requests or re-invoke permission
     /// handlers or already-dispatched external tool callbacks.
-    /// If a pending call was recorded as SDK-handler-backed and resume registers a
-    /// handler for that tool, the abandoned callback is interrupted, never replayed.
-    /// Handlerless calls remain pending. To supply an abandoned callback's result
-    /// manually, resume without a handler for it. Older requests without recorded
-    /// callback ownership also remain pending.
     /// </para>
     /// </summary>
     public bool? ContinuePendingWork { get; set; }
@@ -5422,7 +4903,6 @@ public sealed class MessageOptions
         Source = other.Source;
         Prompt = other.Prompt;
         DisplayPrompt = other.DisplayPrompt;
-        ClientTurnId = other.ClientTurnId;
         ResponseSchema = other.ResponseSchema;
         RequestHeaders = other.RequestHeaders is not null
             ? new Dictionary<string, string>(other.RequestHeaders)
@@ -5460,16 +4940,6 @@ public sealed class MessageOptions
     /// If provided, this is shown in the timeline instead of <see cref="Prompt"/>.
     /// </summary>
     public string? DisplayPrompt { get; set; }
-    /// <summary>
-    /// Opaque caller-chosen ID for the turn this message starts. The runtime copies it unchanged into
-    /// <c>_meta["com.github.copilot/turnId"]</c> on every MCP <c>tools/call</c> made while serving that turn,
-    /// including calls from sub-agents and Autopilot continuations. When a running turn consumes the message
-    /// as visible user steering, the value (or its absence) replaces the turn's ID from the next model call
-    /// onward. The <c>user.message</c> event for the message echoes it as <c>clientTurnId</c> and is
-    /// persisted like other events; the value stamped on MCP calls is held in memory only and is not
-    /// restored on resume.
-    /// </summary>
-    public string? ClientTurnId { get; set; }
 
     /// <summary>
     /// Optional provider-native JSON Schema for this turn, including tool continuations.
@@ -5520,7 +4990,6 @@ public sealed class SessionContext
 public sealed class SessionListFilter
 {
     /// <summary>Filter by exact working directory match.</summary>
-    [JsonPropertyName("cwd")]
     public string? WorkingDirectory { get; set; }
     /// <summary>Filter by git root.</summary>
     public string? GitRoot { get; set; }

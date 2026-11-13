@@ -213,7 +213,7 @@ internal sealed partial class FfiRuntimeHost : IDisposable
 
     private static byte[]? BuildEnvJson(IReadOnlyDictionary<string, string>? environment)
     {
-        if (environment is null)
+        if (environment is null || environment.Count == 0)
         {
             return null;
         }
@@ -758,7 +758,7 @@ internal sealed partial class FfiRuntimeHost : IDisposable
 
             var n = Math.Min(buffer.Length, _leftover.Length);
             _leftover.Span.Slice(0, n).CopyTo(buffer.Span);
-            _leftover = n == _leftover.Length ? default : _leftover.Slice(n);
+            _leftover = _leftover.Slice(n);
             return n;
         }
 

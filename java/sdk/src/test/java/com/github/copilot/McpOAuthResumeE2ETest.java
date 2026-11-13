@@ -21,8 +21,8 @@ import com.github.copilot.rpc.McpAuthResult;
 import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.ResumeSessionConfig;
+import com.github.copilot.rpc.SessionConfig;
 
-@Tag("e2e")
 class McpOAuthResumeE2ETest {
 
     private static final String SNAPSHOT = "resumes_a_persisted_session_from_a_new_client_when_an_mcp_oauth_handler_is_configured";
@@ -50,7 +50,7 @@ class McpOAuthResumeE2ETest {
         try (var client = ctx.createClient();
                 var session = client
                         .createSession(
-                                ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                                new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
                                         .setOnMcpAuthRequest((request, invocation) -> CompletableFuture
                                                 .completedFuture(McpAuthResult.cancelled())))
                         .get(30, TimeUnit.SECONDS)) {

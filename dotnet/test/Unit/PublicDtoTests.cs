@@ -20,14 +20,6 @@ namespace GitHub.Copilot.Test.Unit;
 /// </summary>
 public class PublicDtoTests
 {
-    [Theory]
-    [InlineData(typeof(Rpc.ProtocolExternalToolDefinition))]
-    [InlineData(typeof(ExternalToolRequestedData))]
-    public void CallbackOwnership_IsNotPublic(Type type)
-    {
-        Assert.Null(type.GetProperty("HasHandler"));
-    }
-
     [Fact]
     public void McpAuth_Result_Factories_Represent_Token_And_Cancellation()
     {

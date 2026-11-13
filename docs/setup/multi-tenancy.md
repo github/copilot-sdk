@@ -24,7 +24,6 @@ This guide is a sister to [Scaling and multi-tenancy](./scaling.md). Use that gu
 | `baseDirectory` | Isolating `COPILOT_HOME` per runtime instance | Ignored when connecting to an existing runtime. |
 | `sessionFs` | Routing session filesystem storage off local disk | Pair with per-session filesystem providers. |
 | `RuntimeConnection.forUri(url)` | Sharing one already-running runtime | Language names vary; see samples below. |
-| `memory.storeMemory` | Keeping agent memories in application storage | Your app owns storage, isolation and recall. |
 | Per-session GitHub token or provider | Scoping auth to the requesting user | Prefer a rotating provider for short-lived credentials; use a static `gitHubToken` only when rotation is unnecessary. |
 
 For callback-backed credentials, see [Rotating session-scoped GitHub tokens](../auth/authenticate.md#rotating-session-scoped-github-tokens). Each session owns its provider registration, so concurrent sessions can use different GitHub hosts and accounts without sharing callback state.
@@ -38,29 +37,6 @@ Do not use the default `mode: "copilot-cli"` for shared servers. That mode is in
 <details open>
 <summary><strong>TypeScript</strong></summary>
 
-<!-- docs-validate: hidden -->
-```typescript
-import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
-
-// Provided by your auth layer
-declare const user: { id: string; githubToken: string };
-
-// baseDirectory and sessionIdleTimeoutSeconds apply when the SDK spawns the
-// runtime. With RuntimeConnection.forUri(...) configure COPILOT_HOME and the
-// idle timeout on the runtime process itself.
-const client = new CopilotClient({
-    mode: "empty",
-    connection: RuntimeConnection.forUri(process.env.COPILOT_RUNTIME_URL!),
-});
-
-const session = await client.createSession({
-    sessionId: `user-${user.id}-${crypto.randomUUID()}`,
-    model: "auto",
-    availableTools: ["custom:lookupOrder", "custom:createTicket"],
-    gitHubToken: user.githubToken,
-});
-```
-<!-- /docs-validate: hidden -->
 ```typescript
 import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
 
@@ -74,7 +50,7 @@ const client = new CopilotClient({
 
 const session = await client.createSession({
     sessionId: `user-${user.id}-${crypto.randomUUID()}`,
-    model: "auto",
+    model: "gpt-5.4",
     availableTools: ["custom:lookupOrder", "custom:createTicket"],
     gitHubToken: user.githubToken,
 });
@@ -106,7 +82,7 @@ await client.start()
 
 session = await client.create_session(
     session_id=f"user-{user.id}-{request_id}",
-    model="auto",
+    model="gpt-5.4",
     available_tools=["custom:lookupOrder", "custom:createTicket"],
     github_token=user.github_token,
     on_permission_request=PermissionHandler.approve_all,
@@ -150,7 +126,7 @@ func main() {
 
 	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 		SessionID:      fmt.Sprintf("user-%s-%s", user.ID, requestID),
-		Model:          "auto",
+		Model:          "gpt-5.4",
 		AvailableTools: []string{"custom:lookupOrder", "custom:createTicket"},
 		GitHubToken:    user.GitHubToken,
 	})
@@ -170,7 +146,7 @@ client := copilot.NewClient(&copilot.ClientOptions{
 
 session, err := client.CreateSession(ctx, &copilot.SessionConfig{
     SessionID:      fmt.Sprintf("user-%s-%s", user.ID, requestID),
-    Model:          "auto",
+    Model:          "gpt-5.4",
     AvailableTools: []string{"custom:lookupOrder", "custom:createTicket"},
     GitHubToken:    user.GitHubToken,
 })
@@ -201,7 +177,7 @@ var client = new CopilotClient(new CopilotClientOptions
 await using var session = await client.CreateSessionAsync(new SessionConfig
 {
     SessionId = $"user-{user.Id}-{requestId}",
-    Model = "auto",
+    Model = "gpt-5.4",
     AvailableTools = ["custom:lookupOrder", "custom:createTicket"],
     GitHubToken = user.GitHubToken,
 });
@@ -220,7 +196,7 @@ var client = new CopilotClient(new CopilotClientOptions
 await using var session = await client.CreateSessionAsync(new SessionConfig
 {
     SessionId = $"user-{user.Id}-{requestId}",
-    Model = "auto",
+    Model = "gpt-5.4",
     AvailableTools = ["custom:lookupOrder", "custom:createTicket"],
     GitHubToken = user.GitHubToken,
 });
@@ -256,7 +232,7 @@ public class MultiTenancyExample {
 
         var session = client.createSession(new SessionConfig()
             .setSessionId("user-" + user.id() + "-" + requestId)
-            .setModel("auto")
+            .setModel("gpt-5.4")
             .setAvailableTools(List.of("custom:lookupOrder", "custom:createTicket"))
             .setGitHubToken(user.gitHubToken())
         ).get();
@@ -275,7 +251,7 @@ var client = new CopilotClient(new CopilotClientOptions()
 
 var session = client.createSession(new SessionConfig()
     .setSessionId("user-" + user.id() + "-" + requestId)
-    .setModel("auto")
+    .setModel("gpt-5.4")
     .setAvailableTools(List.of("custom:lookupOrder", "custom:createTicket"))
     .setGitHubToken(user.gitHubToken())
 ).get();
@@ -286,47 +262,6 @@ var session = client.createSession(new SessionConfig()
 <details>
 <summary><strong>Rust</strong></summary>
 
-<!-- docs-validate: hidden -->
-```rust
-struct User {
-    id: String,
-    github_token: String,
-}
-let runtime_instance_id = "instance-1";
-let runtime_host = "127.0.0.1";
-let runtime_port: u16 = 3000;
-let request_id = "request-1";
-let user = User { id: "user-1".into(), github_token: String::new() };
-
-use std::path::PathBuf;
-use github_copilot_sdk::{Client, ClientOptions, Transport};
-use github_copilot_sdk::mode::ClientMode;
-use github_copilot_sdk::types::SessionConfig;
-
-let client = Client::start(
-    ClientOptions::new()
-        .with_mode(ClientMode::Empty)
-        .with_base_directory(PathBuf::from(format!(
-            "/var/lib/my-app/copilot/{runtime_instance_id}"
-        )))
-        .with_session_idle_timeout_seconds(900)
-        .with_transport(Transport::External {
-            host: runtime_host.to_string(),
-            port: runtime_port,
-            connection_token: None,
-        }),
-).await?;
-
-let session = client.create_session(
-    SessionConfig::default()
-        .with_session_id(format!("user-{}-{request_id}", user.id))
-        .with_model("auto")
-        .with_available_tools(["custom:lookupOrder", "custom:createTicket"])
-        .with_github_token(user.github_token),
-).await?;
-```
-<!-- /docs-validate: hidden -->
-
 ```rust
 use std::path::PathBuf;
 use github_copilot_sdk::{Client, ClientOptions, Transport};
@@ -350,7 +285,7 @@ let client = Client::start(
 let session = client.create_session(
     SessionConfig::default()
         .with_session_id(format!("user-{}-{request_id}", user.id))
-        .with_model("auto")
+        .with_model("gpt-5.4")
         .with_available_tools(["custom:lookupOrder", "custom:createTicket"])
         .with_github_token(user.github_token),
 ).await?;
@@ -378,8 +313,6 @@ Use a value that matches your product's conversation lifetime. For chat backends
 `baseDirectory` sets `COPILOT_HOME` for a runtime instance. Use it to isolate runtime state, credentials, and session data per process, pod, worker, or tenant boundary.
 
 ```typescript
-import { CopilotClient } from "@github/copilot-sdk";
-
 const client = new CopilotClient({
     mode: "empty",
     baseDirectory: `/var/lib/my-app/copilot/runtime-${process.env.HOSTNAME}`,
@@ -396,8 +329,6 @@ When the SDK connects to an already-running runtime with `RuntimeConnection.forU
 `sessionFs` registers a custom session filesystem provider so session-scoped file I/O can be routed through application storage instead of the runtime's local disk. Use it when local disk is ephemeral, when session state needs to live in object storage, or when a platform needs to enforce tenant-aware storage paths.
 
 ```typescript
-import { CopilotClient } from "@github/copilot-sdk";
-
 const client = new CopilotClient({
     mode: "empty",
     sessionFs: {
@@ -432,7 +363,7 @@ Verified public SDK surfaces:
 
 | Language | Client-level config | Per-session provider |
 |----------|---------------------|----------------------|
-| TypeScript | `sessionFs` | `createSessionFsProvider` |
+| TypeScript | `sessionFs` | `createSessionFsAdapter` / provider callbacks |
 | Python | `session_fs` | `create_session_fs_handler` |
 | Go | `SessionFS` | `CreateSessionFSProvider` |
 | .NET | `SessionFs` | `CreateSessionFsProvider` |
@@ -459,83 +390,16 @@ External runtimes manage their own process-level authentication and storage. Pas
 
 Set `gitHubToken` on each session to scope GitHub auth to the requesting user. This is different from a client-level token, which authenticates the runtime process.
 
-<!-- docs-validate: hidden -->
-```typescript
-// Provided by your auth layer
-declare const user: { id: string; githubToken: string };
-
-const session = await client.createSession({
-    sessionId: `user-${user.id}-support`,
-    model: "auto",
-    availableTools: ["custom:*"],
-    gitHubToken: user.githubToken,
-});
-```
-<!-- /docs-validate: hidden -->
 ```typescript
 const session = await client.createSession({
     sessionId: `user-${user.id}-support`,
-    model: "auto",
+    model: "gpt-5.4",
     availableTools: ["custom:*"],
     gitHubToken: user.githubToken,
 });
 ```
 
 Use per-session tokens for content exclusion, model routing, quota checks, and user-specific Copilot access. Avoid sharing one service token across users unless your product intentionally uses service-account semantics.
-
-### `memory.storeMemory`
-
-Set `storeMemory` to keep the memories the agent saves in your own storage instead of the built-in memory backends. No GitHub identity or memory feature flag is required.
-
-<!-- docs-validate: hidden -->
-```typescript
-import { approveAll, CopilotClient, type StoredMemory } from "@github/copilot-sdk";
-
-type MemoryRecord = Omit<StoredMemory, "sessionId">;
-declare const client: CopilotClient;
-declare const user: { id: string };
-declare const memories: {
-    insert(userId: string, memory: MemoryRecord): Promise<void>;
-    renderForPrompt(userId: string): Promise<string>;
-};
-
-const session = await client.createSession({
-    onPermissionRequest: approveAll,
-    memory: {
-        enabled: true,
-        storeMemory: async ({ subject, fact, citations, reason }) => {
-            await memories.insert(user.id, { subject, fact, citations, reason });
-        },
-    },
-    systemMessage: {
-        mode: "append",
-        content: await memories.renderForPrompt(user.id),
-    },
-});
-```
-<!-- /docs-validate: hidden -->
-
-```typescript
-const session = await client.createSession({
-    onPermissionRequest: approveAll,
-    memory: {
-        enabled: true,
-        storeMemory: async ({ subject, fact, citations, reason }) => {
-            await memories.insert(user.id, { subject, fact, citations, reason });
-        },
-    },
-    systemMessage: {
-        mode: "append",
-        content: await memories.renderForPrompt(user.id),
-    },
-});
-```
-
-The runtime still validates each memory, filters secrets and requests permission, then calls `storeMemory`. The tool call succeeds only after your callback resolves. If the callback rejects, or does not respond within 60 seconds, the tool call fails with a generic message, your error text is not shown to the model, and nothing is stored elsewhere. A retried tool call can deliver the same memory again.
-
-While `storeMemory` is set, the runtime retrieves no memories and `vote_memory` is unavailable. Supply recall yourself, for example through `systemMessage` when you create or resume a session. `store_memory` takes no `scope`, so apply your own tenant, user and retention rules. Only the main agent stores memories; sub-agents can't store memories and don't recall built-in memories. `storeMemory` requires `enabled: true` and isn't supported for cloud sessions. Set it again on every resume; a resume without it returns the session to the built-in memory backends. If the connection that supplied the callback closes, memory writes fail until another client resumes the session.
-
-Other SDKs: Python `MemoryConfiguration(store_memory=...)`, Go `SessionConfig.StoreMemory`, .NET `MemoryConfiguration.StoreMemory`, Java `MemoryConfiguration.setStoreMemory(...)`, Rust `SessionConfig::with_memory_store(...)`.
 
 ## Integration ID
 

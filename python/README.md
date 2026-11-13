@@ -171,10 +171,6 @@ await session.send("Workspace context updated", source="system")
 unchanged after the `agent-` prefix, so `"reviewer"` becomes `"agent-reviewer"`.
 It does not trim whitespace, change case, or remove an existing prefix.
 
-Use `AutomationMessageSource(automation_id)` for a turn sent on behalf of an
-automation the user configured, such as a recurring check-in; it becomes
-`automation-<id>`. An automation turn defines the session's task like a user message but carries no human authority; see [Message provenance](../docs/features/steering-and-queueing.md#message-provenance).
-
 Leave source unset (or `None`) for ordinary human sends so the field stays omitted.
 Use `"user"` when you need to set it explicitly. Source is independent of delivery
 mode and does not replace the session's `system_message` configuration, set billing
@@ -318,8 +314,9 @@ again to `resume_session()`. Cloud sessions do not support skill providers.
 Providers must be safe for concurrent calls because the runtime may list or read
 skills from multiple agent paths at the same time. When the runtime cancels a
 call, for example after its 30-second limit or when the session disconnects, an
-async provider's task is cancelled and receives `asyncio.CancelledError`. The
-same happens when the connection closes or the client is force-stopped.
+async provider's task is cancelled and receives `asyncio.CancelledError`. Closing
+the connection or force-stopping the client doesn't cancel a running call; it
+continues until it returns.
 
 #### Supporting files (experimental)
 
@@ -413,7 +410,7 @@ All options are kw-only parameters:
 - `base_directory` (str | None): Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned CLI process. When `None`, the CLI defaults to `~/.copilot`. Useful in restricted environments where only specific directories are writable. Ignored when using a `UriRuntimeConnection`.
 - `extension_launch_provider` (ExtensionLaunchProviderHandler | None): Experimental connection-level resolver for extension launch profiles. The client installs the reverse-RPC handler and registers the provider during startup before sessions can be created.
 - `installation_confirmation_handler` (InstallationConfirmationHandler | None): Experimental connection-global human review for `installations.confirm`. Receives the typed request and one cancellation signal, and returns an explicit decision. Does not enable installation capabilities.
-- `network` (NetworkConfig | None): Experimental. Network callbacks through which the SDK host decides the runtime's proxies and supplies its Kerberos tokens and proxy credentials. The client installs the `network.resolveProxy`, `network.authenticateNegotiate` and `network.authenticateBasic` handlers and registers the configured callbacks and `scope` during startup before sessions can be created. See [Network callbacks](#network-callbacks-experimental).
+- `kerberos_auth` (KerberosAuthConfig | None): Supplies Kerberos credentials from the SDK host. The client installs the `kerberosAuth.acquire` handler and registers `mode` and `scope` during startup before sessions can be created. See [Kerberos authentication callback](#kerberos-authentication-callback).
 - `use_logged_in_user` (bool | None): Whether to use logged-in user for authentication (default: True, but False when `github_token` is provided).
 - `telemetry` (dict | None): OpenTelemetry configuration for the CLI process. Providing this enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
 - `session_fs` (dict | None): Connection-level session filesystem provider configuration. To let `view` read provider-only images, set `capabilities.binary` to `True` and return a provider implementing `SessionFsBinaryProvider` (`read_file_bytes(path)` and `write_file_bytes(path, content, mode=None)`) from `create_session_fs_handler`; image reads do not fall back to local files. Binary reads and writes are limited to 50,330,880 raw bytes (approximately 48 MiB); larger results return a filesystem error before encoding or decoding.
@@ -493,81 +490,45 @@ instead of falling back to raw configuration writes. Generated presence and
 transport tests do not establish a working installer, live OAuth or restart
 safety.
 
-### Network callbacks (experimental)
+### Kerberos authentication callback
 
-Provide `network` (a `NetworkConfig`) to `CopilotClient` when the SDK host should take over parts of the runtime's networking, for example when the runtime runs in WSL or a container and should use VS Code's proxy settings and the host's Kerberos tickets. Registration happens during `start()`, before sessions can be created; if it fails, `start()` fails. Without this option, or for a callback you leave out, the runtime handles that part itself.
-
-- `resolve_proxy` receives a `NetworkResolveProxyRequest` and decides the proxies for every request the runtime would otherwise route by ambient proxy settings: proxy environment variables, `NO_PROXY` and operating-system proxy settings are not consulted unless it returns `None`. `request.url` is the request target as a PAC script sees it: without credentials or fragment, and for `https` and `wss` also without path and query. Return a PAC-style list such as `PROXY proxy.example:8080; HTTPS proxy.example:443; DIRECT` (the format of Electron's `session.resolveProxy`); return `DIRECT` for a direct connection, or `None` to let the runtime resolve the proxy itself, as if no callback were registered. Entry types the runtime doesn't support, such as SOCKS and QUIC, are skipped. If the callback fails, the request fails rather than connecting directly. Requests to loopback targets, and requests with an explicitly configured proxy, never consult it. The runtime caches answers, including `None`, for 5 seconds and waits at most 10 seconds for the callback.
-- `authenticate_negotiate` receives a `NetworkAuthenticateNegotiateRequest` and supplies the Kerberos token for a proxy's Negotiate challenge instead of the runtime's native credential lookup. `request.spn` is a service principal in the platform-independent `service/host[@REALM]` form; validate it before issuing credentials. Return a fresh base64 SPNEGO token without the `Negotiate ` prefix, or `None` when credentials are unavailable, which fails the request unless the proxy also offers Basic and `authenticate_basic` supplies credentials. The runtime waits at most 30 seconds for the callback (less when the request's own deadline is sooner). Tokens are not cached and must not be logged or persisted. The callback supplies the initial SPNEGO token only; exchanges requiring continuation tokens are not supported. Proxies chosen by `resolve_proxy` are authenticated the same way.
-- `authenticate_basic` receives a `NetworkAuthenticateBasicRequest` and supplies the credentials for a proxy's Basic challenge on requests the runtime tunnels through the proxy (`https` and `wss`). `request.proxy` is `http://host:port` or `https://host:port`; `request.realm` comes from the proxy, so treat it as untrusted text. Return a `NetworkAuthenticateBasicResult(username=..., password=...)`, or `None` when credentials are unavailable, which fails the request with the proxy's challenge, as does an empty user name. The user name must not contain a colon, and neither the user name nor the password may contain control characters; an omitted password means an empty password. The runtime remembers the answer for that proxy and uses it for later connections, until the proxy rejects it; then it calls again with `request.previous_rejected` set, so return different credentials, for example by asking the user, or `None`. A later connection sends the answer without waiting for a challenge, unless the runtime may try Negotiate with that proxy first. A connection submits at most three sets of credentials. While a call is pending, other requests through that proxy wait for its answer. When a proxy offers both Negotiate and Basic, the runtime prefers Negotiate and answers with Basic when Negotiate is unavailable or the proxy rejects it. The runtime does not time the callback out: a request whose own deadline passes stops waiting, but the answer is still remembered. Credentials must not be logged or persisted.
-
-The callbacks may be sync or async. When the runtime stops waiting (it cancels the request, for example after its timeout, or the connection closes), an awaitable a callback returned is cancelled with `asyncio.CancelledError` and any later result is ignored; if that awaitable is cancelled otherwise, the runtime receives a callback failure. Like other client callbacks, the callbacks run on the client's event loop, so keep a sync callback fast and offload a blocking lookup, for example with `await asyncio.to_thread(lookup, request.url)`.
-
-By default the callbacks serve only requests made for sessions this client creates or resumes. With `"scope": "runtime"` they also serve the runtime's shared background traffic, such as catalog refreshes and telemetry; only one connection at a time can hold that scope, so `start()` fails if another client holds it. The registration ends when the connection closes; a `start()` that fails or is cancelled closes it.
+Provide `kerberos_auth={"mode": ..., "callback": ...}` (a `KerberosAuthConfig`) to `CopilotClient` when Kerberos tickets must be obtained by the SDK host, for example from Windows when the runtime runs in WSL. The runtime currently uses it for proxy authentication. The callback receives a `KerberosAuthAcquireRequest` whose `spn` is a service principal in the platform-independent `service/host[@REALM]` form, and returns a fresh base64 SPNEGO token without the `Negotiate ` prefix, or `None` when credentials are unavailable. The callback may be sync or async and should validate the principal before issuing credentials.
 
 <!-- docs-validate: hidden -->
 ```python
-from copilot import (
-    CopilotClient,
-    NetworkAuthenticateNegotiateRequest,
-    NetworkResolveProxyRequest,
-)
-
-
-async def lookup_proxy(url: str) -> str | None:
-    return None
+from copilot import CopilotClient, KerberosAuthAcquireRequest
 
 
 async def get_spnego_token(spn: str) -> str:
     return ""
 
 
-async def resolve_proxy(request: NetworkResolveProxyRequest) -> str | None:
-    return await lookup_proxy(request.url)  # For example, from VS Code's proxy settings.
-
-
-async def authenticate_negotiate(request: NetworkAuthenticateNegotiateRequest) -> str | None:
+async def acquire_token(request: KerberosAuthAcquireRequest) -> str | None:
     if request.spn != "HTTP/proxy.example.com":
         return None
     return await get_spnego_token(request.spn)  # Your Kerberos/SSPI integration.
 
 
-client = CopilotClient(
-    network={
-        "scope": "runtime",
-        "resolve_proxy": resolve_proxy,
-        "authenticate_negotiate": authenticate_negotiate,
-    }
-)
+client = CopilotClient(kerberos_auth={"mode": "fallback", "callback": acquire_token})
 ```
 <!-- /docs-validate: hidden -->
 
 ```python
-from copilot import (
-    CopilotClient,
-    NetworkAuthenticateNegotiateRequest,
-    NetworkResolveProxyRequest,
-)
+from copilot import CopilotClient, KerberosAuthAcquireRequest
 
 
-async def resolve_proxy(request: NetworkResolveProxyRequest) -> str | None:
-    return await lookup_proxy(request.url)  # For example, from VS Code's proxy settings.
-
-
-async def authenticate_negotiate(request: NetworkAuthenticateNegotiateRequest) -> str | None:
+async def acquire_token(request: KerberosAuthAcquireRequest) -> str | None:
     if request.spn != "HTTP/proxy.example.com":
         return None
     return await get_spnego_token(request.spn)  # Your Kerberos/SSPI integration.
 
 
-client = CopilotClient(
-    network={
-        "scope": "runtime",
-        "resolve_proxy": resolve_proxy,
-        "authenticate_negotiate": authenticate_negotiate,
-    }
-)
+client = CopilotClient(kerberos_auth={"mode": "fallback", "callback": acquire_token})
 ```
+
+With `mode="fallback"`, native credential acquisition (including the first token) is tried first; only failure invokes the callback. With `mode="always"`, native credential lookup is never attempted. Without this option, behavior is unchanged. Registration happens during `start()`, before sessions can be created; if it fails, `start()` fails.
+
+By default the callback authenticates only requests made for sessions this client creates or resumes. With `scope="runtime"` it also authenticates the runtime's shared background traffic, such as catalog refreshes and telemetry; only one connection at a time can hold that scope, so `start()` fails if another client holds it. The registration ends when the connection closes; a `start()` that fails or is cancelled closes it. In `fallback` mode, if the callback cannot supply a valid token, the native credential error is reported. In `always` mode, a disconnected, raising, or empty callback fails authentication. The runtime waits at most 30 seconds for the callback (less when the request's own deadline is sooner) and treats a timeout as a callback failure. When the runtime stops waiting or the connection closes, an awaitable the callback returned is cancelled with `asyncio.CancelledError`; if that awaitable is cancelled otherwise, the runtime receives a callback failure. Like other client callbacks, the callback runs on the client's event loop, so keep a sync callback fast and offload a blocking lookup, for example with `await asyncio.to_thread(lookup, request.spn)`; its late result is ignored. Tokens are not cached and must not be logged or persisted. The callback supplies the initial SPNEGO token only; exchanges requiring continuation tokens still need native negotiation.
 
 ### In-process (FFI) transport
 
@@ -595,9 +556,11 @@ finally:
 - Set `COPILOT_CLI_PATH` only when using an externally provisioned compatible
   runtime package. In-process connections do not accept per-connection paths
   or raw process arguments.
-- Client-level `env` and `working_directory` raise `ValueError` with
-  `for_inprocess()`; typed `telemetry` is scoped to this runtime. Set working
-  directories on individual sessions.
+- Because the runtime shares this single host process, per-client options that
+  lower to environment variables or a working directory **cannot** be honored and
+  are rejected: `env`, `telemetry`, and `working_directory` all raise `ValueError`
+  with `for_inprocess()`. Set the corresponding values on the host process
+  environment / working directory before creating the client instead.
 - Set `COPILOT_SDK_DEFAULT_CONNECTION=inprocess` to select the in-process
   transport by default when no explicit `connection` is supplied.
 
@@ -606,7 +569,7 @@ finally:
 These are passed as keyword arguments to `create_session()`:
 
 - `model` (str): Model to use ("gpt-5", "claude-sonnet-4.5", etc.). **Required when using custom provider.**
-- `capi` (CapiSessionOptions): Copilot API options. With `model="auto"`, set `auto_tier` to `"efficiency"`, `"balance"`, `"intelligence"`, or `"fast"` to choose a routing preference. `"fast"` is an integrator-only latency preset, not a first-party GitHub Copilot product preference. Requires a runtime with Auto tier support and V2 Auto routing. Omission preserves default behavior. See [Auto tier persistence](../docs/features/session-persistence.md#auto-tier-persistence) for resume semantics. For Copilot Fusion, use `model="fusion"` and set `fusion_tier` to `"standard"`, `"high"`, or `"max"`; see [Copilot Fusion names](../docs/features/session-persistence.md#copilot-fusion-names).
+- `capi` (CapiSessionOptions): Copilot API options. With `model="auto"`, set `auto_tier` to `"efficiency"`, `"balance"`, `"intelligence"`, or `"fast"` to choose a routing preference. `"fast"` is an integrator-only latency preset, not a first-party GitHub Copilot product preference. Requires a runtime with Auto tier support and V2 Auto routing. Omission preserves default behavior. See [Auto tier persistence](../docs/features/session-persistence.md#auto-tier-persistence) for resume semantics.
 - `reasoning_effort` (str): Reasoning effort level for models that support it ("low", "medium", "high", "xhigh", "max"). Use `list_models()` to check which models support this option.
 - `session_id` (str): Custom session ID
 - `tools` (list): Custom tools exposed to the CLI. Tools with `handler=None` are declaration-only and must be resolved via pending tool-call RPCs.
@@ -617,13 +580,11 @@ These are passed as keyword arguments to `create_session()`:
 - `autopilot` (AutopilotOptions, experimental): Autopilot policy, also accepted by `resume_session()`. `continuation_enabled` defaults to `True` and does not change session mode; `max_continues` limits continuations outside an active objective (non-negative integer, default five, zero allows none). Omitted fields preserve resident values on warm resume. Re-supply on cold resume.
 - `working_directory` (str | None): Working directory for the session (default: runtime process working directory).
 - `enable_session_store` (bool): Enables the cross-session store for search and retrieval across sessions. When unset in `"copilot-cli"` mode, the runtime default applies (enabled). In `"empty"` mode, defaults to disabled.
-- `github_token_provider` (callable): Acquires rotating, session-scoped GitHub tokens. Token results require an `expiresIn` value in seconds remaining when the callback completes, of which more than one hour must still remain after the runtime validates the token; production tokens typically last eight hours. Cannot be combined with `github_token`.
+- `github_token_provider` (callable): Acquires rotating, session-scoped GitHub tokens. Token results require a positive `expiresIn` value in seconds remaining when the callback completes; production tokens typically last eight hours. Cannot be combined with `github_token`.
 - `on_permission_request` (callable): Optional handler called before each tool execution to approve or deny it. When omitted, permission requests are emitted as events and left pending for manual resolution. `PermissionHandler.approve_all` approves requests when managed settings are disabled and raises an error when `enable_managed_settings` is true. Custom handlers can inspect `managed_approval_required` for human-facing confirmation logic. See [Permission Handling](#permission-handling) section.
 - `on_user_input_request` (callable): Handler for legacy question-and-answer requests from the agent. Enables the legacy `ask_user` tool. See [User Input Requests](#user-input-requests) section.
-- `on_shell_authentication_request` (callable): Handler for passwords and other answers that shell commands run by the agent ask for, such as `sudo -A`, `ssh`, and `git` over HTTPS. The answer goes only to the program that asked; the model never sees it. Without a handler, those commands fail as they do without a terminal. See [Shell password prompts](../docs/features/shell-password-prompts.md).
 - `ask_user_variant` (`"legacy"` | `"elicitation"`): Selects the model-facing shape of the `ask_user` tool. Defaults to `"legacy"`; use `"elicitation"` with `on_elicitation_request`. Re-supply this option when cold-resuming a session.
 - `interactive_user` (bool): Declares that a person types this session's messages, as in an editor chat panel. Enables the runtime's user-message analysis telemetry for user-authored messages; automated messages stay excluded. Defaults to `False`. Ignored for cloud sessions. Re-supply it when cold-resuming a session; it is ignored when resuming a session that is already active.
-- `permission_mode` (PermissionMode): Applies `manual`, `assisted`, or `allow-all` before the session's first turn: before `create_session` returns, and before a resume continues pending work. Uses the same checks as `session.rpc.permissions.set_mode`; `session.permission_mode_result` reports whether it was applied and the authoritative mode. Not supported for cloud sessions.
 - `hooks` (SessionHooks): Hook handlers for session lifecycle events. See [Session Hooks](#session-hooks) section.
 
 <!-- docs-validate: hidden -->
@@ -926,6 +887,8 @@ the shared behavior and active-turn limitations.
 
 If you register a tool with the same name as a built-in CLI tool (e.g. `edit_file`, `read_file`), the SDK will throw an error unless you explicitly opt in by setting `overrides_built_in_tool=True`. This flag signals that you intend to replace the built-in tool with your custom implementation.
 
+<!-- docs-validate: hidden -->
+<!--
 ```python
 from pydantic import BaseModel, Field
 from copilot import define_tool
@@ -944,6 +907,18 @@ class EditFileParams(BaseModel):
 async def edit_file(params: EditFileParams) -> str:
     # your logic
     return ""
+```
+-->
+<!-- /docs-validate: hidden -->
+
+```python
+class EditFileParams(BaseModel):
+    path: str = Field(description="File path")
+    content: str = Field(description="New file content")
+
+@define_tool(name="edit_file", description="Custom file editor with project-specific validation", overrides_built_in_tool=True)
+async def edit_file(params: EditFileParams) -> str:
+    # your logic
 ```
 
 An explicit `apply_patch` override can declare a root string schema with
@@ -1007,6 +982,8 @@ async def safe_lookup(params: LookupParams) -> str:
 
 Set `defer` to control whether a tool may be loaded lazily via tool search rather than always pre-loaded. Use `"auto"` to allow the tool to be deferred and surfaced through tool search, or `"never"` to force it to always be pre-loaded. Defaults to `"auto"`.
 
+<!-- docs-validate: hidden -->
+<!--
 ```python
 from pydantic import BaseModel, Field
 from copilot import define_tool
@@ -1020,6 +997,14 @@ class LookupParams(BaseModel):
 async def lookup_issue(params: LookupParams) -> str:
     # your logic
     return ""
+```
+-->
+<!-- /docs-validate: hidden -->
+
+```python
+@define_tool(name="lookup_issue", description="Fetch issue details", defer="auto")
+async def lookup_issue(params: LookupParams) -> str:
+    # your logic
 ```
 
 ## Auto routing tiers
@@ -1040,8 +1025,6 @@ await session.set_auto_tier(None)
 ```
 
 `set_model()` accepts the same preference through its `auto_tier` argument, which stages the tier atomically with selecting `auto`. Pass `None` to return to provider-default routing, or omit the argument to leave the current preference unchanged.
-
-For Copilot Fusion, use the CLI's names: `model="fusion"` with `capi={"fusion_tier": "high"}` on create or resume, `set_model("fusion", fusion_tier="high")`, or `set_fusion_tier("high")`. The tiers are `"standard"`, `"high"`, and `"max"`. The routing identifiers these replace (`balance`, `hydrafusion`, and `hydrafusion-max`, and the `hydrafusion` and `hydrafusion-max` model IDs) remain accepted but are deprecated. See [Copilot Fusion names](../docs/features/session-persistence.md#copilot-fusion-names).
 
 See [Auto tier persistence](../docs/features/session-persistence.md#auto-tier-persistence) for the full lifecycle rules.
 
@@ -1315,7 +1298,7 @@ The SDK supports custom OpenAI-compatible API providers (BYOK - Bring Your Own K
 
 **ProviderConfig fields:**
 
-- `type` (str): Provider type - `"openai"`, `"azure"`, `"anthropic"`, or `"google"` (default: `"openai"`). `"google"` (experimental) uses Google's native Gemini Interactions API.
+- `type` (str): Provider type - `"openai"`, `"azure"`, or `"anthropic"` (default: `"openai"`)
 - `base_url` (str): API endpoint URL (required)
 - `api_key` (str): API key (optional for local providers like Ollama)
 - `bearer_token` (str): Bearer token for authentication (takes precedence over `api_key`)
@@ -1656,41 +1639,6 @@ async with await client.create_session(
 ) as session:
     ...
 ```
-
-### Reporting a person's answers
-
-When a person answers a prompt in your UI, label the result with `create_attributed_result` so Assisted Permissions can treat the answer as the person's own authority. The same label works for permission, user-input, plan-review, and elicitation handlers:
-
-```python
-from copilot import create_attributed_result
-from copilot.rpc import (
-    PermissionDecisionContext,
-    PermissionDecisionOutcome,
-    PermissionDecisionSource,
-    PermissionDecisionSurface,
-    PermissionResponseCapability,
-)
-
-person_answered = PermissionDecisionContext(
-    source=PermissionDecisionSource.HUMAN_RESPONSE,
-    response_capability=PermissionResponseCapability.INTERACTIVE,
-    surface=PermissionDecisionSurface.SDK,
-    outcome=PermissionDecisionOutcome.PROMPTED_USER,
-)
-
-session = await client.create_session(
-    on_permission_request=PermissionHandler.approve_all,
-    model="gpt-5",
-    on_user_input_request=lambda request, invocation: create_attributed_result(
-        {"answer": "Only src/app.ts", "wasFreeform": True}, person_answered
-    ),
-    on_exit_plan_mode_request=lambda request, invocation: create_attributed_result(
-        {"approved": True, "selectedAction": "interactive"}, person_answered
-    ),
-)
-```
-
-Label a person's declines and dismissals too; the runtime decides which answers carry authority. It accepts the label only from the connection that owns the session, so other connections' answers still settle, without it. Leave automated answers unlabeled.
 
 ## Session Hooks
 

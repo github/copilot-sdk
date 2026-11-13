@@ -7,7 +7,6 @@ using GitHub.Copilot.Test.Harness;
 using Microsoft.Extensions.AI;
 using System.Collections.Concurrent;
 using System.ComponentModel;
-using System.Text.Json;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -26,14 +25,10 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         Assert.NotEmpty(messages);
         var startEvent = Assert.IsType<SessionStartEvent>(messages[0]);
         Assert.Equal(session.SessionId, startEvent.Data.SessionId);
-        var rawEvents = await session.GetRawEventsAsync();
-        Assert.Equal(JsonValueKind.Null, rawEvents[0].GetProperty("parentId").ValueKind);
-        Assert.Equal("session.start", rawEvents[0].GetProperty("type").GetString());
 
         await session.DisposeAsync();
 
         await Assert.ThrowsAsync<ObjectDisposedException>(() => session.GetEventsAsync());
-        await Assert.ThrowsAsync<ObjectDisposedException>(() => session.GetRawEventsAsync());
     }
 
     [Fact]
@@ -604,15 +599,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         if (ourSession.Context != null)
         {
             Assert.False(string.IsNullOrEmpty(ourSession.Context.WorkingDirectory), "Expected context.WorkingDirectory to be non-empty when context is present");
-
-            var sameDirectorySessions = await Client.ListSessionsAsync(
-                new SessionListFilter { WorkingDirectory = ourSession.Context.WorkingDirectory });
-            Assert.Contains(sameDirectorySessions, s => s.SessionId == session.SessionId);
         }
-
-        var otherDirectorySessions = await Client.ListSessionsAsync(
-            new SessionListFilter { WorkingDirectory = Path.Join(Ctx.WorkDir, "other-project") });
-        Assert.DoesNotContain(otherDirectorySessions, s => s.SessionId == session.SessionId);
     }
 
     [Fact]

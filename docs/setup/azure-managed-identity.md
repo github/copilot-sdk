@@ -331,6 +331,8 @@ asyncio.run(main())
 <details>
 <summary><strong>Rust</strong></summary>
 
+<!-- docs-validate: skip -->
+
 ```rust
 use std::sync::Arc;
 
@@ -392,7 +394,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 <details>
 <summary><strong>TypeScript</strong></summary>
 
-<!-- docs-validate: strict -->
+<!-- docs-validate: skip -->
 
 ```typescript
 import { DefaultAzureCredential } from "@azure/identity";

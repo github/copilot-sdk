@@ -1,4 +1,4 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
@@ -18,97 +18,6 @@ namespace GitHub.Copilot.Test.Unit;
 /// </summary>
 public class SerializationTests
 {
-    [Fact]
-    public void FetchErrorData_RoundTrips_WithSdkSerializerOptions()
-    {
-        var options = GetSerializerOptions();
-        const string credentialJson = """{"code":"credential_revoked"}""";
-        var credential = JsonSerializer.Deserialize<CredentialContextErrorData>(credentialJson, options)!;
-        Assert.Equal(CredentialContextErrorCode.CredentialRevoked, credential.Code);
-        Assert.Equal(credentialJson, JsonSerializer.Serialize(credential, options));
-
-        const string transportJson = """{"code":"ETIMEDOUT","kind":"timeout","networkError":true,"permanentRequestFailure":false}""";
-        var transport = JsonSerializer.Deserialize<FetchTransportErrorData>(transportJson, options)!;
-        Assert.Equal(FetchTransportErrorKind.Timeout, transport.Kind);
-        Assert.Equal("ETIMEDOUT", transport.Code);
-        Assert.True(transport.NetworkError);
-        Assert.False(transport.PermanentRequestFailure);
-        Assert.Equal(transportJson, JsonSerializer.Serialize(transport, options));
-
-        transport.Code = null;
-        using var omitted = JsonDocument.Parse(JsonSerializer.Serialize(transport, options));
-        Assert.False(omitted.RootElement.TryGetProperty("code", out _));
-        Assert.Null(JsonSerializer.Deserialize<FetchTransportErrorData>(omitted.RootElement, options)!.Code);
-    }
-
-    [Fact]
-    public void ToJsonElementForWire_Serializes_Collection_And_Numeric_Answers()
-    {
-        var tags = CopilotClient.ToJsonElementForWire(new List<string> { "a", "b" })!.Value;
-
-        Assert.Collection(
-            tags.EnumerateArray(),
-            tag => Assert.Equal("a", tag.GetString()),
-            tag => Assert.Equal("b", tag.GetString()));
-        Assert.Equal(2.5, CopilotClient.ToJsonElementForWire(2.5f)!.Value.GetDouble());
-        Assert.Equal(9.99m, CopilotClient.ToJsonElementForWire(9.99m)!.Value.GetDecimal());
-    }
-
-    [Fact]
-    public void ToJsonElementForWire_Serializes_Caller_Defined_Types()
-    {
-        var value = new { step_id = 1, source = "user", message = "Fix the build" };
-        if (!JsonSerializer.IsReflectionEnabledByDefault)
-        {
-            // Without reflection (NativeAOT, or this suite's net8.0 configuration), only types a
-            // source-generated context knows can be serialized.
-            Assert.Throws<NotSupportedException>(() => CopilotClient.ToJsonElementForWire(value));
-            return;
-        }
-
-        var step = CopilotClient.ToJsonElementForWire(value)!.Value;
-
-        Assert.Equal(1, step.GetProperty("step_id").GetInt32());
-        Assert.Equal("user", step.GetProperty("source").GetString());
-        Assert.Equal("Fix the build", step.GetProperty("message").GetString());
-    }
-
-    [Fact]
-    public void ToJsonElementForWire_Preserves_Concrete_SessionEvent_Type()
-    {
-        var wire = CopilotClient.ToJsonElementForWire(new SessionIdleEvent
-        {
-            Id = Guid.Parse("11111111-1111-1111-1111-111111111111"),
-            Timestamp = DateTimeOffset.Parse("2026-03-15T21:26:02.642Z"),
-            Data = new SessionIdleData(),
-        })!.Value;
-
-        Assert.Equal("session.idle", wire.GetProperty("type").GetString());
-    }
-
-    [Fact]
-    public void FeatureFlagConfigPatch_SerializesRemovalOnlyPatchWithNullValues()
-    {
-        var patch = new FeatureFlagConfigPatch { UndefinedKeys = ["obsolete"] };
-        var json = JsonSerializer.Serialize(patch, GetSerializerOptions());
-        using var document = JsonDocument.Parse(json);
-
-        Assert.Equal(JsonValueKind.Null, document.RootElement.GetProperty("values").ValueKind);
-        Assert.Equal("obsolete", document.RootElement.GetProperty("undefinedKeys")[0].GetString());
-    }
-
-    [Fact]
-    public void AgentGetCurrentResult_SerializesDefaultAgentAsNull()
-    {
-        var options = GetSerializerOptions();
-        var result = JsonSerializer.Deserialize<AgentGetCurrentResult>(
-            "{\"agent\":null}", options)!;
-
-        Assert.Null(result.Agent);
-        using var document = JsonDocument.Parse(JsonSerializer.Serialize(result, options));
-        Assert.Equal(JsonValueKind.Null, document.RootElement.GetProperty("agent").ValueKind);
-    }
-
     [Fact]
     public void AuthenticatedAuthorityUpdate_SerializesNullGrant()
     {
@@ -211,7 +120,6 @@ public class SerializationTests
         new object?[] { MessageSource.Agent("agent-Worker"), "agent-agent-Worker" },
         new object?[] { MessageSource.Agent(" Team/α "), "agent- Team/α " },
         new object?[] { MessageSource.Agent(""), "agent-" },
-        new object?[] { MessageSource.Automation("merge-check"), "automation-merge-check" },
     ];
 
     [Theory]
@@ -261,7 +169,6 @@ public class SerializationTests
         Assert.NotEqual(source, MessageSource.Agent("reviewer"));
         Assert.NotEqual(source, MessageSource.System);
         Assert.Throws<ArgumentNullException>(() => MessageSource.Agent(null!));
-        Assert.Throws<ArgumentNullException>(() => MessageSource.Automation(null!));
     }
 
     [Fact]
@@ -363,26 +270,6 @@ public class SerializationTests
         var deserialized = JsonSerializer.Deserialize<NamedProviderConfig>(json, options);
         Assert.NotNull(deserialized);
         Assert.Equal("ollama", deserialized.ModelProvider);
-    }
-
-    [Fact]
-    public void LocalModelOptions_RoundTripThroughPublicProviderTypes()
-    {
-        var options = GetSerializerOptions();
-        const string providerJson = """{"name":"local","type":"winml","baseUrl":"model.gguf","localModel":{"device":"gpu","future":[1,true]}}""";
-        const string modelJson = """{"id":"model","provider":"local","autoLocal":{"source":"azureml","future":[1,true]},"metadata":{"autoLocal":{"source":"azureml"},"future":[1,true]}}""";
-        var provider = JsonSerializer.Deserialize<NamedProviderConfig>(providerJson, options)!;
-        var model = JsonSerializer.Deserialize<ProviderModelConfig>(modelJson, options)!;
-        using var expectedProvider = JsonDocument.Parse(providerJson);
-        using var expectedModel = JsonDocument.Parse(modelJson);
-        using var actualProvider = JsonDocument.Parse(JsonSerializer.Serialize(provider, options));
-        using var actualModel = JsonDocument.Parse(JsonSerializer.Serialize(model, options));
-        Assert.Equal(expectedProvider.RootElement.GetProperty("localModel").GetRawText(),
-            actualProvider.RootElement.GetProperty("localModel").GetRawText());
-        Assert.Equal(expectedModel.RootElement.GetProperty("autoLocal").GetRawText(),
-            actualModel.RootElement.GetProperty("autoLocal").GetRawText());
-        Assert.Equal(expectedModel.RootElement.GetProperty("metadata").GetRawText(),
-            actualModel.RootElement.GetProperty("metadata").GetRawText());
     }
 
     [Fact]
@@ -923,31 +810,6 @@ public class SerializationTests
         Assert.Equal(7.25, resumeRoot.GetProperty("sessionLimits").GetProperty("maxAiCredits").GetDouble());
         Assert.Equal(2, resumeRoot.GetProperty("autopilot").GetProperty("maxContinues").GetInt64());
         Assert.False(resumeRoot.GetProperty("autopilot").TryGetProperty("continuationEnabled", out _));
-    }
-
-    [Fact]
-    public void ListSessionsRequest_SerializesWorkingDirectoryFilterAsCwd_WithSdkOptions()
-    {
-        var options = GetSerializerOptions();
-        var requestType = GetNestedType(typeof(CopilotClient), "ListSessionsRequest");
-        var request = CreateInternalRequest(
-            requestType,
-            ("Filter", new SessionListFilter
-            {
-                WorkingDirectory = "/work/project",
-                GitRoot = "/work",
-                Repository = "octo/demo",
-                Branch = "main",
-            }));
-
-        var json = JsonSerializer.Serialize(request, requestType, options);
-        using var document = JsonDocument.Parse(json);
-        var filter = document.RootElement.GetProperty("filter");
-        Assert.Equal("/work/project", filter.GetProperty("cwd").GetString());
-        Assert.False(filter.TryGetProperty("workingDirectory", out _));
-        Assert.Equal("/work", filter.GetProperty("gitRoot").GetString());
-        Assert.Equal("octo/demo", filter.GetProperty("repository").GetString());
-        Assert.Equal("main", filter.GetProperty("branch").GetString());
     }
 
     [Fact]

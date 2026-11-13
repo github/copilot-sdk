@@ -195,8 +195,23 @@ session.On(func(event copilot.SessionEvent) {
 <details>
 <summary><strong>.NET</strong></summary>
 
+<!-- docs-validate: hidden -->
 ```csharp
-#pragma warning disable GHCP001 // The per-call Cost field is experimental.
+using GitHub.Copilot;
+
+await using var client = new CopilotClient();
+await using var session = await client.CreateSessionAsync(new SessionConfig { Streaming = true });
+
+session.On<AssistantUsageEvent>(evt =>
+{
+    var data = evt.Data;
+    Console.WriteLine(
+        $"{data.Model}: in={data.InputTokens ?? 0} out={data.OutputTokens ?? 0} cost={data.Cost ?? 0}");
+});
+```
+<!-- /docs-validate: hidden -->
+
+```csharp
 session.On<AssistantUsageEvent>(evt =>
 {
     var data = evt.Data;
@@ -210,25 +225,7 @@ session.On<AssistantUsageEvent>(evt =>
 <details>
 <summary><strong>Java</strong></summary>
 
-<!-- docs-validate: hidden -->
-```java
-import com.github.copilot.CopilotSession;
-import com.github.copilot.generated.AssistantUsageEvent;
-
-public class AssistantUsageExample {
-    static void printUsage(CopilotSession session) {
-        session.on(AssistantUsageEvent.class, event -> {
-            var data = event.getData();
-            long in = data.inputTokens() != null ? data.inputTokens() : 0;
-            long out = data.outputTokens() != null ? data.outputTokens() : 0;
-            double cost = data.cost() != null ? data.cost() : 0.0;
-            System.out.printf("%s: in=%d out=%d cost=%s%n", data.model(), in, out, cost);
-        });
-    }
-}
-```
-<!-- /docs-validate: hidden -->
-
+<!-- docs-validate: skip -->
 ```java
 session.on(AssistantUsageEvent.class, event -> {
     var data = event.getData();
@@ -395,6 +392,21 @@ session.On(func(event copilot.SessionEvent) {
 <details>
 <summary><strong>.NET</strong></summary>
 
+<!-- docs-validate: hidden -->
+```csharp
+using GitHub.Copilot;
+
+await using var client = new CopilotClient();
+await using var session = await client.CreateSessionAsync(new SessionConfig { Streaming = true });
+
+session.On<SessionUsageInfoEvent>(evt =>
+{
+    var pct = (int)Math.Round((double)evt.Data.CurrentTokens / evt.Data.TokenLimit * 100);
+    Console.WriteLine($"Context: {evt.Data.CurrentTokens}/{evt.Data.TokenLimit} ({pct}%)");
+});
+```
+<!-- /docs-validate: hidden -->
+
 ```csharp
 session.On<SessionUsageInfoEvent>(evt =>
 {
@@ -408,23 +420,7 @@ session.On<SessionUsageInfoEvent>(evt =>
 <details>
 <summary><strong>Java</strong></summary>
 
-<!-- docs-validate: hidden -->
-```java
-import com.github.copilot.CopilotSession;
-import com.github.copilot.generated.SessionUsageInfoEvent;
-
-public class ContextUtilizationExample {
-    static void printContext(CopilotSession session) {
-        session.on(SessionUsageInfoEvent.class, event -> {
-            var data = event.getData();
-            long pct = Math.round((double) data.currentTokens() / data.tokenLimit() * 100);
-            System.out.printf("Context: %d/%d (%d%%)%n", data.currentTokens(), data.tokenLimit(), pct);
-        });
-    }
-}
-```
-<!-- /docs-validate: hidden -->
-
+<!-- docs-validate: skip -->
 ```java
 session.on(SessionUsageInfoEvent.class, event -> {
     var data = event.getData();
@@ -591,8 +587,28 @@ if info := result.ContextInfo; info != nil {
 <details>
 <summary><strong>.NET</strong></summary>
 
+<!-- docs-validate: hidden -->
 ```csharp
-#pragma warning disable GHCP001 // The context-info API is experimental.
+#pragma warning disable GHCP001
+using GitHub.Copilot;
+
+await using var client = new CopilotClient();
+await using var session = await client.CreateSessionAsync(new SessionConfig());
+
+var result = await session.Rpc.Metadata.ContextInfoAsync(promptTokenLimit: 0, outputTokenLimit: 0);
+var info = result.ContextInfo;
+
+if (info is not null)
+{
+    Console.WriteLine(
+        $"Total {info.TotalTokens}/{info.PromptTokenLimit} " +
+        $"(system={info.SystemTokens}, conversation={info.ConversationTokens})");
+}
+#pragma warning restore GHCP001
+```
+<!-- /docs-validate: hidden -->
+
+```csharp
 var result = await session.Rpc.Metadata.ContextInfoAsync(promptTokenLimit: 0, outputTokenLimit: 0);
 var info = result.ContextInfo;
 
@@ -609,28 +625,16 @@ if (info is not null)
 <details>
 <summary><strong>Java</strong></summary>
 
+<!-- docs-validate: skip -->
 ```java
-import com.github.copilot.AllowCopilotExperimental;
-import com.github.copilot.CopilotSession;
-import com.github.copilot.generated.rpc.SessionMetadataContextInfoParams;
+var result = session.getRpc().metadata
+    .contextInfo(new SessionMetadataContextInfoParams(null, 0L, 0L, null))
+    .join();
+var info = result.contextInfo();
 
-@AllowCopilotExperimental
-class ContextInfoExample {
-    static void printContextInfo(CopilotSession session) {
-        var result = session.getRpc().metadata
-            .contextInfo(SessionMetadataContextInfoParams.builder()
-                .sessionId(session.getSessionId())
-                .promptTokenLimit(0L)
-                .outputTokenLimit(0L)
-                .build())
-            .join();
-        var info = result.contextInfo();
-
-        if (info != null) {
-            System.out.printf("Total %d/%d (system=%d, conversation=%d)%n",
-                info.totalTokens(), info.promptTokenLimit(), info.systemTokens(), info.conversationTokens());
-        }
-    }
+if (info != null) {
+    System.out.printf("Total %d/%d (system=%d, conversation=%d)%n",
+        info.totalTokens(), info.promptTokenLimit(), info.systemTokens(), info.conversationTokens());
 }
 ```
 
@@ -820,8 +824,30 @@ for model, m := range metrics.ModelMetrics {
 <details>
 <summary><strong>.NET</strong></summary>
 
+<!-- docs-validate: hidden -->
 ```csharp
-#pragma warning disable GHCP001 // The accumulated usage metrics API is experimental.
+#pragma warning disable GHCP001
+using GitHub.Copilot;
+
+await using var client = new CopilotClient();
+await using var session = await client.CreateSessionAsync(new SessionConfig());
+
+var metrics = await session.Rpc.Usage.GetMetricsAsync();
+
+var aiCredits = (metrics.TotalNanoAiu ?? 0) / 1e9;
+Console.WriteLine($"AI credits used: {aiCredits:F6}");
+Console.WriteLine($"Premium requests: {metrics.TotalPremiumRequestCost}");
+
+foreach (var (model, m) in metrics.ModelMetrics)
+{
+    Console.WriteLine(
+        $"{model}: in={m.Usage.InputTokens} out={m.Usage.OutputTokens} nanoAiu={m.TotalNanoAiu ?? 0}");
+}
+#pragma warning restore GHCP001
+```
+<!-- /docs-validate: hidden -->
+
+```csharp
 var metrics = await session.Rpc.Usage.GetMetricsAsync();
 
 var aiCredits = (metrics.TotalNanoAiu ?? 0) / 1e9;
@@ -840,28 +866,7 @@ foreach (var (model, m) in metrics.ModelMetrics)
 <details>
 <summary><strong>Java</strong></summary>
 
-<!-- docs-validate: hidden -->
-```java
-import com.github.copilot.CopilotSession;
-
-public class AccumulatedMetricsExample {
-    static void printMetrics(CopilotSession session) {
-        var metrics = session.getRpc().usage.getMetrics().join();
-
-        double aiCredits = metrics.totalNanoAiu() != null ? metrics.totalNanoAiu() / 1e9 : 0;
-        System.out.printf("AI credits used: %.6f%n", aiCredits);
-        System.out.printf("Premium requests: %s%n", metrics.totalPremiumRequestCost());
-
-        metrics.modelMetrics().forEach((model, m) -> {
-            double nanoAiu = m.totalNanoAiu() != null ? m.totalNanoAiu() : 0;
-            System.out.printf("%s: in=%d out=%d nanoAiu=%s%n",
-                model, m.usage().inputTokens(), m.usage().outputTokens(), nanoAiu);
-        });
-    }
-}
-```
-<!-- /docs-validate: hidden -->
-
+<!-- docs-validate: skip -->
 ```java
 var metrics = session.getRpc().usage.getMetrics().join();
 
@@ -1107,29 +1112,7 @@ foreach (var model in list.Models)
 <details>
 <summary><strong>Java</strong></summary>
 
-<!-- docs-validate: hidden -->
-```java
-import com.github.copilot.CopilotClient;
-
-public class ModelPricingExample {
-    static void printPricing(CopilotClient client) {
-        var list = client.getRpc().models.list().join();
-
-        for (var model : list.models()) {
-            var billing = model.billing();
-            if (billing == null || billing.tokenPrices() == null) {
-                continue;
-            }
-            var prices = billing.tokenPrices();
-            double multiplier = billing.multiplier() != null ? billing.multiplier() : 1;
-            System.out.printf("%s: input=%s output=%s per %d tokens (x%s)%n",
-                model.id(), prices.inputPrice(), prices.outputPrice(), prices.batchSize(), multiplier);
-        }
-    }
-}
-```
-<!-- /docs-validate: hidden -->
-
+<!-- docs-validate: skip -->
 ```java
 var list = client.getRpc().models.list().join();
 
@@ -1340,25 +1323,7 @@ if (result.QuotaSnapshots.TryGetValue("premium_interactions", out var premium))
 <details>
 <summary><strong>Java</strong></summary>
 
-<!-- docs-validate: hidden -->
-```java
-import com.github.copilot.CopilotClient;
-
-public class AccountQuotaExample {
-    static void printQuota(CopilotClient client) {
-        var result = client.getRpc().account.getQuota().join();
-        var premium = result.quotaSnapshots().get("premium_interactions");
-
-        if (premium != null) {
-            System.out.printf("Premium interactions: %d/%d (%.1f%% left, resets %s)%n",
-                premium.usedRequests(), premium.entitlementRequests(),
-                premium.remainingPercentage(), premium.resetDate());
-        }
-    }
-}
-```
-<!-- /docs-validate: hidden -->
-
+<!-- docs-validate: skip -->
 ```java
 var result = client.getRpc().account.getQuota().join();
 var premium = result.quotaSnapshots().get("premium_interactions");

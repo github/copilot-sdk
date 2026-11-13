@@ -48,10 +48,7 @@ public partial class PermissionDecision
     /// Optional provenance describing how and where this decision was made.
     /// This is never serialized as part of the decision itself: the SDK forwards
     /// it to the runtime as a sibling of <c>result</c> so that auto-approval
-    /// telemetry can be attributed correctly. When it says a person decided
-    /// (<c>source</c> <c>human_response</c>), the runtime records the decision as
-    /// the person's own, but only from the session's authenticated owning
-    /// connection; from any other caller the decision applies without that authority.
+    /// telemetry can be attributed correctly.
     /// </summary>
     [JsonIgnore]
     public PermissionDecisionContext? DecisionContext { get; set; }

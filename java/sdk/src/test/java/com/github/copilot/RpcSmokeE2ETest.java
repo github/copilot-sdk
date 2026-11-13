@@ -4,8 +4,6 @@
 
 package com.github.copilot;
 
-import org.junit.jupiter.api.Tag;
-
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.concurrent.TimeUnit;
@@ -16,7 +14,6 @@ import org.junit.jupiter.api.Test;
 
 import com.github.copilot.generated.rpc.PingParams;
 
-@Tag("e2e")
 class RpcSmokeE2ETest {
 
     private static E2ETestContext ctx;
@@ -40,8 +37,7 @@ class RpcSmokeE2ETest {
         try (var client = ctx.createClient()) {
             client.start().get(30, TimeUnit.SECONDS);
 
-            var result = client.getRpc().ping(PingParams.builder().message("typed rpc test").build()).get(30,
-                    TimeUnit.SECONDS);
+            var result = client.getRpc().ping(new PingParams("typed rpc test")).get(30, TimeUnit.SECONDS);
 
             assertEquals("pong: typed rpc test", result.message());
             assertNotNull(result.timestamp());

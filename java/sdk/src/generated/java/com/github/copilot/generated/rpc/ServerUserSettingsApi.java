@@ -270,17 +270,6 @@ public final class ServerUserSettingsApi {
     }
 
     /**
-     * Writes or removes one raw user setting under the settings transaction and file locks. Preserves unrelated keys and legacy spellings, and records explicit mutations so startup cleanup cannot delete the user's choice. Unlike applyTopKey, this operation does not validate or canonicalize settings. Invalid or unreadable files are replaced by default, matching the existing raw writer; set refuseOnReadFailure=true to reject instead. Set refuseOnUnrecoverableReadFailure=true to refuse content no JSONC recovery pass can read as an object, while retaining lenient recovery unless refuseOnReadFailure is also true. Deletion requires delete=true; otherwise value must be present.
-     *
-     * @apiNote This method is experimental and may change in a future version.
-     * @since 1.0.0
-     */
-    @CopilotExperimental
-    CompletableFuture<Void> writeKey(UserSettingsWriteKeyParams params) {
-        return caller.invoke("user.settings.writeKey", params, Void.class);
-    }
-
-    /**
      * Replaces the user settings file's entire content in one write. A key absent from `settings` is removed, which is what distinguishes this from `user.settings.set`: that one merges, so it can never clear a key the caller has dropped. For a caller saving the result of a raw edit, a merge would silently resurrect every key the user deleted. Records the same one-time mutation marks a per-key write records, so a setting the user has now chosen explicitly stops being migrated for them.
      *
      * @apiNote This method is experimental and may change in a future version.
