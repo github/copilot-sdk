@@ -10660,6 +10660,12 @@ type InstalledPluginInfo struct {
 	// registered through the trusted host built-in boundary; absent for installed, marketplace,
 	// direct, and live plugins.
 	Source *string `json:"source,omitempty"`
+	// True when the signed-in account's GitHub Team assigns this plugin, whatever default
+	// enabled state the assignment carries. This reports provenance only: it does not mean the
+	// Team installed the plugin or controls whether it is enabled, and the user's own choices
+	// still apply. When `managed` is also true, enterprise managed settings decide the plugin's
+	// state.
+	Team *bool `json:"team,omitempty"`
 	// The GitHub repository and commit a direct install is pinned to, from its install record.
 	// Present only for a direct install pinned to one GitHub commit, such as a verified install
 	// from GitHub; absent for marketplace, local and unpinned installs.
@@ -13026,6 +13032,10 @@ type MarketplacePluginInfo struct {
 	Assignment *ManagedPluginAssignment `json:"assignment,omitempty"`
 	// Short description from the marketplace catalog, when present
 	Description *string `json:"description,omitempty"`
+	// The enabled state required by enterprise managed settings, when this plugin spec is
+	// managed. False means the plugin cannot be installed or enabled. Absent when managed
+	// settings do not control this plugin.
+	ManagedDesiredEnabled *bool `json:"managedDesiredEnabled,omitempty"`
 	// Plugin name as listed in the marketplace catalog
 	Name string `json:"name"`
 }
@@ -20009,6 +20019,12 @@ type Plugin struct {
 	RootPath *string `json:"rootPath,omitempty"`
 	// Runtime plugin provenance, such as "builtin".
 	Source *string `json:"source,omitempty"`
+	// True when the signed-in account's GitHub Team assigns this plugin, whatever default
+	// enabled state the assignment carries. This reports provenance only: it does not mean the
+	// Team installed the plugin or controls whether it is enabled, and the user's own choices
+	// still apply. When `managed` is also true, enterprise managed settings decide the plugin's
+	// state.
+	Team *bool `json:"team,omitempty"`
 	// Installed version
 	Version *string `json:"version,omitempty"`
 }
@@ -27223,6 +27239,22 @@ type SessionsGetPersistedRemoteSteerableResult struct {
 	RemoteSteerable *bool `json:"remoteSteerable,omitempty"`
 }
 
+// Local session whose persisted event-log presence to check without opening or scanning it.
+// Experimental: SessionsHasEventsRequest is part of an experimental API and may change or
+// be removed.
+type SessionsHasEventsRequest struct {
+	// Identifier of the local session to check.
+	SessionID string `json:"sessionId"`
+}
+
+// Whether the local session has a persisted event-log path, including an empty log.
+// Experimental: SessionsHasEventsResult is part of an experimental API and may change or be
+// removed.
+type SessionsHasEventsResult struct {
+	// True when the session's event-log path exists.
+	Exists bool `json:"exists"`
+}
+
 // Experimental: SessionShutdownResult is part of an experimental API and may change or be
 // removed.
 type SessionShutdownResult struct {
@@ -27950,6 +27982,29 @@ type SettingsRemoveRawKeyResult struct {
 	// `ok` when the edit completed, including an absent key. `invalid` means the existing file
 	// could not be parsed and remained unchanged.
 	Status string `json:"status"`
+}
+
+// Caller-owned environment to filter under the runtime's interactive-shell credential
+// policy.
+// Experimental: ShellBuildInteractiveEnvironmentRequest is part of an experimental API and
+// may change or be removed.
+type ShellBuildInteractiveEnvironmentRequest struct {
+	// Additional variable names to omit, in addition to the runtime's required filters.
+	AdditionalBlockedNames []string `json:"additionalBlockedNames"`
+	// Whether the shell host treats environment names as case-insensitive. Defaults to the
+	// runtime platform when omitted.
+	CaseInsensitive *bool `json:"caseInsensitive,omitempty"`
+	// Environment supplied by the host that will launch the shell.
+	HostEnvironment map[string]string `json:"hostEnvironment"`
+}
+
+// Filtered caller environment with the runtime's Git hardening applied; never includes the
+// runtime process environment.
+// Experimental: ShellBuildInteractiveEnvironmentResult is part of an experimental API and
+// may change or be removed.
+type ShellBuildInteractiveEnvironmentResult struct {
+	// Environment for the host's interactive shell.
+	Environment map[string]string `json:"environment"`
 }
 
 // User-requested shell execution cancellation handle.
@@ -28887,6 +28942,18 @@ type SkillProviderReadResult struct {
 	Markdown *string `json:"markdown"`
 }
 
+// One discovered local skill, without its content.
+// Experimental: SkillRemoveSourceEntry is part of an experimental API and may change or be
+// removed.
+type SkillRemoveSourceEntry struct {
+	// Discovery directory that owns the skill file.
+	BaseDir string `json:"baseDir"`
+	// Invocation name used to resolve a removal target.
+	Name string `json:"name"`
+	// Original discovery source. Removal rejects unsupported or unowned sources.
+	Source string `json:"source"`
+}
+
 // Skill names to mark as disabled in global configuration, replacing any previous list.
 // Experimental: SkillsConfigSetDisabledSkillsRequest is part of an experimental API and may
 // change or be removed.
@@ -28991,6 +29058,42 @@ type SkillsGetInvokedResult struct {
 	Skills []SkillsInvokedSkill `json:"skills"`
 }
 
+// Installs a user-selected skill source without catalog plan semantics.
+// Experimental: SkillsInstallSourceRequest is part of an experimental API and may change or
+// be removed.
+type SkillsInstallSourceRequest struct {
+	// Working directory for relative source paths.
+	Cwd string `json:"cwd"`
+	// Personal destination for URL and file sources.
+	PersonalSkillsDir string `json:"personalSkillsDir"`
+	// Selects project scope. Directory registration requires personal scope.
+	Project bool `json:"project"`
+	// Project destination for URL and file sources.
+	ProjectSkillsDir string `json:"projectSkillsDir"`
+	// Current discovery directories. The result returns an updated copy.
+	SkillDirectories []string `json:"skillDirectories"`
+	// HTTPS URL, local skill file, or local discovery directory.
+	Source string `json:"source"`
+	// User agent for runtime-owned HTTPS source requests.
+	UserAgent string `json:"userAgent"`
+}
+
+// Result of direct source installation. Catalog consent and defaults remain separate.
+// Experimental: SkillsInstallSourceResult is part of an experimental API and may change or
+// be removed.
+type SkillsInstallSourceResult struct {
+	// Source acquisition used by this operation.
+	Kind SkillInstallSourceKind `json:"kind"`
+	// Skill name when a file was installed.
+	Name *string `json:"name,omitempty"`
+	// Installed skill directory or registered discovery directory.
+	Path string `json:"path"`
+	// File destination scope. Directory registration has no destination scope.
+	Scope *SkillInstallSourceScope `json:"scope,omitempty"`
+	// Updated discovery directories for the caller to persist.
+	SkillDirectories []string `json:"skillDirectories"`
+}
+
 // Skill invocation record with name, path, content, allowed tools, and turn number.
 // Experimental: SkillsInvokedSkill is part of an experimental API and may change or be
 // removed.
@@ -29020,6 +29123,84 @@ type SkillsLoadDiagnostics struct {
 	Errors []string `json:"errors"`
 	// Warnings emitted while loading skills (e.g. skills that loaded but had issues)
 	Warnings []string `json:"warnings"`
+}
+
+// Caller-owned inventory and storage roots for direct file removal.
+// Experimental: SkillsRemoveSourceInventory is part of an experimental API and may change
+// or be removed.
+type SkillsRemoveSourceInventory struct {
+	// Personal storage roots that the existing removal rules recognize.
+	PersonalSkillsDirs []string `json:"personalSkillsDirs"`
+	// Project storage root that the existing removal rules recognize.
+	ProjectSkillsDir string `json:"projectSkillsDir"`
+	// Local skills discovered before removal.
+	Skills []SkillRemoveSourceEntry `json:"skills"`
+}
+
+// Direct removal or a request for the inventory needed to resolve a file.
+// Experimental: SkillsRemoveSourceOutcome is part of an experimental API and may change or
+// be removed.
+type SkillsRemoveSourceOutcome interface {
+	skillsRemoveSourceOutcome()
+	Kind() SkillsRemoveSourceOutcomeKind
+}
+
+type RawSkillsRemoveSourceOutcomeData struct {
+	Discriminator SkillsRemoveSourceOutcomeKind
+	Raw           json.RawMessage
+}
+
+func (RawSkillsRemoveSourceOutcomeData) skillsRemoveSourceOutcome() {}
+func (r RawSkillsRemoveSourceOutcomeData) Kind() SkillsRemoveSourceOutcomeKind {
+	return r.Discriminator
+}
+
+// No directory registration matched. No files or settings changed.
+type SkillsRemoveSourceOutcomeNeedsInventory struct {
+}
+
+func (SkillsRemoveSourceOutcomeNeedsInventory) skillsRemoveSourceOutcome() {}
+func (SkillsRemoveSourceOutcomeNeedsInventory) Kind() SkillsRemoveSourceOutcomeKind {
+	return SkillsRemoveSourceOutcomeKindNeedsInventory
+}
+
+// The existing source removal rules resolved and removed the target.
+type SkillsRemoveSourceOutcomeRemoved struct {
+	// Removal result and updated discovery directories.
+	Result SkillsRemoveSourceResult `json:"result"`
+}
+
+func (SkillsRemoveSourceOutcomeRemoved) skillsRemoveSourceOutcome() {}
+func (SkillsRemoveSourceOutcomeRemoved) Kind() SkillsRemoveSourceOutcomeKind {
+	return SkillsRemoveSourceOutcomeKindRemoved
+}
+
+// Removes a user-selected source without changing verified catalog removal.
+// Experimental: SkillsRemoveSourceRequest is part of an experimental API and may change or
+// be removed.
+type SkillsRemoveSourceRequest struct {
+	// Working directory for relative removal paths.
+	Cwd string `json:"cwd"`
+	// Required for file removal, but not for directory registration removal.
+	Inventory *SkillsRemoveSourceInventory `json:"inventory,omitempty"`
+	// Current discovery directories. Removal returns an updated copy.
+	SkillDirectories []string `json:"skillDirectories"`
+	// Local skill name, file path, or registered discovery directory.
+	Target string `json:"target"`
+}
+
+// Direct removal result. The caller persists discovery and disabled settings.
+// Experimental: SkillsRemoveSourceResult is part of an experimental API and may change or
+// be removed.
+type SkillsRemoveSourceResult struct {
+	// Resource removed by this operation.
+	Kind SkillRemoveSourceKind `json:"kind"`
+	// Skill name when a skill file was removed.
+	Name *string `json:"name,omitempty"`
+	// Removed skill path or unregistered discovery directory.
+	Path string `json:"path"`
+	// Updated discovery directories for the caller to persist.
+	SkillDirectories []string `json:"skillDirectories"`
 }
 
 // A computed Skill uninstall plan. Nothing has been removed.
@@ -39510,6 +39691,46 @@ const (
 	SkillInstallationSessionStateUnknown SkillInstallationSessionState = "unknown"
 )
 
+// Source acquisition used by a direct skill installation.
+// Experimental: SkillInstallSourceKind is part of an experimental API and may change or be
+// removed.
+type SkillInstallSourceKind string
+
+const (
+	// A discovery directory registered without copying its contents.
+	SkillInstallSourceKindDirectory SkillInstallSourceKind = "directory"
+	// A local skill file copied into skill storage.
+	SkillInstallSourceKindFile SkillInstallSourceKind = "file"
+	// A skill file retrieved through HTTPS.
+	SkillInstallSourceKindURL SkillInstallSourceKind = "url"
+)
+
+// Destination scope for a directly installed skill file.
+// Experimental: SkillInstallSourceScope is part of an experimental API and may change or be
+// removed.
+type SkillInstallSourceScope string
+
+const (
+	// Personal skill storage.
+	SkillInstallSourceScopePersonal SkillInstallSourceScope = "personal"
+	// Project skill storage.
+	SkillInstallSourceScopeProject SkillInstallSourceScope = "project"
+)
+
+// Resource removed by a direct-source operation.
+// Experimental: SkillRemoveSourceKind is part of an experimental API and may change or be
+// removed.
+type SkillRemoveSourceKind string
+
+const (
+	// A discovery registration removed without deleting its contents.
+	SkillRemoveSourceKindDirectory SkillRemoveSourceKind = "directory"
+	// A personal skill file or directory.
+	SkillRemoveSourceKindPersonal SkillRemoveSourceKind = "personal"
+	// A project skill file or directory.
+	SkillRemoveSourceKindProject SkillRemoveSourceKind = "project"
+)
+
 // Source location type (e.g., project, personal-copilot, plugin, builtin, sdk, mcp)
 // Experimental: SkillSource is part of an experimental API and may change or be removed.
 type SkillSource string
@@ -39533,6 +39754,14 @@ const (
 	SkillSourceProject SkillSource = "project"
 	// Pathless skill supplied lazily by an SDK skill provider.
 	SkillSourceSDK SkillSource = "sdk"
+)
+
+// Kind discriminator for SkillsRemoveSourceOutcome.
+type SkillsRemoveSourceOutcomeKind string
+
+const (
+	SkillsRemoveSourceOutcomeKindNeedsInventory SkillsRemoveSourceOutcomeKind = "needs-inventory"
+	SkillsRemoveSourceOutcomeKindRemoved        SkillsRemoveSourceOutcomeKind = "removed"
 )
 
 // Optional completion hint for the input (e.g. 'directory' for filesystem path completion)
@@ -43231,6 +43460,29 @@ func (a *ServerSessionsAPI) GetSizes(ctx context.Context) (*SessionSizes, error)
 	return &result, nil
 }
 
+// HasEvents checks whether a local session's persisted event-log path exists, including an
+// empty log, without opening the session or scanning the session catalog. Hosts use this to
+// prefer an exact local session over a remote task or a UUID-prefix lookup. Metadata-only
+// sessions without a log return false.
+//
+// RPC method: sessions.hasEvents.
+//
+// Parameters: Local session whose persisted event-log presence to check without opening or
+// scanning it.
+//
+// Returns: Whether the local session has a persisted event-log path, including an empty log.
+func (a *ServerSessionsAPI) HasEvents(ctx context.Context, params *SessionsHasEventsRequest) (*SessionsHasEventsResult, error) {
+	raw, err := a.client.Request(ctx, "sessions.hasEvents", params)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionsHasEventsResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Lists sessions, optionally filtered by source and working-directory context. Returned
 // entries are discriminated by `isRemote`: local entries carry only the lightweight
 // `LocalSessionMetadataValue` shape; remote entries carry the full
@@ -43535,6 +43787,34 @@ func (a *ServerSessionsAPI) TransferRemoteControl(ctx context.Context, params *S
 	return &result, nil
 }
 
+// Experimental: ServerShellAPI contains experimental APIs that may change or be removed.
+type ServerShellAPI serverAPI
+
+// BuildInteractiveEnvironment filters the supplied host environment with the runtime's
+// mandatory interactive-shell credential and telemetry exclusions, adds Git hardening, and
+// removes any extra names the host supplies. An IDE terminal host or an in-process CLI uses
+// this before launching an inherited terminal. The result derives only from the caller's
+// supplied environment, never the runtime process environment.
+//
+// RPC method: shell.buildInteractiveEnvironment.
+//
+// Parameters: Caller-owned environment to filter under the runtime's interactive-shell
+// credential policy.
+//
+// Returns: Filtered caller environment with the runtime's Git hardening applied; never
+// includes the runtime process environment.
+func (a *ServerShellAPI) BuildInteractiveEnvironment(ctx context.Context, params *ShellBuildInteractiveEnvironmentRequest) (*ShellBuildInteractiveEnvironmentResult, error) {
+	raw, err := a.client.Request(ctx, "shell.buildInteractiveEnvironment", params)
+	if err != nil {
+		return nil, err
+	}
+	var result ShellBuildInteractiveEnvironmentResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Experimental: ServerSkillsAPI contains experimental APIs that may change or be removed.
 type ServerSkillsAPI serverAPI
 
@@ -43624,6 +43904,30 @@ func (a *ServerSkillsAPI) GetDiscoveryPaths(ctx context.Context, params *SkillsG
 	return &result, nil
 }
 
+// InstallSource installs a user-selected HTTPS or local skill file into personal or project
+// storage, or registers a local discovery directory. This direct-source operation preserves
+// source installation behavior; it does not accept or replace verified catalog plans,
+// request catalog confirmation, or change skill enablement. The caller persists the
+// returned discovery directories.
+//
+// RPC method: skills.installSource.
+//
+// Parameters: Installs a user-selected skill source without catalog plan semantics.
+//
+// Returns: Result of direct source installation. Catalog consent and defaults remain
+// separate.
+func (a *ServerSkillsAPI) InstallSource(ctx context.Context, params *SkillsInstallSourceRequest) (*SkillsInstallSourceResult, error) {
+	raw, err := a.client.Request(ctx, "skills.installSource", params)
+	if err != nil {
+		return nil, err
+	}
+	var result SkillsInstallSourceResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // PlanInstall plans installation of a verified Agent Finder Skill candidate without writing
 // files. The returned review is safe to present to a user and installing always leaves the
 // Skill disabled until separately enabled.
@@ -43662,6 +43966,30 @@ func (a *ServerSkillsAPI) PlanUninstall(ctx context.Context, params *SkillPlanUn
 		return nil, err
 	}
 	result, err := unmarshalSkillInstallationManagementResult(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// RemoveSource removes a directly installed local skill or unregisters a discovery
+// directory without deleting its contents. Directory removal needs no skill inventory.
+// Other targets return needs-inventory without mutation when inventory is absent. This
+// operation preserves direct-source ownership rules and does not replace receipt-backed
+// verified uninstall plans or their consent. The caller persists returned discovery
+// directories and manages disabled settings.
+//
+// RPC method: skills.removeSource.
+//
+// Parameters: Removes a user-selected source without changing verified catalog removal.
+//
+// Returns: Direct removal or a request for the inventory needed to resolve a file.
+func (a *ServerSkillsAPI) RemoveSource(ctx context.Context, params *SkillsRemoveSourceRequest) (SkillsRemoveSourceOutcome, error) {
+	raw, err := a.client.Request(ctx, "skills.removeSource", params)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalSkillsRemoveSourceOutcome(raw)
 	if err != nil {
 		return nil, err
 	}
@@ -43980,6 +44308,7 @@ type ServerRPC struct {
 	Secrets          *ServerSecretsAPI
 	SessionFS        *ServerSessionFSAPI
 	Sessions         *ServerSessionsAPI
+	Shell            *ServerShellAPI
 	Skills           *ServerSkillsAPI
 	TaskAnalytics    *ServerTaskAnalyticsAPI
 	Tools            *ServerToolsAPI
@@ -44058,6 +44387,7 @@ func NewServerRPC(client *jsonrpc2.Client) *ServerRPC {
 	r.Secrets = (*ServerSecretsAPI)(&r.common)
 	r.SessionFS = (*ServerSessionFSAPI)(&r.common)
 	r.Sessions = (*ServerSessionsAPI)(&r.common)
+	r.Shell = (*ServerShellAPI)(&r.common)
 	r.Skills = (*ServerSkillsAPI)(&r.common)
 	r.TaskAnalytics = (*ServerTaskAnalyticsAPI)(&r.common)
 	r.Tools = (*ServerToolsAPI)(&r.common)

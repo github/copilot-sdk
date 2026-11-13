@@ -33,6 +33,9 @@ pub mod extension_launch_provider;
 /// In-process FFI transport hosting the runtime cdylib (`Transport::InProcess`).
 #[cfg(feature = "in-process")]
 pub(crate) mod ffi;
+#[cfg(all(copilot_cli_host, feature = "in-process"))]
+#[doc(hidden)]
+pub mod native_cli;
 pub use errors::*;
 /// Connection-level Copilot request handler — intercept and replace the
 /// model-layer HTTP and WebSocket traffic the runtime issues for both CAPI and
@@ -391,8 +394,8 @@ impl InternalTestOptions {
 /// Options for starting a [`Client`].
 ///
 /// When `program` is [`CliProgram::Resolve`] (the default), [`Client::start`]
-/// uses `COPILOT_CLI_PATH` when set to a real file. Managed child-process
-/// transports next use the bundled `copilot-runtime` wrapper. In-process
+/// uses a nonempty effective `COPILOT_CLI_PATH` or fails if invalid. Otherwise,
+/// managed child-process transports use the bundled `copilot-runtime` wrapper. In-process
 /// transport loads the wrapper's adjacent runtime library. With `bundled-cli`
 /// disabled, the corresponding artifact is resolved from the build-time
 /// extraction cache.
@@ -2019,8 +2022,9 @@ impl Client {
             .as_ref()
             .and_then(|c| c.capabilities.as_ref())
             .is_some_and(|caps| caps.read_file_range);
-        let program = if matches!(options.transport, Transport::InProcess)
-            && options.in_process_runtime_library_path.is_some()
+        let program = if matches!(options.transport, Transport::External { .. })
+            || (matches!(options.transport, Transport::InProcess)
+                && options.in_process_runtime_library_path.is_some())
         {
             None
         } else {
@@ -2031,10 +2035,7 @@ impl Client {
                 }
                 CliProgram::Resolve => {
                     let resolve_start = Instant::now();
-                    let resolved = resolve::copilot_binary_with_extract_dir(
-                        options.bundled_cli_extract_dir.as_deref(),
-                        true,
-                    )?;
+                    let resolved = resolve::copilot_binary_with_extract_dir(&options, true)?;
                     let resolve_elapsed = resolve_start.elapsed();
                     timings.program_resolve_ms = Some(StartupTimings::millis(resolve_elapsed));
                     debug!(

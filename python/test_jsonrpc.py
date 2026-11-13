@@ -948,3 +948,205 @@ class TestOnClose:
             assert not called.is_set(), "on_close should not be called on intentional stop"
         finally:
             loop.close()
+
+    @pytest.mark.asyncio
+    async def test_pending_requests_fail_after_on_close_returns(self):
+        """A caller reacting to a lost connection sees the close already reported."""
+        read_fd, write_fd = os.pipe()
+        with os.fdopen(read_fd, "rb") as stdout, os.fdopen(write_fd, "wb") as writer:
+            process = MockProcess()
+            process.stdout = stdout
+            client = JsonRpcClient(process)
+            closing = threading.Event()
+            release = threading.Event()
+            reported: list[bool] = []
+
+            def on_close():
+                closing.set()
+                release.wait(timeout=5)
+                reported.append(True)
+
+            client.on_close = on_close
+            client.start()
+            request = asyncio.create_task(client.request("ping"))
+            new_request = None
+            try:
+                while not process.stdin.getvalue():
+                    await asyncio.sleep(0.01)
+                writer.close()
+                assert await asyncio.to_thread(closing.wait, 5)
+                new_request = asyncio.create_task(client.request("after-close"))
+                await asyncio.sleep(0.05)
+                assert not request.done()
+                assert not new_request.done()
+
+                release.set()
+                for task in (request, new_request):
+                    with pytest.raises(ProcessExitedError):
+                        await asyncio.wait_for(task, timeout=5)
+                assert reported == [True]
+            finally:
+                release.set()
+                if not request.done():
+                    request.cancel()
+                await asyncio.gather(request, return_exceptions=True)
+                if new_request is not None:
+                    new_request.cancel()
+                    await asyncio.gather(new_request, return_exceptions=True)
+                await client.stop()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("operation", ["request", "notify"])
+    async def test_write_failure_reports_close_before_reader_eof(self, operation):
+        read_fd, write_fd = os.pipe()
+        with os.fdopen(read_fd, "rb") as stdout, os.fdopen(write_fd, "wb") as writer:
+            process = MockProcess()
+            process.stdout = stdout
+            process.stdin.close()
+            client = JsonRpcClient(process)
+            reported: list[bool] = []
+            client.on_close = lambda: reported.append(True)
+            client.start()
+            try:
+                with pytest.raises(ProcessExitedError):
+                    await asyncio.wait_for(getattr(client, operation)("ping"), timeout=5)
+                assert reported == [True]
+                assert not writer.closed
+            finally:
+                writer.close()
+                await client.stop()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("connection_lost", [False, True])
+    async def test_inline_callback_does_not_block_connection_loss(
+        self, monkeypatch, connection_lost
+    ):
+        read_fd, write_fd = os.pipe()
+        with os.fdopen(read_fd, "rb") as stdout, os.fdopen(write_fd, "wb") as writer:
+            process = MockProcess()
+            process.stdout = stdout
+            client = JsonRpcClient(process)
+            loop = asyncio.get_running_loop()
+            entered = asyncio.Event()
+            notified = asyncio.Event()
+            release = threading.Event()
+            sent = asyncio.Queue()
+            events = []
+            original_send = client._send_message
+
+            async def send(message):
+                await original_send(message)
+                sent.put_nowait(message)
+
+            def on_response(result):
+                loop.call_soon_threadsafe(entered.set)
+                release.wait()
+                events.append(result)
+
+            def on_notification(method, params):
+                events.append(method)
+                notified.set()
+
+            monkeypatch.setattr(client, "_send_message", send)
+            client.on_close = lambda: events.append("close")
+            client.set_notification_handler(on_notification)
+            client.start()
+            request = asyncio.create_task(
+                client.request("session.create", on_response_inline=on_response)
+            )
+            pending = asyncio.create_task(client.request("pending"))
+            try:
+                messages = [await asyncio.wait_for(sent.get(), 5) for _ in range(2)]
+                message = next(
+                    message for message in messages if message["method"] == "session.create"
+                )
+                for payload in (
+                    {"id": message["id"], "result": {"sessionId": "cloud-session"}},
+                    {"method": "session.event", "params": {}},
+                ):
+                    body = json.dumps(payload).encode()
+                    writer.write(f"Content-Length: {len(body)}\r\n\r\n".encode() + body)
+                writer.flush()
+                await asyncio.wait_for(entered.wait(), 5)
+
+                if connection_lost:
+                    process.stdin.close()
+                    with pytest.raises(ProcessExitedError):
+                        await asyncio.wait_for(client.request("ping"), 5)
+                    for task in (request, pending):
+                        with pytest.raises(ProcessExitedError):
+                            await asyncio.wait_for(asyncio.shield(task), 5)
+                    assert events == ["close"]
+                    assert client.pending_requests == {}
+
+                release.set()
+                if not connection_lost:
+                    assert await asyncio.wait_for(request, 5) == {"sessionId": "cloud-session"}
+                    await asyncio.wait_for(notified.wait(), 5)
+                writer.close()
+                await asyncio.to_thread(client._read_thread.join, 5)
+                assert not client._read_thread.is_alive()
+                drained = asyncio.Event()
+                loop.call_soon(drained.set)
+                await drained.wait()
+                assert events == (
+                    ["close", {"sessionId": "cloud-session"}]
+                    if connection_lost
+                    else [{"sessionId": "cloud-session"}, "session.event", "close"]
+                )
+            finally:
+                release.set()
+                writer.close()
+                await client.stop()
+                for task in (request, pending):
+                    task.cancel()
+                await asyncio.gather(request, pending, return_exceptions=True)
+
+    @pytest.mark.asyncio
+    async def test_write_failure_retires_notification_already_being_read(self, monkeypatch):
+        read_fd, write_fd = os.pipe()
+        with os.fdopen(read_fd, "rb") as stdout, os.fdopen(write_fd, "wb") as writer:
+            process = MockProcess()
+            process.stdout = stdout
+            process.stdin.close()
+            client = JsonRpcClient(process)
+            reading = threading.Event()
+            release = threading.Event()
+            events = []
+            read_message = client._read_message
+
+            def paused_read():
+                message = read_message()
+                if message is not None:
+                    reading.set()
+                    release.wait()
+                return message
+
+            monkeypatch.setattr(client, "_read_message", paused_read)
+            client.set_notification_handler(lambda method, params: events.append(method))
+            client.on_close = lambda: events.append("close")
+            message = json.dumps(
+                {"jsonrpc": "2.0", "method": "session.event", "params": {"sessionId": "session"}}
+            ).encode("utf-8")
+            writer.write(f"Content-Length: {len(message)}\r\n\r\n".encode("ascii") + message)
+            writer.flush()
+            client.start()
+            try:
+                assert await asyncio.to_thread(reading.wait, 5)
+                with pytest.raises(ProcessExitedError):
+                    await asyncio.wait_for(client.notify("ping"), timeout=5)
+                assert events == ["close"]
+
+                release.set()
+                writer.close()
+                await asyncio.to_thread(client._read_thread.join, 5)
+                assert not client._read_thread.is_alive()
+                # The reader has retired; drain callbacks it queued before exiting.
+                drained = asyncio.Event()
+                asyncio.get_running_loop().call_soon(drained.set)
+                await drained.wait()
+                assert events == ["close"], "A buffered notification ran after connection cleanup"
+            finally:
+                release.set()
+                writer.close()
+                await client.stop()

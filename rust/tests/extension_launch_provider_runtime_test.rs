@@ -107,7 +107,9 @@ async fn real_wrapper_installs_and_runs_hostless_extensions() {
         .with_use_logged_in_user(false)
         .with_env_remove(["COPILOT_CLI_DIST_DIR"])
         .with_extension_launch_provider(RecordingProvider {
-            executable: PathBuf::from(env!("CARGO_BIN_EXE_copilot-extension-test-fixture")),
+            executable: PathBuf::from(env!("CARGO_BIN_EXE_copilot-extension-test-fixture"))
+                .canonicalize()
+                .unwrap(),
             state_path: state_path.clone(),
             requests: request_tx,
         });

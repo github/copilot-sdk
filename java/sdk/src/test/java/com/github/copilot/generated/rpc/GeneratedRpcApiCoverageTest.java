@@ -31,6 +31,31 @@ import com.github.copilot.AllowCopilotExperimental;
 class GeneratedRpcApiCoverageTest {
 
     @Test
+    void plugin_records_preserve_constructors_from_before_team_provenance() throws Exception {
+        var plugin = Plugin.class
+                .getConstructor(ManagedPluginAssignment.class, String.class, String.class, String.class, Boolean.class,
+                        String.class, String.class, String.class, String.class, Boolean.class, Boolean.class,
+                        Boolean.class, String.class)
+                .newInstance(null, "p", "corp", "1.0.0", true, null, null, null, null, null, null, null, "id");
+        assertNull(plugin.team());
+        assertEquals(Plugin.builder().name("p").marketplace("corp").version("1.0.0").enabled(true).id("id").build(),
+                plugin);
+
+        var installed = InstalledPluginInfo.class
+                .getConstructor(ManagedPluginAssignment.class, String.class, String.class, String.class, String.class,
+                        Boolean.class, String.class, String.class, String.class, Boolean.class, Boolean.class,
+                        Boolean.class, String.class, InstalledPluginVerifiedSource.class, String.class, String.class)
+                .newInstance(null, "p", "corp", null, "1.0.0", true, null, null, null, null, null, null, null, null,
+                        null, "id");
+        assertNull(installed.team());
+        assertEquals(InstalledPluginInfo.builder().name("p").marketplace("corp").version("1.0.0").enabled(true).id("id")
+                .build(), installed);
+        assertEquals(new ObjectMapper().readTree("""
+                {"name":"p","marketplace":"corp","version":"1.0.0","enabled":true,"id":"id"}
+                """), new ObjectMapper().valueToTree(installed));
+    }
+
+    @Test
     @AllowCopilotExperimental
     void permission_requirements_preserve_original_constructor_and_provider_identity() throws Exception {
         var legacy = new SessionPermissionsSetRequiredParams("session", true);

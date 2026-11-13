@@ -423,6 +423,10 @@ pub mod rpc_methods {
     pub const SKILLS_DISCOVER: &str = "skills.discover";
     /// `skills.getDiscoveryPaths`
     pub const SKILLS_GETDISCOVERYPATHS: &str = "skills.getDiscoveryPaths";
+    /// `skills.installSource`
+    pub const SKILLS_INSTALLSOURCE: &str = "skills.installSource";
+    /// `skills.removeSource`
+    pub const SKILLS_REMOVESOURCE: &str = "skills.removeSource";
     /// `plugins.planInstall`
     pub const PLUGINS_PLANINSTALL: &str = "plugins.planInstall";
     /// `plugins.applyInstall`
@@ -558,6 +562,8 @@ pub mod rpc_methods {
     pub const SESSIONS_FINDBYPREFIX: &str = "sessions.findByPrefix";
     /// `sessions.getLastForContext`
     pub const SESSIONS_GETLASTFORCONTEXT: &str = "sessions.getLastForContext";
+    /// `sessions.hasEvents`
+    pub const SESSIONS_HASEVENTS: &str = "sessions.hasEvents";
     /// `sessions.getEventFilePath`
     pub(crate) const SESSIONS_GETEVENTFILEPATH: &str = "sessions.getEventFilePath";
     /// `sessions.getSizes`
@@ -608,6 +614,8 @@ pub mod rpc_methods {
     /// `sessions.configureSessionExtensions`
     pub(crate) const SESSIONS_CONFIGURESESSIONEXTENSIONS: &str =
         "sessions.configureSessionExtensions";
+    /// `shell.buildInteractiveEnvironment`
+    pub const SHELL_BUILDINTERACTIVEENVIRONMENT: &str = "shell.buildInteractiveEnvironment";
     /// `agentRegistry.spawn`
     pub const AGENTREGISTRY_SPAWN: &str = "agentRegistry.spawn";
     /// `agentRegistry.ensureDir`
@@ -2089,12 +2097,12 @@ pub use sdk_api_session::{
     SessionsGetLastForContextRequest, SessionsGetLastForContextResult, SessionsGetMetadataRequest,
     SessionsGetMetadataResult, SessionsGetPersistedRemoteSteerableRequest,
     SessionsGetPersistedRemoteSteerableResult, SessionsGetRemoteControlStatusResult,
-    SessionsGetSizesResult, SessionsListNonEmptySessionIdsRequest,
-    SessionsListNonEmptySessionIdsResult, SessionsListRequest, SessionsListResult,
-    SessionsLoadDeferredRepoHooksRequest, SessionsLoadDeferredRepoHooksResult,
-    SessionsLoadWorkspaceRequest, SessionsLoadWorkspaceResult, SessionsOpenAttach,
-    SessionsOpenAttachKind, SessionsOpenCloud, SessionsOpenCloudKind, SessionsOpenCreate,
-    SessionsOpenCreateKind, SessionsOpenHandoff, SessionsOpenHandoffKind,
+    SessionsGetSizesResult, SessionsHasEventsRequest, SessionsHasEventsResult,
+    SessionsListNonEmptySessionIdsRequest, SessionsListNonEmptySessionIdsResult,
+    SessionsListRequest, SessionsListResult, SessionsLoadDeferredRepoHooksRequest,
+    SessionsLoadDeferredRepoHooksResult, SessionsLoadWorkspaceRequest, SessionsLoadWorkspaceResult,
+    SessionsOpenAttach, SessionsOpenAttachKind, SessionsOpenCloud, SessionsOpenCloudKind,
+    SessionsOpenCreate, SessionsOpenCreateKind, SessionsOpenHandoff, SessionsOpenHandoffKind,
     SessionsOpenHandoffTaskType, SessionsOpenProgress, SessionsOpenProgressStatus,
     SessionsOpenProgressStep, SessionsOpenRemote, SessionsOpenRemoteKind, SessionsOpenResult,
     SessionsOpenResume, SessionsOpenResumeKind, SessionsOpenResumeLast, SessionsOpenResumeLastKind,
@@ -2346,8 +2354,9 @@ pub use sdk_api_integrations::{
     PluginsMarketplacesRemoveRequest, PluginsMarketplacesRemoveResult, PluginsReloadRequest,
     PluginsUninstallRequest, PluginsUpdateAllResult, PluginsUpdateRequest, PluginsUpdateResult,
     SkillApplyInstallRequest, SkillApplyUninstallRequest, SkillDiscoveryPath,
-    SkillDiscoveryPathList, SkillDiscoveryScope, SkillInstallationFailureReason,
-    SkillInstallationManagementOutcome, SkillInstallationManagementOutcomeEnabledChanged,
+    SkillDiscoveryPathList, SkillDiscoveryScope, SkillInstallSourceKind, SkillInstallSourceScope,
+    SkillInstallationFailureReason, SkillInstallationManagementOutcome,
+    SkillInstallationManagementOutcomeEnabledChanged,
     SkillInstallationManagementOutcomeEnabledChangedKind,
     SkillInstallationManagementOutcomeInstallPlanned,
     SkillInstallationManagementOutcomeInstallPlannedKind, SkillInstallationManagementOutcomeListed,
@@ -2379,11 +2388,16 @@ pub use sdk_api_integrations::{
     SkillInstallationOutcomeUninstalled, SkillInstallationOutcomeUninstalledKind,
     SkillInstallationResult, SkillInstallationResultOutcome, SkillInstallationResultOutcomeKind,
     SkillInstallationsRequest, SkillList, SkillPlanInstallRequest, SkillPlanUninstallRequest,
-    SkillProviderDescriptor, SkillProviderListParams, SkillSetEnabledRequest, SkillUninstallPlan,
+    SkillProviderDescriptor, SkillProviderListParams, SkillRemoveSourceEntry,
+    SkillRemoveSourceKind, SkillSetEnabledRequest, SkillUninstallPlan,
     SkillsConfigSetDisabledSkillsRequest, SkillsConfigSetSkillDisabledRequest,
     SkillsDisableRequest, SkillsDiscoverRequest, SkillsDiscoverResult, SkillsEnableRequest,
     SkillsGetDiscoveryPathsOptions, SkillsGetDiscoveryPathsRequest, SkillsGetDiscoveryPathsResult,
-    SkillsGetInvokedResult, SkillsLoadDiagnostics,
+    SkillsGetInvokedResult, SkillsInstallSourceRequest, SkillsInstallSourceResult,
+    SkillsLoadDiagnostics, SkillsRemoveSourceInventory, SkillsRemoveSourceOutcome,
+    SkillsRemoveSourceOutcomeNeedsInventory, SkillsRemoveSourceOutcomeNeedsInventoryKind,
+    SkillsRemoveSourceOutcomeRemoved, SkillsRemoveSourceOutcomeRemovedKind,
+    SkillsRemoveSourceRequest, SkillsRemoveSourceResult,
 };
 pub(crate) use sdk_api_integrations::{
     McpConfigureGitHubRequest, McpListBuiltinServerNamesResult, McpOauthAuthenticateRequest,
@@ -2828,7 +2842,8 @@ pub use sdk_api_services::{
     SendMessagesRequest, SendMessagesRequestResponseFormat, SendMessagesRequestResponseFormatType,
     SendMessagesResult, SendMode, SendOptions, SendRequest, SendRequestResponseFormat,
     SendRequestResponseFormatType, SendResult, SendSystemNotificationRequest, SessionLogLevel,
-    SessionWorkingDirectoryContext, ShellCancelUserRequestedRequest, ShellExecRequest,
+    SessionWorkingDirectoryContext, ShellBuildInteractiveEnvironmentRequest,
+    ShellBuildInteractiveEnvironmentResult, ShellCancelUserRequestedRequest, ShellExecRequest,
     ShellExecResult, ShellExecuteUserRequestedRequest, ShellKillRequest, ShellKillResult,
     ShellKillSignal, ShutdownRequest, SlashCommandAddTimelineEntryResult,
     SlashCommandAddTimelineEntryResultKind, SlashCommandAgentPromptResult,

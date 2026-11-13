@@ -546,7 +546,7 @@ type AssistantMessageData struct {
 	Model *string `json:"model,omitempty"`
 	// Logical ID of the primary user message that initiated this run, matching the messageId returned by session.send (or the last messageId of session.sendMessages). Stable across model/tool iterations, steering messages, and stop-hook corrections. Subagent runs use their own initiating message ID, not the parent's. Absent for runs without an associated initiating message, such as empty batches.
 	OriginatingMessageID *string `json:"originatingMessageId,omitempty"`
-	// Actual output token count from the API response (completion_tokens), used for accurate token accounting
+	// Output tokens this message adds to replayed context, for token accounting: the API response's completion_tokens, plus reasoning tokens a wire replays as input but reports separately, shared across the response's message chunks. Use assistant.usage for billed usage.
 	OutputTokens *int64 `json:"outputTokens,omitempty"`
 	// Tool call ID of the parent tool invocation when this event originates from a sub-agent
 	// Deprecated: ParentToolCallID is deprecated.

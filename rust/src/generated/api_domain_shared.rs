@@ -3226,6 +3226,9 @@ pub struct InstalledPluginInfo {
     /// Runtime-reported plugin provenance. Currently set to "builtin" only for plugins registered through the trusted host built-in boundary; absent for installed, marketplace, direct, and live plugins.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<String>,
+    /// True when the signed-in account's GitHub Team assigns this plugin, whatever default enabled state the assignment carries. This reports provenance only: it does not mean the Team installed the plugin or controls whether it is enabled, and the user's own choices still apply. When `managed` is also true, enterprise managed settings decide the plugin's state.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub team: Option<bool>,
     /// The GitHub repository and commit a direct install is pinned to, from its install record. Present only for a direct install pinned to one GitHub commit, such as a verified install from GitHub; absent for marketplace, local and unpinned installs.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub verified_source: Option<InstalledPluginVerifiedSource>,
@@ -3434,6 +3437,9 @@ pub struct MarketplacePluginInfo {
     /// Short description from the marketplace catalog, when present
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    /// The enabled state required by enterprise managed settings, when this plugin spec is managed. False means the plugin cannot be installed or enabled. Absent when managed settings do not control this plugin.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub managed_desired_enabled: Option<bool>,
     /// Plugin name as listed in the marketplace catalog
     pub name: String,
 }
@@ -4829,6 +4835,9 @@ pub struct Plugin {
     /// Runtime plugin provenance, such as "builtin".
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<String>,
+    /// True when the signed-in account's GitHub Team assigns this plugin, whatever default enabled state the assignment carries. This reports provenance only: it does not mean the Team installed the plugin or controls whether it is enabled, and the user's own choices still apply. When `managed` is also true, enterprise managed settings decide the plugin's state.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub team: Option<bool>,
     /// Installed version
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,

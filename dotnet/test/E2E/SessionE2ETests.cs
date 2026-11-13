@@ -604,7 +604,15 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         if (ourSession.Context != null)
         {
             Assert.False(string.IsNullOrEmpty(ourSession.Context.WorkingDirectory), "Expected context.WorkingDirectory to be non-empty when context is present");
+
+            var sameDirectorySessions = await Client.ListSessionsAsync(
+                new SessionListFilter { WorkingDirectory = ourSession.Context.WorkingDirectory });
+            Assert.Contains(sameDirectorySessions, s => s.SessionId == session.SessionId);
         }
+
+        var otherDirectorySessions = await Client.ListSessionsAsync(
+            new SessionListFilter { WorkingDirectory = Path.Join(Ctx.WorkDir, "other-project") });
+        Assert.DoesNotContain(otherDirectorySessions, s => s.SessionId == session.SessionId);
     }
 
     [Fact]

@@ -41,6 +41,8 @@ public record Plugin(
     @JsonProperty("source") String source,
     /** Whether enterprise managed settings control this plugin. */
     @JsonProperty("managed") Boolean managed,
+    /** True when the signed-in account's GitHub Team assigns this plugin, whatever default enabled state the assignment carries. This reports provenance only: it does not mean the Team installed the plugin or controls whether it is enabled, and the user's own choices still apply. When `managed` is also true, enterprise managed settings decide the plugin's state. */
+    @JsonProperty("team") Boolean team,
     /** Enabled state required by enterprise managed settings. */
     @JsonProperty("managedDesiredEnabled") Boolean managedDesiredEnabled,
     /** Whether this managed desired plugin has an installed or live record. */
@@ -79,6 +81,7 @@ public record Plugin(
         private String installedFrom;
         private String source;
         private Boolean managed;
+        private Boolean team;
         private Boolean managedDesiredEnabled;
         private Boolean installed;
         private String id;
@@ -194,6 +197,17 @@ public record Plugin(
         }
 
         /**
+         * Sets the {@code team} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder team(Boolean value) {
+            this.team = value;
+            return this;
+        }
+
+        /**
          * Sets the {@code managedDesiredEnabled} property.
          * @param value the property value
          * @return this builder
@@ -236,8 +250,44 @@ public record Plugin(
             if (name == null) throw new IllegalStateException("Missing required property: name");
             if (marketplace == null) throw new IllegalStateException("Missing required property: marketplace");
             if (enabled == null) throw new IllegalStateException("Missing required property: enabled");
-            return new Plugin(assignment, name, marketplace, version, enabled, directSourceId, rootPath, installedFrom, source, managed, managedDesiredEnabled, installed, id);
+            return new Plugin(assignment, name, marketplace, version, enabled, directSourceId, rootPath, installedFrom, source, managed, team, managedDesiredEnabled, installed, id);
         }
+    }
+
+    /**
+     * Creates a plugin without Team assignment provenance.
+     * @deprecated Use named construction via {@link #builder()}.
+     * @param assignment Soft assignment from effective managed settings. This does not mark the plugin as hard-managed.
+     * @param name Plugin name
+     * @param marketplace Marketplace the plugin came from
+     * @param version Installed version
+     * @param enabled Whether the plugin is currently enabled
+     * @param directSourceId Opaque stable identity for a direct plugin source.
+     * @param rootPath Absolute local directory containing this plugin's resolved content, including disabled installations. Absent when no content directory is resolved. This is the plugin root, not its marketplace directory; clients must not forward it back as an additional plugin.
+     * @param installedFrom Absolute marketplace directory for a live plugin.
+     * @param source Runtime plugin provenance, such as "builtin".
+     * @param managed Whether enterprise managed settings control this plugin.
+     * @param managedDesiredEnabled Enabled state required by enterprise managed settings.
+     * @param installed Whether this managed desired plugin has an installed or live record.
+     * @param id Opaque plugin identity in this runtime's inventory. Matches global inventory id and MCP effectiveSource.plugin.id for the same plugin. Stable across enablement changes, updates and restarts while the source is unchanged. Session-only plugin identities are scoped to their session; not a cross-host identifier or a mutation argument. Compare the complete value without parsing it. May be absent on older runtimes.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public Plugin(
+        ManagedPluginAssignment assignment,
+        String name,
+        String marketplace,
+        String version,
+        Boolean enabled,
+        String directSourceId,
+        String rootPath,
+        String installedFrom,
+        String source,
+        Boolean managed,
+        Boolean managedDesiredEnabled,
+        Boolean installed,
+        String id
+    ) {
+        this(assignment, name, marketplace, version, enabled, directSourceId, rootPath, installedFrom, source, managed, null, managedDesiredEnabled, installed, id);
     }
 
     /**
@@ -267,6 +317,6 @@ public record Plugin(
         Boolean managedDesiredEnabled,
         Boolean installed
     ) {
-        this(null, name, marketplace, version, enabled, directSourceId, null, installedFrom, source, managed, managedDesiredEnabled, installed, null);
+        this(null, name, marketplace, version, enabled, directSourceId, null, installedFrom, source, managed, null, managedDesiredEnabled, installed, null);
     }
 }

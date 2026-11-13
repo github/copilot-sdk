@@ -8420,7 +8420,7 @@ export interface AssistantMessageData {
    */
   originatingMessageId?: string;
   /**
-   * Actual output token count from the API response (completion_tokens), used for accurate token accounting
+   * Output tokens this message adds to replayed context, for token accounting: the API response's completion_tokens, plus reasoning tokens a wire replays as input but reports separately, shared across the response's message chunks. Use assistant.usage for billed usage.
    */
   outputTokens?: number;
   /**

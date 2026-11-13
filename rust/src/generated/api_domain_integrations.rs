@@ -5619,6 +5619,25 @@ pub(crate) struct SkillProviderReadResult {
     pub markdown: Option<String>,
 }
 
+/// One discovered local skill, without its content.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillRemoveSourceEntry {
+    /// Discovery directory that owns the skill file.
+    pub base_dir: String,
+    /// Invocation name used to resolve a removal target.
+    pub name: String,
+    /// Original discovery source. Removal rejects unsupported or unowned sources.
+    pub source: String,
+}
+
 /// Skill names to mark as disabled in global configuration, replacing any previous list.
 ///
 /// <div class="warning">
@@ -5828,6 +5847,58 @@ pub struct SkillsGetInvokedResult {
     pub skills: Vec<SkillsInvokedSkill>,
 }
 
+/// Installs a user-selected skill source without catalog plan semantics.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillsInstallSourceRequest {
+    /// Working directory for relative source paths.
+    pub cwd: String,
+    /// Personal destination for URL and file sources.
+    pub personal_skills_dir: String,
+    /// Selects project scope. Directory registration requires personal scope.
+    pub project: bool,
+    /// Project destination for URL and file sources.
+    pub project_skills_dir: String,
+    /// Current discovery directories. The result returns an updated copy.
+    pub skill_directories: Vec<String>,
+    /// HTTPS URL, local skill file, or local discovery directory.
+    pub source: String,
+    /// User agent for runtime-owned HTTPS source requests.
+    pub user_agent: String,
+}
+
+/// Result of direct source installation. Catalog consent and defaults remain separate.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillsInstallSourceResult {
+    /// Source acquisition used by this operation.
+    pub kind: SkillInstallSourceKind,
+    /// Skill name when a file was installed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// Installed skill directory or registered discovery directory.
+    pub path: String,
+    /// File destination scope. Directory registration has no destination scope.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scope: Option<SkillInstallSourceScope>,
+    /// Updated discovery directories for the caller to persist.
+    pub skill_directories: Vec<String>,
+}
+
 /// Diagnostics from reloading skill definitions, with warnings and errors as separate lists.
 ///
 /// <div class="warning">
@@ -5843,6 +5914,87 @@ pub struct SkillsLoadDiagnostics {
     pub errors: Vec<String>,
     /// Warnings emitted while loading skills (e.g. skills that loaded but had issues)
     pub warnings: Vec<String>,
+}
+
+/// Caller-owned inventory and storage roots for direct file removal.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillsRemoveSourceInventory {
+    /// Personal storage roots that the existing removal rules recognize.
+    pub personal_skills_dirs: Vec<String>,
+    /// Project storage root that the existing removal rules recognize.
+    pub project_skills_dir: String,
+    /// Local skills discovered before removal.
+    pub skills: Vec<SkillRemoveSourceEntry>,
+}
+
+/// No directory registration matched. No files or settings changed.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillsRemoveSourceOutcomeNeedsInventory {
+    /// Direct source removal or an inventory request without mutation.
+    pub kind: SkillsRemoveSourceOutcomeNeedsInventoryKind,
+}
+
+/// Direct removal result. The caller persists discovery and disabled settings.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillsRemoveSourceResult {
+    /// Resource removed by this operation.
+    pub kind: SkillRemoveSourceKind,
+    /// Skill name when a skill file was removed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// Removed skill path or unregistered discovery directory.
+    pub path: String,
+    /// Updated discovery directories for the caller to persist.
+    pub skill_directories: Vec<String>,
+}
+
+/// The existing source removal rules resolved and removed the target.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillsRemoveSourceOutcomeRemoved {
+    /// Direct source removal or an inventory request without mutation.
+    pub kind: SkillsRemoveSourceOutcomeRemovedKind,
+    /// Removal result and updated discovery directories.
+    pub result: SkillsRemoveSourceResult,
+}
+
+/// Removes a user-selected source without changing verified catalog removal.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillsRemoveSourceRequest {
+    /// Working directory for relative removal paths.
+    pub cwd: String,
+    /// Required for file removal, but not for directory registration removal.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub inventory: Option<SkillsRemoveSourceInventory>,
+    /// Current discovery directories. Removal returns an updated copy.
+    pub skill_directories: Vec<String>,
+    /// Local skill name, file path, or registered discovery directory.
+    pub target: String,
 }
 
 /// User-configured MCP servers, keyed by server name.
@@ -8335,6 +8487,109 @@ pub enum SkillInstallationResult {
     NegotiationRefused(CatalogNegotiationRefusedError),
     InvalidRequest(CatalogInvalidRequestError),
     NetworkFailure(CatalogNetworkFailureError),
+}
+
+/// Source acquisition used by a direct skill installation.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SkillInstallSourceKind {
+    /// A skill file retrieved through HTTPS.
+    #[serde(rename = "url")]
+    Url,
+    /// A local skill file copied into skill storage.
+    #[serde(rename = "file")]
+    File,
+    /// A discovery directory registered without copying its contents.
+    #[serde(rename = "directory")]
+    Directory,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Destination scope for a directly installed skill file.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SkillInstallSourceScope {
+    /// Personal skill storage.
+    #[serde(rename = "personal")]
+    Personal,
+    /// Project skill storage.
+    #[serde(rename = "project")]
+    Project,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Resource removed by a direct-source operation.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SkillRemoveSourceKind {
+    /// A discovery registration removed without deleting its contents.
+    #[serde(rename = "directory")]
+    Directory,
+    /// A personal skill file or directory.
+    #[serde(rename = "personal")]
+    Personal,
+    /// A project skill file or directory.
+    #[serde(rename = "project")]
+    Project,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Direct source removal or an inventory request without mutation.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SkillsRemoveSourceOutcomeNeedsInventoryKind {
+    #[serde(rename = "needs-inventory")]
+    #[default]
+    NeedsInventory,
+}
+
+/// Direct source removal or an inventory request without mutation.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SkillsRemoveSourceOutcomeRemovedKind {
+    #[serde(rename = "removed")]
+    #[default]
+    Removed,
+}
+
+/// Direct removal or a request for the inventory needed to resolve a file.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum SkillsRemoveSourceOutcome {
+    NeedsInventory(SkillsRemoveSourceOutcomeNeedsInventory),
+    Removed(SkillsRemoveSourceOutcomeRemoved),
 }
 
 /// Compatibility alias for the confirmation review wrapper.

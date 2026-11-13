@@ -323,6 +323,13 @@ impl<'a> ClientRpc<'a> {
         }
     }
 
+    /// `shell.*` sub-namespace.
+    pub fn shell(&self) -> ClientRpcShell<'a> {
+        ClientRpcShell {
+            client: self.client,
+        }
+    }
+
     /// `skills.*` sub-namespace.
     pub fn skills(&self) -> ClientRpcSkills<'a> {
         ClientRpcSkills {
@@ -8050,6 +8057,35 @@ impl<'a> ClientRpcSessions<'a> {
             .await
     }
 
+    /// Checks whether a local session's persisted event-log path exists, including an empty log, without opening the session or scanning the session catalog. Hosts use this to prefer an exact local session over a remote task or a UUID-prefix lookup. Metadata-only sessions without a log return false.
+    ///
+    /// Wire method: `sessions.hasEvents`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Local session whose persisted event-log presence to check without opening or scanning it.
+    ///
+    /// # Returns
+    ///
+    /// Whether the local session has a persisted event-log path, including an empty log.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn has_events(
+        &self,
+        params: SessionsHasEventsRequest,
+    ) -> Result<SessionsHasEventsResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        self.client
+            .call_typed(rpc_methods::SESSIONS_HASEVENTS, Some(wire_params))
+            .await
+    }
+
     /// Computes the absolute path to a session's persisted events.jsonl file. Internal: filesystem paths are only meaningful in-process (CLI and runtime share a filesystem). Currently used by the CLI's contribution-graph feature to read historical events directly. Remote SDK consumers must not depend on this; a proper event-query API would replace it if the contribution graph ever needed to work over the wire.
     ///
     /// Wire method: `sessions.getEventFilePath`.
@@ -8866,6 +8902,46 @@ impl<'a> ClientRpcSettings<'a> {
     }
 }
 
+/// `shell.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct ClientRpcShell<'a> {
+    pub(crate) client: &'a Client,
+}
+
+impl<'a> ClientRpcShell<'a> {
+    /// Filters the supplied host environment with the runtime's mandatory interactive-shell credential and telemetry exclusions, adds Git hardening, and removes any extra names the host supplies. An IDE terminal host or an in-process CLI uses this before launching an inherited terminal. The result derives only from the caller's supplied environment, never the runtime process environment.
+    ///
+    /// Wire method: `shell.buildInteractiveEnvironment`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Caller-owned environment to filter under the runtime's interactive-shell credential policy.
+    ///
+    /// # Returns
+    ///
+    /// Filtered caller environment with the runtime's Git hardening applied; never includes the runtime process environment.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn build_interactive_environment(
+        &self,
+        params: ShellBuildInteractiveEnvironmentRequest,
+    ) -> Result<ShellBuildInteractiveEnvironmentResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        self.client
+            .call_typed(
+                rpc_methods::SHELL_BUILDINTERACTIVEENVIRONMENT,
+                Some(wire_params),
+            )
+            .await
+    }
+}
+
 /// `skills.*` RPCs.
 #[derive(Clone, Copy)]
 pub struct ClientRpcSkills<'a> {
@@ -9086,6 +9162,64 @@ impl<'a> ClientRpcSkills<'a> {
         let wire_params = serde_json::to_value(params)?;
         self.client
             .call_typed(rpc_methods::SKILLS_GETDISCOVERYPATHS, Some(wire_params))
+            .await
+    }
+
+    /// Installs a user-selected HTTPS or local skill file into personal or project storage, or registers a local discovery directory. This direct-source operation preserves source installation behavior; it does not accept or replace verified catalog plans, request catalog confirmation, or change skill enablement. The caller persists the returned discovery directories.
+    ///
+    /// Wire method: `skills.installSource`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Installs a user-selected skill source without catalog plan semantics.
+    ///
+    /// # Returns
+    ///
+    /// Result of direct source installation. Catalog consent and defaults remain separate.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn install_source(
+        &self,
+        params: SkillsInstallSourceRequest,
+    ) -> Result<SkillsInstallSourceResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        self.client
+            .call_typed(rpc_methods::SKILLS_INSTALLSOURCE, Some(wire_params))
+            .await
+    }
+
+    /// Removes a directly installed local skill or unregisters a discovery directory without deleting its contents. Directory removal needs no skill inventory. Other targets return needs-inventory without mutation when inventory is absent. This operation preserves direct-source ownership rules and does not replace receipt-backed verified uninstall plans or their consent. The caller persists returned discovery directories and manages disabled settings.
+    ///
+    /// Wire method: `skills.removeSource`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Removes a user-selected source without changing verified catalog removal.
+    ///
+    /// # Returns
+    ///
+    /// Direct removal or a request for the inventory needed to resolve a file.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn remove_source(
+        &self,
+        params: SkillsRemoveSourceRequest,
+    ) -> Result<SkillsRemoveSourceOutcome, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        self.client
+            .call_typed(rpc_methods::SKILLS_REMOVESOURCE, Some(wire_params))
             .await
     }
 }

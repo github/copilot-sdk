@@ -65,6 +65,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     private IReadOnlyDictionary<string, Func<ProviderTokenArgs, Task<string>>> _bearerTokenProviders = new Dictionary<string, Func<ProviderTokenArgs, Task<string>>>(StringComparer.Ordinal);
     private readonly object _callbackLock = new();
     private bool _callbacksRetired;
+    private bool _externalToolAdmissionClosed;
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _pendingExternalTools = new(StringComparer.Ordinal);
     private readonly CancellationTokenSource _externalToolLifetime = new();
     private readonly ILogger _logger;
@@ -76,7 +77,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     private volatile Func<UserInputRequest, UserInputInvocation, Task<UserInputResponse>>? _userInputHandler;
     private volatile Func<ShellAuthenticationRequest, CancellationToken, Task<ShellAuthenticationResponse>>? _shellAuthenticationHandler;
     // Cancels the secret prompts this session waits on. Guarded by _callbackLock.
-    private readonly HashSet<CancellationTokenSource> _pendingShellAuthenticationRequests = [];
+    private readonly HashSet<ShellAuthenticationCancellation> _pendingShellAuthenticationRequests = [];
     private volatile Func<ElicitationContext, Task<ElicitationResult>>? _elicitationHandler;
     private volatile Func<ExitPlanModeRequest, ExitPlanModeInvocation, Task<ExitPlanModeResult>>? _exitPlanModeHandler;
     private volatile Func<AutoModeSwitchRequest, AutoModeSwitchInvocation, Task<AutoModeSwitchResponse>>? _autoModeSwitchHandler;
@@ -269,7 +270,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// <summary>Releases local callback ownership without an RPC or joining admitted handlers.</summary>
     internal void Retire()
     {
-        CancellationTokenSource[] pendingShellAuthenticationRequests;
+        ShellAuthenticationCancellation[] pendingShellAuthenticationRequests;
         lock (_callbackLock)
         {
             _callbacksRetired = true;
@@ -296,7 +297,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         // Cancellation callbacks are consumer code that can block, so they run off the thread retiring the session.
         foreach (var pending in pendingShellAuthenticationRequests)
         {
-            _ = CopilotClient.CancelShellAuthenticationAsync(pending);
+            pending.Cancel();
         }
         CancelPendingExternalTools();
         CloseEventChannel();
@@ -1085,9 +1086,9 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// </para>
     /// <para>
     /// The agent sees the new tools from its next model request, which can fall within a turn in progress. A model request
-    /// already in flight was made with the previous tools, so the agent can still call a tool you removed. This session doesn't
-    /// answer that call, and it can stay pending until the turn is aborted. If a running turn might still call a tool you remove,
-    /// replace tools while the session is idle.
+    /// already in flight was made with the previous tools, so the agent can still call a tool you removed. If no connected client
+    /// supplies a tool with that name any more, the call fails with an error that tells the agent the tool is no longer available,
+    /// and the turn continues. If you don't want the agent to see that failure, replace tools while the session is idle.
     /// </para>
     /// </remarks>
     [Experimental(Diagnostics.Experimental)]
@@ -1491,15 +1492,13 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// </summary>
     private async Task ExecuteToolAndRespondAsync(string requestId, string toolName, string toolCallId, JsonElement? arguments, AIFunction tool, string? agentId)
     {
-        if (_externalToolLifetime.IsCancellationRequested)
-        {
-            return;
-        }
-
         using var cancellationSource = CancellationTokenSource.CreateLinkedTokenSource(_externalToolLifetime.Token);
-        if (!_pendingExternalTools.TryAdd(requestId, cancellationSource))
+        lock (_callbackLock)
         {
-            return;
+            if (_externalToolAdmissionClosed || !_pendingExternalTools.TryAdd(requestId, cancellationSource))
+            {
+                return;
+            }
         }
 
         var claimed = false;
@@ -1563,6 +1562,13 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 }
             }
 
+            lock (_callbackLock)
+            {
+                if (_externalToolAdmissionClosed)
+                {
+                    return;
+                }
+            }
             var toolTimestamp = Stopwatch.GetTimestamp();
             var result = await tool.InvokeAsync(aiFunctionArgs, cancellationSource.Token);
             LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
@@ -1759,19 +1765,13 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
     internal void CancelPendingExternalTools()
     {
-        try
+        lock (_callbackLock)
         {
-            _externalToolLifetime.Cancel();
+            // Downlevel cancellation is queued, so close admission before dispatching consumer callbacks.
+            _externalToolAdmissionClosed = true;
+            _pendingExternalTools.Clear();
         }
-        catch (AggregateException)
-        {
-            // User cancellation callbacks must not prevent session teardown.
-        }
-        catch (ObjectDisposedException)
-        {
-            // Session teardown already completed.
-        }
-        _pendingExternalTools.Clear();
+        _ = CopilotClient.CancelCallbacksAsync(_externalToolLifetime);
     }
 
     /// <summary>
@@ -1861,16 +1861,15 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
     /// <summary>
     /// Asks the registered handler for a secret. Any failure, a response that isn't an accept, or
-    /// <paramref name="cancellationToken"/> being cancelled first cancels the prompt, so the program
+    /// <paramref name="pending"/> being cancelled first cancels the prompt, so the program
     /// that asked fails instead of receiving a wrong value. Never logs the answer.
     /// </summary>
     /// <param name="request">The shell authentication request from the runtime.</param>
-    /// <param name="cancellationToken">Cancelled when the runtime no longer needs the answer.</param>
+    /// <param name="pending">Cancelled when the runtime no longer needs the answer.</param>
     /// <returns>The answer, or a cancellation.</returns>
-    internal async Task<ShellAuthenticationResponse> HandleShellAuthenticationRequestAsync(ShellAuthenticationRequest request, CancellationToken cancellationToken)
+    internal async Task<ShellAuthenticationResponse> HandleShellAuthenticationRequestAsync(ShellAuthenticationRequest request, ShellAuthenticationCancellation pending)
     {
         Func<ShellAuthenticationRequest, CancellationToken, Task<ShellAuthenticationResponse>>? handler;
-        using var pending = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         lock (_callbackLock)
         {
             handler = _callbacksRetired ? null : _shellAuthenticationHandler;

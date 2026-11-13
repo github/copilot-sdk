@@ -621,26 +621,32 @@ public final class CopilotClient implements AutoCloseable {
      * Starts the Copilot client and connects to the server.
      * <p>
      * If a previous start failed, calling this method again starts the client anew.
+     * If the connection closed after a successful start, for example because the
+     * runtime process exited, calling this method again retires that connection and
+     * its sessions, then starts the client anew.
      *
      * @return A future that completes when the connection is established
      */
     public CompletableFuture<Void> start() {
-        return startConnection().thenApply(c -> null);
+        return startConnection(true).thenApply(c -> null);
     }
 
-    private CompletableFuture<Connection> startConnection() {
+    private CompletableFuture<Connection> startConnection(boolean replaceLostConnection) {
         CompletableFuture<Connection> future = connectionFuture;
         StartupFuture startup = null;
-        // A failed startup leaves the client disconnected, so start again instead of
-        // replaying its failure.
-        if (future == null || future.isCompletedExceptionally()) {
+        CompletableFuture<Connection> lost = null;
+        if (needsStart(future, replaceLostConnection)) {
             synchronized (this) {
                 future = connectionFuture;
-                if (future == null || future.isCompletedExceptionally()) {
+                if (needsStart(future, replaceLostConnection)) {
                     // Shutdown must capture the retiring startup before a retry replaces it.
                     if (retiringConnection != null) {
                         return CompletableFuture.failedFuture(
                                 new IllegalStateException("Client is stopping. Retry after stop() completes."));
+                    }
+                    if (future != null && isClosed(future)) {
+                        lost = future;
+                        modelsCache = new ModelsCache();
                     }
                     startup = new StartupFuture();
                     connectionFuture = startup;
@@ -651,9 +657,45 @@ public final class CopilotClient implements AutoCloseable {
         // A direct executor can perform startup I/O here; shutdown must still be
         // able to acquire the lifecycle monitor and return its future.
         if (startup != null) {
-            startCore(startup);
+            if (lost == null) {
+                startCore(startup);
+            } else {
+                StartupFuture restart = startup;
+                retireLostConnection(lost).whenComplete((ignored, error) -> startCore(restart));
+            }
         }
         return future;
+    }
+
+    /**
+     * A failed startup leaves the client disconnected, so start again instead of
+     * replaying its failure. An explicit start does the same for a connection that
+     * closed after startup, once it is retired.
+     */
+    private static boolean needsStart(CompletableFuture<Connection> future, boolean replaceLostConnection) {
+        return future == null || future.isCompletedExceptionally() || (replaceLostConnection && isClosed(future));
+    }
+
+    private static boolean isClosed(CompletableFuture<Connection> future) {
+        if (!future.isDone() || future.isCompletedExceptionally()) {
+            return false;
+        }
+        Connection connection = future.join();
+        // A descendant can retain stdio after the owned runtime has exited.
+        return connection.rpc().isClosed() || (connection.process() != null && !connection.process().isAlive());
+    }
+
+    /**
+     * Retires a connection that closed after startup, and its sessions, without
+     * contacting the runtime.
+     */
+    private CompletableFuture<Void> retireLostConnection(CompletableFuture<Connection> lost) {
+        JsonRpcClient lostRpc = lost.join().rpc();
+        sessions.values().stream().filter(session -> session.usesConnection(lostRpc)).forEach(session -> {
+            session.forceStopLocally();
+            sessions.remove(session.getSessionId(), session);
+        });
+        return cleanupConnection(lost, false, false);
     }
 
     private void startCore(StartupFuture startup) {
@@ -1141,6 +1183,11 @@ public final class CopilotClient implements AutoCloseable {
         // lifecycle.
         modelsCache = new ModelsCache();
 
+        return cleanupConnection(future, gracefulRuntimeShutdown, endStartup);
+    }
+
+    private CompletableFuture<Void> cleanupConnection(CompletableFuture<Connection> future,
+            boolean gracefulRuntimeShutdown, boolean endStartup) {
         if (future == null) {
             return CompletableFuture.completedFuture(null);
         }
@@ -1287,7 +1334,8 @@ public final class CopilotClient implements AutoCloseable {
         } catch (IllegalArgumentException e) {
             return CompletableFuture.failedFuture(e);
         }
-        return ensureConnected().thenCompose(connection -> {
+        CompletableFuture<Connection> createConnection = ensureConnected();
+        return createConnection.thenCompose(connection -> {
             long totalNanos = System.nanoTime();
             // For cloud sessions, let the CLI/server assign the session id
             // and register the session lazily once the response arrives. For
@@ -1323,7 +1371,17 @@ public final class CopilotClient implements AutoCloseable {
                         s.registerTransformCallbacks(extracted.transformCallbacks());
                     }
                     s.setReleaseFromClient(() -> forgetSession(s));
-                    sessions.put(sid, s);
+                    try {
+                        synchronized (this) {
+                            if (connectionFuture != createConnection || retiringConnection == createConnection) {
+                                throw new IllegalStateException("Client not connected");
+                            }
+                            sessions.put(sid, s);
+                        }
+                    } catch (RuntimeException error) {
+                        s.forceStopLocally();
+                        throw error;
+                    }
                     LoggingHelpers.logTiming(LOG, Level.FINE,
                             "CopilotClient.createSession local setup complete. Elapsed={Elapsed}, SessionId=" + sid,
                             setupNanos);
@@ -2026,7 +2084,7 @@ public final class CopilotClient implements AutoCloseable {
             // Best-effort disconnect so we don't leak it (in empty mode it would
             // otherwise stay alive with permissive defaults).
             LOG.log(Level.WARNING, "session.options.update failed for session " + session.getSessionId(), ex);
-            sessions.remove(session.getSessionId());
+            sessions.remove(session.getSessionId(), session);
             try {
                 session.close();
             } catch (Exception closeEx) {
@@ -2433,7 +2491,7 @@ public final class CopilotClient implements AutoCloseable {
             return future;
         }
 
-        return startConnection();
+        return startConnection(false);
     }
 
     /**

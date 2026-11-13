@@ -6,11 +6,14 @@ package com.github.copilot.ffi;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.Test;
@@ -34,7 +37,8 @@ class QueueInputStreamTest {
 
     @Test
     void readBlocksUntilDataArrives() throws Exception {
-        QueueInputStream stream = new QueueInputStream();
+        var queue = new ObservedQueue();
+        QueueInputStream stream = new QueueInputStream(queue);
 
         CompletableFuture<Integer> readFuture = CompletableFuture.supplyAsync(() -> {
             try {
@@ -44,10 +48,15 @@ class QueueInputStreamTest {
             }
         });
 
-        Thread.sleep(100);
-        stream.enqueue(new byte[]{(byte) 'A'});
-
-        assertEquals((int) 'A', readFuture.get(2, TimeUnit.SECONDS));
+        try {
+            assertTrue(queue.readStarted.await(2, TimeUnit.SECONDS), "Read must reach the empty queue");
+            assertFalse(readFuture.isDone(), "Read must remain pending without data");
+            stream.enqueue(new byte[]{(byte) 'A'});
+            assertEquals((int) 'A', readFuture.get(2, TimeUnit.SECONDS));
+        } finally {
+            stream.close();
+            readFuture.get(2, TimeUnit.SECONDS);
+        }
     }
 
     @Test
@@ -62,7 +71,8 @@ class QueueInputStreamTest {
 
     @Test
     void closeUnblocksPendingReadWithEof() throws Exception {
-        QueueInputStream stream = new QueueInputStream();
+        var queue = new ObservedQueue();
+        QueueInputStream stream = new QueueInputStream(queue);
 
         CompletableFuture<Integer> readFuture = CompletableFuture.supplyAsync(() -> {
             try {
@@ -72,10 +82,24 @@ class QueueInputStreamTest {
             }
         });
 
-        Thread.sleep(100);
-        stream.close();
+        try {
+            assertTrue(queue.readStarted.await(2, TimeUnit.SECONDS), "Read must reach the empty queue");
+            assertFalse(readFuture.isDone(), "Read must remain pending before close");
+        } finally {
+            stream.close();
+        }
 
         assertEquals(-1, readFuture.get(2, TimeUnit.SECONDS));
         assertTrue(readFuture.isDone());
+    }
+
+    private static final class ObservedQueue extends LinkedBlockingQueue<byte[]> {
+        private final CountDownLatch readStarted = new CountDownLatch(1);
+
+        @Override
+        public byte[] take() throws InterruptedException {
+            readStarted.countDown();
+            return super.take();
+        }
     }
 }

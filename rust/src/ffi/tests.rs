@@ -15,6 +15,18 @@ static TEST_ALLOW_CLOSE: AtomicBool = AtomicBool::new(false);
 static TEST_CLOSE_CALLS: AtomicUsize = AtomicUsize::new(0);
 static TEST_SHUTDOWN_CALLS: AtomicUsize = AtomicUsize::new(0);
 
+#[cfg(copilot_cli_host)]
+pub(super) fn library_without_private_admission() -> &'static Library {
+    static LIBRARY: OnceLock<Library> = OnceLock::new();
+    LIBRARY.get_or_init(|| {
+        #[cfg(unix)]
+        let library = libloading::os::unix::Library::this().into();
+        #[cfg(windows)]
+        let library = libloading::os::windows::Library::this().unwrap().into();
+        library
+    })
+}
+
 #[test]
 fn explicit_image_does_not_require_a_cli_entrypoint() {
     let directory = tempfile::tempdir().unwrap();
@@ -256,6 +268,8 @@ fn callback_state_is_retained_until_connection_close_succeeds() {
         closing: AtomicBool::new(false),
     }));
     let shared = FfiShared {
+        #[cfg(copilot_cli_host)]
+        library: library_without_private_admission(),
         auth_owner: parking_lot::Mutex::new(None),
         host_shutdown: test_host_shutdown,
         owns_host: true,

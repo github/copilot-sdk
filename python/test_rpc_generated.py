@@ -60,6 +60,8 @@ from copilot.rpc import (
     SessionList,
     SessionModelList,
     SessionRpc,
+    ShellBuildInteractiveEnvironmentRequest,
+    ShellBuildInteractiveEnvironmentResult,
     Skill,
     SlashCommandAgentPromptResult,
     SlashCommandTextResult,
@@ -67,6 +69,28 @@ from copilot.rpc import (
     UIElicitationSchemaType,
     UpdateSubagentSettingsRequest,
 )
+
+
+@pytest.mark.parametrize(
+    "model,environment_field",
+    [
+        (ShellBuildInteractiveEnvironmentRequest, "hostEnvironment"),
+        (ShellBuildInteractiveEnvironmentResult, "environment"),
+    ],
+)
+def test_shell_environment_repr_redacts_values_without_changing_wire(model, environment_field):
+    environment = {
+        "GITHUB_TOKEN": "fake-shell-token",
+        "CUSTOM_CREDENTIAL": "fake-shell-custom-credential",
+    }
+    wire = {environment_field: environment}
+    if model is ShellBuildInteractiveEnvironmentRequest:
+        wire.update(additionalBlockedNames=[], caseInsensitive=False)
+    value = model.from_dict(wire)
+
+    for secret in environment.values():
+        assert secret not in repr(value)
+    assert value.to_dict() == wire
 
 
 @pytest.mark.parametrize("mode", list(FetchResponseMode))

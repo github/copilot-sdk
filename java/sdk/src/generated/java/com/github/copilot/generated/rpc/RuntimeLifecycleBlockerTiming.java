@@ -25,7 +25,7 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 record RuntimeLifecycleBlockerTiming(
-    /** ISO 8601 timestamp when this dependency began blocking progress. */
+    /** ISO 8601 timestamp when this dependency began blocking its owner. */
     @JsonProperty("blockingSince") OffsetDateTime blockingSince
 ) {
 

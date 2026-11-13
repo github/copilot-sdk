@@ -79,6 +79,8 @@ extern "C" fn on_outbound(user_data: *mut c_void, bytes: *const u8, len: usize) 
 /// process-globally and never unloaded (see [`load_library`]), so this holds
 /// only the bound fn pointers and connection state.
 pub(crate) struct FfiShared {
+    #[cfg(copilot_cli_host)]
+    library: &'static Library,
     auth_owner: parking_lot::Mutex<Option<Arc<dyn crate::InProcessAuthOwner>>>,
     host_shutdown: HostShutdownFn,
     owns_host: bool,
@@ -101,6 +103,33 @@ unsafe impl Send for FfiShared {}
 unsafe impl Sync for FfiShared {}
 
 impl FfiShared {
+    #[cfg(copilot_cli_host)]
+    pub(crate) fn admit_cli_host(&self) -> Result<(), Error> {
+        let _operation = self.operation_lock.lock();
+        let connection = self.connection_id().ok_or_else(|| {
+            Error::with_message(
+                ErrorKind::InvalidConfig,
+                "the SDK's in-process connection is no longer active",
+            )
+        })?;
+        let admit = bind::<unsafe extern "C" fn(u32) -> bool>(
+            self.library,
+            b"copilot_runtime_cli_host_connection_admit\0",
+            &self.library_path,
+        )?;
+        // SAFETY: the SDK retains this exact image and owns the live connection.
+        if unsafe { admit(connection) } {
+            Ok(())
+        } else {
+            Err(Error::with_message(
+                ErrorKind::InvalidConfig,
+                format!(
+                    "the runtime rejected private CLI host admission for connection {connection}"
+                ),
+            ))
+        }
+    }
+
     pub(crate) fn server_id(&self) -> Option<u32> {
         let server_id = self.server_id.load(Ordering::SeqCst);
         (!self.closed.load(Ordering::SeqCst) && server_id != 0).then_some(server_id)
@@ -547,6 +576,8 @@ impl AsyncRead for FfiReader {
 /// Prepared FFI host. The cdylib is loaded process-globally and never unloaded
 /// (see [`load_library`]).
 pub(crate) struct FfiHost {
+    #[cfg(copilot_cli_host)]
+    library: &'static Library,
     auth_owner: Option<Arc<dyn crate::InProcessAuthOwner>>,
     host_start_with_auth_owner: Option<HostStartWithAuthOwnerFn>,
     session_binding: Option<crate::InProcessSessionBinding>,
@@ -678,6 +709,8 @@ impl FfiHost {
         )?;
 
         Ok(Self {
+            #[cfg(copilot_cli_host)]
+            library: lib,
             auth_owner,
             host_start_with_auth_owner,
             session_binding,
@@ -847,6 +880,8 @@ impl FfiHost {
         }
 
         let shared = Arc::new(FfiShared {
+            #[cfg(copilot_cli_host)]
+            library: self.library,
             auth_owner: parking_lot::Mutex::new(self.auth_owner),
             host_shutdown: self.host_shutdown,
             owns_host,
@@ -1117,7 +1152,7 @@ fn build_env_json(environment: &[(String, String)]) -> Option<Vec<u8>> {
 mod tests;
 
 #[cfg(test)]
-mod initiation_tests;
+pub(crate) mod initiation_tests;
 
 #[cfg(test)]
 mod shutdown_tests;

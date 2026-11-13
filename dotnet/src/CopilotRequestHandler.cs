@@ -929,10 +929,17 @@ internal sealed class LlmInferenceExchange
 
     internal void PushEnd() => _body.Writer.TryWrite(new BodyItem { End = true });
 
-    internal void PushCancel(string? reason)
+    internal void PushCancel(string? reason, bool dispatchCallbacksAsync = false)
     {
         _cancelled = true;
-        Abort.Cancel();
+        if (dispatchCallbacksAsync)
+        {
+            _ = CopilotClient.CancelCallbacksAsync(Abort);
+        }
+        else
+        {
+            Abort.Cancel();
+        }
         _body.Writer.TryWrite(new BodyItem { Cancel = true, CancelReason = reason });
     }
 
@@ -1216,7 +1223,7 @@ internal sealed class LlmInferenceAdapter(CopilotRequestHandler handler, Func<Se
         {
             if (_pending.TryRemove(requestId, out _))
             {
-                exchange.PushCancel("RPC connection closed");
+                exchange.PushCancel("RPC connection closed", dispatchCallbacksAsync: true);
             }
         }
     }

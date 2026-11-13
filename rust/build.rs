@@ -12,6 +12,11 @@ mod openssl_linkage;
 mod platform_dirs;
 
 fn main() {
+    println!("cargo::rustc-check-cfg=cfg(copilot_cli_host)");
+    println!("cargo::rerun-if-env-changed=COPILOT_REPOSITORY_CLI_HOST");
+    if std::env::var("COPILOT_REPOSITORY_CLI_HOST").as_deref() == Ok("1") {
+        println!("cargo::rustc-cfg=copilot_cli_host");
+    }
     #[cfg(feature = "runtime")]
     implementation::main();
     #[cfg(not(feature = "runtime"))]

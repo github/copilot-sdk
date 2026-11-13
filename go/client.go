@@ -186,7 +186,7 @@ type Client struct {
 	process                               *exec.Cmd
 	processStdin                          io.WriteCloser
 	client                                *jsonrpc2.Client
-	actualPort                            int
+	actualPort                            atomic.Int64 // read by RuntimePort without startStopMux
 	actualHost                            string
 	state                                 connectionState
 	sessions                              map[string]*Session
@@ -326,7 +326,7 @@ func NewClient(options *ClientOptions) *Client {
 		}
 		host, port := parseCLIURL(conn.URL)
 		client.actualHost = host
-		client.actualPort = port
+		client.actualPort.Store(int64(port))
 		client.isExternalServer = true
 		client.useStdio = false
 		client.tcpConnectionToken = conn.ConnectionToken
@@ -544,6 +544,10 @@ func (c *Client) Start(ctx context.Context) (err error) {
 		select {
 		case <-c.client.ConnectionClosed():
 			// The close callback may still be waiting to publish disconnected state.
+		case <-c.processDone:
+			// The runtime exited and requests already fail with its exit error,
+			// but the reader may still be running a handler and has not reached
+			// the end of the stream to close the connection.
 		default:
 			return nil
 		}
@@ -553,7 +557,14 @@ func (c *Client) Start(ctx context.Context) (err error) {
 		if err := c.killProcessAndWait(); err != nil {
 			return fmt.Errorf("failed to retire previous runtime: %w", err)
 		}
-		c.client.Stop()
+		// Nothing listens on the retired runtime's port any more.
+		if !c.isExternalServer {
+			c.actualPort.Store(0)
+		}
+		// Do not join the lost connection's reader: the caller may be a handler
+		// on it, such as a lifecycle listener that saw a request fail when the
+		// runtime exited. The reader exits once that handler returns.
+		c.client.Close()
 		// Sessions are bound to the lost connection, so the new one cannot
 		// serve them; retire them as ForceStop does so their waiters fail now.
 		c.disconnectAhpHosts()
@@ -588,6 +599,9 @@ func (c *Client) Start(ctx context.Context) (err error) {
 	// Connect to the server
 	if err := c.connectToServer(ctx); err != nil {
 		killErr := c.killProcess()
+		if !c.isExternalServer {
+			c.actualPort.Store(0)
+		}
 		c.state = stateError
 		return errors.Join(err, killErr)
 	}
@@ -605,6 +619,9 @@ func (c *Client) Start(ctx context.Context) (err error) {
 		c.RPC = nil
 		c.internalRPC = nil
 		killErr := c.killProcess()
+		if !c.isExternalServer {
+			c.actualPort.Store(0)
+		}
 		c.state = stateError
 		return errors.Join(err, killErr)
 	}
@@ -816,7 +833,7 @@ func (c *Client) Stop() error {
 
 	c.state = stateDisconnected
 	if !c.isExternalServer {
-		c.actualPort = 0
+		c.actualPort.Store(0)
 	}
 
 	return errors.Join(errs...)
@@ -916,7 +933,7 @@ func (c *Client) ForceStop() {
 
 	c.state = stateDisconnected
 	if !c.isExternalServer {
-		c.actualPort = 0
+		c.actualPort.Store(0)
 	}
 }
 
@@ -973,6 +990,17 @@ func (a *startupAttempt) finish(err error) {
 // closing the transport and keeps startup set until it returns, so callers fail
 // with that error instead of restarting the client during its cleanup.
 func (c *Client) ensureConnected(ctx context.Context) (*jsonrpc2.Client, error) {
+	return c.acquireTransport(ctx, true)
+}
+
+// connectedTransport is ensureConnected for requests that do not start the
+// client: it waits for an in-progress Start, but fails when the client is
+// disconnected.
+func (c *Client) connectedTransport(ctx context.Context) (*jsonrpc2.Client, error) {
+	return c.acquireTransport(ctx, false)
+}
+
+func (c *Client) acquireTransport(ctx context.Context, autoStart bool) (*jsonrpc2.Client, error) {
 	// Do not take startStopMux: the caller may be the JSON-RPC reader, which
 	// Stop joins while holding that lock.
 	started := false
@@ -1009,6 +1037,9 @@ func (c *Client) ensureConnected(ctx context.Context) (*jsonrpc2.Client, error) 
 				hook()
 			}
 			return transport, nil
+		}
+		if !autoStart {
+			return nil, errors.New("client not connected")
 		}
 		if started {
 			return nil, errors.New("client is not connected")
@@ -2568,7 +2599,7 @@ func (c *Client) handleLifecycleEvent(event SessionLifecycleEvent) {
 // RuntimePort returns the TCP port the runtime is listening on.
 // Returns 0 if the client is not connected or using stdio transport.
 func (c *Client) RuntimePort() int {
-	return c.actualPort
+	return int(c.actualPort.Load())
 }
 
 // Ping sends a ping request to the server to verify connectivity.
@@ -2585,11 +2616,15 @@ func (c *Client) RuntimePort() int {
 //	    log.Printf("Server responded at %s", resp.Timestamp)
 //	}
 func (c *Client) Ping(ctx context.Context, message string) (*PingResponse, error) {
-	if c.client == nil {
-		return nil, fmt.Errorf("client not connected")
+	transport, err := c.connectedTransport(ctx)
+	if err != nil {
+		return nil, err
 	}
+	return ping(ctx, transport, message)
+}
 
-	result, err := c.client.Request(ctx, "ping", pingRequest{Message: message})
+func ping(ctx context.Context, transport *jsonrpc2.Client, message string) (*PingResponse, error) {
+	result, err := transport.Request(ctx, "ping", pingRequest{Message: message})
 	if err != nil {
 		return nil, err
 	}
@@ -2603,11 +2638,12 @@ func (c *Client) Ping(ctx context.Context, message string) (*PingResponse, error
 
 // GetStatus returns CLI status including version and protocol information
 func (c *Client) GetStatus(ctx context.Context) (*GetStatusResponse, error) {
-	if c.client == nil {
-		return nil, fmt.Errorf("client not connected")
+	transport, err := c.connectedTransport(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	result, err := c.client.Request(ctx, "status.get", getStatusRequest{})
+	result, err := transport.Request(ctx, "status.get", getStatusRequest{})
 	if err != nil {
 		return nil, err
 	}
@@ -2621,11 +2657,12 @@ func (c *Client) GetStatus(ctx context.Context) (*GetStatusResponse, error) {
 
 // GetAuthStatus returns current authentication status
 func (c *Client) GetAuthStatus(ctx context.Context) (*GetAuthStatusResponse, error) {
-	if c.client == nil {
-		return nil, fmt.Errorf("client not connected")
+	transport, err := c.connectedTransport(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	result, err := c.client.Request(ctx, "auth.getStatus", getAuthStatusRequest{})
+	result, err := transport.Request(ctx, "auth.getStatus", getAuthStatusRequest{})
 	if err != nil {
 		return nil, err
 	}
@@ -2662,11 +2699,12 @@ func (c *Client) ListModels(ctx context.Context) ([]ModelInfo, error) {
 			return nil, err
 		}
 	} else {
-		if c.client == nil {
-			return nil, fmt.Errorf("client not connected")
+		transport, err := c.connectedTransport(ctx)
+		if err != nil {
+			return nil, err
 		}
 		// Cache miss - fetch from backend while holding lock
-		result, err := c.client.Request(ctx, "models.list", listModelsRequest{})
+		result, err := transport.Request(ctx, "models.list", listModelsRequest{})
 		if err != nil {
 			return nil, err
 		}
@@ -2696,6 +2734,11 @@ const minProtocolVersion = 3
 var runtimeShutdownTimeout = 10 * time.Second
 
 const processExitTimeout = 10 * time.Second
+
+// processOutputDrainTimeout bounds how long waiting for a stdio runtime that has
+// exited also waits for its output to close. A process the runtime started can
+// inherit its stdout and stderr and hold them open after the runtime exits.
+const processOutputDrainTimeout = time.Second
 
 // verifyProtocolVersion sends the `connect` handshake (carrying the optional token) and
 // verifies the server's protocol version. Falls back to `ping` against legacy servers
@@ -2748,8 +2791,9 @@ func (c *Client) verifyProtocolVersion(ctx context.Context) error {
 				return fmt.Errorf("this runtime does not support Entra client configuration: %w", err)
 			}
 			// Legacy server without `connect`; fall back to `ping`. A token, if any,
-			// is silently dropped — the legacy server can't enforce one.
-			pingResult, perr := c.Ping(ctx, "")
+			// is silently dropped — the legacy server can't enforce one. Ping would
+			// wait for this Start to publish the transport, so use it directly.
+			pingResult, perr := ping(ctx, c.client, "")
 			if perr != nil {
 				return perr
 			}
@@ -2925,6 +2969,11 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 		}
 
 		c.process.Stderr = truncbuffer.NewTruncBuffer(stderrBufferSize)
+		// Without a bound, Wait keeps copying stderr while a process the runtime
+		// started holds it, so neither processDone nor the end of stdout reports
+		// the exit and Start keeps the dead connection. Once the bound passes,
+		// Wait closes the pipes, which ends the reader as an exit without one does.
+		c.process.WaitDelay = processOutputDrainTimeout
 
 		if err := c.process.Start(); err != nil {
 			return c.startFailure(err)
@@ -2993,7 +3042,7 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 							killErr := c.killProcess()
 							return errors.Join(fmt.Errorf("failed to parse port: %w", err), killErr)
 						}
-						c.actualPort = port
+						c.actualPort.Store(int64(port))
 						return nil
 					}
 				}
@@ -3188,6 +3237,11 @@ func (c *Client) monitorProcess() {
 	c.processErrorPtr = &processError
 	go func() {
 		waitErr := proc.Wait()
+		if errors.Is(waitErr, exec.ErrWaitDelay) {
+			// The runtime exited successfully; only a process it started still
+			// held its output.
+			waitErr = nil
+		}
 		var stderrOutput string
 		if buf, ok := proc.Stderr.(*truncbuffer.TruncBuffer); ok {
 			stderrOutput = strings.TrimSpace(buf.String())
@@ -3222,13 +3276,14 @@ func (c *Client) connectToServer(ctx context.Context) error {
 
 // connectViaTCP connects to the CLI server via TCP socket.
 func (c *Client) connectViaTCP(ctx context.Context) error {
-	if c.actualPort == 0 {
+	port := c.actualPort.Load()
+	if port == 0 {
 		return fmt.Errorf("server port not available")
 	}
 
 	// Merge a 10-second timeout with the caller's context so whichever
 	// deadline comes first wins.
-	address := net.JoinHostPort(c.actualHost, fmt.Sprintf("%d", c.actualPort))
+	address := net.JoinHostPort(c.actualHost, fmt.Sprintf("%d", port))
 	dialCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	var dialer net.Dialer
@@ -3431,8 +3486,14 @@ func (c *Client) closeInstallationConfirmationAdapter() {
 }
 
 func (c *Client) waitForAutoModeRecoveryCleanup(ctx context.Context, sessionID string) error {
+	// Start writes c.client while startup is set (see ensureConnected), so read
+	// it only when no Start is in progress. The transport a Start is creating
+	// has no cleanups yet, and Start has already retired the one it replaces.
 	c.transportMux.Lock()
-	transport := c.client
+	var transport *jsonrpc2.Client
+	if c.startup == nil {
+		transport = c.client
+	}
 	c.transportMux.Unlock()
 	c.sessionsMux.Lock()
 	cleanups := c.autoModeRecoveryCleanups[transport]

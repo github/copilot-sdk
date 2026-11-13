@@ -1327,6 +1327,10 @@ class PingResponse:
         return result
 
 
+async def _ping(client: JsonRpcClient, message: str | None) -> PingResponse:
+    return PingResponse.from_dict(await client.request("ping", {"message": message}))
+
+
 @dataclass
 class StopError(Exception):
     """Error that occurred during client stop cleanup."""
@@ -2341,6 +2345,7 @@ class CopilotClient:
         self._client: JsonRpcClient | None = None
         self._state: _ConnectionState = "disconnected"
         self._start_lock = asyncio.Lock()
+        self._start_outcome: asyncio.Future[BaseException | None] | None = None
         self._sessions: dict[str, CopilotSession] = {}
         self._sessions_lock = threading.Lock()
         # Open secret prompts by session ID and request ID. Tracked here rather
@@ -2364,6 +2369,10 @@ class CopilotClient:
         self._github_token_provider_adapter = _GitHubTokenProviderAdapter(self)
         self._models_cache: list[ModelInfo] | None = None
         self._models_cache_lock = asyncio.Lock()
+        # Clearing the cache retires the lock and bumps this, so a fetch in flight or queued
+        # cannot repopulate it afterwards. Clearing never waits on the lock, which a custom
+        # model callback may hold for as long as it likes.
+        self._models_cache_generation = 0
         self._lifecycle_handlers: list[SessionLifecycleHandler] = []
         self._typed_lifecycle_handlers: dict[
             SessionLifecycleEventType, list[SessionLifecycleHandler]
@@ -2413,9 +2422,14 @@ class CopilotClient:
     def _resolve_inprocess_runtime(self) -> str:
         explicit_cli = os.environ.get("COPILOT_CLI_PATH")
         if explicit_cli:
-            from ._cli_download import ensure_runtime_library
+            cli_path = Path(explicit_cli)
+            if not cli_path.is_file() or cli_path.stat().st_size == 0:
+                raise RuntimeError(
+                    f"COPILOT_CLI_PATH must point to a non-empty CLI file: '{explicit_cli}'."
+                )
+            from ._ffi_runtime_host import resolve_library_path
 
-            runtime_path = ensure_runtime_library(explicit_cli)
+            runtime_path = resolve_library_path(explicit_cli)
             if runtime_path is None:
                 raise RuntimeError(
                     f"In-process runtime library not found next to '{explicit_cli}'."
@@ -2559,9 +2573,63 @@ class CopilotClient:
         # state check and all transport initialization under one lock so only
         # one caller can spawn a runtime and install its connection at a time.
         async with self._start_lock:
-            await self._start()
+            outcome: asyncio.Future[BaseException | None] = (
+                asyncio.get_running_loop().create_future()
+            )
+            self._start_outcome = outcome
+            try:
+                await self._start()
+            except BaseException as error:
+                outcome.set_result(error)
+                raise
+            else:
+                outcome.set_result(None)
+
+    async def _started_client(self) -> JsonRpcClient:
+        """Return the connection for a request that must not start the client.
+
+        A start() already in progress is waited for, so the request never precedes the
+        ``connect`` handshake or the provider registrations that follow it.
+        """
+        outcome = self._start_outcome
+        if outcome is not None and not outcome.done():
+            while True:
+                failure = await asyncio.shield(outcome)
+                if isinstance(failure, asyncio.CancelledError):
+                    raise failure
+                if failure is not None:
+                    raise RuntimeError(f"Client failed to start: {failure}") from failure
+                # A start queued behind the one just observed may already be replacing
+                # its connection, so a successful outcome does not mean the installed
+                # client is still the one to use. Follow it to the latest attempt.
+                latest = self._start_outcome
+                if latest is None or latest is outcome:
+                    break
+                outcome = latest
+        if self._client is None:
+            raise RuntimeError("Client not connected")
+        return self._client
 
     async def _start(self) -> None:
+        with self._sessions_lock:
+            connected = self._state == "connected"
+            process = self._cli_process
+            rpc = self._client
+        if (
+            connected
+            and process is not None
+            and isinstance(self._connection, StdioRuntimeConnection)
+            and process.poll() is not None
+        ):
+            # The stdio runtime this client spawned has exited, so every request on this
+            # connection already fails, but the connection has not closed: a descendant of
+            # the runtime can hold its output open, so the reader never sees EOF. Retire the
+            # connection as that EOF would, then start anew.
+            if rpc is not None:
+                await asyncio.to_thread(rpc._report_close)
+            else:
+                self._handle_connection_close()
+
         with self._sessions_lock:
             if self._state == "connected":
                 return
@@ -2812,8 +2880,7 @@ class CopilotClient:
         self._installation_confirmation_adapter = None
 
         # Clear models cache
-        async with self._models_cache_lock:
-            self._models_cache = None
+        self._clear_models_cache()
 
         # Dispose the in-process FFI host and release the loaded native library.
         if self._ffi_host is not None:
@@ -2872,6 +2939,11 @@ class CopilotClient:
 
         with self._sessions_lock:
             self._connection_lost = False
+
+    def _clear_models_cache(self) -> None:
+        self._models_cache_generation += 1
+        self._models_cache_lock = asyncio.Lock()
+        self._models_cache = None
 
     async def force_stop(self) -> None:
         """
@@ -3002,8 +3074,7 @@ class CopilotClient:
         self._installation_confirmation_adapter = None
 
         # Clear models cache
-        async with self._models_cache_lock:
-            self._models_cache = None
+        self._clear_models_cache()
 
         self._tcp_process_exit_error = None
         self._state = "disconnected"
@@ -5134,17 +5205,14 @@ class CopilotClient:
             A PingResponse object containing the ping response.
 
         Raises:
-            RuntimeError: If the client is not connected.
+            RuntimeError: If the client is not connected, or if a start() in progress
+                when this was called fails.
 
         Example:
             >>> response = await client.ping("health check")
             >>> print(f"Server responded at {response.timestamp}")
         """
-        if not self._client:
-            raise RuntimeError("Client not connected")
-
-        result = await self._client.request("ping", {"message": message})
-        return PingResponse.from_dict(result)
+        return await _ping(await self._started_client(), message)
 
     async def get_status(self) -> GetStatusResponse:
         """
@@ -5154,16 +5222,15 @@ class CopilotClient:
             A GetStatusResponse object containing version and protocolVersion.
 
         Raises:
-            RuntimeError: If the client is not connected.
+            RuntimeError: If the client is not connected, or if a start() in progress
+                when this was called fails.
 
         Example:
             >>> status = await client.get_status()
             >>> print(f"CLI version: {status.version}")
         """
-        if not self._client:
-            raise RuntimeError("Client not connected")
-
-        result = await self._client.request("status.get", {})
+        client = await self._started_client()
+        result = await client.request("status.get", {})
         return GetStatusResponse.from_dict(result)
 
     async def get_auth_status(self) -> GetAuthStatusResponse:
@@ -5174,17 +5241,16 @@ class CopilotClient:
             A GetAuthStatusResponse object containing authentication state.
 
         Raises:
-            RuntimeError: If the client is not connected.
+            RuntimeError: If the client is not connected, or if a start() in progress
+                when this was called fails.
 
         Example:
             >>> auth = await client.get_auth_status()
             >>> if auth.isAuthenticated:
             ...     print(f"Logged in as {auth.login}")
         """
-        if not self._client:
-            raise RuntimeError("Client not connected")
-
-        result = await self._client.request("auth.getStatus", {})
+        client = await self._started_client()
+        result = await client.request("auth.getStatus", {})
         return GetAuthStatusResponse.from_dict(result)
 
     async def list_models(self) -> list[ModelInfo]:
@@ -5202,7 +5268,8 @@ class CopilotClient:
             A list of ModelInfo objects with model details.
 
         Raises:
-            RuntimeError: If the client is not connected (when no custom handler is set).
+            RuntimeError: If the client is not connected, or if a start() in progress
+                when this was called fails (when no custom handler is set).
             Exception: If not authenticated.
 
         Example:
@@ -5210,32 +5277,48 @@ class CopilotClient:
             >>> for model in models:
             ...     print(f"{model.id}: {model.name}")
         """
-        # Use asyncio lock to prevent race condition with concurrent calls
-        async with self._models_cache_lock:
-            # Check cache (already inside lock)
-            if self._models_cache is not None:
-                return list(self._models_cache)  # Return a copy to prevent cache mutation
+        while True:
+            # Startup cleanup clears the cache, so wait for startup outside the lock.
+            client = await self._started_client() if not self._on_list_models else None
+            # Use asyncio lock to prevent race condition with concurrent calls
+            lock = self._models_cache_lock
+            generation = self._models_cache_generation
+            async with lock:
+                if generation != self._models_cache_generation:
+                    # The cache and its queue were retired while this call waited.
+                    continue
+                if client is not None and (self._client is not client or self._start_lock.locked()):
+                    # Restart cleanup can still have the closing client installed.
+                    # Gate on startup again outside the cache lock.
+                    continue
+                return await self._list_models_locked(client, generation)
 
-            if self._on_list_models:
-                # Use custom handler instead of CLI RPC
-                result = self._on_list_models()
-                if inspect.isawaitable(result):
-                    models = cast(list[ModelInfo], await result)
-                else:
-                    models = cast(list[ModelInfo], result)
+    async def _list_models_locked(
+        self, client: JsonRpcClient | None, generation: int
+    ) -> list[ModelInfo]:
+        # Check cache (already inside lock)
+        if self._models_cache is not None:
+            return list(self._models_cache)  # Return a copy to prevent cache mutation
+
+        if self._on_list_models:
+            # Use custom handler instead of CLI RPC
+            result = self._on_list_models()
+            if inspect.isawaitable(result):
+                models = cast(list[ModelInfo], await result)
             else:
-                if not self._client:
-                    raise RuntimeError("Client not connected")
+                models = cast(list[ModelInfo], result)
+        else:
+            assert client is not None
+            # Cache miss - fetch from backend while holding lock
+            response = await client.request("models.list", {})
+            models_data = response.get("models", [])
+            models = [ModelInfo.from_dict(model) for model in models_data]
 
-                # Cache miss - fetch from backend while holding lock
-                response = await self._client.request("models.list", {})
-                models_data = response.get("models", [])
-                models = [ModelInfo.from_dict(model) for model in models_data]
-
-            # Update cache before releasing lock (copy to prevent external mutation)
+        # Update cache before releasing lock (copy to prevent external mutation)
+        if generation == self._models_cache_generation:
             self._models_cache = list(models)
 
-            return list(models)  # Return a copy to prevent cache mutation
+        return list(models)  # Return a copy to prevent cache mutation
 
     async def list_sessions(self, filter: SessionListFilter | None = None) -> list[SessionMetadata]:
         """
@@ -5571,9 +5654,10 @@ class CopilotClient:
                         "This runtime does not support Entra client configuration."
                     ) from err
                 # Legacy server without `connect`; fall back to `ping`. A token, if any,
-                # is silently dropped — the legacy server can't enforce one.
+                # is silently dropped — the legacy server can't enforce one. ping() would
+                # wait for the start() running this, so use the connection directly.
                 used_fallback_ping = True
-                ping_result = await self.ping()
+                ping_result = await _ping(self._client, None)
                 server_version = ping_result.protocol_version
             else:
                 raise

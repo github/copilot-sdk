@@ -475,10 +475,9 @@ def ensure_runtime_library(cli_path: str, version: str | None = None) -> str | N
     under its natural platform name (``libcopilot_runtime.so`` / ``.dylib`` /
     ``copilot_runtime.dll``).
 
-    Copying the library next to an external CLI is opt-in — this is only invoked when
-    the in-process transport is selected (lazy) or via
-    ``python -m copilot download-runtime --in-process`` (explicit). The default stdio
-    path leaves the library in the canonical staged bundle.
+    Explicit provisioning via ``python -m copilot download-runtime --in-process``
+    uses this helper. In-process startup with an explicit CLI only looks for an
+    existing library in the selected installation; it does not call this helper.
 
     Returns the absolute path to the library, or None if it could not be provisioned
     (e.g. download disabled or unsupported platform). Raises RuntimeError on

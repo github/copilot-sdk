@@ -611,7 +611,9 @@ fn consumer_sdk_packages(
     target: Option<&str>,
 ) -> Vec<String> {
     let root = fixture_dir();
-    let sdk = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let sdk = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .canonicalize()
+        .unwrap();
     let manifest = format!(
         "[package]\nname = \"sdk-consumer-fixture\"\nversion = \"0.0.0\"\nedition = \"2024\"\n\
          [workspace]\n[dependencies]\ngithub-copilot-sdk = {{ path = {}, default-features = false, features = {} }}\n",

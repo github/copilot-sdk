@@ -1251,7 +1251,11 @@ fn extract_cli_binary(archive: &[u8]) -> Result<Vec<u8>, EmbeddedCliError> {
         let name = entry
             .name()
             .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Archive, e))?;
-        if name == CLI_BINARY_NAME || name.ends_with(&format!("/{CLI_BINARY_NAME}")) {
+        if name == CLI_BINARY_NAME
+            || name
+                .strip_suffix(CLI_BINARY_NAME)
+                .is_some_and(|prefix| prefix.ends_with('/'))
+        {
             let mut bytes = Vec::with_capacity(entry.size() as usize);
             entry
                 .read_to_end(&mut bytes)
@@ -1276,7 +1280,11 @@ fn extract_binary(archive: &[u8], binary_name: &str) -> Result<Vec<u8>, Embedded
             .path()
             .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Archive, e))?;
         let name = path.to_string_lossy();
-        if name == binary_name || name.ends_with(&format!("/{binary_name}")) {
+        if name == binary_name
+            || name
+                .strip_suffix(binary_name)
+                .is_some_and(|prefix| prefix.ends_with('/'))
+        {
             let mut bytes = Vec::with_capacity(entry.size() as usize);
             entry
                 .read_to_end(&mut bytes)

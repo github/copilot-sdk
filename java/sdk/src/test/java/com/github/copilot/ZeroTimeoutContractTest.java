@@ -9,6 +9,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 
 import org.junit.jupiter.api.Test;
 
@@ -41,17 +42,20 @@ public class ZeroTimeoutContractTest {
         });
 
         try (var session = ctor.newInstance("zero-timeout-test", mockRpc, null)) {
+            // Rejecting scheduled work makes an accidental zero-delay timeout fail
+            // synchronously, rather than depending on scheduler thread timing.
+            var schedulerField = CopilotSession.class.getDeclaredField("timeoutScheduler");
+            schedulerField.setAccessible(true);
+            ((ScheduledExecutorService) schedulerField.get(session)).shutdownNow();
 
             // Per the Javadoc: timeoutMs of 0 means "no timeout".
             // The future should NOT complete with TimeoutException.
             CompletableFuture<AssistantMessageEvent> result = session
                     .sendAndWait(new MessageOptions().setPrompt("test"), 0);
 
-            // Give the scheduler a chance to fire if it was (incorrectly) scheduled
-            Thread.sleep(200);
-
             // The future should still be pending — not timed out
             assertFalse(result.isDone(), "Future should not be done; timeoutMs=0 means no timeout per Javadoc");
+            verify(mockRpc).invoke(eq("session.sendAndWait"), any(), any());
         }
     }
 }

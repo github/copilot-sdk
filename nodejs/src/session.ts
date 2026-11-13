@@ -22,6 +22,7 @@ import type {
     CurrentToolMetadata,
     McpOauthPendingRequestResponse,
     ProtocolExternalToolDefinition,
+    WorkflowAgentOptions as WireWorkflowAgentOptions,
     WorkflowLogLine,
     WorkflowRunResult as WireWorkflowRunResult,
     ModelSwitchAutoTierResult,
@@ -99,6 +100,7 @@ import type {
 import {
     WORKFLOW_AGENT_OPTION_KEYS,
     getWorkflowDefinition,
+    getWorkflowAgentReference,
     WorkflowResumeError,
     isWorkflowRunTerminal,
     type WorkflowResumeErrorCode,
@@ -113,6 +115,11 @@ import {
     type WorkflowStepOptions,
 } from "./workflow.js";
 
+type PrivateWorkflowAgentTransportOptions = WireWorkflowAgentOptions & {
+    role?: string;
+    timeoutSeconds?: number;
+};
+
 function isWorkflowResumeErrorCode(value: unknown): value is WorkflowResumeErrorCode {
     return (
         value === "not_found" ||
@@ -123,18 +130,19 @@ function isWorkflowResumeErrorCode(value: unknown): value is WorkflowResumeError
         value === "workflow_limits_invalid" ||
         value === "workflow_session_disposed" ||
         value === "workflow_storage_unavailable" ||
-        value === "workflow_storage_corrupt"
+        value === "workflow_storage_corrupt" ||
+        value === "workflow_role_definition_mismatch"
     );
 }
 
-function copyDefinedWorkflowAgentOption<TKey extends keyof WorkflowAgentOptions>(
+function copyDefinedWorkflowAgentOption<TKey extends Exclude<keyof WorkflowAgentOptions, "agent">>(
     source: WorkflowAgentOptions,
-    target: WorkflowAgentOptions,
+    target: PrivateWorkflowAgentTransportOptions,
     key: TKey
 ): void {
     const value = source[key];
     if (value !== undefined) {
-        target[key] = value;
+        target[key] = value as PrivateWorkflowAgentTransportOptions[TKey];
     }
 }
 
@@ -169,7 +177,7 @@ const workflowExecutionStore = new AsyncLocalStorage<WorkflowExecutionContext>()
 function throwIfWorkflowExecutionIsActive(): void {
     if (workflowExecutionStore.getStore()?.active) {
         throw new Error(
-            "workflow.run, workflow.resume, and workflow.pause are not allowed while a workflow body is running on this call path."
+            "workflow.start, workflow.run, workflow.resume, and workflow.pause are not allowed while a workflow body is running on this call path."
         );
     }
 }
@@ -573,16 +581,16 @@ export class CopilotSession {
      * change or be removed in future SDK or CLI releases.
      */
     readonly workflow: SessionWorkflowApi = {
-        run: (async (
+        start: (async (
             nameOrHandle: string | WorkflowHandle,
             options?: WorkflowRunOptions
-        ): Promise<unknown> => {
+        ): Promise<WorkflowRunResult> => {
             throwIfWorkflowExecutionIsActive();
             const name =
                 typeof nameOrHandle === "string"
                     ? nameOrHandle
                     : getWorkflowDefinition(nameOrHandle).meta.name;
-            const envelope = await this.rpc.workflow.run({
+            return this.rpc.workflow.run({
                 name,
                 args: options?.args === undefined ? {} : options.args,
                 options: {
@@ -591,7 +599,17 @@ export class CopilotSession {
                     logPhaseNames: options?.logPhaseNames,
                 },
             });
-
+        }) as SessionWorkflowApi["start"],
+        run: (async (
+            nameOrHandle: string | WorkflowHandle,
+            options?: WorkflowRunOptions
+        ): Promise<WorkflowRunResult> => {
+            throwIfWorkflowExecutionIsActive();
+            const name =
+                typeof nameOrHandle === "string"
+                    ? nameOrHandle
+                    : getWorkflowDefinition(nameOrHandle).meta.name;
+            const envelope = await this.workflow.start(name, options);
             return this.settleWorkflowRun(envelope);
         }) as SessionWorkflowApi["run"],
         resume: (async (runId: string, options?: Parameters<SessionWorkflowApi["resume"]>[1]) => {
@@ -2209,6 +2227,7 @@ export class CopilotSession {
                 try {
                     const context: WorkflowContext = {
                         runId: params.runId,
+                        agents: definition.agents,
                         args: params.args,
                         session: self,
                         signal: controller.signal,
@@ -2222,9 +2241,20 @@ export class CopilotSession {
                         },
                         agent: async (prompt, options = {}) => {
                             await progress.flush();
-                            const opts: WorkflowAgentOptions = {};
+                            const opts: PrivateWorkflowAgentTransportOptions = {};
                             for (const key of WORKFLOW_AGENT_OPTION_KEYS) {
-                                copyDefinedWorkflowAgentOption(options, opts, key);
+                                if (key === "agent") {
+                                    if (typeof options.agent === "string") {
+                                        opts.agent = options.agent;
+                                    } else if (options.agent !== undefined) {
+                                        opts.role = getWorkflowAgentReference(
+                                            definition,
+                                            options.agent
+                                        );
+                                    }
+                                } else {
+                                    copyDefinedWorkflowAgentOption(options, opts, key);
+                                }
                             }
                             const response = await awaitWorkflowOperation(
                                 () =>
@@ -3305,8 +3335,9 @@ export class CopilotSession {
      * The agent sees the new tools from its next model request, which can fall
      * within a turn in progress. A model request already in flight was made
      * with the previous tools, so the agent can still call a tool you removed.
-     * This session doesn't answer that call, and it can stay pending until the
-     * turn is aborted. If a running turn might still call a tool you remove,
+     * If no connected client supplies a tool with that name any more, the call
+     * fails with an error that tells the agent the tool is no longer available,
+     * and the turn continues. If you don't want the agent to see that failure,
      * replace tools while the session is idle.
      *
      * @param tools - The complete set of tools this client supplies

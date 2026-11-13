@@ -758,8 +758,8 @@ did not produce the multi-release output. Re-build on JDK 25+ and verify the
             <dependencies>
                 <!--
                     Classpath resource native/<classifier>/runtime.node, resolved by
-                    NativeRuntimeLoader when no runtime.node is found next to
-                    COPILOT_CLI_PATH. Test-scoped: production consumers add the
+                    NativeRuntimeLoader when COPILOT_CLI_PATH is unset.
+                    Test-scoped: production consumers add the
                     classifier they need themselves.
                 -->
                 <dependency>

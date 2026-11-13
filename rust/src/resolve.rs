@@ -13,16 +13,17 @@
 //!    `bundled-cli` is off).
 //!
 //! There is no PATH scanning and no walking of standard install locations.
-//! If none of the above resolves to a real file,
+//! An invalid explicit environment override fails without falling back.
+//! If no configured source resolves to a real file,
 //! [`Client::start`](crate::Client::start) returns
 //! an [`ErrorKind::BinaryNotFound`](crate::ErrorKind::BinaryNotFound) error.
 
 use std::env;
-use std::path::{Path, PathBuf};
+#[cfg(any(feature = "bundled-cli", has_extracted_cli, test))]
+use std::path::Path;
+use std::path::PathBuf;
 
-use tracing::warn;
-
-use crate::{Error, ErrorKind};
+use crate::{ClientOptions, Error, ErrorKind};
 
 /// Resolve the CLI binary, optionally overriding the directory the bundled
 /// CLI is extracted to. Called by `Client::start` to thread
@@ -36,20 +37,41 @@ use crate::{Error, ErrorKind};
 /// the same env var is honored at runtime to find binaries written
 /// under it.
 pub(crate) fn copilot_binary_with_extract_dir(
-    extract_dir: Option<&Path>,
+    options: &ClientOptions,
     use_runtime_wrapper: bool,
 ) -> Result<PathBuf, Error> {
-    if let Ok(value) = env::var("COPILOT_CLI_PATH") {
-        let candidate = PathBuf::from(&value);
+    let is_cli_path = |key: &std::ffi::OsStr| {
+        if cfg!(windows) {
+            key.as_encoded_bytes()
+                .eq_ignore_ascii_case(b"COPILOT_CLI_PATH")
+        } else {
+            key == "COPILOT_CLI_PATH"
+        }
+    };
+    let cli_path = if options.env_remove.iter().any(|key| is_cli_path(key)) {
+        None
+    } else {
+        options
+            .env
+            .iter()
+            .rev()
+            .find(|(key, _)| is_cli_path(key))
+            .map(|(_, value)| value.clone())
+            .or_else(|| env::var_os("COPILOT_CLI_PATH"))
+    };
+    if let Some(value) = cli_path.filter(|value| !value.is_empty()) {
+        let candidate = std::path::absolute(options.working_directory.join(value))?;
         if candidate.is_file() {
             return Ok(candidate);
         }
-        warn!(
-            path = %candidate.display(),
-            "COPILOT_CLI_PATH is set but does not point to a file; falling back"
-        );
+        return Err(ErrorKind::BinaryNotFound {
+            name: candidate.display().to_string(),
+            hint: Some("COPILOT_CLI_PATH does not point to a file".into()),
+        }
+        .into());
     }
 
+    let extract_dir = options.bundled_cli_extract_dir.as_deref();
     #[cfg(feature = "bundled-cli")]
     if let Some(path) = bundled_program(extract_dir, use_runtime_wrapper)? {
         return Ok(path);
@@ -144,7 +166,7 @@ fn extracted_program(use_runtime_wrapper: bool) -> Result<Option<PathBuf>, Error
     } else if path.is_file() {
         return Ok(Some(path));
     }
-    warn!(
+    tracing::warn!(
         path = %path.display(),
         "expected build-time-extracted CLI is missing; rebuild the crate or set COPILOT_CLI_PATH"
     );

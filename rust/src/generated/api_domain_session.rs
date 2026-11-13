@@ -6138,6 +6138,36 @@ pub struct SessionsGetPersistedRemoteSteerableResult {
     pub remote_steerable: Option<bool>,
 }
 
+/// Local session whose persisted event-log presence to check without opening or scanning it.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionsHasEventsRequest {
+    /// Identifier of the local session to check.
+    pub session_id: SessionId,
+}
+
+/// Whether the local session has a persisted event-log path, including an empty log.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionsHasEventsResult {
+    /// True when the session's event-log path exists.
+    pub exists: bool,
+}
+
 /// Map of sessionId -> on-disk size in bytes for each session's workspace directory.
 ///
 /// <div class="warning">

@@ -12570,6 +12570,59 @@ pub(crate) struct SettingsRemoveRawKeyResult {
     pub status: String,
 }
 
+/// Caller-owned environment to filter under the runtime's interactive-shell credential policy.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShellBuildInteractiveEnvironmentRequest {
+    /// Additional variable names to omit, in addition to the runtime's required filters.
+    pub additional_blocked_names: Vec<String>,
+    /// Whether the shell host treats environment names as case-insensitive. Defaults to the runtime platform when omitted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub case_insensitive: Option<bool>,
+    /// Environment supplied by the host that will launch the shell.
+    pub host_environment: HashMap<String, String>,
+}
+
+impl std::fmt::Debug for ShellBuildInteractiveEnvironmentRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ShellBuildInteractiveEnvironmentRequest")
+            .field("additional_blocked_names", &self.additional_blocked_names)
+            .field("case_insensitive", &self.case_insensitive)
+            .field("host_environment", &"<redacted>")
+            .finish()
+    }
+}
+
+/// Filtered caller environment with the runtime's Git hardening applied; never includes the runtime process environment.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShellBuildInteractiveEnvironmentResult {
+    /// Environment for the host's interactive shell.
+    pub environment: HashMap<String, String>,
+}
+
+impl std::fmt::Debug for ShellBuildInteractiveEnvironmentResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ShellBuildInteractiveEnvironmentResult")
+            .field("environment", &"<redacted>")
+            .finish()
+    }
+}
+
 /// User-requested shell execution cancellation handle.
 ///
 /// <div class="warning">

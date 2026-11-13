@@ -70,6 +70,8 @@ impl Fixture {
 
     fn host(&self, behavior: Option<Behavior>) -> FfiHost {
         FfiHost {
+            #[cfg(copilot_cli_host)]
+            library: super::tests::library_without_private_admission(),
             auth_owner: behavior.map(|behavior| {
                 Arc::new(Owner {
                     id: self.id,

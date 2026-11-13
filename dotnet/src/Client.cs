@@ -73,7 +73,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     internal readonly ConcurrentDictionary<string, CopilotSession> _sessions = new();
     // Open secret prompts by session and request ID. Tracked here rather than on a session,
     // which a resume can replace while a prompt is open. Guarded by itself.
-    private readonly Dictionary<(string SessionId, string RequestId), CancellationTokenSource> _pendingShellAuthenticationRequests = [];
+    private readonly Dictionary<(string SessionId, string RequestId), ShellAuthenticationCancellation> _pendingShellAuthenticationRequests = [];
     private readonly object _sessionAdmissionLock = new();
     private readonly HashSet<SessionOperation> _sessionOperations = [];
     private bool _sessionAdmissionClosed;
@@ -92,7 +92,13 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     private CancellationTokenSource? _startupCancellation;
     private FfiRuntimeHost? _ffiHost;
     private bool _disposed;
-    private int? _actualPort;
+    // Each startup publishes a distinct registration, even when it reuses a fixed TCP port.
+    private sealed class RuntimePortRegistration(int port)
+    {
+        public int Port { get; } = port;
+    }
+
+    private RuntimePortRegistration? _actualPort;
     private int? _negotiatedProtocolVersion;
     private volatile ModelsCache _modelsCache = new();
     private ServerRpc? _serverRpc;
@@ -106,7 +112,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// Client-global RPC handlers (e.g. the LLM inference provider adapter),
     /// built once at construction and registered on every connection.
     /// </summary>
-    private readonly ClientGlobalApiHandlers? _clientGlobalApis;
+    private ClientGlobalApiHandlers? _clientGlobalApis;
 
     private sealed record LifecycleSubscription(Type EventType, Action<SessionLifecycleEvent> Handler);
 
@@ -141,7 +147,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// <summary>
     /// Gets the actual TCP port the runtime is listening on, if using TCP transport.
     /// </summary>
-    public int? RuntimePort => _actualPort;
+    /// <remarks>
+    /// Returns <see langword="null"/> before <see cref="StartAsync"/> sets it, with stdio or in-process
+    /// transport, and once a runtime this client started has been stopped or has failed to start.
+    /// </remarks>
+    public int? RuntimePort => Volatile.Read(ref _actualPort)?.Port;
 
     /// <summary>
     /// Creates a new instance of <see cref="CopilotClient"/>.
@@ -374,6 +384,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// If the server is not already running and the client is configured to spawn one (default), it will be started.
     /// If connecting to an external runtime (via RuntimeConnection.ForUri), only establishes the connection.
     /// If a previous start failed or was canceled, calling this method again starts the client anew.
+    /// If the connection closed after a successful start, for example because the runtime process exited,
+    /// calling this method again retires that connection and its sessions, then starts the client anew.
     /// </remarks>
     /// <example>
     /// <code>
@@ -383,18 +395,59 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// </code>
     /// </example>
     public Task StartAsync(CancellationToken cancellationToken = default)
+        => StartConnectionAsync(replaceLostConnection: true, cancellationToken);
+
+    private Task<Connection> StartConnectionAsync(bool replaceLostConnection, CancellationToken cancellationToken)
     {
         lock (_sessionAdmissionLock)
         {
             // A failed or canceled startup leaves the client disconnected, so start again instead of replaying it.
-            if (_connectionTask is null || _connectionTask.IsFaulted || _connectionTask.IsCanceled)
+            // An explicit start does the same for a connection that closed after startup, once it is retired.
+            var lostConnection = replaceLostConnection
+                && _connectionTask is { Status: System.Threading.Tasks.TaskStatus.RanToCompletion } started
+                && (started.Result.Rpc.IsClosed || started.Result.CliProcess is { HasExited: true })
+                    ? started.Result
+                    : null;
+            if (_connectionTask is null || _connectionTask.IsFaulted || _connectionTask.IsCanceled || lostConnection is not null)
             {
                 _sessionAdmissionClosed = false;
                 _startupCancellation?.Dispose();
                 _startupCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                _connectionTask = StartCoreAsync(_startupCancellation.Token);
+                var startupToken = _startupCancellation.Token;
+                if (lostConnection is { } lost)
+                {
+                    var lostSessions = _sessions.Values.ToArray();
+                    _sessions.Clear();
+                    _modelsCache = new();
+                    // Retirement takes session locks, so it runs outside the admission lock.
+                    _connectionTask = Task.Run(() => RestartCoreAsync(lost, lostSessions, startupToken));
+                }
+                else
+                {
+                    _connectionTask = StartCoreAsync(startupToken);
+                }
+            }
+            else if (cancellationToken.CanBeCanceled && !_connectionTask.IsCompleted)
+            {
+                // A caller that joins a startup already in progress stops waiting when its own token is canceled.
+                // The shared startup keeps running for the caller that began it.
+                return _connectionTask.WaitAsync(Timeout.InfiniteTimeSpan, cancellationToken);
             }
             return _connectionTask;
+        }
+
+        async Task<Connection> RestartCoreAsync(Connection lostConnection, CopilotSession[] lostSessions, CancellationToken ct)
+        {
+            // Process-exit callbacks can lag behind HasExited while inherited stdio stays open.
+            if (!lostConnection.Rpc.IsClosed)
+            {
+                DisposeRpcAfterProcessExit(lostConnection.Rpc);
+            }
+            // Fence connection-owned bookkeeping, not consumer cancellation callbacks, before replacement.
+            await lostConnection.CloseCleanup.ConfigureAwait(false);
+            RetireSessionsAndCallbacks(lostSessions);
+            await CleanupConnectionAsync(lostConnection, errors: null, gracefulRuntimeShutdown: false).ConfigureAwait(false);
+            return await StartCoreAsync(ct).ConfigureAwait(false);
         }
 
         async Task<Connection> StartCoreAsync(CancellationToken ct)
@@ -406,6 +459,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             FfiRuntimeHost? ffiHost = null;
             Process? cliProcess = null;
             ProcessStderrPump? stderrPump = null;
+            RuntimePortRegistration? ownedRuntimePort = null;
 
             try
             {
@@ -436,7 +490,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 else if (_connection is UriRuntimeConnection)
                 {
                     // External runtime
-                    _actualPort = _optionsPort;
+                    Volatile.Write(ref _actualPort, _optionsPort is int port ? new RuntimePortRegistration(port) : null);
                     connection = await ConnectToServerAsync(null, _optionsHost, _optionsPort, null, ct);
                 }
                 else
@@ -445,8 +499,10 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                     var (startedProcess, portOrNull, startedStderrPump) = await StartCliServerAsync(ct);
                     cliProcess = startedProcess;
                     stderrPump = startedStderrPump;
-                    _actualPort = portOrNull;
+                    ownedRuntimePort = portOrNull is int port ? new RuntimePortRegistration(port) : null;
+                    Volatile.Write(ref _actualPort, ownedRuntimePort);
                     connection = await ConnectToServerAsync(cliProcess, portOrNull is null ? null : "localhost", portOrNull, stderrPump, ct);
+                    connection.OwnedRuntimePort = ownedRuntimePort;
                 }
 
                 LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
@@ -501,6 +557,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                         startTimestamp);
                 }
 
+                ClearRuntimePort(ownedRuntimePort);
                 if (connection is not null)
                 {
                     await CleanupConnectionAsync(connection, errors: null, gracefulRuntimeShutdown: false);
@@ -629,6 +686,16 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     public async Task ForceStopAsync()
     {
         var sessions = CloseSessionAdmission(clearSessions: true);
+        RetireSessionsAndCallbacks(sessions);
+
+        var errors = new List<Exception>();
+        await CleanupConnectionAsync(errors, gracefulRuntimeShutdown: false);
+        ThrowErrors(errors);
+    }
+
+    /// <summary>Retires sessions and pending client callbacks without contacting the runtime.</summary>
+    private void RetireSessionsAndCallbacks(CopilotSession[] sessions)
+    {
         DisconnectAhpHosts();
         CancelPendingExternalTools(sessions);
         CancelPendingShellAuthenticationRequests();
@@ -637,10 +704,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             session.Retire();
         }
         ClearGitHubTokenProviders();
-
-        var errors = new List<Exception>();
-        await CleanupConnectionAsync(errors, gracefulRuntimeShutdown: false);
-        ThrowErrors(errors);
     }
 
     private CopilotSession[] CloseSessionAdmission(bool clearSessions)
@@ -720,6 +783,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
     private async Task CleanupConnectionAsync(Connection ctx, List<Exception>? errors, bool gracefulRuntimeShutdown)
     {
+        ClearRuntimePort(ctx.OwnedRuntimePort);
+
         if (gracefulRuntimeShutdown && (ctx.CliProcess is not null || ctx.FfiHost is not null))
         {
             var runtimeShutdownTimestamp = Stopwatch.GetTimestamp();
@@ -765,6 +830,16 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             try { await Task.Run(ffiHost.Dispose).ConfigureAwait(false); }
             catch (Exception ex) { AddCleanupError(errors, ex, _logger); }
             _ffiHost = null;
+        }
+    }
+
+    // Only the port of the runtime being torn down is cleared, so a newer StartAsync keeps its own.
+    // An external runtime keeps its port: stopping this client does not stop that runtime.
+    private void ClearRuntimePort(RuntimePortRegistration? ownedRuntimePort)
+    {
+        if (ownedRuntimePort is not null)
+        {
+            Interlocked.CompareExchange(ref _actualPort, null, ownedRuntimePort);
         }
     }
 
@@ -2376,8 +2451,9 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
     private Task<Connection> EnsureConnectedAsync(CancellationToken cancellationToken)
     {
-        // If already started or starting, this will return the existing task
-        return (Task<Connection>)StartAsync(cancellationToken);
+        // If already started or starting, this will return the existing task.
+        // Only an explicit StartAsync replaces a connection that closed after startup.
+        return StartConnectionAsync(replaceLostConnection: false, cancellationToken);
     }
 
     private async Task ConfigureSessionFsAsync(CancellationToken cancellationToken)
@@ -2402,7 +2478,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// </summary>
     private ClientGlobalApiHandlers? BuildClientGlobalApis()
     {
-        var handler = _options.RequestHandler;
         var onGitHubTelemetry = _options.OnGitHubTelemetry;
         var installationConfirmationHandler = _options.InstallationConfirmationHandler;
         var network = _options.Network;
@@ -2412,7 +2487,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             Network = network is { ResolveProxy: not null } or { AuthenticateNegotiate: not null } or { AuthenticateBasic: not null }
                 ? new NetworkAdapter(network)
                 : null,
-            LlmInference = handler is null ? null : new LlmInferenceAdapter(handler, () => _serverRpc),
             GitHubTelemetry = onGitHubTelemetry is null ? null : new GitHubTelemetryAdapter(onGitHubTelemetry, _logger),
             GitHubToken = new GitHubTokenAdapter(this),
             EntraToken = _options.Entra?.TokenProvider is { } entraProvider
@@ -2527,7 +2601,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// </summary>
     private async Task ConfigureLlmInferenceAsync(CancellationToken cancellationToken)
     {
-        if (_clientGlobalApis?.LlmInference is null)
+        if (_options.RequestHandler is null)
         {
             return;
         }
@@ -2687,11 +2761,15 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         var useStdio = _connection is StdioRuntimeConnection;
 
         // Explicit CLI paths preserve the legacy launch contract. Otherwise use
-        // the bundled native runtime pair.
+        // the bundled native runtime pair. An empty COPILOT_CLI_PATH counts as unset.
         var configuredEnvironment = childProcessConnection.Environment ?? options.Environment;
         var envCliPath = configuredEnvironment is not null
             ? configuredEnvironment.TryGetValue("COPILOT_CLI_PATH", out var configuredCliPath) ? configuredCliPath : null
             : System.Environment.GetEnvironmentVariable("COPILOT_CLI_PATH");
+        if (string.IsNullOrEmpty(envCliPath))
+        {
+            envCliPath = null;
+        }
         var launch = childProcessConnection.Path is not null
             ? new RuntimeLaunch(childProcessConnection.Path, "Options")
             : envCliPath is not null
@@ -3168,6 +3246,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 SerializerOptionsForMessageFormatter,
                 _logger);
 
+            var connection = new Connection(rpc, cliProcess, networkStream, stderrPump, ffiHost);
+            if (_options.RequestHandler is { } requestHandler)
+            {
+                connection.LlmInference = new LlmInferenceAdapter(requestHandler, () => connection.Server);
+            }
             var handler = new RpcHandler(this);
             rpc.SetLocalRpcNotification<string, SessionEvent?>("session.event", handler.OnSessionEvent);
             rpc.SetLocalRpcMethod("session.lifecycle", handler.OnSessionLifecycle);
@@ -3196,7 +3279,20 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 {
                     installationConfirmationAdapter.Attach(rpc);
                 }
-                ClientGlobalApiRegistration.RegisterClientGlobalApiHandlers(rpc, _clientGlobalApis);
+                var connectionApis = new ClientGlobalApiHandlers
+                {
+                    Host = _clientGlobalApis.Host,
+                    ExtensionLaunchProvider = _clientGlobalApis.ExtensionLaunchProvider,
+                    Network = _clientGlobalApis.Network,
+                    LlmInference = connection.LlmInference,
+                    GitHubTelemetry = _clientGlobalApis.GitHubTelemetry,
+                    GitHubToken = _clientGlobalApis.GitHubToken,
+                    EntraToken = _clientGlobalApis.EntraToken,
+                    UiThread = _clientGlobalApis.UiThread,
+                    Installations = _clientGlobalApis.Installations,
+                };
+                _clientGlobalApis = connectionApis;
+                ClientGlobalApiRegistration.RegisterClientGlobalApiHandlers(rpc, connectionApis);
             }
             RegisterAhpHandlers(rpc);
             if (cliProcess is not null)
@@ -3206,12 +3302,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             rpc.StartListening();
             ffiHost?.ConfigureUiThread(
                 _connection is InProcessRuntimeConnection { RunOnUiThread: not null });
-            _ = CancelExternalToolsWhenConnectionClosesAsync(rpc);
             LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                 "CopilotClient.ConnectToServerAsync transport setup complete. Elapsed={Elapsed}",
                 setupTimestamp);
 
-            var connection = new Connection(rpc, cliProcess, networkStream, stderrPump, ffiHost);
+            connection.CloseCleanup = CancelExternalToolsWhenConnectionClosesAsync(connection);
             _serverRpc = connection.Server;
 
             return connection;
@@ -3271,14 +3366,16 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             and not AccessViolationException
             and not AppDomainUnloadedException;
 
-    private async Task CancelExternalToolsWhenConnectionClosesAsync(JsonRpc rpc)
+    private async Task CancelExternalToolsWhenConnectionClosesAsync(Connection connection)
     {
+        var rpc = connection.Rpc;
         await Task.WhenAny(rpc.Completion).ConfigureAwait(false);
         if (rpc.Completion.Exception is { } exception)
         {
             _logger.LogDebug(exception, "JSON-RPC connection completed with an error");
         }
 
+        connection.LlmInference?.CancelPending();
         var connectionTask = _connectionTask;
         if (connectionTask is null
             || connectionTask.Status != System.Threading.Tasks.TaskStatus.RanToCompletion
@@ -3293,9 +3390,9 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
     private void CancelPendingExternalTools(IEnumerable<CopilotSession>? sessions = null)
     {
-        if (_clientGlobalApis?.LlmInference is LlmInferenceAdapter llmInferenceAdapter)
+        if (_connectionTask is { Status: System.Threading.Tasks.TaskStatus.RanToCompletion } connectionTask)
         {
-            llmInferenceAdapter.CancelPending();
+            connectionTask.Result.LlmInference?.CancelPending();
         }
         foreach (var session in sessions ?? _sessions.Values)
         {
@@ -3322,7 +3419,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             return ShellAuthenticationResponse.Cancel();
         }
         var key = (sessionId, requestId);
-        using var pending = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        using var pending = new ShellAuthenticationCancellation(cancellationToken);
         lock (_pendingShellAuthenticationRequests)
         {
             if (_pendingShellAuthenticationRequests.ContainsKey(key))
@@ -3342,9 +3439,9 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 InputKind = new ShellAuthenticationInputKind(inputKind),
                 Command = request.Command ?? string.Empty,
                 Cwd = request.Cwd ?? string.Empty,
-            }, pending.Token).ConfigureAwait(false);
-            // Stopping the client removes its open prompts here, but the session's linked token is cancelled later on
-            // the thread pool, so an answer that arrives in between is refused.
+            }, pending).ConfigureAwait(false);
+            // Stopping the client removes its open prompts before cancellation callbacks run,
+            // so an answer that arrives in between is refused.
             lock (_pendingShellAuthenticationRequests)
             {
                 return _pendingShellAuthenticationRequests.TryGetValue(key, out var current) && ReferenceEquals(current, pending)
@@ -3371,18 +3468,18 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         {
             return;
         }
-        CancellationTokenSource? pending;
+        ShellAuthenticationCancellation? pending;
         lock (_pendingShellAuthenticationRequests)
         {
             _pendingShellAuthenticationRequests.TryGetValue((request.SessionId, request.RequestId), out pending);
         }
-        CancelShellAuthentication(pending);
+        pending?.Cancel();
     }
 
     /// <summary>Cancels every open secret prompt once the runtime can no longer use an answer.</summary>
     private void CancelPendingShellAuthenticationRequests()
     {
-        CancellationTokenSource[] pending;
+        ShellAuthenticationCancellation[] pending;
         lock (_pendingShellAuthenticationRequests)
         {
             pending = [.. _pendingShellAuthenticationRequests.Values];
@@ -3390,23 +3487,15 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
         foreach (var source in pending)
         {
-            CancelShellAuthentication(source);
-        }
-    }
-
-    private static void CancelShellAuthentication(CancellationTokenSource? pending)
-    {
-        if (pending is not null)
-        {
-            _ = CancelShellAuthenticationAsync(pending);
+            source.Cancel();
         }
     }
 
     /// <summary>
-    /// Cancels a prompt on the thread pool. Its cancellation callbacks are consumer code that can block, so they
+    /// Cancels on the thread pool. Cancellation callbacks are consumer code that can block, so they
     /// must not run on the connection's reader or on the thread that stops the client or disposes the session.
     /// </summary>
-    internal static async Task CancelShellAuthenticationAsync(CancellationTokenSource pending)
+    internal static async Task CancelCallbacksAsync(CancellationTokenSource pending)
     {
         try
         {
@@ -3842,7 +3931,10 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         FfiRuntimeHost? ffiHost = null) // Set if using in-process FFI hosting
     {
         public Process? CliProcess => cliProcess;
+        public RuntimePortRegistration? OwnedRuntimePort { get; set; } // Set if we created the child process and it listens on TCP
         public JsonRpc Rpc => rpc;
+        public LlmInferenceAdapter? LlmInference { get; set; }
+        public Task CloseCleanup { get; set; } = Task.CompletedTask;
         public ServerRpc Server => field ?? Interlocked.CompareExchange(ref field, new(rpc), null) ?? field;
         public NetworkStream? NetworkStream => networkStream;
         public ProcessStderrPump? StderrPump => stderrPump;

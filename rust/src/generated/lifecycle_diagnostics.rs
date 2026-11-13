@@ -48,7 +48,7 @@ pub(crate) enum RuntimeLifecycleDisposition {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct RuntimeLifecycleBlockerTiming {
-    /// ISO 8601 timestamp when this dependency began blocking progress.
+    /// ISO 8601 timestamp when this dependency began blocking its owner.
     pub blocking_since: String,
 }
 /// Exact lifecycle operation awaited by a real dependency wait.
@@ -62,7 +62,9 @@ pub(crate) struct RuntimeLifecycleBlockerTiming {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct RuntimeLifecycleBlocker {
-    /// System-owned capability required by the progress owner.
+    /// Opaque blocker identifier, stable for one guard lifetime and scoped to its owner.
+    pub blocker_id: String,
+    /// System-owned capability required by the blocker owner.
     pub requirement: String,
     /// System that owns the awaited operation.
     pub system: String,
@@ -124,6 +126,8 @@ pub(crate) struct RuntimeLifecycleOperation {
     pub disposition: Option<RuntimeLifecycleDisposition>,
     /// Timestamps recorded by the lifecycle service for this operation revision.
     pub timing: RuntimeLifecycleOperationTiming,
+    /// Complete dependency blocker set after this operation change.
+    pub blockers: Vec<RuntimeLifecycleBlocker>,
 }
 /// Immutable causal origin of a progress record with independent identity and settlement.
 ///

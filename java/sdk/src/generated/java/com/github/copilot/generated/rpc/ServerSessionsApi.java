@@ -176,6 +176,17 @@ public final class ServerSessionsApi {
     }
 
     /**
+     * Checks whether a local session's persisted event-log path exists, including an empty log, without opening the session or scanning the session catalog. Hosts use this to prefer an exact local session over a remote task or a UUID-prefix lookup. Metadata-only sessions without a log return false.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    @CopilotExperimental
+    public CompletableFuture<SessionsHasEventsResult> hasEvents(SessionsHasEventsParams params) {
+        return caller.invoke("sessions.hasEvents", params, SessionsHasEventsResult.class);
+    }
+
+    /**
      * Computes the absolute path to a session's persisted events.jsonl file. Internal: filesystem paths are only meaningful in-process (CLI and runtime share a filesystem). Currently used by the CLI's contribution-graph feature to read historical events directly. Remote SDK consumers must not depend on this; a proper event-query API would replace it if the contribution graph ever needed to work over the wire.
      *
      * @apiNote This method is experimental and may change in a future version.

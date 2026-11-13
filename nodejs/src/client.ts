@@ -127,7 +127,7 @@ import type {
     UserInputResponse,
 } from "./types.js";
 import { defaultJoinSessionPermissionHandler } from "./types.js";
-import type { WorkflowHandle } from "./workflow.js";
+import { getWorkflowRegistration, type WorkflowHandle } from "./workflow.js";
 
 interface ExtensionOrchestrationContributions {
     workflows?: WorkflowHandle[];
@@ -556,6 +556,17 @@ function toWireCustomAgents(agents: CustomAgentConfig[] | undefined): unknown[] 
  * non-empty value so the caller omits `clientInfo` from the handshake and keeps
  * the runtime's default attribution.
  */
+async function sendPing(
+    connection: MessageConnection,
+    message?: string
+): Promise<{ message: string; timestamp: string; protocolVersion?: number }> {
+    return (await connection.sendRequest("ping", { message })) as {
+        message: string;
+        timestamp: string;
+        protocolVersion?: number;
+    };
+}
+
 function clientInfoToWire(info: CopilotClientInfo | undefined): ConnectClientInfo | undefined {
     if (info == null) return undefined;
     const wire: ConnectClientInfo = {};
@@ -759,6 +770,8 @@ export class CopilotClient {
     private pendingMemoryStores = new Set<AbortController>();
     private messageWriter: TeardownResilientStreamMessageWriter | null = null;
     private connectionClosed: boolean = false;
+    // Disconnects the current connection without waiting for its reader to reach EOF.
+    private retireClosedConnection: (() => Promise<void>) | null = null;
     private connectionEpoch = 0;
     private socket: Socket | null = null;
     private runtimePort: number | null = null;
@@ -1342,6 +1355,8 @@ export class CopilotClient {
      *
      * If connecting to an external server (via cliUrl), only establishes the connection.
      * Otherwise, spawns the CLI server process and then connects.
+     * If the connection was lost while a CLI server process this client spawned is
+     * still running, that process is terminated before a new one is spawned.
      *
      * This method is called automatically the first time you create or resume a session.
      *
@@ -1373,6 +1388,25 @@ export class CopilotClient {
         if (startup && !this.stopPromise) {
             return startup;
         }
+        const retireClosedConnection = this.retireClosedConnection;
+        if (
+            this.state === "connected" &&
+            this.connectionClosed &&
+            !this.stopPromise &&
+            retireClosedConnection
+        ) {
+            // The runtime exited or the transport closed, but the connection has not finished
+            // disconnecting: an exited runtime's descendants can hold its output open, which
+            // defers that until the shutdown timeout. Disconnect it now, then start anew.
+            const retirement = retireClosedConnection();
+            // Retirement invalidates the old lifetime; only a subsequent shutdown cancels restart.
+            const generation = this.sessionInitializationGeneration;
+            await retirement;
+            if (generation !== this.sessionInitializationGeneration) {
+                throw new Error("Client disconnected during session initialization");
+            }
+            return this.start();
+        }
         if (
             this.stopPromise ||
             (this.connection && this.sessionInitializationLifetime.signal.aborted)
@@ -1402,6 +1436,15 @@ export class CopilotClient {
         this.state = "connecting";
 
         try {
+            // A lost connection (such as a dropped TCP socket) can leave the previous
+            // runtime running; replacing its reference below would orphan it. Without
+            // one, startup still reaches the spawn without yielding.
+            if (this.cliProcess) {
+                await this.killCliProcess();
+                // forceStop() can run while the old process is being retired and finds no child.
+                signal.throwIfAborted();
+            }
+
             // Only start CLI server process if not connecting to external server
             if (this.connectionConfig.kind === "inprocess") {
                 await this.startInProcessFfi();
@@ -1910,20 +1953,26 @@ export class CopilotClient {
         this.runtimePort = null;
         this.stderrBuffer = "";
         this.processExitPromise = null;
-        if (this.cliProcess && !this.isExternalServer) {
-            const child = this.cliProcess;
-            if (child.exitCode == null && child.signalCode == null) {
-                child.kill("SIGKILL");
-                // SIGKILL requests termination; Windows file mappings can outlive that request.
-                if (!(await waitForChildExit(child, RUNTIME_SHUTDOWN_TIMEOUT_MS))) {
-                    throw new Error(
-                        `Timed out waiting for CLI process to exit after SIGKILL: ${RUNTIME_SHUTDOWN_TIMEOUT_MS}ms`
-                    );
-                }
+        await this.killCliProcess();
+    }
+
+    /** Sends SIGKILL to the spawned CLI process, if it is still running, and waits for it to exit. */
+    private async killCliProcess(): Promise<void> {
+        if (!this.cliProcess || this.isExternalServer) {
+            return;
+        }
+        const child = this.cliProcess;
+        if (child.exitCode == null && child.signalCode == null) {
+            child.kill("SIGKILL");
+            // SIGKILL requests termination; Windows file mappings can outlive that request.
+            if (!(await waitForChildExit(child, RUNTIME_SHUTDOWN_TIMEOUT_MS))) {
+                throw new Error(
+                    `Timed out waiting for CLI process to exit after SIGKILL: ${RUNTIME_SHUTDOWN_TIMEOUT_MS}ms`
+                );
             }
-            if (this.cliProcess === child) {
-                this.cliProcess = null;
-            }
+        }
+        if (this.cliProcess === child) {
+            this.cliProcess = null;
         }
     }
 
@@ -2836,7 +2885,7 @@ export class CopilotClient {
                 toolSearch: config.toolSearch,
                 imageGeneration: config.imageGeneration,
                 canvases: config.canvases?.map((canvas) => canvas.declaration),
-                workflows: workflows?.map((workflow) => workflow.meta),
+                workflows: workflows?.map(getWorkflowRegistration),
                 requestCanvasRenderer: config.requestCanvasRenderer,
                 requestExtensions: config.requestExtensions,
                 extensionSdkPath: config.extensionSdkPath,
@@ -3426,7 +3475,8 @@ export class CopilotClient {
      *
      * @param message - Optional message to include in the ping
      * @returns A promise that resolves with the ping response containing the message and timestamp
-     * @throws Error if the client is not connected
+     * @throws Error if the client is not connected, or if a {@link start} in progress when
+     *     this was called fails
      *
      * @example
      * ```typescript
@@ -3437,27 +3487,15 @@ export class CopilotClient {
     async ping(
         message?: string
     ): Promise<{ message: string; timestamp: string; protocolVersion?: number }> {
-        if (!this.connection) {
-            throw new Error("Client not connected");
-        }
-
-        const result = await this.connection.sendRequest("ping", { message });
-        return result as {
-            message: string;
-            timestamp: string;
-            protocolVersion?: number;
-        };
+        return sendPing(await this.getStartedConnection(), message);
     }
 
     /**
      * Get CLI status including version and protocol information
      */
     async getStatus(): Promise<GetStatusResponse> {
-        if (!this.connection) {
-            throw new Error("Client not connected");
-        }
-
-        const result = await this.connection.sendRequest("status.get", {});
+        const connection = await this.getStartedConnection();
+        const result = await connection.sendRequest("status.get", {});
         return result as GetStatusResponse;
     }
 
@@ -3465,12 +3503,38 @@ export class CopilotClient {
      * Get current authentication status
      */
     async getAuthStatus(): Promise<GetAuthStatusResponse> {
+        const connection = await this.getStartedConnection();
+        const result = await connection.sendRequest("auth.getStatus", {});
+        return result as GetAuthStatusResponse;
+    }
+
+    /**
+     * Returns the connection for a request that must not start the client. A
+     * {@link start} already in progress is awaited, so the request never precedes the
+     * `connect` handshake or the provider registrations that follow it. A caller that
+     * queues before it calls this passes the startup it observed first, because
+     * `startPromise` is cleared once that startup settles.
+     */
+    private async getStartedConnection(
+        startup: Promise<void> | null = this.startPromise
+    ): Promise<DrainingMessageConnection> {
+        if (startup) {
+            await startup;
+        }
+        // A caller that queued before this point may have observed a start that has since
+        // settled while a replacement began. Follow it, so the request never precedes that
+        // start's `connect` handshake. A failure of the start observed first was already
+        // thrown above.
+        let latest = this.startPromise;
+        while (latest && latest !== startup) {
+            startup = latest;
+            await latest;
+            latest = this.startPromise;
+        }
         if (!this.connection) {
             throw new Error("Client not connected");
         }
-
-        const result = await this.connection.sendRequest("auth.getStatus", {});
-        return result as GetAuthStatusResponse;
+        return this.connection;
     }
 
     /**
@@ -3482,13 +3546,17 @@ export class CopilotClient {
      * Results are cached after the first successful call to avoid rate limiting.
      * The cache is cleared when the client disconnects.
      *
-     * @throws Error if not connected (when no custom handler is set)
+     * @throws Error if not connected, or if a {@link start} in progress when this was
+     *     called fails (when no custom handler is set)
      */
     async listModels(): Promise<ModelInfo[]> {
         // Serialize concurrent calls with a promise chain. The next link must be installed
         // before the first await, so that callers started in the same tick queue behind
         // each other instead of all waiting on the same promise and all missing the cache.
         const cache = this.modelsCache;
+        // Observe any in-progress start now: by the time this call reaches the front of the
+        // lock, that start may have settled, and a failure would no longer be visible.
+        const startup = this.startPromise;
         const previousLock = cache.lock;
         let resolveLock: () => void;
         cache.lock = new Promise((resolve) => {
@@ -3507,11 +3575,9 @@ export class CopilotClient {
                 // Use custom handler instead of CLI RPC
                 models = await this.onListModels();
             } else {
-                if (!this.connection) {
-                    throw new Error("Client not connected");
-                }
+                const connection = await this.getStartedConnection(startup);
                 // Cache miss - fetch from backend while holding lock
-                const result = await this.connection.sendRequest("models.list", {});
+                const result = await connection.sendRequest("models.list", {});
                 const response = result as { models: ModelInfo[] };
                 models = response.models;
 
@@ -3551,7 +3617,8 @@ export class CopilotClient {
      * that don't implement `connect`.
      */
     private async verifyProtocolVersion(): Promise<void> {
-        if (!this.connection) {
+        const connection = this.connection;
+        if (!connection) {
             throw new Error("Client not connected");
         }
         const maxVersion = getSdkProtocolVersion();
@@ -3603,11 +3670,12 @@ export class CopilotClient {
                     err.message === "Unhandled method connect")
             ) {
                 // Legacy server without `connect`; fall back to `ping`. A token, if any,
-                // is silently dropped — the legacy server can't enforce one.
+                // is silently dropped — the legacy server can't enforce one. ping() would
+                // wait for the start() running this, so use the connection directly.
                 if (this.options.entra) {
                     throw new Error("This runtime does not support Entra client configuration.");
                 }
-                serverVersion = (await raceAgainstExit(this.ping())).protocolVersion;
+                serverVersion = (await raceAgainstExit(sendPing(connection))).protocolVersion;
             } else {
                 throw err;
             }
@@ -4489,22 +4557,38 @@ export class CopilotClient {
         if (!this.runtimePort) {
             throw new Error("Server port not available");
         }
+        // stop() and forceStop() abort this signal. A host that drops the connection
+        // request leaves the connect pending until the timeout below, so end it here.
+        const signal = this.sessionInitializationLifetime.signal;
+        signal.throwIfAborted();
 
         return new Promise((resolve, reject) => {
-            this.socket = new Socket();
+            const socket = new Socket();
+            this.socket = socket;
 
+            const settle = () => {
+                clearTimeout(connectionTimeout);
+                signal.removeEventListener("abort", cancel);
+            };
+            const cancel = () => {
+                settle();
+                socket.destroy();
+                reject(signal.reason);
+            };
             const connectionTimeout = setTimeout(() => {
-                this.socket?.destroy();
+                settle();
+                socket.destroy();
                 reject(new Error("Timeout connecting to CLI server"));
             }, 10000);
+            signal.addEventListener("abort", cancel, { once: true });
 
-            this.socket.connect(this.runtimePort!, this.actualHost, () => {
-                clearTimeout(connectionTimeout);
+            socket.connect(this.runtimePort!, this.actualHost, () => {
+                settle();
                 // Create JSON-RPC connection
                 const codec = createLocalModelJsonCodec();
-                this.messageWriter = new TeardownResilientStreamMessageWriter(this.socket!, codec);
+                this.messageWriter = new TeardownResilientStreamMessageWriter(socket, codec);
                 this.connection = createMessageConnection(
-                    new StreamMessageReader(this.socket!, {
+                    new StreamMessageReader(socket, {
                         contentTypeDecoder: {
                             name: "application/json",
                             decode: (buffer, options) =>
@@ -4520,8 +4604,8 @@ export class CopilotClient {
                 resolve();
             });
 
-            this.socket.on("error", (error) => {
-                clearTimeout(connectionTimeout);
+            socket.on("error", (error) => {
+                settle();
                 reject(new Error(`Failed to connect to CLI server: ${error.message}`));
             });
         });
@@ -4772,7 +4856,7 @@ export class CopilotClient {
             connectionEpoch === this.connectionEpoch &&
             this.connection === connection &&
             (cliProcess === null || this.cliProcess === cliProcess);
-        let disconnecting = false;
+        let disconnected: Promise<void> | undefined;
         let exitFallback: ReturnType<typeof setTimeout> | undefined;
         const markDisconnected = () => {
             if (!isCurrentConnection()) {
@@ -4798,24 +4882,25 @@ export class CopilotClient {
             this._internalRpc = null;
             this.modelsCache = { models: null, lock: Promise.resolve() };
         };
-        const disconnectAfterDrain = () => {
+        const disconnectAfterDrain = (): Promise<void> => {
             if (exitFallback !== undefined) {
                 clearTimeout(exitFallback);
                 exitFallback = undefined;
             }
             if (!isCurrentConnection()) {
                 connection.dispose();
-                return;
+                return Promise.resolve();
             }
-            if (disconnecting) return;
-            disconnecting = true;
+            if (disconnected) return disconnected;
             this.invalidateSessionInitializations();
             this.connectionClosed = true;
             if (messageWriter) messageWriter.suppressWriteErrors = true;
             // jsonrpc dispatches parsed messages asynchronously, one per event-loop
             // turn. Drain them before clearing callbacks and rejecting unanswered RPCs.
-            void connection.drain().then(markDisconnected);
+            disconnected = connection.drain().then(markDisconnected);
+            return disconnected;
         };
+        this.retireClosedConnection = disconnectAfterDrain;
         this.connection.onClose(disconnectAfterDrain);
         // Descendants can retain inherited output pipes after the runtime exits.
         // Observe the owned process without waiting for those pipes to reach EOF.
@@ -4825,7 +4910,7 @@ export class CopilotClient {
                     connection.dispose();
                     return;
                 }
-                if (disconnecting) return;
+                if (disconnected) return;
                 if (this.socket) {
                     disconnectAfterDrain();
                     return;

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -185,6 +186,114 @@ func TestConnectionCloseCancelsInFlightRequestHandlers(t *testing.T) {
 	case <-cancelled:
 	case <-time.After(time.Second):
 		t.Fatal("connection close did not cancel the in-flight handler")
+	}
+}
+
+func TestCloseWhileReaderIsBusyCancelsHandlersAndSignalsClosure(t *testing.T) {
+	stdinR, stdinW := io.Pipe()
+	stdoutR, stdoutW := io.Pipe()
+	defer stdinR.Close()
+	defer stdoutW.Close()
+	go io.Copy(io.Discard, stdinR)
+
+	client := NewClient(stdinW, stdoutR)
+	entered := make(chan struct{})
+	cancelled := make(chan struct{})
+	client.SetRequestContextHandler("memoryStore.store", func(ctx context.Context, _ json.RawMessage) (json.RawMessage, *Error) {
+		close(entered)
+		<-ctx.Done()
+		close(cancelled)
+		return nil, nil
+	})
+	busy, release := make(chan struct{}), make(chan struct{})
+	client.SetRequestHandler("session.lifecycle", func(json.RawMessage) (json.RawMessage, *Error) {
+		close(busy)
+		<-release
+		return nil, nil
+	})
+	client.Start()
+	t.Cleanup(client.Stop)
+	t.Cleanup(func() {
+		select {
+		case <-release:
+		default:
+			close(release)
+		}
+	})
+
+	writer := newHeaderWriter(stdoutW)
+	if err := writer.Write([]byte(`{"jsonrpc":"2.0","id":1,"method":"memoryStore.store","params":{}}`)); err != nil {
+		t.Fatalf("Write request: %v", err)
+	}
+	if err := writer.Write([]byte(`{"jsonrpc":"2.0","method":"session.lifecycle","params":{}}`)); err != nil {
+		t.Fatalf("Write notification: %v", err)
+	}
+	for _, started := range []chan struct{}{entered, busy} {
+		select {
+		case <-started:
+		case <-time.After(time.Second):
+			t.Fatal("handler did not start")
+		}
+	}
+
+	// The reader stays in the notification handler.
+	client.Close()
+
+	select {
+	case <-cancelled:
+	case <-time.After(time.Second):
+		t.Fatal("Close did not cancel the in-flight handler while the reader was busy")
+	}
+	select {
+	case <-client.ConnectionClosed():
+	case <-time.After(time.Second):
+		t.Fatal("Close did not close ConnectionClosed while the reader was busy")
+	}
+}
+
+func TestCloseWaitsForACloseCallbackAlreadyRunning(t *testing.T) {
+	stdinR, stdinW := io.Pipe()
+	stdoutR, stdoutW := io.Pipe()
+	defer stdinR.Close()
+	go io.Copy(io.Discard, stdinR)
+
+	client := NewClient(stdinW, stdoutR)
+	entered, release := make(chan struct{}), make(chan struct{})
+	var returned atomic.Bool
+	client.SetOnClose(func() {
+		close(entered)
+		<-release
+		returned.Store(true)
+	})
+	client.Start()
+	t.Cleanup(client.Stop)
+
+	// The connection drops, and the read loop starts the close callback.
+	stdoutW.Close()
+	select {
+	case <-entered:
+	case <-time.After(time.Second):
+		t.Fatal("close callback did not run")
+	}
+
+	closed := make(chan struct{})
+	go func() {
+		client.Close()
+		close(closed)
+	}()
+	select {
+	case <-closed:
+		t.Fatal("Close returned while the close callback was still running")
+	case <-time.After(50 * time.Millisecond):
+	}
+	close(release)
+	select {
+	case <-closed:
+	case <-time.After(time.Second):
+		t.Fatal("Close did not return after the close callback finished")
+	}
+	if !returned.Load() {
+		t.Fatal("Close returned before the close callback finished")
 	}
 }
 

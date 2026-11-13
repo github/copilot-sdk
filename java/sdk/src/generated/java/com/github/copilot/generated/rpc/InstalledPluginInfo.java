@@ -41,6 +41,8 @@ public record InstalledPluginInfo(
     @JsonProperty("source") String source,
     /** Whether enterprise managed settings control this plugin's enabled state. */
     @JsonProperty("managed") Boolean managed,
+    /** True when the signed-in account's GitHub Team assigns this plugin, whatever default enabled state the assignment carries. This reports provenance only: it does not mean the Team installed the plugin or controls whether it is enabled, and the user's own choices still apply. When `managed` is also true, enterprise managed settings decide the plugin's state. */
+    @JsonProperty("team") Boolean team,
     /** The enabled state required by enterprise managed settings, when this plugin spec is managed. */
     @JsonProperty("managedDesiredEnabled") Boolean managedDesiredEnabled,
     /** Whether the managed desired plugin currently has an installed or live record. Set to false for a managed desired entry retained in the listing after installation or reconciliation failed. */
@@ -85,6 +87,7 @@ public record InstalledPluginInfo(
         private String installedFrom;
         private String source;
         private Boolean managed;
+        private Boolean team;
         private Boolean managedDesiredEnabled;
         private Boolean installed;
         private String description;
@@ -203,6 +206,17 @@ public record InstalledPluginInfo(
         }
 
         /**
+         * Sets the {@code team} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder team(Boolean value) {
+            this.team = value;
+            return this;
+        }
+
+        /**
          * Sets the {@code managedDesiredEnabled} property.
          * @param value the property value
          * @return this builder
@@ -278,8 +292,50 @@ public record InstalledPluginInfo(
             if (name == null) throw new IllegalStateException("Missing required property: name");
             if (marketplace == null) throw new IllegalStateException("Missing required property: marketplace");
             if (enabled == null) throw new IllegalStateException("Missing required property: enabled");
-            return new InstalledPluginInfo(assignment, name, marketplace, directSourceId, version, enabled, rootPath, installedFrom, source, managed, managedDesiredEnabled, installed, description, verifiedSource, iconUrl, id);
+            return new InstalledPluginInfo(assignment, name, marketplace, directSourceId, version, enabled, rootPath, installedFrom, source, managed, team, managedDesiredEnabled, installed, description, verifiedSource, iconUrl, id);
         }
+    }
+
+    /**
+     * Creates installed plugin information without Team assignment provenance.
+     * @deprecated Use named construction via {@link #builder()}.
+     * @param assignment Soft assignment from effective managed settings. This is not a mandatory enabled-state restriction.
+     * @param name Plugin name
+     * @param marketplace Marketplace the plugin came from. Empty string ("") for direct repo / URL / local installs.
+     * @param directSourceId Opaque, stable hash identifying a direct (non-marketplace) install source. Present only for direct repo / URL / local installs; absent for marketplace plugins. Same source yields the same id; distinct sources never collide.
+     * @param version Installed version (when reported by the plugin manifest)
+     * @param enabled Whether the plugin is currently enabled for new sessions
+     * @param rootPath Absolute local directory containing this plugin's installed content, including disabled installations. Absent when the runtime has no resolved content directory. This is the plugin root, not its marketplace directory; clients must not forward it back as an additional plugin.
+     * @param installedFrom Absolute path of the marketplace directory a live plugin was resolved from. Present only on live, never-persisted records — a plugin belonging to a directory/local marketplace, which is loaded from its real directory on every pass instead of a copy under the installed-plugins cache. Its presence is what marks a listed plugin as live: such a plugin is always present on disk, so `enabled` is its only meaningful state and it is never "not installed".
+     * @param source Runtime-reported plugin provenance. Currently set to "builtin" only for plugins registered through the trusted host built-in boundary; absent for installed, marketplace, direct, and live plugins.
+     * @param managed Whether enterprise managed settings control this plugin's enabled state.
+     * @param managedDesiredEnabled The enabled state required by enterprise managed settings, when this plugin spec is managed.
+     * @param installed Whether the managed desired plugin currently has an installed or live record. Set to false for a managed desired entry retained in the listing after installation or reconciliation failed.
+     * @param description Description from the manifest of the installed copy. Present only for a direct install pinned to one GitHub commit, such as a verified install from GitHub.
+     * @param verifiedSource The GitHub repository and commit a direct install is pinned to, from its install record. Present only for a direct install pinned to one GitHub commit, such as a verified install from GitHub; absent for marketplace, local and unpinned installs.
+     * @param iconUrl HTTPS URL of the plugin's icon on raw.githubusercontent.com, retained from the catalogue entry it was installed from. Untrusted external content: load it without credentials. Present only for a direct install pinned to one GitHub commit whose catalogue entry had an icon.
+     * @param id Opaque plugin identity in this runtime's inventory. Matches MCP effectiveSource.plugin.id for the same plugin. Stable across enablement changes, updates and restarts while the installation source is unchanged; not a cross-host identifier or a mutation argument. Compare the complete value without parsing it. May be absent on older runtimes.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public InstalledPluginInfo(
+        ManagedPluginAssignment assignment,
+        String name,
+        String marketplace,
+        String directSourceId,
+        String version,
+        Boolean enabled,
+        String rootPath,
+        String installedFrom,
+        String source,
+        Boolean managed,
+        Boolean managedDesiredEnabled,
+        Boolean installed,
+        String description,
+        InstalledPluginVerifiedSource verifiedSource,
+        String iconUrl,
+        String id
+    ) {
+        this(assignment, name, marketplace, directSourceId, version, enabled, rootPath, installedFrom, source, managed, null, managedDesiredEnabled, installed, description, verifiedSource, iconUrl, id);
     }
 
     /**
@@ -315,6 +371,6 @@ public record InstalledPluginInfo(
         InstalledPluginVerifiedSource verifiedSource,
         String iconUrl
     ) {
-        this(null, name, marketplace, directSourceId, version, enabled, null, installedFrom, source, managed, managedDesiredEnabled, installed, description, verifiedSource, iconUrl, null);
+        this(null, name, marketplace, directSourceId, version, enabled, null, installedFrom, source, managed, null, managedDesiredEnabled, installed, description, verifiedSource, iconUrl, null);
     }
 }

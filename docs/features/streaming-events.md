@@ -442,7 +442,7 @@ The assistant's complete response for this LLM call. May include tool invocation
 | `reasoningText` | `string` | | Readable reasoning text from extended thinking |
 | `encryptedContent` | `string` | | Encrypted reasoning content (OpenAI models); session-bound |
 | `phase` | `string` | | Generation phase (e.g., `"thinking"` vs `"response"`) |
-| `outputTokens` | `number` | | Actual output token count from the API response |
+| `outputTokens` | `number` | | Output tokens this message adds to replayed context, for token accounting. Use `assistant.usage` for billed usage |
 | `interactionId` | `string` | | CAPI interaction ID for telemetry |
 | `parentToolCallId` | `string` | | Deprecated. Use envelope-level `agentId` for sub-agent attribution |
 
@@ -979,7 +979,7 @@ Ephemeral. A queued command was resolved.
 
 ### `session_limits_exhausted.requested`
 
-Ephemeral. The current session budget was exhausted and the runtime needs a user decision before continuing.
+Ephemeral. The session budget is used up, or 10% or less of it remains and the next model call would be the session's final call without tools; the runtime needs a user decision before continuing.
 
 | Data Field | Type | Required | Description |
 |------------|------|----------|-------------|

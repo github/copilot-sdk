@@ -11833,6 +11833,184 @@ public sealed class SkillsGetDiscoveryPathsRequest
     public IList<string>? SkillDirectories { get; set; }
 }
 
+/// <summary>Result of direct source installation. Catalog consent and defaults remain separate.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class SkillsInstallSourceResult
+{
+    /// <summary>Source acquisition used by this operation.</summary>
+    [JsonPropertyName("kind")]
+    public SkillInstallSourceKind Kind { get; set; }
+
+    /// <summary>Skill name when a file was installed.</summary>
+    [JsonPropertyName("name")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Name { get; set; }
+
+    /// <summary>Installed skill directory or registered discovery directory.</summary>
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+
+    /// <summary>File destination scope. Directory registration has no destination scope.</summary>
+    [JsonPropertyName("scope")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SkillInstallSourceScope? Scope { get; set; }
+
+    /// <summary>Updated discovery directories for the caller to persist.</summary>
+    [JsonPropertyName("skillDirectories")]
+    public IList<string> SkillDirectories { get => field ??= []; set; }
+}
+
+/// <summary>Installs a user-selected skill source without catalog plan semantics.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class SkillsInstallSourceRequest
+{
+    /// <summary>Working directory for relative source paths.</summary>
+    [JsonPropertyName("cwd")]
+    public string Cwd { get; set; } = string.Empty;
+
+    /// <summary>Personal destination for URL and file sources.</summary>
+    [JsonPropertyName("personalSkillsDir")]
+    public string PersonalSkillsDir { get; set; } = string.Empty;
+
+    /// <summary>Selects project scope. Directory registration requires personal scope.</summary>
+    [JsonPropertyName("project")]
+    public bool Project { get; set; }
+
+    /// <summary>Project destination for URL and file sources.</summary>
+    [JsonPropertyName("projectSkillsDir")]
+    public string ProjectSkillsDir { get; set; } = string.Empty;
+
+    /// <summary>Current discovery directories. The result returns an updated copy.</summary>
+    [JsonPropertyName("skillDirectories")]
+    public IList<string> SkillDirectories { get => field ??= []; set; }
+
+    /// <summary>HTTPS URL, local skill file, or local discovery directory.</summary>
+    [JsonPropertyName("source")]
+    public string Source { get; set; } = string.Empty;
+
+    /// <summary>User agent for runtime-owned HTTPS source requests.</summary>
+    [JsonPropertyName("userAgent")]
+    public string UserAgent { get; set; } = string.Empty;
+}
+
+/// <summary>Direct removal or a request for the inventory needed to resolve a file.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(SkillsRemoveSourceOutcomeNeedsInventory), "needs-inventory")]
+[JsonDerivedType(typeof(SkillsRemoveSourceOutcomeRemoved), "removed")]
+public partial class SkillsRemoveSourceOutcome
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
+}
+
+
+/// <summary>No directory registration matched. No files or settings changed.</summary>
+/// <remarks>The <c>needs-inventory</c> variant of <see cref="SkillsRemoveSourceOutcome"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class SkillsRemoveSourceOutcomeNeedsInventory : SkillsRemoveSourceOutcome
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "needs-inventory";
+}
+
+/// <summary>Direct removal result. The caller persists discovery and disabled settings.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class SkillsRemoveSourceResult
+{
+    /// <summary>Resource removed by this operation.</summary>
+    [JsonPropertyName("kind")]
+    public SkillRemoveSourceKind Kind { get; set; }
+
+    /// <summary>Skill name when a skill file was removed.</summary>
+    [JsonPropertyName("name")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Name { get; set; }
+
+    /// <summary>Removed skill path or unregistered discovery directory.</summary>
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+
+    /// <summary>Updated discovery directories for the caller to persist.</summary>
+    [JsonPropertyName("skillDirectories")]
+    public IList<string> SkillDirectories { get => field ??= []; set; }
+}
+
+/// <summary>The existing source removal rules resolved and removed the target.</summary>
+/// <remarks>The <c>removed</c> variant of <see cref="SkillsRemoveSourceOutcome"/>.</remarks>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public partial class SkillsRemoveSourceOutcomeRemoved : SkillsRemoveSourceOutcome
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "removed";
+
+    /// <summary>Removal result and updated discovery directories.</summary>
+    [JsonPropertyName("result")]
+    public required SkillsRemoveSourceResult Result { get; set; }
+}
+
+/// <summary>One discovered local skill, without its content.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class SkillRemoveSourceEntry
+{
+    /// <summary>Discovery directory that owns the skill file.</summary>
+    [JsonPropertyName("baseDir")]
+    public string BaseDir { get; set; } = string.Empty;
+
+    /// <summary>Invocation name used to resolve a removal target.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Original discovery source. Removal rejects unsupported or unowned sources.</summary>
+    [JsonPropertyName("source")]
+    public string Source { get; set; } = string.Empty;
+}
+
+/// <summary>Caller-owned inventory and storage roots for direct file removal.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class SkillsRemoveSourceInventory
+{
+    /// <summary>Personal storage roots that the existing removal rules recognize.</summary>
+    [JsonPropertyName("personalSkillsDirs")]
+    public IList<string> PersonalSkillsDirs { get => field ??= []; set; }
+
+    /// <summary>Project storage root that the existing removal rules recognize.</summary>
+    [JsonPropertyName("projectSkillsDir")]
+    public string ProjectSkillsDir { get; set; } = string.Empty;
+
+    /// <summary>Local skills discovered before removal.</summary>
+    [JsonPropertyName("skills")]
+    public IList<SkillRemoveSourceEntry> Skills { get => field ??= []; set; }
+}
+
+/// <summary>Removes a user-selected source without changing verified catalog removal.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class SkillsRemoveSourceRequest
+{
+    /// <summary>Working directory for relative removal paths.</summary>
+    [JsonPropertyName("cwd")]
+    public string Cwd { get; set; } = string.Empty;
+
+    /// <summary>Required for file removal, but not for directory registration removal.</summary>
+    [JsonPropertyName("inventory")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SkillsRemoveSourceInventory? Inventory { get; set; }
+
+    /// <summary>Current discovery directories. Removal returns an updated copy.</summary>
+    [JsonPropertyName("skillDirectories")]
+    public IList<string> SkillDirectories { get => field ??= []; set; }
+
+    /// <summary>Local skill name, file path, or registered discovery directory.</summary>
+    [JsonPropertyName("target")]
+    public string Target { get; set; } = string.Empty;
+}
+
 /// <summary>Inventory request under an explicitly selected existing session.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 internal sealed class SkillInstallationsRequest
@@ -12642,6 +12820,11 @@ public sealed class InstalledPluginInfo
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Source { get; set; }
 
+    /// <summary>True when the signed-in account's GitHub Team assigns this plugin, whatever default enabled state the assignment carries. This reports provenance only: it does not mean the Team installed the plugin or controls whether it is enabled, and the user's own choices still apply. When `managed` is also true, enterprise managed settings decide the plugin's state.</summary>
+    [JsonPropertyName("team")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? Team { get; set; }
+
     /// <summary>The GitHub repository and commit a direct install is pinned to, from its install record. Present only for a direct install pinned to one GitHub commit, such as a verified install from GitHub; absent for marketplace, local and unpinned installs.</summary>
     [JsonPropertyName("verifiedSource")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -12940,6 +13123,11 @@ public sealed class MarketplacePluginInfo
     [JsonPropertyName("description")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Description { get; set; }
+
+    /// <summary>The enabled state required by enterprise managed settings, when this plugin spec is managed. False means the plugin cannot be installed or enabled. Absent when managed settings do not control this plugin.</summary>
+    [JsonPropertyName("managedDesiredEnabled")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? ManagedDesiredEnabled { get; set; }
 
     /// <summary>Plugin name as listed in the marketplace catalog.</summary>
     [JsonPropertyName("name")]
@@ -18589,6 +18777,24 @@ internal sealed class SessionsGetLastForContextRequest
     public SessionContext? Context { get; set; }
 }
 
+/// <summary>Whether the local session has a persisted event-log path, including an empty log.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class SessionsHasEventsResult
+{
+    /// <summary>True when the session's event-log path exists.</summary>
+    [JsonPropertyName("exists")]
+    public bool Exists { get; set; }
+}
+
+/// <summary>Local session whose persisted event-log presence to check without opening or scanning it.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class SessionsHasEventsRequest
+{
+    /// <summary>Identifier of the local session to check.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
 /// <summary>Absolute path to the session's events.jsonl file on disk.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 internal sealed class SessionsGetEventFilePathResult
@@ -19236,6 +19442,33 @@ internal sealed class ConfigureSessionExtensionsParams
     /// <summary>Session to attach the extension controller delegate to.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Filtered caller environment with the runtime's Git hardening applied; never includes the runtime process environment.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class ShellBuildInteractiveEnvironmentResult
+{
+    /// <summary>Environment for the host's interactive shell.</summary>
+    [JsonPropertyName("environment")]
+    public IDictionary<string, string> Environment { get => field ??= new Dictionary<string, string>(); set; }
+}
+
+/// <summary>Caller-owned environment to filter under the runtime's interactive-shell credential policy.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+internal sealed class ShellBuildInteractiveEnvironmentRequest
+{
+    /// <summary>Additional variable names to omit, in addition to the runtime's required filters.</summary>
+    [JsonPropertyName("additionalBlockedNames")]
+    public IList<string> AdditionalBlockedNames { get => field ??= []; set; }
+
+    /// <summary>Whether the shell host treats environment names as case-insensitive. Defaults to the runtime platform when omitted.</summary>
+    [JsonPropertyName("caseInsensitive")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? CaseInsensitive { get; set; }
+
+    /// <summary>Environment supplied by the host that will launch the shell.</summary>
+    [JsonPropertyName("hostEnvironment")]
+    public IDictionary<string, string> HostEnvironment { get => field ??= new Dictionary<string, string>(); set; }
 }
 
 /// <summary>Outcome of an agentRegistry.spawn call.</summary>
@@ -33170,6 +33403,11 @@ public sealed class Plugin
     [JsonPropertyName("source")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Source { get; set; }
+
+    /// <summary>True when the signed-in account's GitHub Team assigns this plugin, whatever default enabled state the assignment carries. This reports provenance only: it does not mean the Team installed the plugin or controls whether it is enabled, and the user's own choices still apply. When `managed` is also true, enterprise managed settings decide the plugin's state.</summary>
+    [JsonPropertyName("team")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? Team { get; set; }
 
     /// <summary>Installed version.</summary>
     [JsonPropertyName("version")]
@@ -50678,6 +50916,201 @@ public readonly struct SkillDiscoveryScope : IEquatable<SkillDiscoveryScope>
 }
 
 
+/// <summary>Source acquisition used by a direct skill installation.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct SkillInstallSourceKind : IEquatable<SkillInstallSourceKind>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="SkillInstallSourceKind"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="SkillInstallSourceKind"/>.</param>
+    [JsonConstructor]
+    public SkillInstallSourceKind(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="SkillInstallSourceKind"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>A skill file retrieved through HTTPS.</summary>
+    public static SkillInstallSourceKind Url { get; } = new("url");
+
+    /// <summary>A local skill file copied into skill storage.</summary>
+    public static SkillInstallSourceKind File { get; } = new("file");
+
+    /// <summary>A discovery directory registered without copying its contents.</summary>
+    public static SkillInstallSourceKind Directory { get; } = new("directory");
+
+    /// <summary>Returns a value indicating whether two <see cref="SkillInstallSourceKind"/> instances are equivalent.</summary>
+    public static bool operator ==(SkillInstallSourceKind left, SkillInstallSourceKind right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="SkillInstallSourceKind"/> instances are not equivalent.</summary>
+    public static bool operator !=(SkillInstallSourceKind left, SkillInstallSourceKind right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is SkillInstallSourceKind other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(SkillInstallSourceKind other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{SkillInstallSourceKind}"/> for serializing <see cref="SkillInstallSourceKind"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<SkillInstallSourceKind>
+    {
+        /// <inheritdoc />
+        public override SkillInstallSourceKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, SkillInstallSourceKind value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SkillInstallSourceKind));
+        }
+    }
+}
+
+
+/// <summary>Destination scope for a directly installed skill file.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct SkillInstallSourceScope : IEquatable<SkillInstallSourceScope>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="SkillInstallSourceScope"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="SkillInstallSourceScope"/>.</param>
+    [JsonConstructor]
+    public SkillInstallSourceScope(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="SkillInstallSourceScope"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Personal skill storage.</summary>
+    public static SkillInstallSourceScope Personal { get; } = new("personal");
+
+    /// <summary>Project skill storage.</summary>
+    public static SkillInstallSourceScope Project { get; } = new("project");
+
+    /// <summary>Returns a value indicating whether two <see cref="SkillInstallSourceScope"/> instances are equivalent.</summary>
+    public static bool operator ==(SkillInstallSourceScope left, SkillInstallSourceScope right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="SkillInstallSourceScope"/> instances are not equivalent.</summary>
+    public static bool operator !=(SkillInstallSourceScope left, SkillInstallSourceScope right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is SkillInstallSourceScope other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(SkillInstallSourceScope other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{SkillInstallSourceScope}"/> for serializing <see cref="SkillInstallSourceScope"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<SkillInstallSourceScope>
+    {
+        /// <inheritdoc />
+        public override SkillInstallSourceScope Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, SkillInstallSourceScope value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SkillInstallSourceScope));
+        }
+    }
+}
+
+
+/// <summary>Resource removed by a direct-source operation.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct SkillRemoveSourceKind : IEquatable<SkillRemoveSourceKind>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="SkillRemoveSourceKind"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="SkillRemoveSourceKind"/>.</param>
+    [JsonConstructor]
+    public SkillRemoveSourceKind(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="SkillRemoveSourceKind"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>A discovery registration removed without deleting its contents.</summary>
+    public static SkillRemoveSourceKind Directory { get; } = new("directory");
+
+    /// <summary>A personal skill file or directory.</summary>
+    public static SkillRemoveSourceKind Personal { get; } = new("personal");
+
+    /// <summary>A project skill file or directory.</summary>
+    public static SkillRemoveSourceKind Project { get; } = new("project");
+
+    /// <summary>Returns a value indicating whether two <see cref="SkillRemoveSourceKind"/> instances are equivalent.</summary>
+    public static bool operator ==(SkillRemoveSourceKind left, SkillRemoveSourceKind right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="SkillRemoveSourceKind"/> instances are not equivalent.</summary>
+    public static bool operator !=(SkillRemoveSourceKind left, SkillRemoveSourceKind right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is SkillRemoveSourceKind other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(SkillRemoveSourceKind other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{SkillRemoveSourceKind}"/> for serializing <see cref="SkillRemoveSourceKind"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<SkillRemoveSourceKind>
+    {
+        /// <inheritdoc />
+        public override SkillRemoveSourceKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, SkillRemoveSourceKind value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SkillRemoveSourceKind));
+        }
+    }
+}
+
+
 /// <summary>How a reviewed plugin's MCP server is reached.</summary>
 [Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -64639,6 +65072,12 @@ public sealed class ServerRpc
         Interlocked.CompareExchange(ref field, new(_rpc), null) ??
         field;
 
+    /// <summary>Shell APIs.</summary>
+    public ServerShellApi Shell =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
+        field;
+
     /// <summary>AgentRegistry APIs.</summary>
     public ServerAgentRegistryApi AgentRegistry =>
         field ??
@@ -67539,6 +67978,46 @@ public sealed class ServerSkillsApi
         return await CopilotClient.InvokeRpcAsync<SkillDiscoveryPathList>(_rpc, "skills.getDiscoveryPaths", [request], cancellationToken);
     }
 
+    /// <summary>Installs a user-selected HTTPS or local skill file into personal or project storage, or registers a local discovery directory. This direct-source operation preserves source installation behavior; it does not accept or replace verified catalog plans, request catalog confirmation, or change skill enablement. The caller persists the returned discovery directories.</summary>
+    /// <param name="source">HTTPS URL, local skill file, or local discovery directory.</param>
+    /// <param name="cwd">Working directory for relative source paths.</param>
+    /// <param name="personalSkillsDir">Personal destination for URL and file sources.</param>
+    /// <param name="projectSkillsDir">Project destination for URL and file sources.</param>
+    /// <param name="project">Selects project scope. Directory registration requires personal scope.</param>
+    /// <param name="skillDirectories">Current discovery directories. The result returns an updated copy.</param>
+    /// <param name="userAgent">User agent for runtime-owned HTTPS source requests.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Result of direct source installation. Catalog consent and defaults remain separate.</returns>
+    public async Task<SkillsInstallSourceResult> InstallSourceAsync(string source, string cwd, string personalSkillsDir, string projectSkillsDir, bool project, IList<string> skillDirectories, string userAgent, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(cwd);
+        ArgumentNullException.ThrowIfNull(personalSkillsDir);
+        ArgumentNullException.ThrowIfNull(projectSkillsDir);
+        ArgumentNullException.ThrowIfNull(skillDirectories);
+        ArgumentNullException.ThrowIfNull(userAgent);
+
+        var request = new SkillsInstallSourceRequest { Source = source, Cwd = cwd, PersonalSkillsDir = personalSkillsDir, ProjectSkillsDir = projectSkillsDir, Project = project, SkillDirectories = skillDirectories, UserAgent = userAgent };
+        return await CopilotClient.InvokeRpcAsync<SkillsInstallSourceResult>(_rpc, "skills.installSource", [request], cancellationToken);
+    }
+
+    /// <summary>Removes a directly installed local skill or unregisters a discovery directory without deleting its contents. Directory removal needs no skill inventory. Other targets return needs-inventory without mutation when inventory is absent. This operation preserves direct-source ownership rules and does not replace receipt-backed verified uninstall plans or their consent. The caller persists returned discovery directories and manages disabled settings.</summary>
+    /// <param name="target">Local skill name, file path, or registered discovery directory.</param>
+    /// <param name="cwd">Working directory for relative removal paths.</param>
+    /// <param name="skillDirectories">Current discovery directories. Removal returns an updated copy.</param>
+    /// <param name="inventory">Required for file removal, but not for directory registration removal.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Direct removal or a request for the inventory needed to resolve a file.</returns>
+    public async Task<SkillsRemoveSourceOutcome> RemoveSourceAsync(string target, string cwd, IList<string> skillDirectories, SkillsRemoveSourceInventory? inventory = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentNullException.ThrowIfNull(cwd);
+        ArgumentNullException.ThrowIfNull(skillDirectories);
+
+        var request = new SkillsRemoveSourceRequest { Target = target, Cwd = cwd, SkillDirectories = skillDirectories, Inventory = inventory };
+        return await CopilotClient.InvokeRpcAsync<SkillsRemoveSourceOutcome>(_rpc, "skills.removeSource", [request], cancellationToken);
+    }
+
     /// <summary>Installations APIs.</summary>
     public ServerSkillsInstallationsApi Installations =>
         field ??
@@ -68770,6 +69249,18 @@ public sealed class ServerSessionsApi
         return await CopilotClient.InvokeRpcAsync<SessionsGetLastForContextResult>(_rpc, "sessions.getLastForContext", [request], cancellationToken);
     }
 
+    /// <summary>Checks whether a local session's persisted event-log path exists, including an empty log, without opening the session or scanning the session catalog. Hosts use this to prefer an exact local session over a remote task or a UUID-prefix lookup. Metadata-only sessions without a log return false.</summary>
+    /// <param name="sessionId">Identifier of the local session to check.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Whether the local session has a persisted event-log path, including an empty log.</returns>
+    public async Task<SessionsHasEventsResult> HasEventsAsync(string sessionId, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(sessionId);
+
+        var request = new SessionsHasEventsRequest { SessionId = sessionId };
+        return await CopilotClient.InvokeRpcAsync<SessionsHasEventsResult>(_rpc, "sessions.hasEvents", [request], cancellationToken);
+    }
+
     /// <summary>Computes the absolute path to a session's persisted events.jsonl file. Internal: filesystem paths are only meaningful in-process (CLI and runtime share a filesystem). Currently used by the CLI's contribution-graph feature to read historical events directly. Remote SDK consumers must not depend on this; a proper event-query API would replace it if the contribution graph ever needed to work over the wire.</summary>
     /// <param name="sessionId">Session ID whose event-log file path to compute.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
@@ -69069,6 +69560,33 @@ public sealed class ServerSessionsApi
 
         var request = new ConfigureSessionExtensionsParams { SessionId = sessionId };
         await CopilotClient.InvokeRpcAsync(_rpc, "sessions.configureSessionExtensions", [request], cancellationToken);
+    }
+}
+
+/// <summary>Provides server-scoped Shell APIs.</summary>
+[Experimental(global::GitHub.Copilot.Diagnostics.Experimental)]
+public sealed class ServerShellApi
+{
+    private readonly JsonRpc _rpc;
+
+    internal ServerShellApi(JsonRpc rpc)
+    {
+        _rpc = rpc;
+    }
+
+    /// <summary>Filters the supplied host environment with the runtime's mandatory interactive-shell credential and telemetry exclusions, adds Git hardening, and removes any extra names the host supplies. An IDE terminal host or an in-process CLI uses this before launching an inherited terminal. The result derives only from the caller's supplied environment, never the runtime process environment.</summary>
+    /// <param name="hostEnvironment">Environment supplied by the host that will launch the shell.</param>
+    /// <param name="additionalBlockedNames">Additional variable names to omit, in addition to the runtime's required filters.</param>
+    /// <param name="caseInsensitive">Whether the shell host treats environment names as case-insensitive. Defaults to the runtime platform when omitted.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Filtered caller environment with the runtime's Git hardening applied; never includes the runtime process environment.</returns>
+    public async Task<ShellBuildInteractiveEnvironmentResult> BuildInteractiveEnvironmentAsync(IDictionary<string, string> hostEnvironment, IList<string> additionalBlockedNames, bool? caseInsensitive = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(hostEnvironment);
+        ArgumentNullException.ThrowIfNull(additionalBlockedNames);
+
+        var request = new ShellBuildInteractiveEnvironmentRequest { HostEnvironment = hostEnvironment, AdditionalBlockedNames = additionalBlockedNames, CaseInsensitive = caseInsensitive };
+        return await CopilotClient.InvokeRpcAsync<ShellBuildInteractiveEnvironmentResult>(_rpc, "shell.buildInteractiveEnvironment", [request], cancellationToken);
     }
 }
 
@@ -79095,6 +79613,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SessionsGetMetadataResult))]
 [JsonSerializable(typeof(SessionsGetPersistedRemoteSteerableRequest))]
 [JsonSerializable(typeof(SessionsGetPersistedRemoteSteerableResult))]
+[JsonSerializable(typeof(SessionsHasEventsRequest))]
+[JsonSerializable(typeof(SessionsHasEventsResult))]
 [JsonSerializable(typeof(SessionsListNonEmptySessionIdsRequest))]
 [JsonSerializable(typeof(SessionsListNonEmptySessionIdsResult))]
 [JsonSerializable(typeof(SessionsListRequest))]
@@ -79124,6 +79644,8 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SettingsRedactValueForDisplayResult))]
 [JsonSerializable(typeof(SettingsRemoveRawKeyRequest))]
 [JsonSerializable(typeof(SettingsRemoveRawKeyResult))]
+[JsonSerializable(typeof(ShellBuildInteractiveEnvironmentRequest))]
+[JsonSerializable(typeof(ShellBuildInteractiveEnvironmentResult))]
 [JsonSerializable(typeof(ShellCancelUserRequestedRequest))]
 [JsonSerializable(typeof(ShellCredentials))]
 [JsonSerializable(typeof(ShellExecRequest))]
@@ -79155,6 +79677,7 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SkillList))]
 [JsonSerializable(typeof(SkillPlanInstallRequest))]
 [JsonSerializable(typeof(SkillPlanUninstallRequest))]
+[JsonSerializable(typeof(SkillRemoveSourceEntry))]
 [JsonSerializable(typeof(SkillSetEnabledRequest))]
 [JsonSerializable(typeof(SkillUninstallPlan))]
 [JsonSerializable(typeof(SkillsConfigSetDisabledSkillsRequest))]
@@ -79164,8 +79687,14 @@ internal static class ClientGlobalApiRegistration
 [JsonSerializable(typeof(SkillsEnableRequest))]
 [JsonSerializable(typeof(SkillsGetDiscoveryPathsRequest))]
 [JsonSerializable(typeof(SkillsGetInvokedResult))]
+[JsonSerializable(typeof(SkillsInstallSourceRequest))]
+[JsonSerializable(typeof(SkillsInstallSourceResult))]
 [JsonSerializable(typeof(SkillsInvokedSkill))]
 [JsonSerializable(typeof(SkillsLoadDiagnostics))]
+[JsonSerializable(typeof(SkillsRemoveSourceInventory))]
+[JsonSerializable(typeof(SkillsRemoveSourceOutcome))]
+[JsonSerializable(typeof(SkillsRemoveSourceRequest))]
+[JsonSerializable(typeof(SkillsRemoveSourceResult))]
 [JsonSerializable(typeof(SlashCommandInfo))]
 [JsonSerializable(typeof(SlashCommandInput))]
 [JsonSerializable(typeof(SlashCommandInputChoice))]

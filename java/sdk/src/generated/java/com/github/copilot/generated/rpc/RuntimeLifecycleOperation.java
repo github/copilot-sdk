@@ -11,6 +11,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.github.copilot.CopilotExperimental;
+import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
@@ -37,7 +38,9 @@ record RuntimeLifecycleOperation(
     /** How the operation ended. Absent while the operation remains active. */
     @JsonProperty("disposition") RuntimeLifecycleDisposition disposition,
     /** Timestamps recorded by the lifecycle service for this operation revision. */
-    @JsonProperty("timing") RuntimeLifecycleOperationTiming timing
+    @JsonProperty("timing") RuntimeLifecycleOperationTiming timing,
+    /** Complete dependency blocker set after this operation change. */
+    @JsonProperty("blockers") List<RuntimeLifecycleBlocker> blockers
 ) {
 
     /**
@@ -69,6 +72,7 @@ record RuntimeLifecycleOperation(
         private String step;
         private RuntimeLifecycleDisposition disposition;
         private RuntimeLifecycleOperationTiming timing;
+        private List<RuntimeLifecycleBlocker> blockers;
 
         /**
          * Sets the {@code operationId} property.
@@ -155,6 +159,18 @@ record RuntimeLifecycleOperation(
         }
 
         /**
+         * Sets the {@code blockers} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder blockers(List<RuntimeLifecycleBlocker> value) {
+            this.blockers = value;
+            return this;
+        }
+
+        /**
          * Builds a record after checking required property presence.
          * @return a new record
          * @throws IllegalStateException if a required property is missing
@@ -167,7 +183,8 @@ record RuntimeLifecycleOperation(
             if (phase == null) throw new IllegalStateException("Missing required property: phase");
             if (step == null) throw new IllegalStateException("Missing required property: step");
             if (timing == null) throw new IllegalStateException("Missing required property: timing");
-            return new RuntimeLifecycleOperation(operationId, operationRevision, trigger, phase, step, disposition, timing);
+            if (blockers == null) throw new IllegalStateException("Missing required property: blockers");
+            return new RuntimeLifecycleOperation(operationId, operationRevision, trigger, phase, step, disposition, timing, blockers);
         }
     }
 }

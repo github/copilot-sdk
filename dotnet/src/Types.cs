@@ -3708,6 +3708,7 @@ public abstract class McpServerConfig
     /// Optional timeout in milliseconds for tool calls to this server.
     /// </summary>
     [JsonPropertyName("timeout")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? Timeout { get; set; }
 }
 
@@ -3730,18 +3731,21 @@ public sealed class McpStdioServerConfig : McpServerConfig
     /// Arguments to pass to the command.
     /// </summary>
     [JsonPropertyName("args")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IList<string>? Args { get; set; }
 
     /// <summary>
     /// Environment variables to pass to the server.
     /// </summary>
     [JsonPropertyName("env")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IDictionary<string, string>? Env { get; set; }
 
     /// <summary>
     /// Working directory for the server process.
     /// </summary>
     [JsonPropertyName("cwd")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? WorkingDirectory { get; set; }
 }
 
@@ -3764,30 +3768,35 @@ public sealed class McpHttpServerConfig : McpServerConfig
     /// Optional HTTP headers to include in requests.
     /// </summary>
     [JsonPropertyName("headers")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IDictionary<string, string>? Headers { get; set; }
 
     /// <summary>
     /// Optional OAuth client ID for the remote server.
     /// </summary>
     [JsonPropertyName("oauthClientId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? OauthClientId { get; set; }
 
     /// <summary>
     /// Whether this is a public OAuth client.
     /// </summary>
     [JsonPropertyName("oauthPublicClient")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? OauthPublicClient { get; set; }
 
     /// <summary>
     /// Optional OAuth grant type for the remote server.
     /// </summary>
     [JsonPropertyName("oauthGrantType")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public McpHttpServerConfigOauthGrantType? OauthGrantType { get; set; }
 
     /// <summary>
     /// Optional OAuth scopes to request for the statically configured client.
     /// </summary>
     [JsonPropertyName("oauthScopes")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IList<string>? OauthScopes { get; set; }
 }
 
@@ -5511,6 +5520,7 @@ public sealed class SessionContext
 public sealed class SessionListFilter
 {
     /// <summary>Filter by exact working directory match.</summary>
+    [JsonPropertyName("cwd")]
     public string? WorkingDirectory { get; set; }
     /// <summary>Filter by git root.</summary>
     public string? GitRoot { get; set; }

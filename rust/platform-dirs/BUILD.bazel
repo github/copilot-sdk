@@ -1,13 +1,20 @@
-load("@rules_rust//rust:defs.bzl", "rust_library", "rust_test")
+# Maintained by bazel/3rdparty/postprocess-local-crates.mjs.
+load("//bazel:rust_rules.bzl", "copilot_rust_library_explicit", "copilot_rust_test")
 
 package(default_visibility = ["//visibility:public"])
 
 PLATFORM_DEPS = select({
-    "@platforms//os:windows": ["@sdk_vendor//:windows-sys"],
+    "@platforms//os:windows": ["@vendor//:windows-sys"],
     "//conditions:default": [],
 })
 
-rust_library(
+alias(
+    name = "copilot_platform_dirs",
+    actual = ":copilot-platform-dirs",
+    tags = ["manual"],
+)
+
+copilot_rust_library_explicit(
     name = "copilot-platform-dirs",
     srcs = ["//src/sdk/rust:platform_dirs_srcs"],
     crate_name = "copilot_platform_dirs",
@@ -16,7 +23,7 @@ rust_library(
     deps = PLATFORM_DEPS,
 )
 
-rust_test(
+copilot_rust_test(
     name = "copilot-platform-dirs_test",
     crate = ":copilot-platform-dirs",
 )

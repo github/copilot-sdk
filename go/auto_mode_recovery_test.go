@@ -3,6 +3,7 @@
 package copilot
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -2223,6 +2224,71 @@ func TestAutoModeRecoveryCleanupFencesPublicDeletion(t *testing.T) {
 	}
 	if deletes.Load() != 1 {
 		t.Fatalf("unfenced deletion sent %d RPCs", deletes.Load())
+	}
+}
+
+// Start writes the transport while its startup is in progress, so the cleanup
+// fence of an operation started meanwhile must not read it (go test -race).
+func TestAutoModeRecoveryCleanupFenceDuringStart(t *testing.T) {
+	operations := []struct {
+		name string
+		run  func(context.Context, *Client) error
+	}{
+		{"ResumeSession", func(ctx context.Context, client *Client) error {
+			_, err := client.ResumeSession(ctx, "session-1", nil)
+			return err
+		}},
+		{"DeleteSession", func(ctx context.Context, client *Client) error {
+			return client.DeleteSession(ctx, "session-1")
+		}},
+	}
+	for _, operation := range operations {
+		t.Run(operation.name, func(t *testing.T) {
+			listener, err := net.ListenTCP("tcp", &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1)})
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { listener.Close() })
+			client := NewClient(&ClientOptions{Connection: URIConnection{URL: listener.Addr().String()}})
+			t.Cleanup(client.ForceStop)
+			startCtx, cancelStart := context.WithCancel(t.Context())
+			defer cancelStart()
+			started := make(chan error, 1)
+			go func() { started <- client.Start(startCtx) }()
+			if err := listener.SetDeadline(time.Now().Add(10 * time.Second)); err != nil {
+				t.Fatal(err)
+			}
+			conn, err := listener.Accept()
+			if err != nil {
+				t.Fatal("client did not connect:", err)
+			}
+			t.Cleanup(func() { conn.Close() })
+
+			// connect stays unanswered, so Start stays in progress. Read it only
+			// after the operation: the race detector orders a socket write before
+			// every later socket read, which would order Start's transport write
+			// before the operation.
+			ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
+			err = operation.run(ctx, client)
+			cancel()
+			if !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("%s during Start = %v, want it to wait for Start until its context ends", operation.name, err)
+			}
+			peer := &installationConfirmationPeer{t: t, conn: conn, reader: bufio.NewReader(conn)}
+			if connect := peer.readMessage(); connect.Method != "connect" {
+				t.Fatalf("first request = %q, want connect", connect.Method)
+			}
+
+			cancelStart()
+			select {
+			case err := <-started:
+				if err == nil {
+					t.Fatal("Start succeeded without a connect response")
+				}
+			case <-time.After(10 * time.Second):
+				t.Fatal("Start did not return after its context was canceled")
+			}
+		})
 	}
 }
 

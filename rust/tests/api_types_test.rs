@@ -12,6 +12,39 @@ use github_copilot_sdk::rpc::{
 use github_copilot_sdk::session_events::RecommendedAutoTier;
 
 #[test]
+fn shell_environment_debug_redacts_values_without_changing_wire() {
+    use github_copilot_sdk::rpc::{
+        ShellBuildInteractiveEnvironmentRequest, ShellBuildInteractiveEnvironmentResult,
+    };
+
+    let environment = serde_json::json!({
+        "GITHUB_TOKEN": "fake-shell-token",
+        "CUSTOM_CREDENTIAL": "fake-shell-custom-credential"
+    });
+    let request_wire = serde_json::json!({
+        "hostEnvironment": environment,
+        "additionalBlockedNames": [],
+        "caseInsensitive": false
+    });
+    let result_wire = serde_json::json!({ "environment": environment });
+    let request: ShellBuildInteractiveEnvironmentRequest =
+        serde_json::from_value(request_wire.clone()).unwrap();
+    let result: ShellBuildInteractiveEnvironmentResult =
+        serde_json::from_value(result_wire.clone()).unwrap();
+
+    for diagnostic in [format!("{request:?}"), format!("{result:?}")] {
+        for secret in environment.as_object().unwrap().values() {
+            assert!(
+                !diagnostic.contains(secret.as_str().unwrap()),
+                "{diagnostic}"
+            );
+        }
+    }
+    assert_eq!(serde_json::to_value(request).unwrap(), request_wire);
+    assert_eq!(serde_json::to_value(result).unwrap(), result_wire);
+}
+
+#[test]
 fn fetch_response_defaults_preserve_each_variant_mode() {
     use github_copilot_sdk::rpc::{
         FetchSendResult, FetchSendResultFile, FetchSendResultStream, FetchSendResultText,

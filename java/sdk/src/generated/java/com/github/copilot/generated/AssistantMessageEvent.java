@@ -62,7 +62,7 @@ public final class AssistantMessageEvent extends SessionEvent {
         @JsonProperty("chunkIndex") Long chunkIndex,
         /** Total messages the model call's response was split into, one per reasoning boundary. Absent for a single-message response; the last chunk is the one where chunkIndex is chunkCount - 1. */
         @JsonProperty("chunkCount") Long chunkCount,
-        /** Actual output token count from the API response (completion_tokens), used for accurate token accounting */
+        /** Output tokens this message adds to replayed context, for token accounting: the API response's completion_tokens, plus reasoning tokens a wire replays as input but reports separately, shared across the response's message chunks. Use assistant.usage for billed usage. */
         @JsonProperty("outputTokens") Long outputTokens,
         /** CAPI interaction ID for correlating this message with upstream telemetry */
         @JsonProperty("interactionId") String interactionId,

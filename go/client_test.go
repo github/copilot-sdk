@@ -189,6 +189,200 @@ func TestClientStartAfterTransportLossRetiresLostSessions(t *testing.T) {
 	}
 }
 
+// TestClientExitingRuntimeProcess stands in for a runtime that publishes a
+// session lifecycle notification and exits when the next request arrives,
+// without answering it.
+func TestClientExitingRuntimeProcess(t *testing.T) {
+	if os.Getenv("GO_WANT_EXITING_RUNTIME") != "1" {
+		return
+	}
+	notification, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "method": "session.lifecycle", "params": map[string]any{
+		"type": "session.updated", "sessionId": "lifecycle-session",
+	}})
+	fmt.Fprintf(os.Stdout, "Content-Length: %d\r\n\r\n%s", len(notification), notification)
+	// Read the whole request before exiting: the client writes its header and
+	// body separately, and exiting between them fails the write with a broken
+	// pipe instead of the request with the runtime's exit.
+	_, _ = readTestJSONRPCFrame(os.Stdin)
+	os.Exit(3)
+}
+
+// connectRuntimeProcess connects client over stdio to the test binary running
+// helperTest, as Start does for a runtime it spawns.
+func connectRuntimeProcess(t *testing.T, client *Client, helperTest, env string) *jsonrpc2.Client {
+	t.Helper()
+	process := exec.Command(os.Args[0], "-test.run=^"+helperTest+"$")
+	process.Env = append(os.Environ(), env)
+	stdin, err := process.StdinPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stdout, err := process.StdoutPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := process.Start(); err != nil {
+		t.Fatal(err)
+	}
+	client.process = process
+	client.processStdin = stdin
+	client.monitorProcess()
+	done := client.processDone
+	t.Cleanup(func() {
+		process.Process.Kill()
+		<-done
+	})
+	transport := jsonrpc2.NewClient(stdin, stdout)
+	transport.SetProcessDone(client.processDone, client.processErrorPtr)
+	client.client, client.RPC, client.internalRPC = transport, rpc.NewServerRPC(transport), rpc.NewInternalServerRPC(transport)
+	client.setupNotificationHandler()
+	transport.Start()
+	client.state = stateConnected
+	return transport
+}
+
+func TestClientStartAfterRuntimeExitReconnectsWhileReaderIsBusy(t *testing.T) {
+	client := NewClient(&ClientOptions{Connection: StdioConnection{Path: filepath.Join(t.TempDir(), "missing-runtime")}})
+	t.Cleanup(client.ForceStop)
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	releaseListener := func() { releaseOnce.Do(func() { close(release) }) }
+	// Cleanups run last-in first-out, so the listener is released before ForceStop joins the reader.
+	t.Cleanup(releaseListener)
+	listening := make(chan struct{}, 1)
+	client.On(func(SessionLifecycleEvent) {
+		select {
+		case listening <- struct{}{}:
+		default:
+		}
+		<-release
+	})
+	transport := connectRuntimeProcess(t, client, "TestClientExitingRuntimeProcess", "GO_WANT_EXITING_RUNTIME=1")
+
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	select {
+	case <-listening:
+	case <-ctx.Done():
+		t.Fatal("the lifecycle listener did not run")
+	}
+	// The runtime exits on this request. The reader is still in the listener,
+	// so the request fails with the exit before the connection closes.
+	if _, err := client.Ping(ctx, ""); err == nil || !strings.Contains(err.Error(), "exit status 3") {
+		t.Fatalf("Ping error = %v, want the runtime's exit status", err)
+	}
+	select {
+	case <-transport.ConnectionClosed():
+		t.Fatal("the connection closed while the reader was in the listener")
+	default:
+	}
+
+	started := make(chan error, 1)
+	go func() { started <- client.Start(ctx) }()
+	ticker := time.NewTicker(time.Millisecond)
+	defer ticker.Stop()
+	var startErr error
+wait:
+	for {
+		select {
+		case startErr = <-started:
+			break wait
+		case <-ticker.C:
+			// Keep the reader busy until Start has retired the exited runtime,
+			// so Start cannot rely on the connection closing first.
+			if client.osProcess.Load() == nil {
+				releaseListener()
+			}
+		case <-ctx.Done():
+			t.Fatal("Start did not return:", ctx.Err())
+		}
+	}
+	if startErr == nil {
+		t.Fatal("Start returned nil without starting a new runtime after the runtime exited")
+	}
+	if !strings.Contains(startErr.Error(), "missing-runtime") {
+		t.Fatalf("Start error = %v, want the replacement runtime's start error", startErr)
+	}
+	// Start does not wait for the reader, which closes the exited runtime's
+	// connection once the listener returns.
+	releaseListener()
+	select {
+	case <-transport.ConnectionClosed():
+	case <-ctx.Done():
+		t.Error("Start kept the exited runtime's connection open")
+	}
+}
+
+func TestClientStartFromALifecycleListenerAfterRuntimeExit(t *testing.T) {
+	client := NewClient(&ClientOptions{Connection: StdioConnection{Path: filepath.Join(t.TempDir(), "missing-runtime")}})
+	t.Cleanup(client.ForceStop)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	listening := make(chan struct{})
+	pinged := make(chan struct{})
+	started := make(chan error, 1)
+	var transport *jsonrpc2.Client
+	var once sync.Once
+	client.On(func(SessionLifecycleEvent) {
+		once.Do(func() {
+			close(listening)
+			select {
+			case <-pinged:
+			case <-ctx.Done():
+				return
+			}
+			// The listener runs on the connection's reader, so Start must not
+			// wait for the reader to finish.
+			err := client.Start(context.Background())
+			select {
+			case <-transport.ConnectionClosed():
+			default:
+				t.Error("Start left the exited runtime's connection open while its reader was busy")
+			}
+			started <- err
+		})
+	})
+	transport = connectRuntimeProcess(t, client, "TestClientExitingRuntimeProcess", "GO_WANT_EXITING_RUNTIME=1")
+	// Wait until the reader has the notification: the runtime exits on the
+	// next request, and an unread notification is lost with its output.
+	select {
+	case <-listening:
+	case <-ctx.Done():
+		t.Fatal("the lifecycle listener did not run")
+	}
+
+	if _, err := client.Ping(ctx, ""); err == nil || !strings.Contains(err.Error(), "exit status 3") {
+		t.Fatalf("Ping error = %v, want the runtime's exit status", err)
+	}
+	close(pinged)
+	select {
+	case err := <-started:
+		if err == nil || !strings.Contains(err.Error(), "missing-runtime") {
+			t.Fatalf("Start error = %v, want the replacement runtime's start error", err)
+		}
+	case <-ctx.Done():
+		t.Fatal("Start called from a lifecycle listener did not return")
+	}
+}
+
+func TestClientStartKeepsTheConnectionToARunningRuntime(t *testing.T) {
+	client := NewClient(&ClientOptions{Connection: StdioConnection{Path: filepath.Join(t.TempDir(), "missing-runtime")}})
+	t.Cleanup(client.ForceStop)
+	transport := connectRuntimeProcess(t, client, "TestClientReconnectOwnerProcess", "GO_WANT_RECONNECT_OWNER=1")
+
+	if err := client.Start(t.Context()); err != nil {
+		t.Fatal("Start on a connected client:", err)
+	}
+	if client.client != transport {
+		t.Error("Start replaced the connection to a running runtime")
+	}
+	select {
+	case <-client.processDone:
+		t.Error("Start stopped a running runtime")
+	default:
+	}
+}
+
 type reconnectOwnerHost struct {
 	inProcessHost
 	disposed bool
@@ -425,8 +619,8 @@ func TestClient_URLParsing(t *testing.T) {
 		client := NewClient(&ClientOptions{
 			Connection: URIConnection{URL: "8080"},
 		})
-		if client.actualPort != 8080 {
-			t.Errorf("Expected port 8080, got %d", client.actualPort)
+		if client.RuntimePort() != 8080 {
+			t.Errorf("Expected port 8080, got %d", client.RuntimePort())
 		}
 		if client.actualHost != "localhost" {
 			t.Errorf("Expected host localhost, got %s", client.actualHost)
@@ -440,8 +634,8 @@ func TestClient_URLParsing(t *testing.T) {
 		client := NewClient(&ClientOptions{
 			Connection: URIConnection{URL: "127.0.0.1:9000"},
 		})
-		if client.actualPort != 9000 || client.actualHost != "127.0.0.1" {
-			t.Errorf("Expected 127.0.0.1:9000, got %s:%d", client.actualHost, client.actualPort)
+		if client.RuntimePort() != 9000 || client.actualHost != "127.0.0.1" {
+			t.Errorf("Expected 127.0.0.1:9000, got %s:%d", client.actualHost, client.RuntimePort())
 		}
 	})
 
@@ -449,8 +643,8 @@ func TestClient_URLParsing(t *testing.T) {
 		client := NewClient(&ClientOptions{
 			Connection: URIConnection{URL: "[::1]:9000"},
 		})
-		if client.actualPort != 9000 || client.actualHost != "::1" {
-			t.Errorf("Expected [::1]:9000, got %s:%d", client.actualHost, client.actualPort)
+		if client.RuntimePort() != 9000 || client.actualHost != "::1" {
+			t.Errorf("Expected [::1]:9000, got %s:%d", client.actualHost, client.RuntimePort())
 		}
 	})
 
@@ -458,8 +652,8 @@ func TestClient_URLParsing(t *testing.T) {
 		client := NewClient(&ClientOptions{
 			Connection: URIConnection{URL: "http://localhost:7000"},
 		})
-		if client.actualPort != 7000 || client.actualHost != "localhost" {
-			t.Errorf("Expected localhost:7000, got %s:%d", client.actualHost, client.actualPort)
+		if client.RuntimePort() != 7000 || client.actualHost != "localhost" {
+			t.Errorf("Expected localhost:7000, got %s:%d", client.actualHost, client.RuntimePort())
 		}
 	})
 
@@ -467,8 +661,8 @@ func TestClient_URLParsing(t *testing.T) {
 		client := NewClient(&ClientOptions{
 			Connection: URIConnection{URL: "http://[::1]:7000"},
 		})
-		if client.actualPort != 7000 || client.actualHost != "::1" {
-			t.Errorf("Expected [::1]:7000, got %s:%d", client.actualHost, client.actualPort)
+		if client.RuntimePort() != 7000 || client.actualHost != "::1" {
+			t.Errorf("Expected [::1]:7000, got %s:%d", client.actualHost, client.RuntimePort())
 		}
 	})
 
@@ -502,8 +696,8 @@ func TestClient_URLParsing(t *testing.T) {
 
 	t.Run("should parse a host named https", func(t *testing.T) {
 		client := NewClient(&ClientOptions{Connection: URIConnection{URL: "https:9000"}})
-		if client.actualPort != 9000 || client.actualHost != "https" {
-			t.Errorf("Expected https:9000, got %s:%d", client.actualHost, client.actualPort)
+		if client.RuntimePort() != 9000 || client.actualHost != "https" {
+			t.Errorf("Expected https:9000, got %s:%d", client.actualHost, client.RuntimePort())
 		}
 	})
 
@@ -1813,6 +2007,254 @@ func TestClient_CallAdmittedDuringStopFailsInsteadOfPanicking(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("GetSessionMetadata did not fail on a stopped transport")
+	}
+}
+
+// connectionQueryServer answers the requests Ping, GetStatus, GetAuthStatus and
+// ListModels send. With holdConnect, its connect handler closes connected and
+// then waits for releaseConnect, keeping Start in progress; a legacy server has
+// no connect method, so Start falls back to ping.
+type connectionQueryServer struct {
+	addr           string
+	connected      chan struct{}
+	releaseConnect func()
+}
+
+func newConnectionQueryServer(t *testing.T, legacy, holdConnect bool) *connectionQueryServer {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	release := make(chan struct{})
+	s := &connectionQueryServer{
+		addr:           listener.Addr().String(),
+		connected:      make(chan struct{}),
+		releaseConnect: sync.OnceFunc(func() { close(release) }),
+	}
+	if !holdConnect {
+		s.releaseConnect()
+	}
+	reportConnected := sync.OnceFunc(func() { close(s.connected) })
+	reply := func(result string) jsonrpc2.RequestHandler {
+		return func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) { return json.RawMessage(result), nil }
+	}
+	var mux sync.Mutex
+	var servers []*jsonrpc2.Client
+	t.Cleanup(func() {
+		s.releaseConnect()
+		listener.Close()
+		mux.Lock()
+		defer mux.Unlock()
+		for _, server := range servers {
+			server.Stop()
+		}
+	})
+	go func() {
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			server := jsonrpc2.NewClient(conn, conn)
+			if !legacy {
+				server.SetRequestHandler("connect", func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+					reportConnected()
+					<-release
+					return json.RawMessage(`{"ok":true,"protocolVersion":3,"version":"test"}`), nil
+				})
+			}
+			server.SetRequestHandler("ping", reply(`{"message":"pong","timestamp":"2026-01-01T00:00:00Z","protocolVersion":3}`))
+			server.SetRequestHandler("status.get", reply(`{"version":"test","protocolVersion":3}`))
+			server.SetRequestHandler("auth.getStatus", reply(`{"isAuthenticated":true}`))
+			server.SetRequestHandler("models.list", reply(`{"models":[]}`))
+			server.Start()
+			mux.Lock()
+			servers = append(servers, server)
+			mux.Unlock()
+		}
+	}()
+	return s
+}
+
+func TestClient_ConnectionQueriesWaitForStart(t *testing.T) {
+	server := newConnectionQueryServer(t, false, true)
+	client := NewClient(&ClientOptions{Connection: URIConnection{URL: server.addr}})
+	t.Cleanup(client.ForceStop)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+
+	started := make(chan error, 1)
+	go func() { started <- client.Start(ctx) }()
+	select {
+	case <-server.connected:
+	case <-ctx.Done():
+		t.Fatal("Start did not send connect")
+	}
+
+	type queryResult struct {
+		name string
+		err  error
+	}
+	queries := map[string]func() error{
+		"Ping":          func() error { _, err := client.Ping(ctx, "x"); return err },
+		"GetStatus":     func() error { _, err := client.GetStatus(ctx); return err },
+		"GetAuthStatus": func() error { _, err := client.GetAuthStatus(ctx); return err },
+		"ListModels":    func() error { _, err := client.ListModels(ctx); return err },
+	}
+	results := make(chan queryResult, len(queries))
+	for name, query := range queries {
+		go func() { results <- queryResult{name: name, err: query()} }()
+	}
+	// Start has created the transport but not finished the handshake, so a
+	// query must not use it yet.
+	select {
+	case result := <-results:
+		t.Fatalf("%s returned while Start was in progress: %v", result.name, result.err)
+	case <-time.After(200 * time.Millisecond):
+	}
+
+	server.releaseConnect()
+	if err := <-started; err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+	for range queries {
+		select {
+		case result := <-results:
+			if result.err != nil {
+				t.Errorf("%s failed after Start: %v", result.name, result.err)
+			}
+		case <-ctx.Done():
+			t.Fatal("a query did not return after Start")
+		}
+	}
+}
+
+func TestClient_ConnectionQueriesDuringStop(t *testing.T) {
+	for _, mode := range []string{"Stop", "ForceStop"} {
+		t.Run(mode, func(t *testing.T) {
+			server := newConnectionQueryServer(t, false, false)
+			client := NewClient(&ClientOptions{Connection: URIConnection{URL: server.addr}})
+			t.Cleanup(client.ForceStop)
+			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+			defer cancel()
+			if err := client.Start(ctx); err != nil {
+				t.Fatalf("Start failed: %v", err)
+			}
+
+			queries := []func() error{
+				func() error { _, err := client.Ping(ctx, "x"); return err },
+				func() error { _, err := client.GetStatus(ctx); return err },
+				func() error { _, err := client.GetAuthStatus(ctx); return err },
+			}
+			var stopped atomic.Bool
+			answered := make(chan struct{}, len(queries))
+			var wg sync.WaitGroup
+			for _, query := range queries {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					first := true
+					// Keep querying until the client has stopped; the queries that
+					// overlap the stop fail, which is expected.
+					for !stopped.Load() && ctx.Err() == nil {
+						if query() == nil && first {
+							answered <- struct{}{}
+							first = false
+						}
+					}
+				}()
+			}
+			for range queries {
+				select {
+				case <-answered:
+				case <-ctx.Done():
+					t.Fatal("a query was not answered before stopping")
+				}
+			}
+
+			if mode == "Stop" {
+				if err := client.Stop(); err != nil {
+					t.Errorf("Stop failed: %v", err)
+				}
+			} else {
+				client.ForceStop()
+			}
+			// Keep querying the stopped client for a moment: the flag below orders
+			// every later query after the stop, so it must not end the loop at once.
+			time.Sleep(20 * time.Millisecond)
+			stopped.Store(true)
+			wg.Wait()
+			for i, query := range queries {
+				if err := query(); err == nil || err.Error() != "client not connected" {
+					t.Errorf("query %d after %s returned %v, want client not connected", i, mode, err)
+				}
+			}
+		})
+	}
+}
+
+func TestClient_RuntimePortDuringStop(t *testing.T) {
+	for _, mode := range []string{"Stop", "ForceStop"} {
+		t.Run(mode, func(t *testing.T) {
+			rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
+			t.Cleanup(server.Stop)
+			// A client whose own runtime listens on TCP: stopping it clears the port.
+			client := NewClient(&ClientOptions{Connection: URIConnection{URL: "127.0.0.1:4321"}})
+			client.isExternalServer = false
+			client.process = &exec.Cmd{}
+			client.client, client.RPC, client.state = rpcClient, rpc.NewServerRPC(rpcClient), stateConnected
+			client.processDone = make(chan struct{})
+			close(client.processDone)
+
+			var stopped atomic.Bool
+			read := make(chan struct{})
+			done := make(chan struct{})
+			go func() {
+				defer close(done)
+				first := true
+				for !stopped.Load() {
+					if client.RuntimePort() == 4321 && first {
+						close(read)
+						first = false
+					}
+				}
+			}()
+			select {
+			case <-read:
+			case <-time.After(5 * time.Second):
+				t.Fatal("RuntimePort did not report the port before stopping")
+			}
+
+			if mode == "Stop" {
+				if err := client.Stop(); err != nil {
+					t.Errorf("Stop failed: %v", err)
+				}
+			} else {
+				client.ForceStop()
+			}
+			// As above, keep reading for a moment before the flag orders later reads.
+			time.Sleep(20 * time.Millisecond)
+			stopped.Store(true)
+			<-done
+			if port := client.RuntimePort(); port != 0 {
+				t.Errorf("RuntimePort after %s = %d, want 0", mode, port)
+			}
+		})
+	}
+}
+
+func TestClient_StartFallsBackToPingWithoutConnect(t *testing.T) {
+	server := newConnectionQueryServer(t, true, false)
+	client := NewClient(&ClientOptions{Connection: URIConnection{URL: server.addr}})
+	t.Cleanup(client.ForceStop)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	if err := client.Start(ctx); err != nil {
+		t.Fatalf("Start against a server without connect failed: %v", err)
+	}
+	if _, err := client.Ping(ctx, "x"); err != nil {
+		t.Fatalf("Ping after Start failed: %v", err)
 	}
 }
 

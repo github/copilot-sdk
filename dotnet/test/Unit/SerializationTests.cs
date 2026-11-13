@@ -926,6 +926,31 @@ public class SerializationTests
     }
 
     [Fact]
+    public void ListSessionsRequest_SerializesWorkingDirectoryFilterAsCwd_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var requestType = GetNestedType(typeof(CopilotClient), "ListSessionsRequest");
+        var request = CreateInternalRequest(
+            requestType,
+            ("Filter", new SessionListFilter
+            {
+                WorkingDirectory = "/work/project",
+                GitRoot = "/work",
+                Repository = "octo/demo",
+                Branch = "main",
+            }));
+
+        var json = JsonSerializer.Serialize(request, requestType, options);
+        using var document = JsonDocument.Parse(json);
+        var filter = document.RootElement.GetProperty("filter");
+        Assert.Equal("/work/project", filter.GetProperty("cwd").GetString());
+        Assert.False(filter.TryGetProperty("workingDirectory", out _));
+        Assert.Equal("/work", filter.GetProperty("gitRoot").GetString());
+        Assert.Equal("octo/demo", filter.GetProperty("repository").GetString());
+        Assert.Equal("main", filter.GetProperty("branch").GetString());
+    }
+
+    [Fact]
     public void SessionRequests_OmitMemory_WhenUnset()
     {
         var options = GetSerializerOptions();

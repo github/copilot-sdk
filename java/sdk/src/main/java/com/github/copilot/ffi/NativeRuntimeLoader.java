@@ -31,10 +31,10 @@ import java.util.concurrent.locks.ReentrantLock;
  * <p>
  * Resolution order:
  * <ol>
- * <li><strong>{@code COPILOT_CLI_PATH}</strong> — checks for
- * {@code runtime.node} alongside the configured CLI or in its npm
- * {@code prebuilds/<classifier>} directory before any classpath or platform
- * work.</li>
+ * <li><strong>{@code COPILOT_CLI_PATH}</strong> — requires a non-empty CLI and
+ * {@code runtime.node} alongside it or in its npm
+ * {@code prebuilds/<classifier>} directory. An incompatible explicit
+ * installation fails without selecting another runtime.</li>
  * <li><strong>Classpath resource</strong>
  * {@code native/<classifier>/runtime.node} — extracted atomically to
  * {@code ~/.copilot/runtime-cache/<sdk-version>/<native-version>/<classifier>/runtime.node}.</li>
@@ -140,9 +140,18 @@ public final class NativeRuntimeLoader {
      */
     public static Path resolve() throws IOException {
         String cliPathEnv = System.getenv(COPILOT_CLI_PATH_ENV);
+        if (cliPathEnv != null && !cliPathEnv.isBlank()
+                && !isValidCachedFile(Path.of(cliPathEnv).toAbsolutePath().normalize())) {
+            throw new FileNotFoundException(
+                    "No non-empty CLI entrypoint found for " + COPILOT_CLI_PATH_ENV + "=" + cliPathEnv);
+        }
         Path cliOverride = resolveFromCliPath(cliPathEnv);
         if (cliOverride != null) {
             return cliOverride;
+        }
+        if (cliPathEnv != null && !cliPathEnv.isBlank()) {
+            throw new FileNotFoundException("No non-empty runtime.node found for " + COPILOT_CLI_PATH_ENV + "="
+                    + cliPathEnv + " (expected alongside the configured CLI or under prebuilds/<classifier>)");
         }
 
         ClassLoader loader = NativeRuntimeLoader.class.getClassLoader();
@@ -341,7 +350,9 @@ public final class NativeRuntimeLoader {
      * <p>
      * Checks, in order, the flat bundled layout ({@code runtime.node} directly next
      * to the CLI) and the release package layout
-     * ({@code prebuilds/<classifier>/runtime.node} next to the CLI).
+     * ({@code prebuilds/<classifier>/runtime.node} next to the CLI). If neither
+     * provides a usable library, repeats those probes beside the resolved target of
+     * a CLI symlink.
      */
     static Path resolveFromCliPath(String cliPathStr) throws IOException {
         if (cliPathStr == null || cliPathStr.isBlank()) {
@@ -361,6 +372,9 @@ public final class NativeRuntimeLoader {
             return prebuilt;
         }
 
+        if (Files.isSymbolicLink(cliPath) && Files.isRegularFile(cliPath)) {
+            return resolveFromCliPath(cliPath.toRealPath().toString());
+        }
         return null;
     }
 

@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+import { createHash } from "node:crypto";
 import type {
     WorkflowGetRunProgressRequest,
     WorkflowListRunsRequest,
@@ -14,6 +15,7 @@ import type {
 } from "./generated/rpc.js";
 import type { ContextTier } from "./generated/session-events.js";
 import type { CopilotSession } from "./session.js";
+import type { CustomAgentConfig } from "./types.js";
 
 export type { WorkflowRunResult };
 /** A value that can be represented losslessly on the SDK JSON wire. */
@@ -81,6 +83,43 @@ export function isWorkflowRunTerminal(status: WorkflowRunStatus): boolean {
 }
 
 declare const workflowHandleBrand: unique symbol;
+declare const workflowAgentReferenceBrand: unique symbol;
+
+/**
+ * A deeply immutable view of a value.
+ *
+ * Workflow factories deep-freeze the definitions they store, so public handles
+ * expose readonly views all the way down.
+ */
+type DeepReadonly<T> = T extends (infer U)[]
+    ? readonly DeepReadonly<U>[]
+    : T extends object
+      ? { readonly [K in keyof T]: DeepReadonly<T[K]> }
+      : T;
+
+type RestrictedWorkflowAgentDefinition = Pick<
+    CustomAgentConfig,
+    "name" | "displayName" | "description" | "prompt"
+> & {
+    tools: [];
+    infer: false;
+};
+
+/**
+ * Opaque reference to one custom agent owned by the currently executing workflow.
+ *
+ * References are available only through {@link WorkflowContext.agents}. They do
+ * not expose the definition, cannot be addressed through the session's global
+ * agent catalog, and are rejected by any other workflow.
+ *
+ * @experimental Part of the experimental Dynamic Workflows surface and may
+ * change or be removed in future SDK or CLI releases.
+ */
+export interface WorkflowAgentReference {
+    readonly [workflowAgentReferenceBrand]: true;
+}
+
+type WorkflowAgentConfigMap = Record<string, CustomAgentConfig>;
 
 /**
  * Conservative JSON shape language accepted by the Dynamic Workflows surface, for
@@ -166,7 +205,18 @@ export interface WorkflowAgentOptions {
     model?: string;
     reasoningEffort?: string;
     contextTier?: ContextTier;
-    agent?: string;
+    /**
+     * Ordinary catalog agent name, or an opaque workflow-scoped custom-agent
+     * reference from the currently executing workflow's `context.agents`.
+     */
+    agent?: string | WorkflowAgentReference;
+    /**
+     * Maximum seconds for this agent call's queueing, preparation and execution.
+     * Must be finite and positive, at most 2_147_483.647. The runtime cancels
+     * only this agent when it expires; cleanup may finish after the deadline.
+     * Omitting it leaves the call bounded only by the workflow's own limits.
+     */
+    timeoutSeconds?: number;
 }
 
 export const WORKFLOW_AGENT_OPTION_KEYS = [
@@ -176,6 +226,7 @@ export const WORKFLOW_AGENT_OPTION_KEYS = [
     "reasoningEffort",
     "contextTier",
     "agent",
+    "timeoutSeconds",
 ] as const;
 
 /**
@@ -226,6 +277,8 @@ export type WorkflowPipelineStage<TInput = unknown, TResult = unknown> = (
 export interface WorkflowContext<TArgs extends JsonValue = JsonValue> {
     /** Stable identifier for the current workflow run. */
     readonly runId: string;
+    /** Opaque references to the custom agents declared by this workflow. */
+    readonly agents: Readonly<Record<string, WorkflowAgentReference>>;
     /** Spawn and await one workflow-scoped subagent. */
     agent(prompt: string, options?: WorkflowAgentOptions): Promise<unknown>;
     /** Memoize an arbitrary producer under a stable author-supplied key. */
@@ -289,21 +342,15 @@ export interface WorkflowDefinition<
     TResult extends JsonValue | void = JsonValue | void,
 > {
     meta: WorkflowMeta;
+    /**
+     * Restricted {@link CustomAgentConfig} definitions owned exclusively by this workflow.
+     *
+     * Each map key becomes an opaque reference on `context.agents`. Definitions
+     * never enter the session's global agent catalog.
+     */
+    agents?: WorkflowAgentConfigMap;
     run(context: WorkflowContext<TArgs>): Promise<TResult>;
 }
-
-/**
- * A deeply immutable view of a value.
- *
- * `defineWorkflow` deep-freezes the metadata it stores, so the handle's view of
- * it has to be readonly all the way down or `handle.meta.name = "..."` and
- * `handle.meta.phases.push(...)` would compile and then throw at runtime.
- */
-type DeepReadonly<T> = T extends (infer U)[]
-    ? readonly DeepReadonly<U>[]
-    : T extends object
-      ? { readonly [K in keyof T]: DeepReadonly<T[K]> }
-      : T;
 
 /**
  * Opaque reusable reference to a defined workflow.
@@ -369,7 +416,8 @@ export type WorkflowResumeErrorCode =
     | "workflow_limits_invalid"
     | "workflow_session_disposed"
     | "workflow_storage_unavailable"
-    | "workflow_storage_corrupt";
+    | "workflow_storage_corrupt"
+    | "workflow_role_definition_mismatch";
 
 /**
  * Friendly workflow API exposed on a session.
@@ -379,7 +427,21 @@ export type WorkflowResumeErrorCode =
  */
 export interface SessionWorkflowApi {
     /**
-     * Run a registered workflow and resolve with its run envelope.
+     * Start a registered workflow and resolve as soon as the runtime admits it.
+     *
+     * Returns the admitted run's identity and current envelope without waiting
+     * for completion. Admission is not a successful terminal outcome: inspect
+     * the run through {@link SessionWorkflowApi.getRun} or await
+     * {@link SessionWorkflowApi.waitForRun}. Pre-admission failures reject just
+     * as they do for {@link SessionWorkflowApi.run}.
+     */
+    start(name: string, options?: WorkflowRunOptions): Promise<WorkflowRunResult>;
+    start<TArgs extends JsonValue>(
+        workflow: WorkflowHandle<TArgs, JsonValue | void>,
+        options?: WorkflowRunOptions<TArgs>
+    ): Promise<WorkflowRunResult>;
+    /**
+     * Run a registered workflow and wait for its current attempt to settle.
      *
      * The envelope is returned for every outcome, including `error`, `halted`,
      * `paused`, and `cancelled` — inspect `status` and read `result` only when
@@ -468,10 +530,23 @@ export class WorkflowResumeError extends Error {
 
 interface StoredWorkflow {
     meta: WorkflowMeta;
+    registration: WorkflowRegistration;
+    agents: Readonly<Record<string, WorkflowAgentReference>>;
+    agentReferences: Map<WorkflowAgentReference, string>;
     run(context: WorkflowContext): Promise<JsonValue | void>;
 }
 
+interface WorkflowRegistrationRole extends RestrictedWorkflowAgentDefinition {
+    reference: string;
+}
+
+interface WorkflowRegistration extends WorkflowMeta {
+    privateRoles?: WorkflowRegistrationRole[];
+    roleDefinitionHash?: string;
+}
+
 const workflowHandles = new WeakMap<object, StoredWorkflow>();
+const workflowAgentReferences = new WeakSet<object>();
 
 /** Maximum accepted workflow timeout in seconds, derived from Node's maximum timer delay. */
 const MAX_WORKFLOW_TIMEOUT_SECONDS = 2_147_483.647;
@@ -485,6 +560,151 @@ function deepFreeze<T>(value: T): T {
         }
     }
     return value;
+}
+
+function canonicalJson(value: unknown): string {
+    const compareUtf8 = (left: string, right: string): number =>
+        Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
+    const canonicalize = (nested: unknown): unknown => {
+        if (Array.isArray(nested)) {
+            return nested.map(canonicalize);
+        }
+        if (nested !== null && typeof nested === "object") {
+            return Object.fromEntries(
+                Object.entries(nested as Record<string, unknown>)
+                    .filter(([, child]) => child !== undefined)
+                    .sort(([left], [right]) => compareUtf8(left, right))
+                    .map(([key, child]) => [key, canonicalize(child)])
+            );
+        }
+        return nested;
+    };
+    return JSON.stringify(canonicalize(value));
+}
+
+function sha256(value: string): string {
+    return createHash("sha256").update(value, "utf8").digest("hex");
+}
+
+function validateRequiredWorkflowAgentString(
+    value: unknown,
+    field: "name" | "prompt"
+): asserts value is string {
+    if (typeof value !== "string" || value.trim().length === 0) {
+        throw new Error(`Workflow agent "${field}" must not be empty`);
+    }
+}
+
+function validateOptionalWorkflowAgentString(
+    value: unknown,
+    field: "displayName" | "description"
+): asserts value is string | undefined {
+    if (value !== undefined && (typeof value !== "string" || value.trim().length === 0)) {
+        throw new Error(`Workflow agent "${field}" must be a non-empty string when provided`);
+    }
+}
+
+function normalizeWorkflowAgent(config: CustomAgentConfig): RestrictedWorkflowAgentDefinition {
+    if (config === null || typeof config !== "object" || Array.isArray(config)) {
+        throw new Error("Workflow agent configuration must be an object");
+    }
+    const allowed = new Set(["name", "displayName", "description", "prompt", "tools", "infer"]);
+    for (const field of Object.keys(config)) {
+        if (!allowed.has(field)) {
+            throw new Error(`Workflow agent field "${field}" is not supported`);
+        }
+    }
+    validateRequiredWorkflowAgentString(config.name, "name");
+    validateRequiredWorkflowAgentString(config.prompt, "prompt");
+    validateOptionalWorkflowAgentString(config.displayName, "displayName");
+    validateOptionalWorkflowAgentString(config.description, "description");
+    if (config.infer !== false) {
+        throw new Error('Workflow agent "infer" must be false');
+    }
+    if (config.tools !== undefined && (!Array.isArray(config.tools) || config.tools.length !== 0)) {
+        throw new Error("Workflow agents must not declare tools");
+    }
+
+    return deepFreeze({
+        name: config.name,
+        ...(config.displayName !== undefined ? { displayName: config.displayName } : {}),
+        ...(config.description !== undefined ? { description: config.description } : {}),
+        prompt: config.prompt,
+        tools: [] as [],
+        infer: false as const,
+    });
+}
+
+function workflowRegistration(
+    meta: WorkflowMeta,
+    agents: WorkflowAgentConfigMap | undefined
+): {
+    registration: WorkflowRegistration;
+    agents: Readonly<Record<string, WorkflowAgentReference>>;
+    agentReferences: Map<WorkflowAgentReference, string>;
+} {
+    if (agents === undefined) {
+        return {
+            registration: meta,
+            agents: Object.freeze({}),
+            agentReferences: new Map(),
+        };
+    }
+    if (agents === null || typeof agents !== "object" || Array.isArray(agents)) {
+        throw new Error("Workflow agents must be a named object map");
+    }
+
+    const definitions = Object.entries(agents).map(([key, config]) => {
+        if (key.trim().length === 0) {
+            throw new Error("Workflow agent map keys must not be empty");
+        }
+        const definition = normalizeWorkflowAgent(config);
+        const reference = Object.freeze({}) as WorkflowAgentReference;
+        workflowAgentReferences.add(reference);
+        return { key, reference, definition };
+    });
+    if (definitions.length === 0) {
+        return {
+            registration: meta,
+            agents: Object.freeze({}),
+            agentReferences: new Map(),
+        };
+    }
+    const names = new Set<string>();
+    for (const { definition } of definitions) {
+        if (names.has(definition.name)) {
+            throw new Error(`Workflow agent "${definition.name}" is declared more than once`);
+        }
+        names.add(definition.name);
+    }
+    definitions.sort((left, right) =>
+        Buffer.compare(
+            Buffer.from(left.definition.name, "utf8"),
+            Buffer.from(right.definition.name, "utf8")
+        )
+    );
+    const roleDefinitionHash = sha256(
+        canonicalJson(definitions.map(({ definition }) => definition))
+    );
+    const agentReferences = new Map<WorkflowAgentReference, string>();
+    const contextAgentEntries: Array<[string, WorkflowAgentReference]> = [];
+    const privateRoles = definitions.map(({ key, reference: agentReference, definition }) => {
+        const wireReference = sha256(
+            `workflow-role\0${meta.name}\0${definition.name}\0${roleDefinitionHash}`
+        );
+        agentReferences.set(agentReference, wireReference);
+        contextAgentEntries.push([key, agentReference]);
+        return { reference: wireReference, ...definition };
+    });
+    return {
+        registration: deepFreeze({
+            ...meta,
+            privateRoles,
+            roleDefinitionHash,
+        }),
+        agents: Object.freeze(Object.fromEntries(contextAgentEntries)),
+        agentReferences,
+    };
 }
 
 function validateLimits(meta: WorkflowMeta): void {
@@ -560,9 +780,13 @@ export function defineWorkflow<
     const meta = deepFreeze(structuredClone(definition.meta));
     validateLimits(meta);
     validatePhases(meta);
+    const { registration, agents, agentReferences } = workflowRegistration(meta, definition.agents);
 
     const stored: StoredWorkflow = {
         meta,
+        registration,
+        agents,
+        agentReferences,
         run: definition.run,
     };
     const handle = Object.freeze({ meta }) as unknown as WorkflowHandle<TArgs, TResult>;
@@ -578,4 +802,24 @@ export function getWorkflowDefinition(handle: WorkflowHandle): StoredWorkflow {
         throw new Error("Invalid workflow handle");
     }
     return definition;
+}
+
+/** @internal */
+export function getWorkflowRegistration(handle: WorkflowHandle): WorkflowRegistration {
+    return getWorkflowDefinition(handle).registration;
+}
+
+/** @internal */
+export function getWorkflowAgentReference(
+    workflow: StoredWorkflow,
+    agent: WorkflowAgentReference
+): string {
+    if (!workflowAgentReferences.has(agent)) {
+        throw new Error("Invalid workflow agent reference");
+    }
+    const reference = workflow.agentReferences.get(agent);
+    if (!reference) {
+        throw new Error("Workflow agent reference is not declared by this workflow");
+    }
+    return reference;
 }

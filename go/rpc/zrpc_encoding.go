@@ -12829,6 +12829,96 @@ func (r SkillInstallationResultOutcome) MarshalJSON() ([]byte, error) {
 	})
 }
 
+func (r SkillsInstallSourceRequest) MarshalJSON() ([]byte, error) {
+	type wire SkillsInstallSourceRequest
+	if r.SkillDirectories == nil {
+		r.SkillDirectories = []string{}
+	}
+	return json.Marshal(wire(r))
+}
+
+func (r SkillsRemoveSourceInventory) MarshalJSON() ([]byte, error) {
+	type wire SkillsRemoveSourceInventory
+	if r.PersonalSkillsDirs == nil {
+		r.PersonalSkillsDirs = []string{}
+	}
+	if r.Skills == nil {
+		r.Skills = []SkillRemoveSourceEntry{}
+	}
+	return json.Marshal(wire(r))
+}
+
+func unmarshalSkillsRemoveSourceOutcome(data []byte) (SkillsRemoveSourceOutcome, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Kind SkillsRemoveSourceOutcomeKind `json:"kind"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Kind {
+	case SkillsRemoveSourceOutcomeKindNeedsInventory:
+		var d SkillsRemoveSourceOutcomeNeedsInventory
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case SkillsRemoveSourceOutcomeKindRemoved:
+		var d SkillsRemoveSourceOutcomeRemoved
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawSkillsRemoveSourceOutcomeData{Discriminator: raw.Kind, Raw: data}, nil
+	}
+}
+
+func (r RawSkillsRemoveSourceOutcomeData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Kind SkillsRemoveSourceOutcomeKind `json:"kind"`
+	}{
+		Kind: r.Discriminator,
+	})
+}
+
+func (r SkillsRemoveSourceOutcomeNeedsInventory) MarshalJSON() ([]byte, error) {
+	type alias SkillsRemoveSourceOutcomeNeedsInventory
+	return json.Marshal(struct {
+		Kind SkillsRemoveSourceOutcomeKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r SkillsRemoveSourceOutcomeRemoved) MarshalJSON() ([]byte, error) {
+	type alias SkillsRemoveSourceOutcomeRemoved
+	return json.Marshal(struct {
+		Kind SkillsRemoveSourceOutcomeKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r SkillsRemoveSourceRequest) MarshalJSON() ([]byte, error) {
+	type wire SkillsRemoveSourceRequest
+	if r.SkillDirectories == nil {
+		r.SkillDirectories = []string{}
+	}
+	return json.Marshal(wire(r))
+}
+
 func unmarshalSlashCommandInvocationResult(data []byte) (SlashCommandInvocationResult, error) {
 	if string(data) == "null" {
 		return nil, nil
@@ -14044,4 +14134,16 @@ func (r *WorkflowRunResult) UnmarshalJSON(data []byte) error {
 	r.Snapshot = raw.Snapshot
 	r.Status = raw.Status
 	return nil
+}
+
+// MarshalJSON preserves required collections without changing the caller's request.
+func (request ShellBuildInteractiveEnvironmentRequest) MarshalJSON() ([]byte, error) {
+	type wireRequest ShellBuildInteractiveEnvironmentRequest
+	if request.AdditionalBlockedNames == nil {
+		request.AdditionalBlockedNames = []string{}
+	}
+	if request.HostEnvironment == nil {
+		request.HostEnvironment = map[string]string{}
+	}
+	return json.Marshal(wireRequest(request))
 }

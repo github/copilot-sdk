@@ -14,6 +14,11 @@ public class ClientE2ETests(E2ETestFixture fixture) : IClassFixture<E2ETestFixtu
     private const string FailingCliScript =
         "process.stderr.write('nonexistent test flag on stderr\\n'); process.exit(1);";
 
+    // Announces a TCP port like the runtime does, then drops every connection.
+    private const string PortThenDropCliScript =
+        "const server = require('net').createServer(socket => socket.destroy());" +
+        "server.listen(0, () => console.log(`listening on port ${server.address().port}`));";
+
     private E2ETestContext Ctx => fixture.Ctx;
 
     [Theory]
@@ -107,6 +112,56 @@ public class ClientE2ETests(E2ETestFixture fixture) : IClassFixture<E2ETestFixtu
 
         await Ctx.CreateSessionAsync(client, new SessionConfig { OnPermissionRequest = PermissionHandler.ApproveAll });
         await client.ForceStopAsync();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RuntimePort_Is_Cleared_When_The_Client_Stops_Its_Runtime(bool forceStop)
+    {
+        const string connectionToken = "client-e2e-runtime-port-token";
+
+        await using var client = Ctx.CreateClient(new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForTcp(connectionToken: connectionToken),
+        });
+        await client.StartAsync();
+        var port = client.RuntimePort
+            ?? throw new InvalidOperationException("Client must be using TCP transport.");
+
+        // Stopping a client of an external runtime leaves that runtime running, so it keeps the port.
+        await using var external = Ctx.CreateClient(new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForUri($"localhost:{port}", connectionToken: connectionToken),
+        });
+        await external.StartAsync();
+        await StopClientAsync(external);
+        Assert.Equal(port, external.RuntimePort);
+
+        await StopClientAsync(client);
+        Assert.Null(client.RuntimePort);
+
+        await client.StartAsync();
+        Assert.NotNull(client.RuntimePort);
+        await client.StopAsync();
+        Assert.Null(client.RuntimePort);
+
+        Task StopClientAsync(CopilotClient target) => forceStop ? target.ForceStopAsync() : target.StopAsync();
+    }
+
+    [Fact]
+    public async Task RuntimePort_Is_Cleared_When_Startup_Fails_After_The_Port_Is_Announced()
+    {
+        var cliPath = Path.Join(Ctx.WorkDir, $"port-then-drop-cli-{Guid.NewGuid():N}.js");
+        await File.WriteAllTextAsync(cliPath, PortThenDropCliScript);
+
+        await using var client = Ctx.CreateClient(new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForTcp(path: cliPath),
+        });
+
+        await Assert.ThrowsAnyAsync<Exception>(() => client.StartAsync());
+        Assert.Null(client.RuntimePort);
     }
 
     [Theory]

@@ -10,10 +10,7 @@
 
 use std::path::PathBuf;
 
-#[cfg(any(
-    all(feature = "bundled-cli", has_bundled_cli),
-    all(not(feature = "bundled-cli"), has_extracted_cli)
-))]
+#[cfg(feature = "runtime")]
 use github_copilot_sdk::ErrorKind;
 #[cfg(all(feature = "bundled-cli", has_bundled_cli))]
 use github_copilot_sdk::SessionConfig;
@@ -22,6 +19,11 @@ use github_copilot_sdk::{
     install_bundled_runtime,
 };
 use serial_test::serial;
+
+#[cfg(feature = "runtime")]
+#[allow(dead_code)]
+#[path = "support/fake_runtime.rs"]
+mod fake_runtime;
 
 #[cfg(all(not(feature = "bundled-cli"), has_extracted_cli))]
 #[allow(dead_code)]
@@ -95,29 +97,163 @@ async fn env_override_resolves_to_pointed_file() {
     let _ = path;
 }
 
-/// A stale (non-existent) COPILOT_CLI_PATH falls through to the next
-/// resolution source (embed or dev) rather than failing outright.
-#[cfg(any(
-    all(feature = "bundled-cli", has_bundled_cli),
-    all(not(feature = "bundled-cli"), has_extracted_cli)
-))]
+/// Owned runtimes honor the effective CLI selection; external servers ignore it.
+#[cfg(feature = "runtime")]
 #[tokio::test(flavor = "current_thread")]
-#[serial(copilot_cli_path)]
-async fn stale_env_override_falls_through() {
-    set_env("COPILOT_CLI_PATH", "/definitely/does/not/exist/copilot");
-    let opts = ClientOptions::default()
-        .with_program(CliProgram::Resolve)
-        .with_transport(Transport::Stdio);
-    let result = Client::start(opts).await;
-    unset_env("COPILOT_CLI_PATH");
+async fn cli_selection_respects_transport_and_environment() {
+    const CHILD_TRANSPORT: &str = "COPILOT_RESOLUTION_TEST_TRANSPORT";
+    if let Ok(transport) = std::env::var(CHILD_TRANSPORT) {
+        let cli_path = std::env::var("COPILOT_CLI_PATH").expect("explicit path");
+        let fallback =
+            std::env::var("COPILOT_CLI_EXTRACT_DIR").expect("owned extraction directory");
+        let mut options = ClientOptions::default()
+            .with_program(CliProgram::Resolve)
+            .with_bundled_cli_extract_dir(&fallback)
+            .with_base_directory(PathBuf::from(&fallback).join("home"))
+            .with_use_logged_in_user(false);
+        if transport == "external" {
+            let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+                .await
+                .expect("owned external server");
+            let port = listener.local_addr().expect("server address").port();
+            let server = async {
+                let (mut stream, _) = listener.accept().await.expect("external connection");
+                let connect = fake_runtime::read_frame(&mut stream).await;
+                assert_eq!(connect["method"], "connect");
+                fake_runtime::write_frame(
+                    &mut stream,
+                    serde_json::json!({
+                        "jsonrpc": "2.0", "id": connect["id"],
+                        "result": { "ok": true, "protocolVersion": 3, "version": "test" }
+                    }),
+                )
+                .await;
+                stream
+            };
+            let start = async {
+                Client::start(options.with_transport(Transport::External {
+                    host: "127.0.0.1".into(),
+                    port,
+                    connection_token: None,
+                }))
+                .await
+                .expect("external transport ignores local CLI selection")
+            };
+            let (client, _server) =
+                tokio::time::timeout(std::time::Duration::from_secs(10), async {
+                    tokio::join!(start, server)
+                })
+                .await
+                .expect("external handshake must complete");
+            client.stop().await.expect("stop external client");
+            return;
+        }
+        let mut selected_path = cli_path.clone();
+        let relative_child = transport == "child-relative";
+        let valid_child = transport == "child-valid" || relative_child;
+        if transport == "child-override" || valid_child {
+            selected_path = PathBuf::from(&fallback)
+                .join("child-copilot")
+                .to_string_lossy()
+                .into_owned();
+            if valid_child {
+                std::fs::create_dir_all(&fallback).expect("owned CLI directory");
+                std::fs::write(&selected_path, b"not an executable")
+                    .expect("selected but unlaunchable CLI");
+            }
+            if relative_child {
+                options = options
+                    .with_cwd(transport.as_str())
+                    .with_env([("COPILOT_CLI_PATH", "./child-copilot")]);
+            } else {
+                options = options.with_env([("COPILOT_CLI_PATH", &selected_path)]);
+            }
+        } else if transport == "child-remove" {
+            options = options.with_env_remove(["COPILOT_CLI_PATH"]);
+        }
+        let transport = match transport.as_str() {
+            "stdio" | "child-override" | "child-valid" | "child-relative" | "child-remove" => {
+                Transport::Stdio
+            }
+            "tcp" => Transport::Tcp {
+                port: 0,
+                connection_token: None,
+            },
+            #[cfg(feature = "in-process")]
+            "inprocess" => Transport::InProcess,
+            other => panic!("unexpected transport: {other}"),
+        };
+        let removed = !options.env_remove.is_empty();
+        let result = Client::start(options.with_transport(transport)).await;
+        if removed {
+            result
+                .expect("removed host override permits bundled discovery")
+                .stop()
+                .await
+                .expect("stop bundled runtime");
+            return;
+        }
+        let error = match result {
+            Ok(client) => {
+                client.stop().await.expect("stop substituted runtime");
+                panic!("an invalid explicit path started a different runtime");
+            }
+            Err(error) => error,
+        };
+        if valid_child {
+            assert!(matches!(error.kind(), ErrorKind::Io), "{error}");
+        } else {
+            assert!(
+                matches!(error.kind(), ErrorKind::BinaryNotFound { .. }),
+                "{error}"
+            );
+        }
+        let message = error.to_string();
+        if !valid_child {
+            assert!(message.contains("COPILOT_CLI_PATH"), "{message}");
+        }
+        assert!(message.contains(&selected_path), "{message}");
+        return;
+    }
 
-    // In a normally-configured build (either `bundled-cli` on or off)
-    // the resolver should find a binary via the next source. Failing
-    // here would mean fallthrough is broken.
-    if let Err(e) = &result {
+    let temp = tempfile::tempdir().expect("owned process environment");
+    let transports = [
+        "stdio",
+        "tcp",
+        "external",
+        "child-override",
+        "child-valid",
+        "child-relative",
+        #[cfg(all(feature = "bundled-cli", has_bundled_cli))]
+        "child-remove",
+        #[cfg(feature = "in-process")]
+        "inprocess",
+    ];
+    for transport in transports {
+        let mut command =
+            tokio::process::Command::new(std::env::current_exe().expect("test binary"));
+        command
+            .args([
+                "--exact",
+                "cli_selection_respects_transport_and_environment",
+                "--nocapture",
+            ])
+            .env(CHILD_TRANSPORT, transport)
+            .env("COPILOT_CLI_PATH", temp.path().join("missing-copilot"))
+            .env("COPILOT_CLI_EXTRACT_DIR", temp.path().join(transport))
+            .kill_on_drop(true);
+        if transport == "child-relative" {
+            command.current_dir(temp.path());
+        }
+        let output = tokio::time::timeout(std::time::Duration::from_secs(60), command.output())
+            .await
+            .expect("resolver child must exit")
+            .expect("run resolver child");
         assert!(
-            !matches!(e.kind(), ErrorKind::BinaryNotFound { .. }),
-            "stale COPILOT_CLI_PATH should fall through; got BinaryNotFound: {e}"
+            output.status.success(),
+            "{transport}: stdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
         );
     }
 }

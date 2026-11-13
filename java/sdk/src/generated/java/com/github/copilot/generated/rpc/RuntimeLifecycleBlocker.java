@@ -24,7 +24,9 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 record RuntimeLifecycleBlocker(
-    /** System-owned capability required by the progress owner. */
+    /** Opaque blocker identifier, stable for one guard lifetime and scoped to its owner. */
+    @JsonProperty("blockerId") String blockerId,
+    /** System-owned capability required by the blocker owner. */
     @JsonProperty("requirement") String requirement,
     /** System that owns the awaited operation. */
     @JsonProperty("system") String system,
@@ -64,6 +66,7 @@ record RuntimeLifecycleBlocker(
     @com.github.copilot.CopilotExperimental
     public static final class Builder {
         private Builder() {}
+        private String blockerId;
         private String requirement;
         private String system;
         private String operationId;
@@ -72,6 +75,18 @@ record RuntimeLifecycleBlocker(
         private String currentStep;
         private RuntimeLifecycleDisposition operationDisposition;
         private RuntimeLifecycleBlockerTiming timing;
+
+        /**
+         * Sets the {@code blockerId} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        @com.github.copilot.CopilotExperimental
+        public Builder blockerId(String value) {
+            this.blockerId = value;
+            return this;
+        }
 
         /**
          * Sets the {@code requirement} property.
@@ -176,6 +191,7 @@ record RuntimeLifecycleBlocker(
          * @since 2.0.0
          */
         public RuntimeLifecycleBlocker build() {
+            if (blockerId == null) throw new IllegalStateException("Missing required property: blockerId");
             if (requirement == null) throw new IllegalStateException("Missing required property: requirement");
             if (system == null) throw new IllegalStateException("Missing required property: system");
             if (operationId == null) throw new IllegalStateException("Missing required property: operationId");
@@ -183,7 +199,7 @@ record RuntimeLifecycleBlocker(
             if (currentPhase == null) throw new IllegalStateException("Missing required property: currentPhase");
             if (currentStep == null) throw new IllegalStateException("Missing required property: currentStep");
             if (timing == null) throw new IllegalStateException("Missing required property: timing");
-            return new RuntimeLifecycleBlocker(requirement, system, operationId, operationRevision, currentPhase, currentStep, operationDisposition, timing);
+            return new RuntimeLifecycleBlocker(blockerId, requirement, system, operationId, operationRevision, currentPhase, currentStep, operationDisposition, timing);
         }
     }
 }

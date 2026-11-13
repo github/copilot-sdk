@@ -35,6 +35,21 @@ Extensions add custom tools, hooks, and behaviors to the Copilot CLI. They run a
 - Each extension lives in its own subdirectory.
 - The `@github/copilot-sdk` import is resolved automatically — you don't install it.
 
+In Protected Mode, local sessions that opt into extensions add filesystem access for the
+configured user extensions directory, validated project `.github/extensions/`, and their own
+session's `extensions/` directory. Agent file tools and newly launched shell
+commands use these additions; extension provider processes do not.
+
+These are additive permissions, not visibility restrictions. Independent workspace
+or user grants remain effective. Loading and management modes control extension
+capabilities, not source-file confidentiality. Managed policy still applies, and an automatic scope grant is withheld
+if its subtree overlaps an explicit read-only or denied path, including absent
+descendants and future glob matches.
+
+Redirected scope children do not add permissions to their link targets. Scaffold
+and workflow source writes check the effective filesystem policy and use pinned,
+no-follow directory handles so directory replacement cannot redirect a write.
+
 ## Opting Into Request-Driven Activation
 
 Place a version 1 `extension.json` beside `extension.mjs`, with

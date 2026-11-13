@@ -1381,7 +1381,7 @@ session.set_tools(vec![search_tool, filter_tool]).await?;
 # }
 ```
 
-The agent sees the new tools from its next model request. The new handlers take effect as soon as the runtime accepts the replacement, and calls already running finish on the handlers that started them. If the runtime rejects the replacement, nothing changes. A model request already in flight was made with the previous tools, so the agent can still call a tool you removed; this session won't answer that call, so replace tools while the session is idle if a running turn might still call a tool you remove. See [Changing tools during a session](../docs/features/changing-tools.md) for the behavior shared by all SDKs.
+The agent sees the new tools from its next model request. The new handlers take effect as soon as the runtime accepts the replacement, and calls already running finish on the handlers that started them. If the runtime rejects the replacement, nothing changes. A model request already in flight was made with the previous tools, so the agent can still call a tool you removed. If no connected client supplies a tool with that name any more, the call fails with an error that tells the agent the tool is no longer available, and the turn continues. If you don't want the agent to see that failure, replace tools while the session is idle. See [Changing tools during a session](../docs/features/changing-tools.md) for the behavior shared by all SDKs.
 
 #### String-schema `apply_patch` overrides
 
@@ -2309,7 +2309,7 @@ override for managed child-process consumers. It works regardless of the
 For managed child-process transports (`runtime` enabled), `Client::start` resolves the program in this order:
 
 1. Explicit `CliProgram::Path(path)` on `ClientOptions::program`.
-2. `COPILOT_CLI_PATH` environment variable, if it points at a real file.
+2. Effective child `COPILOT_CLI_PATH`; nonempty invalid paths fail without fallback.
 3. **`bundled-cli` on:** the embedded wrapper pair, lazily extracted on first call.
 4. **`bundled-cli` and `local-runtime` off:** the build-time-extracted wrapper pair in the per-user cache.
 

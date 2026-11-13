@@ -62,6 +62,7 @@ class RuntimeLifecycleBlockerTiming:
 @dataclass
 class RuntimeLifecycleBlocker:
     "Exact lifecycle operation awaited by a real dependency wait."
+    blocker_id: str
     current_phase: str
     current_step: str
     operation_id: str
@@ -74,6 +75,7 @@ class RuntimeLifecycleBlocker:
     @staticmethod
     def from_dict(obj: Any) -> "RuntimeLifecycleBlocker":
         assert isinstance(obj, dict)
+        blocker_id = from_str(obj.get("blockerId"))
         current_phase = from_str(obj.get("currentPhase"))
         current_step = from_str(obj.get("currentStep"))
         operation_id = from_str(obj.get("operationId"))
@@ -83,6 +85,7 @@ class RuntimeLifecycleBlocker:
         timing = RuntimeLifecycleBlockerTiming.from_dict(obj.get("timing"))
         operation_disposition = from_union([from_none, lambda x: parse_enum(RuntimeLifecycleDisposition, x)], obj.get("operationDisposition"))
         return RuntimeLifecycleBlocker(
+            blocker_id=blocker_id,
             current_phase=current_phase,
             current_step=current_step,
             operation_id=operation_id,
@@ -95,6 +98,7 @@ class RuntimeLifecycleBlocker:
 
     def to_dict(self) -> dict:
         result: dict = {}
+        result["blockerId"] = from_str(self.blocker_id)
         result["currentPhase"] = from_str(self.current_phase)
         result["currentStep"] = from_str(self.current_step)
         result["operationId"] = from_str(self.operation_id)
@@ -244,6 +248,7 @@ class RuntimeLifecycleOperationTiming:
 @dataclass
 class RuntimeLifecycleOperation:
     "Observed state of one readiness or convergence operation."
+    blockers: list[RuntimeLifecycleBlocker]
     operation_id: str
     operation_revision: int
     phase: str
@@ -255,6 +260,7 @@ class RuntimeLifecycleOperation:
     @staticmethod
     def from_dict(obj: Any) -> "RuntimeLifecycleOperation":
         assert isinstance(obj, dict)
+        blockers = from_list(lambda x: RuntimeLifecycleBlocker.from_dict(x), obj.get("blockers"))
         operation_id = from_str(obj.get("operationId"))
         operation_revision = from_int(obj.get("operationRevision"))
         phase = from_str(obj.get("phase"))
@@ -263,6 +269,7 @@ class RuntimeLifecycleOperation:
         trigger = from_str(obj.get("trigger"))
         disposition = from_union([from_none, lambda x: parse_enum(RuntimeLifecycleDisposition, x)], obj.get("disposition"))
         return RuntimeLifecycleOperation(
+            blockers=blockers,
             operation_id=operation_id,
             operation_revision=operation_revision,
             phase=phase,
@@ -274,6 +281,7 @@ class RuntimeLifecycleOperation:
 
     def to_dict(self) -> dict:
         result: dict = {}
+        result["blockers"] = from_list(lambda x: to_class(RuntimeLifecycleBlocker, x), self.blockers)
         result["operationId"] = from_str(self.operation_id)
         result["operationRevision"] = to_int(self.operation_revision)
         result["phase"] = from_str(self.phase)

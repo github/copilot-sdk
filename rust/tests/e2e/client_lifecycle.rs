@@ -181,21 +181,24 @@ async fn abrupt_host_termination_still_kills_cli_via_job_object() {
                     .to_owned();
                 let pid_file = ctx.work_dir().join("host-crash-fixture-cli.pid");
 
-                let mut host =
-                    std::process::Command::new(env!("CARGO_BIN_EXE_copilot-host-crash-fixture"))
-                        .env("HOST_CRASH_FIXTURE_PROGRAM", &program)
-                        .env(
-                            "HOST_CRASH_FIXTURE_PREFIX_ARGS_JSON",
-                            serde_json::to_string(&prefix_args).expect("serialize prefix args"),
-                        )
-                        .env("HOST_CRASH_FIXTURE_CWD", &cwd)
-                        .env(
-                            "HOST_CRASH_FIXTURE_ENV_JSON",
-                            serde_json::to_string(&env_pairs).expect("serialize env pairs"),
-                        )
-                        .env("HOST_CRASH_FIXTURE_PID_FILE", &pid_file)
-                        .spawn()
-                        .expect("spawn host-crash fixture process");
+                let mut host = std::process::Command::new(
+                    std::path::Path::new(env!("CARGO_BIN_EXE_copilot-host-crash-fixture"))
+                        .canonicalize()
+                        .unwrap(),
+                )
+                .env("HOST_CRASH_FIXTURE_PROGRAM", &program)
+                .env(
+                    "HOST_CRASH_FIXTURE_PREFIX_ARGS_JSON",
+                    serde_json::to_string(&prefix_args).expect("serialize prefix args"),
+                )
+                .env("HOST_CRASH_FIXTURE_CWD", &cwd)
+                .env(
+                    "HOST_CRASH_FIXTURE_ENV_JSON",
+                    serde_json::to_string(&env_pairs).expect("serialize env pairs"),
+                )
+                .env("HOST_CRASH_FIXTURE_PID_FILE", &pid_file)
+                .spawn()
+                .expect("spawn host-crash fixture process");
 
                 let cli_pid = wait_for_pid_file_windows(&pid_file).await;
                 assert!(

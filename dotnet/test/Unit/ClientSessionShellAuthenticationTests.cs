@@ -344,6 +344,72 @@ public sealed partial class ClientSessionLifetimeTests
     }
 
     [Fact]
+    public async Task ShellAuthentication_Request_Completion_Preserves_Queued_Cancellation_Callbacks()
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        var started = new TaskCompletionSource<CancellationToken>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var answer = new TaskCompletionSource<ShellAuthenticationResponse>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var cancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var notificationQueued = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseNotification = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var notificationEntered = 0;
+        var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            SessionId = "secret-queued-cancellation",
+            OnShellAuthenticationRequest = (_, token) =>
+            {
+                token.Register(() => cancelled.TrySetResult());
+                started.TrySetResult(token);
+                return answer.Task;
+            }
+        });
+        var pending = await server.SendRequestWithoutWaitingAsync("shellAuthentication.request", ShellAuthenticationRequestParams(session.SessionId, "secret-1"));
+        var token = await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        // CancelAsync flows this context to its worker. Hold it before it reads the source's
+        // registrations, without changing the thread pool or blocking the request's own context.
+        var notificationContext = new AsyncLocal<bool>(change =>
+        {
+            if (change.ThreadContextChanged && change.CurrentValue && token.IsCancellationRequested
+                && Interlocked.CompareExchange(ref notificationEntered, 1, 0) == 0)
+            {
+                notificationQueued.TrySetResult();
+                releaseNotification.Task.GetAwaiter().GetResult();
+            }
+        });
+        Task disposal;
+        try
+        {
+            notificationContext.Value = true;
+            disposal = session.DisposeAsync().AsTask();
+        }
+        finally
+        {
+            notificationContext.Value = false;
+        }
+        try
+        {
+            await disposal.WaitAsync(TimeSpan.FromSeconds(5));
+            await notificationQueued.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            // The client and session can both cancel the same prompt before notifications start.
+            await server.SendRequestAsync("shellAuthentication.cancel", new Dictionary<string, object?>
+            {
+                ["sessionId"] = session.SessionId,
+                ["requestId"] = "secret-1"
+            }).WaitAsync(TimeSpan.FromSeconds(5));
+            answer.TrySetResult(ShellAuthenticationResponse.Accept("too late"));
+            Assert.Equal("cancel", (await pending.WaitAsync(TimeSpan.FromSeconds(5))).GetProperty("action").GetString());
+        }
+        finally
+        {
+            answer.TrySetResult(ShellAuthenticationResponse.Cancel());
+            releaseNotification.TrySetResult();
+        }
+        await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
     public async Task ShellAuthentication_A_Blocking_Cancellation_Callback_Does_Not_Block_The_Reader_Or_Teardown()
     {
         await using var server = await FakeCopilotServer.StartAsync();

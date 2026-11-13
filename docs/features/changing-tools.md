@@ -380,9 +380,9 @@ session.set_tools(Vec::new()).await?;
 
 ## Replacing tools during a turn
 
-A model request that is already in flight was made with the previous tools, so the agent can still call a tool you just removed. The session doesn't answer that call, because another connected client might supply a tool with the same name, so the call can stay pending until the turn is aborted.
+A model request that is already in flight was made with the previous tools, so the agent can still call a tool you just removed. If no connected client supplies a tool with that name any more, the call fails with an error that tells the agent the tool is no longer available, and the turn continues.
 
-If a running turn might still call a tool you remove, replace tools while the session is idle, for example after the `session.idle` event, or abort the turn first. Replacing a tool's handler under the same name is safe during a turn: calls dispatched after the runtime accepts the replacement use the new handler.
+If you don't want the agent to see that failure, replace tools while the session is idle, for example after the `session.idle` event, or abort the turn first. Replacing a tool's handler under the same name is safe during a turn: calls dispatched after the runtime accepts the replacement use the new handler.
 
 ## SDK reference
 

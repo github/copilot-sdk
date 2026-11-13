@@ -1,0 +1,3 @@
+[env]
+# Independent SDK builds must not inherit the repository's private host mode.
+COPILOT_REPOSITORY_CLI_HOST = { value = "0", force = true }

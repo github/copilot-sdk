@@ -163,9 +163,18 @@ public sealed partial class ClientSessionLifetimeTests
         var starting = client.StartAsync();
         await server.RequestsChanged.WaitForAsync(() => server.Requests.Any(request => request.Method == "connect"), timeout);
         var creating = client.CreateSessionAsync(new SessionConfig());
-        // Give a session request that does not wait for startup time to reach the runtime before registration.
-        await Task.Delay(TimeSpan.FromMilliseconds(200));
-        releaseConnect.SetResult();
+        try
+        {
+            // A reply on the same transport acknowledges preceding client writes
+            // while connect is held, without relying on a quiet observation window.
+            await server.SendRequestAsync(AuthenticateNegotiateMethod,
+                NetworkRequestParams(AuthenticateNegotiateMethod)).WaitAsync(timeout);
+            Assert.DoesNotContain(server.Requests, request => request.Method == "session.create");
+        }
+        finally
+        {
+            releaseConnect.SetResult();
+        }
         await starting.WaitAsync(timeout);
         await using var session = await creating.WaitAsync(timeout);
 

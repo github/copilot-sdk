@@ -38,6 +38,18 @@ export type {
     DecisionViolation,
 } from "./generated/rpc.js";
 export type {
+    SkillInstallSourceKind,
+    SkillInstallSourceScope,
+    SkillRemoveSourceEntry,
+    SkillRemoveSourceKind,
+    SkillsInstallSourceRequest,
+    SkillsInstallSourceResult,
+    SkillsRemoveSourceInventory,
+    SkillsRemoveSourceOutcome,
+    SkillsRemoveSourceRequest,
+    SkillsRemoveSourceResult,
+} from "./generated/rpc.js";
+export type {
     CredentialContextErrorCode,
     CredentialContextErrorData,
     FetchCancelRequest,
@@ -133,6 +145,10 @@ export type {
     SessionLspDiagnoseResult,
     SessionLspDiagnoseRequest,
     SessionLspSetRequest,
+    SessionsHasEventsRequest,
+    SessionsHasEventsResult,
+    ShellBuildInteractiveEnvironmentRequest,
+    ShellBuildInteractiveEnvironmentResult,
 } from "./generated/rpc.js";
 export {
     AhpHost,
@@ -146,7 +162,12 @@ export {
 export { DisableBypassPermissionsModes, RuntimeConnection } from "./types.js";
 export { BuiltInTools, ToolSet } from "./toolSet.js";
 export { CopilotSession, type AssistantMessageEvent } from "./session.js";
-export { defineWorkflow, WorkflowResumeError, isWorkflowRunTerminal } from "./workflow.js";
+export {
+    defineWorkflow,
+    WorkflowResumeError,
+    isWorkflowRunTerminal,
+    WORKFLOW_AGENT_OPTION_KEYS,
+} from "./workflow.js";
 export {
     Canvas,
     CanvasError,
@@ -428,6 +449,7 @@ export type {
     WorkflowContext,
     WorkflowDefinition,
     WorkflowHandle,
+    WorkflowAgentReference,
     WorkflowJsonSchema,
     WorkflowLimits,
     WorkflowMeta,

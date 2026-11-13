@@ -149,6 +149,7 @@ class JsonRpcClient:
         self._stderr_thread: threading.Thread | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._write_lock = threading.Lock()
+        self._close_lock = threading.Lock()
         self._transport_closed = False
         self._pending_lock = threading.Lock()
         self._process_exit_error: str | None = None
@@ -452,15 +453,33 @@ class JsonRpcClient:
                     raise ProcessExitedError(self._get_process_exit_error()) from exc
 
         # Run in thread pool to avoid blocking
-        await loop.run_in_executor(None, write)
+        try:
+            await loop.run_in_executor(None, write)
+        except ProcessExitedError:
+            # Publish connection loss even if the writer detects it before the reader.
+            # Do not hold _write_lock: on_close may need to unblock other writers.
+            await loop.run_in_executor(None, self._report_close)
+            raise
 
     def _read_loop(self):
         """Read messages from the stream (runs in thread)"""
         try:
-            while self._running:
+            while self._running and not self._transport_closed:
                 message = self._read_message()
                 if message:
-                    self._handle_message(message)
+                    if "id" in message and ("result" in message or "error" in message):
+                        # Inline application callbacks must not delay close publication.
+                        # Response admission checks retirement under _pending_lock.
+                        if not self._running:
+                            break
+                        self._handle_message(message)
+                        continue
+                    # Queue dispatch before close cleanup, or discard a read
+                    # that completed after a writer published connection loss.
+                    with self._close_lock:
+                        if not self._running or self._transport_closed:
+                            break
+                        self._handle_message(message)
                 else:
                     # No message means stream closed - process likely exited
                     break
@@ -474,9 +493,20 @@ class JsonRpcClient:
         # Process exited or read failed - fail all pending requests
         if self._running:
             logger.debug("JSON-RPC read loop ended")
-            self._fail_pending_requests()
-            if self.on_close is not None:
-                self.on_close()
+            self._report_close()
+
+    def _report_close(self):
+        """Publish connection loss before either readers or writers report failure."""
+        with self._close_lock:
+            with self._pending_lock:
+                if not self._running or self._transport_closed:
+                    return
+                self._transport_closed = True
+            try:
+                if self.on_close is not None:
+                    self.on_close()
+            finally:
+                self._fail_pending_requests()
 
     def _fail_pending_requests(self, error_msg: str | None = None):
         """Latch transport closure and fail all pending requests."""
@@ -578,6 +608,8 @@ class JsonRpcClient:
         # Check if it's a response to our request
         if "id" in message:
             with self._pending_lock:
+                if self._transport_closed:
+                    return
                 future = self.pending_requests.get(message["id"])
                 inline_cb = self._pending_inline_callbacks.pop(message["id"], None)
 

@@ -91,10 +91,11 @@ type Client struct {
 	connectionClosed       chan struct{}
 	connectionClosedOnce   sync.Once
 	wg                     sync.WaitGroup
-	processDone            chan struct{} // closed when the underlying process exits
-	processErrorPtr        *error        // points to the process error
-	processErrorMu         sync.RWMutex  // protects processErrorPtr
-	onClose                func()        // called when the read loop exits unexpectedly
+	processDone            chan struct{}  // closed when the underlying process exits
+	processErrorPtr        *error         // points to the process error
+	processErrorMu         sync.RWMutex   // protects processErrorPtr
+	onClose                func()         // called when the read loop exits unexpectedly
+	onCloseRunning         sync.WaitGroup // held while onClose runs; Add only under mu while running
 }
 
 // NewClient creates a new JSON-RPC client.
@@ -146,12 +147,38 @@ func (c *Client) Start() {
 	go c.readLoop()
 }
 
-// Stop stops the client and cleans up
+// Stop stops the client and cleans up, waiting for the read loop to finish.
+// A handler running on the read loop must not call it; use Close instead.
 func (c *Client) Stop() {
+	if c.close() {
+		c.wg.Wait()
+	}
+}
+
+// Close stops the client like Stop without waiting for the read loop, which
+// exits once the handler it is running returns. It cancels in-flight request
+// handlers and closes ConnectionClosed now. The close callback does not run
+// afterwards; if the read loop had already started it, Close waits for it, so
+// the callback's cleanup cannot reach whatever the caller sets up next.
+func (c *Client) Close() {
+	if !c.close() {
+		return
+	}
+	c.onCloseRunning.Wait()
+	// The read loop does the same when it exits, but it may be running a
+	// handler that does not return soon, and nothing reaches the peer now.
+	// Stop leaves this to the read loop: a handler that calls the client while
+	// Stop waits for it must still see the connection open.
+	c.cancelIncomingRequests()
+	c.connectionClosedOnce.Do(func() { close(c.connectionClosed) })
+}
+
+// close stops the client and reports whether this call stopped it.
+func (c *Client) close() bool {
 	c.mu.Lock()
 	if !c.running.Load() {
 		c.mu.Unlock()
-		return
+		return false
 	}
 	c.running.Store(false)
 	close(c.stopChan)
@@ -164,8 +191,7 @@ func (c *Client) Stop() {
 	if c.stdout != nil {
 		c.stdout.Close()
 	}
-
-	c.wg.Wait()
+	return true
 }
 
 func NotificationHandlerFor[In any](handler func(params In)) RequestHandler {
@@ -500,8 +526,17 @@ func (c *Client) readLoop() {
 		c.cancelIncomingRequests()
 		// If still running, the read loop exited unexpectedly (process died or
 		// connection dropped). Notify the caller so it can update its state.
-		if c.onClose != nil && c.running.Load() {
+		// Decide under mu, which close holds while it stops the client, so
+		// Close either prevents the callback or waits for it.
+		c.mu.Lock()
+		notify := c.onClose != nil && c.running.Load()
+		if notify {
+			c.onCloseRunning.Add(1)
+		}
+		c.mu.Unlock()
+		if notify {
 			c.onClose()
+			c.onCloseRunning.Done()
 		}
 		c.connectionClosedOnce.Do(func() { close(c.connectionClosed) })
 	}()

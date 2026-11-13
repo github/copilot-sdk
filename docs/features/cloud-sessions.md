@@ -187,9 +187,7 @@ let session = client.create_session(
 
 ## Sending the first prompt
 
-Cloud sessions initialize in two phases: `createSession` resolves as soon as Mission Control has reserved a task, but the remote `copilot-agent` worker takes another second or two to connect and emit `session.start`. If you call `session.send` before that, the runtime refuses the command with `"Remote session is still starting"`, but only logs that error: it is **not raised to your code**, and `session.send` still returns a fresh `messageId`. The prompt is dropped and never reaches the worker.
-
-To send reliably, subscribe to events **before** sending and await the first `session.start` event whose `producer` is `"copilot-agent"`:
+`createSession` resolves only after the remote `copilot-agent` worker has connected and reported `session.start`, so you can call `session.send` as soon as it returns. If the worker does not connect within 60 seconds, `createSession` fails with `Timed out waiting for the remote sandbox to start` instead of returning a session.
 
 <!-- docs-validate: strict -->
 ```typescript
@@ -204,26 +202,11 @@ const session: CopilotSession = await client.createSession({
   onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 
-// Subscribe BEFORE sending so you don't miss the start event.
-const ready = new Promise<void>((resolve) => {
-  const off = session.on("session.start", (event) => {
-    if (event.data?.producer === "copilot-agent") {
-      off();
-      resolve();
-    }
-  });
-});
-
-await ready;
+// The remote worker has already started, so the first prompt can go out right away.
 await session.send({ prompt: "Summarize the README" });
 ```
 
-A few notes:
-
-* Set `streaming: true` on `createSession` so the runtime emits `assistant.message_delta` events. Without it, the only assistant signal you get is the final `assistant.message` — fine for batch use, but the chat will look frozen if you're rendering a live UI. See [Streaming Events](./streaming-events.md).
-* Only the **first** `session.send` is sensitive to this race. Subsequent sends on the same session work normally because the runtime treats the session as started from its first `session.start` (or `session.resume`) event for the rest of its life.
-* Apply a timeout (e.g. 60 s) around the `ready` promise so a stuck Mission Control provisioning doesn't hang your app forever.
-* The same pattern works in every SDK language — subscribe to `session.start`, check `producer === "copilot-agent"`, then call `send`.
+Set `streaming: true` on `createSession` so the runtime emits `assistant.message_delta` events. Without it, the only assistant signal you get is the final `assistant.message` — fine for batch use, but the chat will look frozen if you're rendering a live UI. See [Streaming Events](./streaming-events.md).
 
 ## Accessing the Mission Control URL
 
@@ -362,7 +345,7 @@ Use remote sessions when the session should execute where the SDK runtime is alr
 | Session creates without repository context | `cloud.repository` was omitted | Pass `owner`, `name`, and optionally `branch` |
 | Resume ignores a new `cloud` option | `cloud` only applies to new sessions | Resume the existing session normally |
 | Confusion with sandbox settings | Windows sandbox and cloud sessions are separate | Do not use `SANDBOX=true` for cloud execution |
-| `session.send` resolves with a `messageId` but no `assistant.*` events fire and Mission Control shows no prompt | The session.send raced ahead of `session.start` from the remote worker; the runtime swallowed the prompt | Await the first `session.start` event with `producer === "copilot-agent"` before sending. See [Sending the first prompt](#sending-the-first-prompt) |
+| `createSession` fails with `Timed out waiting for the remote sandbox to start` | The remote worker did not connect within 60 seconds | Create the session again. See [Sending the first prompt](#sending-the-first-prompt) |
 | Live UI never updates even though the cloud worker is processing | `streaming` was not set on `createSession`, so only the final `assistant.message` is emitted | Set `streaming: true` on `createSession` and re-launch |
 | Cloud session works but no shareable URL appears in your UI | App never subscribed to `session.info` for the URL | Subscribe to `session.info` and filter `infoType === "remote"`. See [Accessing the Mission Control URL](#accessing-the-mission-control-url) |
 

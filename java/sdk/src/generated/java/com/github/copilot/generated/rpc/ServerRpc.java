@@ -103,6 +103,8 @@ public final class ServerRpc {
     public final ServerNetworkApi network;
     /** API methods for the {@code sessions} namespace. */
     public final ServerSessionsApi sessions;
+    /** API methods for the {@code shell} namespace. */
+    public final ServerShellApi shell;
     /** API methods for the {@code agentRegistry} namespace. */
     public final ServerAgentRegistryApi agentRegistry;
     /** API methods for the {@code connectors} namespace. */
@@ -166,6 +168,7 @@ public final class ServerRpc {
         this.fetch = new ServerFetchApi(caller);
         this.network = new ServerNetworkApi(caller);
         this.sessions = new ServerSessionsApi(caller);
+        this.shell = new ServerShellApi(caller);
         this.agentRegistry = new ServerAgentRegistryApi(caller);
         this.connectors = new ServerConnectorsApi(caller);
         this.lsp = new ServerLspApi(caller);

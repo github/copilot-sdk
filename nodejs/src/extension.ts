@@ -90,6 +90,7 @@ export {
     type WorkflowContext,
     type WorkflowDefinition,
     type WorkflowHandle,
+    type WorkflowAgentReference,
     type JsonValue,
     type WorkflowJsonSchema,
     type WorkflowLimits,

@@ -8278,6 +8278,70 @@ export type SkillInstallationResult =
   | CatalogInvalidRequestError
   | CatalogNetworkFailureError;
 /**
+ * Source acquisition used by a direct skill installation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillInstallSourceKind".
+ */
+/** @experimental */
+export type SkillInstallSourceKind =
+  /** A skill file retrieved through HTTPS. */
+  | "url"
+  /** A local skill file copied into skill storage. */
+  | "file"
+  /** A discovery directory registered without copying its contents. */
+  | "directory";
+/**
+ * Destination scope for a directly installed skill file.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillInstallSourceScope".
+ */
+/** @experimental */
+export type SkillInstallSourceScope =
+  /** Personal skill storage. */
+  | "personal"
+  /** Project skill storage. */
+  | "project";
+/**
+ * Resource removed by a direct-source operation.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillRemoveSourceKind".
+ */
+/** @experimental */
+export type SkillRemoveSourceKind =
+  /** A discovery registration removed without deleting its contents. */
+  | "directory"
+  /** A personal skill file or directory. */
+  | "personal"
+  /** A project skill file or directory. */
+  | "project";
+/**
+ * Direct removal or a request for the inventory needed to resolve a file.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillsRemoveSourceOutcome".
+ */
+/** @experimental */
+export type SkillsRemoveSourceOutcome =
+  | {
+      /**
+       * Direct source removal or an inventory request without mutation.
+       */
+      kind: "needs-inventory";
+    }
+  | {
+      /**
+       * Direct source removal or an inventory request without mutation.
+       */
+      kind: "removed";
+      /**
+       * Removal result and updated discovery directories.
+       */
+      result: SkillsRemoveSourceResult;
+    };
+/**
  * Result of invoking the slash command (text output, prompt to send to the agent, completion, or subcommand selection).
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -22857,6 +22921,10 @@ export interface InstalledPluginInfo {
    */
   managed?: boolean;
   /**
+   * True when the signed-in account's GitHub Team assigns this plugin, whatever default enabled state the assignment carries. This reports provenance only: it does not mean the Team installed the plugin or controls whether it is enabled, and the user's own choices still apply. When `managed` is also true, enterprise managed settings decide the plugin's state.
+   */
+  team?: boolean;
+  /**
    * The enabled state required by enterprise managed settings, when this plugin spec is managed.
    */
   managedDesiredEnabled?: boolean;
@@ -25627,6 +25695,10 @@ export interface MarketplacePluginInfo {
    * Soft assignment from effective managed settings for this marketplace entry.
    */
   assignment?: ManagedPluginAssignment;
+  /**
+   * The enabled state required by enterprise managed settings, when this plugin spec is managed. False means the plugin cannot be installed or enabled. Absent when managed settings do not control this plugin.
+   */
+  managedDesiredEnabled?: boolean;
 }
 /**
  * Registered marketplace summary.
@@ -33308,6 +33380,10 @@ export interface Plugin {
    */
   managed?: boolean;
   /**
+   * True when the signed-in account's GitHub Team assigns this plugin, whatever default enabled state the assignment carries. This reports provenance only: it does not mean the Team installed the plugin or controls whether it is enabled, and the user's own choices still apply. When `managed` is also true, enterprise managed settings decide the plugin's state.
+   */
+  team?: boolean;
+  /**
    * Enabled state required by enterprise managed settings.
    */
   managedDesiredEnabled?: boolean;
@@ -40574,6 +40650,32 @@ export interface SessionsGetPersistedRemoteSteerableResult {
   remoteSteerable?: boolean;
 }
 /**
+ * Local session whose persisted event-log presence to check without opening or scanning it.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionsHasEventsRequest".
+ */
+/** @experimental */
+export interface SessionsHasEventsRequest {
+  /**
+   * Identifier of the local session to check.
+   */
+  sessionId: string;
+}
+/**
+ * Whether the local session has a persisted event-log path, including an empty log.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionsHasEventsResult".
+ */
+/** @experimental */
+export interface SessionsHasEventsResult {
+  /**
+   * True when the session's event-log path exists.
+   */
+  exists: boolean;
+}
+/**
  * Map of sessionId -> on-disk size in bytes for each session's workspace directory.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -41303,6 +41405,44 @@ export interface SettingsRemoveRawKeyResult {
   status: string;
 }
 /**
+ * Caller-owned environment to filter under the runtime's interactive-shell credential policy.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ShellBuildInteractiveEnvironmentRequest".
+ */
+/** @experimental */
+export interface ShellBuildInteractiveEnvironmentRequest {
+  /**
+   * Environment supplied by the host that will launch the shell.
+   */
+  hostEnvironment: {
+    [k: string]: string | undefined;
+  };
+  /**
+   * Additional variable names to omit, in addition to the runtime's required filters.
+   */
+  additionalBlockedNames: string[];
+  /**
+   * Whether the shell host treats environment names as case-insensitive. Defaults to the runtime platform when omitted.
+   */
+  caseInsensitive?: boolean | null;
+}
+/**
+ * Filtered caller environment with the runtime's Git hardening applied; never includes the runtime process environment.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ShellBuildInteractiveEnvironmentResult".
+ */
+/** @experimental */
+export interface ShellBuildInteractiveEnvironmentResult {
+  /**
+   * Environment for the host's interactive shell.
+   */
+  environment: {
+    [k: string]: string | undefined;
+  };
+}
+/**
  * User-requested shell execution cancellation handle.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -41754,6 +41894,27 @@ export interface SkillProviderReadResult {
   markdown: string | null;
 }
 /**
+ * One discovered local skill, without its content.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillRemoveSourceEntry".
+ */
+/** @experimental */
+export interface SkillRemoveSourceEntry {
+  /**
+   * Invocation name used to resolve a removal target.
+   */
+  name: string;
+  /**
+   * Original discovery source. Removal rejects unsupported or unowned sources.
+   */
+  source: string;
+  /**
+   * Discovery directory that owns the skill file.
+   */
+  baseDir: string;
+}
+/**
  * Skill names to mark as disabled in global configuration, replacing any previous list.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -41935,6 +42096,72 @@ export interface SkillsInvokedSkill {
   invokedAtTurn: number;
 }
 /**
+ * Installs a user-selected skill source without catalog plan semantics.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillsInstallSourceRequest".
+ */
+/** @experimental */
+export interface SkillsInstallSourceRequest {
+  /**
+   * HTTPS URL, local skill file, or local discovery directory.
+   */
+  source: string;
+  /**
+   * Working directory for relative source paths.
+   */
+  cwd: string;
+  /**
+   * Personal destination for URL and file sources.
+   */
+  personalSkillsDir: string;
+  /**
+   * Project destination for URL and file sources.
+   */
+  projectSkillsDir: string;
+  /**
+   * Selects project scope. Directory registration requires personal scope.
+   */
+  project: boolean;
+  /**
+   * Current discovery directories. The result returns an updated copy.
+   */
+  skillDirectories: string[];
+  /**
+   * User agent for runtime-owned HTTPS source requests.
+   */
+  userAgent: string;
+}
+/**
+ * Result of direct source installation. Catalog consent and defaults remain separate.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillsInstallSourceResult".
+ */
+/** @experimental */
+export interface SkillsInstallSourceResult {
+  /**
+   * Source acquisition used by this operation.
+   */
+  kind: SkillInstallSourceKind;
+  /**
+   * Installed skill directory or registered discovery directory.
+   */
+  path: string;
+  /**
+   * Skill name when a file was installed.
+   */
+  name?: string;
+  /**
+   * File destination scope. Directory registration has no destination scope.
+   */
+  scope?: SkillInstallSourceScope;
+  /**
+   * Updated discovery directories for the caller to persist.
+   */
+  skillDirectories: string[];
+}
+/**
  * Diagnostics from reloading skill definitions, with warnings and errors as separate lists.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -41950,6 +42177,77 @@ export interface SkillsLoadDiagnostics {
    * Errors emitted while loading skills (e.g. skills that failed to load entirely)
    */
   errors: string[];
+}
+/**
+ * Caller-owned inventory and storage roots for direct file removal.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillsRemoveSourceInventory".
+ */
+/** @experimental */
+export interface SkillsRemoveSourceInventory {
+  /**
+   * Local skills discovered before removal.
+   */
+  skills: SkillRemoveSourceEntry[];
+  /**
+   * Personal storage roots that the existing removal rules recognize.
+   */
+  personalSkillsDirs: string[];
+  /**
+   * Project storage root that the existing removal rules recognize.
+   */
+  projectSkillsDir: string;
+}
+/**
+ * Direct removal result. The caller persists discovery and disabled settings.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillsRemoveSourceResult".
+ */
+/** @experimental */
+export interface SkillsRemoveSourceResult {
+  /**
+   * Resource removed by this operation.
+   */
+  kind: SkillRemoveSourceKind;
+  /**
+   * Removed skill path or unregistered discovery directory.
+   */
+  path: string;
+  /**
+   * Skill name when a skill file was removed.
+   */
+  name?: string;
+  /**
+   * Updated discovery directories for the caller to persist.
+   */
+  skillDirectories: string[];
+}
+/**
+ * Removes a user-selected source without changing verified catalog removal.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SkillsRemoveSourceRequest".
+ */
+/** @experimental */
+export interface SkillsRemoveSourceRequest {
+  /**
+   * Local skill name, file path, or registered discovery directory.
+   */
+  target: string;
+  /**
+   * Working directory for relative removal paths.
+   */
+  cwd: string;
+  /**
+   * Current discovery directories. Removal returns an updated copy.
+   */
+  skillDirectories: string[];
+  /**
+   * Required for file removal, but not for directory registration removal.
+   */
+  inventory?: SkillsRemoveSourceInventory;
 }
 
 /** @experimental */
@@ -50497,6 +50795,24 @@ export function createServerRpc(connection: MessageConnection) {
              */
             getDiscoveryPaths: async (params: SkillsGetDiscoveryPathsRequest): Promise<SkillDiscoveryPathList> =>
                 connection.sendRequest("skills.getDiscoveryPaths", params),
+            /**
+             * Installs a user-selected HTTPS or local skill file into personal or project storage, or registers a local discovery directory. This direct-source operation preserves source installation behavior; it does not accept or replace verified catalog plans, request catalog confirmation, or change skill enablement. The caller persists the returned discovery directories.
+             *
+             * @param params Installs a user-selected skill source without catalog plan semantics.
+             *
+             * @returns Result of direct source installation. Catalog consent and defaults remain separate.
+             */
+            installSource: async (params: SkillsInstallSourceRequest): Promise<SkillsInstallSourceResult> =>
+                connection.sendRequest("skills.installSource", params),
+            /**
+             * Removes a directly installed local skill or unregisters a discovery directory without deleting its contents. Directory removal needs no skill inventory. Other targets return needs-inventory without mutation when inventory is absent. This operation preserves direct-source ownership rules and does not replace receipt-backed verified uninstall plans or their consent. The caller persists returned discovery directories and manages disabled settings.
+             *
+             * @param params Removes a user-selected source without changing verified catalog removal.
+             *
+             * @returns Direct removal or a request for the inventory needed to resolve a file.
+             */
+            removeSource: async (params: SkillsRemoveSourceRequest): Promise<SkillsRemoveSourceOutcome> =>
+                connection.sendRequest("skills.removeSource", params),
         },
         /** @experimental */
         plugins: {
@@ -50902,6 +51218,15 @@ export function createServerRpc(connection: MessageConnection) {
             getLastForContext: async (params: SessionsGetLastForContextRequest): Promise<SessionsGetLastForContextResult> =>
                 connection.sendRequest("sessions.getLastForContext", params),
             /**
+             * Checks whether a local session's persisted event-log path exists, including an empty log, without opening the session or scanning the session catalog. Hosts use this to prefer an exact local session over a remote task or a UUID-prefix lookup. Metadata-only sessions without a log return false.
+             *
+             * @param params Local session whose persisted event-log presence to check without opening or scanning it.
+             *
+             * @returns Whether the local session has a persisted event-log path, including an empty log.
+             */
+            hasEvents: async (params: SessionsHasEventsRequest): Promise<SessionsHasEventsResult> =>
+                connection.sendRequest("sessions.hasEvents", params),
+            /**
              * Returns the on-disk byte size of each session's workspace directory.
              *
              * @returns Map of sessionId -> on-disk size in bytes for each session's workspace directory.
@@ -51041,6 +51366,18 @@ export function createServerRpc(connection: MessageConnection) {
              */
             getRemoteControlStatus: async (): Promise<RemoteControlStatusResult> =>
                 connection.sendRequest("sessions.getRemoteControlStatus", {}),
+        },
+        /** @experimental */
+        shell: {
+            /**
+             * Filters the supplied host environment with the runtime's mandatory interactive-shell credential and telemetry exclusions, adds Git hardening, and removes any extra names the host supplies. An IDE terminal host or an in-process CLI uses this before launching an inherited terminal. The result derives only from the caller's supplied environment, never the runtime process environment.
+             *
+             * @param params Caller-owned environment to filter under the runtime's interactive-shell credential policy.
+             *
+             * @returns Filtered caller environment with the runtime's Git hardening applied; never includes the runtime process environment.
+             */
+            buildInteractiveEnvironment: async (params: ShellBuildInteractiveEnvironmentRequest): Promise<ShellBuildInteractiveEnvironmentResult> =>
+                connection.sendRequest("shell.buildInteractiveEnvironment", params),
         },
         /** @experimental */
         agentRegistry: {

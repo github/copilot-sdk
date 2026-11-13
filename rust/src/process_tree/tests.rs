@@ -608,7 +608,9 @@ async fn recovered_client(dir: &Path, tcp: bool) -> crate::Client {
         }));
     });
     let script = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../test/harness/stdio-shutdown-runtime.cjs");
+        .join("../test/harness/stdio-shutdown-runtime.cjs")
+        .canonicalize()
+        .unwrap();
     let mut options = crate::ClientOptions::new()
         .with_program(crate::CliProgram::Path("node".into()))
         .with_prefix_args([

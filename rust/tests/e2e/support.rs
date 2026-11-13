@@ -1237,7 +1237,10 @@ pub fn get_tool_names(exchange: &serde_json::Value) -> Vec<String> {
 }
 
 fn repo_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+    // Node's entry-point guards compare regular paths with file URLs; Windows
+    // canonicalization adds a verbatim prefix that those URLs do not preserve.
+    std::path::absolute(env!("CARGO_MANIFEST_DIR"))
+        .expect("absolute Rust SDK checkout path")
         .parent()
         .expect("rust package has parent repo")
         .to_path_buf()

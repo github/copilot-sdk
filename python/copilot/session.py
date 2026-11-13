@@ -2618,8 +2618,9 @@ class CopilotSession:
         The agent sees the new tools from its next model request, which can fall
         within a turn in progress. A model request already in flight was made
         with the previous tools, so the agent can still call a tool you removed.
-        This session doesn't answer that call, and it can stay pending until the
-        turn is aborted. If a running turn might still call a tool you remove,
+        If no connected client supplies a tool with that name any more, the call
+        fails with an error that tells the agent the tool is no longer available,
+        and the turn continues. If you don't want the agent to see that failure,
         replace tools while the session is idle.
         """
         if self._destroyed:

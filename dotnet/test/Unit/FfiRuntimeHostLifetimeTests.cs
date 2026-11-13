@@ -175,13 +175,14 @@ public sealed class FfiRuntimeHostLifetimeTests
 
         Volatile.Write(ref allowClose, true);
         await cleanupCompleted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        AssertNoCleanupRetryScheduled(hostType, host);
         Assert.Equal(1, Volatile.Read(ref callbackReleaseCalls));
         Assert.Equal(1, Volatile.Read(ref shutdownCalls));
 
         var closeCallsAfterCleanup = Volatile.Read(ref closeCalls);
         host.Dispose();
-        await Task.Delay(50);
 
+        AssertNoCleanupRetryScheduled(hostType, host);
         Assert.Equal(closeCallsAfterCleanup, Volatile.Read(ref closeCalls));
         Assert.Equal(1, Volatile.Read(ref callbackReleaseCalls));
         Assert.Equal(1, Volatile.Read(ref shutdownCalls));
@@ -223,11 +224,26 @@ public sealed class FfiRuntimeHostLifetimeTests
             .SetValue(host, (uint)11);
 
         host.Dispose();
-        Thread.Sleep(250);
+        AssertNoCleanupRetryScheduled(hostType, host);
+        host.Dispose();
+        AssertNoCleanupRetryScheduled(hostType, host);
 
         Assert.Equal(1, Volatile.Read(ref closeCalls));
         Assert.Equal(1, Volatile.Read(ref callbackReleaseCalls));
         Assert.Equal(1, Volatile.Read(ref shutdownCalls));
+    }
+
+    private static void AssertNoCleanupRetryScheduled(Type hostType, IDisposable host)
+    {
+        var lifecycleLock = hostType.GetField("_lifecycleLock", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetValue(host)!;
+        // The callback signals inside the lifecycle lock. Join that iteration before
+        // checking that no delayed cleanup remains, rather than waiting a quiet window.
+        lock (lifecycleLock)
+        {
+            Assert.False((bool)hostType.GetField("_cleanupRetryScheduled", BindingFlags.Instance | BindingFlags.NonPublic)!
+                .GetValue(host)!);
+        }
     }
 
     // Starts a real native host and returns only a weak reference, so nothing in managed

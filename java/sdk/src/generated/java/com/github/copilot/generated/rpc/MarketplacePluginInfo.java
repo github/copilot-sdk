@@ -26,7 +26,9 @@ public record MarketplacePluginInfo(
     /** Short description from the marketplace catalog, when present */
     @JsonProperty("description") String description,
     /** Soft assignment from effective managed settings for this marketplace entry. */
-    @JsonProperty("assignment") ManagedPluginAssignment assignment
+    @JsonProperty("assignment") ManagedPluginAssignment assignment,
+    /** The enabled state required by enterprise managed settings, when this plugin spec is managed. False means the plugin cannot be installed or enabled. Absent when managed settings do not control this plugin. */
+    @JsonProperty("managedDesiredEnabled") Boolean managedDesiredEnabled
 ) {
 
     /**
@@ -52,6 +54,7 @@ public record MarketplacePluginInfo(
         private String name;
         private String description;
         private ManagedPluginAssignment assignment;
+        private Boolean managedDesiredEnabled;
 
         /**
          * Sets the {@code name} property.
@@ -87,6 +90,17 @@ public record MarketplacePluginInfo(
         }
 
         /**
+         * Sets the {@code managedDesiredEnabled} property.
+         * @param value the property value
+         * @return this builder
+         * @since 2.0.0
+         */
+        public Builder managedDesiredEnabled(Boolean value) {
+            this.managedDesiredEnabled = value;
+            return this;
+        }
+
+        /**
          * Builds a record after checking required property presence.
          * @return a new record
          * @throws IllegalStateException if a required property is missing
@@ -94,8 +108,24 @@ public record MarketplacePluginInfo(
          */
         public MarketplacePluginInfo build() {
             if (name == null) throw new IllegalStateException("Missing required property: name");
-            return new MarketplacePluginInfo(name, description, assignment);
+            return new MarketplacePluginInfo(name, description, assignment, managedDesiredEnabled);
         }
+    }
+
+    /**
+     * Creates a marketplace plugin entry without its managed enabled state.
+     * @deprecated Use named construction via {@link #builder()}.
+     * @param name Plugin name as listed in the marketplace catalog
+     * @param description Short description from the marketplace catalog, when present
+     * @param assignment Soft assignment from effective managed settings for this marketplace entry.
+     */
+    @Deprecated(since = "2.0.0", forRemoval = false)
+    public MarketplacePluginInfo(
+        String name,
+        String description,
+        ManagedPluginAssignment assignment
+    ) {
+        this(name, description, assignment, null);
     }
 
     /**
@@ -109,6 +139,6 @@ public record MarketplacePluginInfo(
         String name,
         String description
     ) {
-        this(name, description, null);
+        this(name, description, null, null);
     }
 }

@@ -38,6 +38,7 @@ import com.github.copilot.generated.SessionEvent;
 import com.github.copilot.generated.SessionIdleEvent;
 import com.github.copilot.generated.rpc.FeatureFlagAssignmentsUpdate;
 import com.github.copilot.generated.rpc.ServerRpc;
+import com.github.copilot.generated.rpc.ShellBuildInteractiveEnvironmentParams;
 import com.github.copilot.generated.rpc.TaskAnalyticsClassifyTrajectoryParams;
 import com.github.copilot.generated.rpc.LocalModelsWatchParams;
 import com.github.copilot.generated.rpc.SandboxProxyCaCheckRelevanceParams;
@@ -436,6 +437,76 @@ class JsonRpcClientTest {
             String message = received.get(5, TimeUnit.SECONDS);
             assertEquals(List.of(false, "<redacted>"), List.of(message.contains("inbound-secret"),
                     MAPPER.readTree(message.substring("Received: ".length())).at("/params/token").asText()));
+        } finally {
+            logger.removeHandler(handler);
+            logger.setLevel(previousLevel);
+        }
+    }
+
+    @Test
+    void testHostEnvironmentIsRedactedWithoutChangingWireRequestOrResponse() throws Exception {
+        Logger logger = Logger.getLogger(JsonRpcClient.class.getName());
+        Level previousLevel = logger.getLevel();
+        var sent = new CompletableFuture<String>();
+        var received = new CompletableFuture<String>();
+        Handler handler = new Handler() {
+            @Override
+            public void publish(LogRecord record) {
+                String message = record.getMessage();
+                if (message != null && message.startsWith("Sent: ")
+                        && message.contains("\"method\":\"shell.buildInteractiveEnvironment\"")) {
+                    sent.complete(message.substring("Sent: ".length()));
+                } else if (message != null && message.startsWith("Received: ") && message.contains("\"environment\"")) {
+                    received.complete(message.substring("Received: ".length()));
+                }
+            }
+
+            @Override
+            public void flush() {
+            }
+
+            @Override
+            public void close() {
+            }
+        };
+        handler.setLevel(Level.ALL);
+        logger.addHandler(handler);
+        logger.setLevel(Level.FINE);
+        var environment = Map.of("GITHUB_TOKEN", "fake-github-credential", "OPENAI_API_KEY", "fake-provider-credential",
+                "CUSTOM_CREDENTIAL", "fake-custom-credential", "GitHub_Token", "fake-mixed-case-credential", "PATH",
+                "/controlled/bin");
+        var params = ShellBuildInteractiveEnvironmentParams.builder().hostEnvironment(environment)
+                .additionalBlockedNames(List.of()).caseInsensitive(false).build();
+        var returnedEnvironment = Map.of("GitHub_Token", "fake-mixed-case-credential", "CUSTOM_CREDENTIAL",
+                "fake-custom-credential", "PATH", "/controlled/bin");
+        try (var pair = createSocketPair()) {
+            pair.serverSide.setSoTimeout(5_000);
+            var rpc = new ServerRpc(pair.client::invoke);
+            var result = rpc.shell.buildInteractiveEnvironment(params);
+            JsonNode request = MAPPER.readTree(readRpcMessage(pair.serverSide.getInputStream()));
+            assertEquals("shell.buildInteractiveEnvironment", request.path("method").asText());
+            assertEquals(MAPPER.valueToTree(environment), request.at("/params/hostEnvironment"));
+            writeRpcMessage(pair.serverSide.getOutputStream(), MAPPER.writeValueAsString(Map.of("jsonrpc", "2.0", "id",
+                    request.path("id"), "result", Map.of("environment", returnedEnvironment))));
+            var response = result.get(5, TimeUnit.SECONDS);
+            assertEquals(returnedEnvironment, response.environment());
+
+            String logged = sent.get(5, TimeUnit.SECONDS);
+            assertEquals(MAPPER.valueToTree("<redacted>"), MAPPER.readTree(logged).at("/params/hostEnvironment"));
+            for (String value : environment.values()) {
+                assertFalse(logged.contains(value), "Host environment values must not appear in diagnostics");
+                assertFalse(params.toString().contains(value),
+                        "Host environment values must not appear in generated string representations");
+            }
+            String loggedResponse = received.get(5, TimeUnit.SECONDS);
+            assertEquals(MAPPER.valueToTree("<redacted>"), MAPPER.readTree(loggedResponse).at("/result/environment"));
+            for (String value : returnedEnvironment.values()) {
+                assertFalse(loggedResponse.contains(value),
+                        "Returned environment values must not appear in diagnostics");
+                assertFalse(response.toString().contains(value),
+                        "Returned environment values must not appear in generated string representations");
+            }
+            assertEquals(environment, params.hostEnvironment());
         } finally {
             logger.removeHandler(handler);
             logger.setLevel(previousLevel);

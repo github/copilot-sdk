@@ -350,9 +350,11 @@ class JsonRpcClient implements AutoCloseable {
     private static boolean isCredentialField(String name) {
         // Protocol messages use a bare "token" for credentials (for example Negotiate
         // (SPNEGO) and connection tokens); its rare non-secret uses only lose detail in
-        // diagnostics. "password" covers Basic proxy credentials.
+        // diagnostics. "password" covers Basic proxy credentials. Host environments
+        // can contain credentials under arbitrary names.
         return name.equals("accessToken") || name.equals("gitHubToken") || name.equals("bearerToken")
-                || name.equals("apiKey") || name.equals("token") || name.equals("password");
+                || name.equals("apiKey") || name.equals("token") || name.equals("password")
+                || name.equals("hostEnvironment") || name.equals("environment");
     }
 
     private void startReader() {
@@ -427,7 +429,7 @@ class JsonRpcClient implements AutoCloseable {
                 }
             } finally {
                 try {
-                    notifyClose();
+                    notifyClose(false);
                 } finally {
                     readerExited.countDown();
                 }
@@ -454,18 +456,31 @@ class JsonRpcClient implements AutoCloseable {
         }
     }
 
-    private void notifyClose() {
+    private void notifyClose(boolean dispatchFailuresAsync) {
         Runnable handler;
+        Map<Long, CompletableFuture<JsonNode>> failed;
         synchronized (closeHandlerLock) {
             if (closeNotified) {
                 return;
             }
             closeNotified = true;
             handler = closeHandler;
-            pendingRequests.forEach((id, future) -> future.completeExceptionally(new IOException("Client closed")));
+            failed = Map.copyOf(pendingRequests);
             pendingRequests.clear();
             sessionCallbackRequests.clear();
         }
+        failed.values().forEach(future -> {
+            if (dispatchFailuresAsync) {
+                // Recovery callbacks can await a replacement gated on this local close.
+                // Do not depend on application work releasing the JVM common pool.
+                var failure = new Thread(() -> future.completeExceptionally(new IOException("Client closed")),
+                        "jsonrpc-close");
+                failure.setDaemon(true);
+                failure.start();
+            } else {
+                future.completeExceptionally(new IOException("Client closed"));
+            }
+        });
         if (handler != null) {
             try {
                 handler.run();
@@ -552,7 +567,7 @@ class JsonRpcClient implements AutoCloseable {
         running = false;
         readerExecutor.shutdownNow();
         cancellationExecutor.shutdownNow();
-        notifyClose();
+        notifyClose(true);
 
         try {
             if (socket != null) {

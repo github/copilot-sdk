@@ -12,10 +12,18 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Field;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -116,6 +124,279 @@ class ForceStopSessionTest {
         } finally {
             caller.shutdownNow();
             assertTrue(caller.awaitTermination(5, TimeUnit.SECONDS), "The owned startup caller must stop");
+        }
+    }
+
+    @Test
+    void startAfterTransportLossConnectsAgain() throws Exception {
+        var listener = new ServerSocket(0, 1, InetAddress.getByName("127.0.0.1"));
+        try (var lostServer = new Server(listener); var client = lostServer.createClient()) {
+            var lostSession = createSession(client);
+            // The runtime closes the connection after a successful start.
+            lostServer.socket.shutdownOutput();
+            assertThrows(ExecutionException.class, () -> lostSession.getMessages().get(5, TimeUnit.SECONDS));
+            assertEquals(ConnectionState.DISCONNECTED, client.getState());
+
+            try (var server = new Server(listener)) {
+                client.start().get(5, TimeUnit.SECONDS);
+
+                assertEquals(ConnectionState.CONNECTED, client.getState());
+                client.ping("replacement").get(5, TimeUnit.SECONDS);
+                // The lost connection's session no longer claims its ID.
+                client.resumeSession(lostSession.getSessionId(),
+                        new ResumeSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
+                        .get(5, TimeUnit.SECONDS);
+                client.forceStop().get(5, TimeUnit.SECONDS);
+            }
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void startAfterProcessExitWithOpenTransportConnectsAgain(boolean recoverFromPendingPing) throws Exception {
+        try (var lostServer = new Server();
+                var server = new Server();
+                var lostPipe = new Socket("127.0.0.1", lostServer.listener.getLocalPort());
+                var pipe = new Socket("127.0.0.1", server.listener.getLocalPort());
+                var client = new CopilotClient(
+                        new CopilotClientOptions().setConnection(RuntimeConnection.forStdio()))) {
+            var alive = new AtomicBoolean(true);
+            var lostProcess = mock(Process.class);
+            when(lostProcess.isAlive()).thenAnswer(invocation -> alive.get());
+            when(lostProcess.getInputStream()).thenReturn(lostPipe.getInputStream());
+            when(lostProcess.getOutputStream()).thenReturn(lostPipe.getOutputStream());
+            when(lostProcess.descendants()).thenAnswer(invocation -> java.util.stream.Stream.empty());
+            var process = mock(Process.class);
+            var replacementAlive = new AtomicBoolean(true);
+            when(process.isAlive()).thenAnswer(invocation -> replacementAlive.get());
+            doAnswer(invocation -> {
+                replacementAlive.set(false);
+                return null;
+            }).when(process).destroy();
+            when(process.getInputStream()).thenReturn(pipe.getInputStream());
+            when(process.getOutputStream()).thenReturn(pipe.getOutputStream());
+            when(process.descendants()).thenAnswer(invocation -> java.util.stream.Stream.empty());
+            var manager = spy(new CliServerManager(new CopilotClientOptions().setUseStdio(true)));
+            doReturn(new CliServerManager.ProcessInfo(lostProcess, null),
+                    new CliServerManager.ProcessInfo(process, null)).when(manager).startCliServer();
+            Field managerField = CopilotClient.class.getDeclaredField("serverManager");
+            managerField.setAccessible(true);
+            managerField.set(client, manager);
+            var lostSession = createSession(client);
+            var replacementStarted = new CountDownLatch(1);
+
+            try {
+                client.start().get(5, TimeUnit.SECONDS);
+                verify(manager, times(1)).startCliServer();
+                var recovering = CompletableFuture.completedFuture((Void) null);
+                if (recoverFromPendingPing) {
+                    lostServer.holdPing = true;
+                    var ping = client.ping("pending at process exit");
+                    assertNotNull(lostServer.heldPings.poll(5, TimeUnit.SECONDS),
+                            "The ping must be pending before the process exits");
+                    recovering = ping.handle((result, error) -> {
+                        assertNotNull(error, "Process retirement must fail the pending ping");
+                        awaitRelease(replacementStarted);
+                        client.start().orTimeout(5, TimeUnit.SECONDS).join();
+                        return null;
+                    });
+                }
+                // Model a descendant retaining the pipe after its runtime process exits.
+                alive.set(false);
+                client.start().get(5, TimeUnit.SECONDS);
+                replacementStarted.countDown();
+                recovering.get(5, TimeUnit.SECONDS);
+
+                assertThrows(IllegalStateException.class, () -> lostSession.send("retired"));
+                verify(manager, times(2)).startCliServer();
+                client.ping("replacement").get(5, TimeUnit.SECONDS);
+                client.resumeSession(lostSession.getSessionId(),
+                        new ResumeSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
+                        .get(5, TimeUnit.SECONDS);
+            } finally {
+                replacementStarted.countDown();
+                client.forceStop().get(5, TimeUnit.SECONDS);
+            }
+        }
+    }
+
+    @Test
+    void startInsideTransportFailureContinuationConnectsAgain() throws Exception {
+        try (var lostServer = new Server(); var client = lostServer.createClient()) {
+            client.start().get(5, TimeUnit.SECONDS);
+            lostServer.holdPing = true;
+            var ping = client.ping("pending at transport loss");
+            assertNotNull(lostServer.heldPings.poll(5, TimeUnit.SECONDS), "The ping must be pending before EOF");
+            var recovering = ping.handle((result, error) -> {
+                assertNotNull(error, "Transport loss must fail the pending ping");
+                // Bound an uninterruptible join so a deadlock fails without leaking the reader.
+                client.start().orTimeout(5, TimeUnit.SECONDS).join();
+                return null;
+            });
+
+            try (var server = new Server(lostServer.listener)) {
+                lostServer.socket.shutdownOutput();
+                recovering.get(10, TimeUnit.SECONDS);
+
+                assertEquals(ConnectionState.CONNECTED, client.getState());
+                client.ping("replacement").get(5, TimeUnit.SECONDS);
+                client.forceStop().get(5, TimeUnit.SECONDS);
+            }
+        }
+    }
+
+    @Test
+    void localCloseFailsPendingRequestsWithBusyCommonPool(@org.junit.jupiter.api.io.TempDir java.nio.file.Path temp)
+            throws Exception {
+        var output = temp.resolve("close-probe.log");
+        var javaBin = java.nio.file.Path.of(System.getProperty("java.home"), "bin", "java").toString();
+        var classpath = System.getProperty("surefire.test.class.path", System.getProperty("java.class.path"))
+                + java.io.File.pathSeparator + System.getProperty("jdk.module.path", "");
+        var probe = new ProcessBuilder(javaBin, "-Djava.util.concurrent.ForkJoinPool.common.parallelism=2", "-cp",
+                classpath, BusyCommonPoolCloseProbe.class.getName()).redirectErrorStream(true)
+                .redirectOutput(output.toFile()).start();
+        try {
+            assertTrue(probe.waitFor(20, TimeUnit.SECONDS), () -> "Close probe did not exit; output: " + output);
+            assertEquals(0, probe.exitValue(), java.nio.file.Files.readString(output));
+        } finally {
+            probe.destroyForcibly();
+            assertTrue(probe.waitFor(5, TimeUnit.SECONDS), "The owned close probe must stop");
+        }
+    }
+
+    public static final class BusyCommonPoolCloseProbe {
+        public static void main(String[] args) throws Exception {
+            var entered = new CountDownLatch(2);
+            var release = new CountDownLatch(1);
+            var workers = new CompletableFuture<?>[2];
+            for (int i = 0; i < workers.length; i++) {
+                workers[i] = CompletableFuture.runAsync(() -> {
+                    entered.countDown();
+                    awaitRelease(release);
+                });
+            }
+            var readerRelease = new CountDownLatch(1);
+            try (var rpc = JsonRpcClient.fromStreams(new InputStream() {
+                @Override
+                public int read() {
+                    awaitRelease(readerRelease);
+                    return -1;
+                }
+
+                @Override
+                public void close() {
+                    readerRelease.countDown();
+                }
+            }, java.io.OutputStream.nullOutputStream())) {
+                assertTrue(entered.await(5, TimeUnit.SECONDS), "Both common-pool workers must be occupied");
+                var pending = rpc.invoke("ping", Map.of(), Object.class);
+                rpc.close();
+                assertThrows(ExecutionException.class, () -> pending.get(5, TimeUnit.SECONDS));
+            } finally {
+                readerRelease.countDown();
+                release.countDown();
+                CompletableFuture.allOf(workers).get(5, TimeUnit.SECONDS);
+            }
+        }
+    }
+
+    @Test
+    void createCapturedBeforeRestartCannotReplaceNewSessionRouting() throws Exception {
+        var caller = Executors.newSingleThreadExecutor();
+        var captured = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        var events = new AtomicInteger();
+        try (var lostServer = new Server(); var client = lostServer.createClient()) {
+            client.start().get(5, TimeUnit.SECONDS);
+            var config = new SessionConfig() {
+                @Override
+                public String getSessionId() {
+                    captured.countDown();
+                    awaitRelease(release);
+                    return "replacement-session";
+                }
+            }.setOnPermissionRequest(PermissionHandler.APPROVE_ALL);
+            var creating = caller.submit(() -> client.createSession(config));
+            try {
+                assertTrue(captured.await(5, TimeUnit.SECONDS),
+                        "The create must capture its connection before registration");
+                lostServer.socket.shutdownOutput();
+                assertThrows(ExecutionException.class, () -> client.ping("lost connection").get(5, TimeUnit.SECONDS));
+                try (var server = new Server(lostServer.listener)) {
+                    client.start().get(5, TimeUnit.SECONDS);
+                    var replacement = client
+                            .createSession(new SessionConfig().setSessionId("replacement-session")
+                                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                                    .setHooks(new SessionHooks().setOnSessionEnd(
+                                            (input, invocation) -> CompletableFuture.completedFuture(null))))
+                            .get(5, TimeUnit.SECONDS);
+                    try (var subscription = replacement.on(event -> events.incrementAndGet())) {
+                        release.countDown();
+                        assertThrows(ExecutionException.class,
+                                () -> creating.get(5, TimeUnit.SECONDS).get(5, TimeUnit.SECONDS));
+                        server.emitIdle(replacement.getSessionId());
+                        client.ping("replacement routing barrier").get(5, TimeUnit.SECONDS);
+                        assertEquals(1, events.get(), "A stale create must preserve replacement events");
+                        server.invokeSessionEnd(replacement.getSessionId());
+                    }
+                    client.forceStop().get(5, TimeUnit.SECONDS);
+                }
+            } finally {
+                release.countDown();
+            }
+        } finally {
+            release.countDown();
+            caller.shutdownNow();
+            assertTrue(caller.awaitTermination(5, TimeUnit.SECONDS), "The owned create caller must stop");
+        }
+    }
+
+    @Test
+    void delayedOptionsFailureCannotRemoveReplacementSessionRouting() throws Exception {
+        var caller = Executors.newSingleThreadExecutor();
+        var patchEntered = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        var events = new AtomicInteger();
+        try (var lostServer = new Server(); var client = lostServer.createClient(Runnable::run)) {
+            var config = new SessionConfig() {
+                @Override
+                public java.util.Optional<Boolean> getCoauthorEnabled() {
+                    patchEntered.countDown();
+                    awaitRelease(release);
+                    return java.util.Optional.of(true);
+                }
+            }.setSessionId("replacement-session").setOnPermissionRequest(PermissionHandler.APPROVE_ALL);
+            var creating = caller.submit(() -> client.createSession(config));
+            try {
+                assertTrue(patchEntered.await(5, TimeUnit.SECONDS),
+                        "The old create must reach its post-create options patch");
+                client.forceStop().get(5, TimeUnit.SECONDS);
+                try (var server = new Server(lostServer.listener)) {
+                    client.start().get(5, TimeUnit.SECONDS);
+                    var replacement = client
+                            .createSession(new SessionConfig().setSessionId("replacement-session")
+                                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setCoauthorEnabled(false)
+                                    .setHooks(new SessionHooks().setOnSessionEnd(
+                                            (input, invocation) -> CompletableFuture.completedFuture(null))))
+                            .get(5, TimeUnit.SECONDS);
+                    try (var subscription = replacement.on(event -> events.incrementAndGet())) {
+                        release.countDown();
+                        assertThrows(ExecutionException.class,
+                                () -> creating.get(5, TimeUnit.SECONDS).get(5, TimeUnit.SECONDS));
+                        server.emitIdle(replacement.getSessionId());
+                        client.ping("replacement options rollback barrier").get(5, TimeUnit.SECONDS);
+                        assertEquals(1, events.get(), "An old options failure must preserve replacement events");
+                        server.invokeSessionEnd(replacement.getSessionId());
+                    }
+                    client.forceStop().get(5, TimeUnit.SECONDS);
+                }
+            } finally {
+                release.countDown();
+            }
+        } finally {
+            release.countDown();
+            caller.shutdownNow();
+            assertTrue(caller.awaitTermination(5, TimeUnit.SECONDS), "The owned create caller must stop");
         }
     }
 
@@ -1415,6 +1696,7 @@ class ForceStopSessionTest {
                             detaches.incrementAndGet();
                             yield Map.of("success", true);
                         }
+                        case "session.options.update" -> Map.of();
                         case "ping" -> Map.of("message", params.path("message").asText(), "protocolVersion",
                                 SdkProtocolVersion.get());
                         default -> throw new IOException("Unexpected RPC: " + request.path("method"));

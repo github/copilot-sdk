@@ -16,34 +16,40 @@ use tokio::time::timeout;
 pub const WAIT: Duration = Duration::from_secs(5);
 
 pub async fn write_frame(writer: &mut (impl AsyncWrite + Unpin), value: Value) {
-    let body = serde_json::to_vec(&value).unwrap();
+    let body = serde_json::to_vec(&value).expect("serialize runtime frame");
     writer
         .write_all(format!("Content-Length: {}\r\n\r\n", body.len()).as_bytes())
         .await
-        .unwrap();
-    writer.write_all(&body).await.unwrap();
-    writer.flush().await.unwrap();
+        .expect("write runtime frame header");
+    writer
+        .write_all(&body)
+        .await
+        .expect("write runtime frame body");
+    writer.flush().await.expect("flush runtime frame");
 }
 
 pub async fn read_frame(reader: &mut (impl AsyncRead + Unpin)) -> Value {
     timeout(WAIT, async {
         let mut header = Vec::new();
         while !header.ends_with(b"\r\n\r\n") {
-            header.push(reader.read_u8().await.unwrap());
+            header.push(reader.read_u8().await.expect("read runtime frame header"));
         }
         let length = String::from_utf8(header)
-            .unwrap()
+            .expect("UTF-8 runtime frame header")
             .trim()
             .strip_prefix("Content-Length: ")
-            .unwrap()
+            .expect("runtime Content-Length header")
             .parse()
-            .unwrap();
+            .expect("numeric runtime Content-Length");
         let mut body = vec![0; length];
-        reader.read_exact(&mut body).await.unwrap();
-        serde_json::from_slice(&body).unwrap()
+        reader
+            .read_exact(&mut body)
+            .await
+            .expect("read runtime frame body");
+        serde_json::from_slice(&body).expect("parse runtime frame JSON")
     })
     .await
-    .unwrap()
+    .expect("runtime frame received before timeout")
 }
 
 /// The runtime side of a connection after its startup requests were answered.
@@ -66,10 +72,12 @@ impl FakeRuntime {
 /// Starts a client against a fake runtime that answers `connect`, then each
 /// further startup request with the next `result` or `error` member of `replies`.
 pub async fn start(options: ClientOptions, replies: Vec<Value>) -> (Result<Client>, FakeRuntime) {
-    let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
-    let port = listener.local_addr().unwrap().port();
+    let listener = TcpListener::bind(("127.0.0.1", 0))
+        .await
+        .expect("bind fake runtime");
+    let port = listener.local_addr().expect("fake runtime address").port();
     let runtime = tokio::spawn(async move {
-        let (stream, _) = listener.accept().await.unwrap();
+        let (stream, _) = listener.accept().await.expect("accept runtime connection");
         let (mut reader, mut writer) = stream.into_split();
         let connect = read_frame(&mut reader).await;
         write_frame(
@@ -86,8 +94,8 @@ pub async fn start(options: ClientOptions, replies: Vec<Value>) -> (Result<Clien
             let mut response = json!({ "jsonrpc": "2.0", "id": request["id"] });
             response
                 .as_object_mut()
-                .unwrap()
-                .extend(reply.as_object().unwrap().clone());
+                .expect("response object")
+                .extend(reply.as_object().expect("reply object").clone());
             write_frame(&mut writer, response).await;
             startup_requests.push(request);
         }
@@ -104,8 +112,13 @@ pub async fn start(options: ClientOptions, replies: Vec<Value>) -> (Result<Clien
             port,
             connection_token: None,
         });
-    let client = timeout(WAIT, Client::start(options)).await.unwrap();
-    let runtime = timeout(WAIT, runtime).await.unwrap().unwrap();
+    let client = timeout(WAIT, Client::start(options))
+        .await
+        .expect("client startup completed before timeout");
+    let runtime = timeout(WAIT, runtime)
+        .await
+        .expect("runtime startup completed before timeout")
+        .expect("fake runtime task completed");
     (client, runtime)
 }
 

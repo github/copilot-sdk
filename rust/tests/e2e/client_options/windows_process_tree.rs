@@ -222,23 +222,26 @@ async fn abrupt_host_exit_terminates_root_and_descendant_without_rust_cleanup() 
             .map(|arg| arg.to_str().expect("fixture argument is UTF-8"))
             .collect();
         let host_pid_file = fake.dir.path().join("host-cli.pid");
-        let mut host =
-            tokio::process::Command::new(env!("CARGO_BIN_EXE_copilot-host-crash-fixture"))
-                .env("HOST_CRASH_FIXTURE_PROGRAM", program)
-                .env(
-                    "HOST_CRASH_FIXTURE_PREFIX_ARGS_JSON",
-                    serde_json::to_string(&prefix).expect("fixture args"),
-                )
-                .env("HOST_CRASH_FIXTURE_CWD", fake.dir.path())
-                .env("HOST_CRASH_FIXTURE_ENV_JSON", "[]")
-                .env("HOST_CRASH_FIXTURE_PID_FILE", &host_pid_file)
-                .env(
-                    "HOST_CRASH_FIXTURE_TRANSPORT",
-                    if tcp { "tcp" } else { "stdio" },
-                )
-                .kill_on_drop(true)
-                .spawn()
-                .expect("spawn SDK host fixture");
+        let mut host = tokio::process::Command::new(
+            std::path::Path::new(env!("CARGO_BIN_EXE_copilot-host-crash-fixture"))
+                .canonicalize()
+                .unwrap(),
+        )
+        .env("HOST_CRASH_FIXTURE_PROGRAM", program)
+        .env(
+            "HOST_CRASH_FIXTURE_PREFIX_ARGS_JSON",
+            serde_json::to_string(&prefix).expect("fixture args"),
+        )
+        .env("HOST_CRASH_FIXTURE_CWD", fake.dir.path())
+        .env("HOST_CRASH_FIXTURE_ENV_JSON", "[]")
+        .env("HOST_CRASH_FIXTURE_PID_FILE", &host_pid_file)
+        .env(
+            "HOST_CRASH_FIXTURE_TRANSPORT",
+            if tcp { "tcp" } else { "stdio" },
+        )
+        .kill_on_drop(true)
+        .spawn()
+        .expect("spawn SDK host fixture");
         let reported_root = published_pid(&host_pid_file).await;
         assert_eq!(reported_root, published_pid(&fake.pid_file).await);
         let (root, descendant) = retain_tree(&fake).await;

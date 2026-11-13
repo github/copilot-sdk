@@ -92,6 +92,11 @@ internal sealed partial class JsonRpc : IDisposable
     internal CancellationToken ConnectionClosedToken => _connectionClosedCts.Token;
 
     /// <summary>
+    /// Whether this connection has closed, which fails every later request. Set before pending requests fail.
+    /// </summary>
+    internal bool IsClosed => _terminalError is not null;
+
+    /// <summary>
     /// Begins reading messages from the receive stream. Call once after registering all method handlers.
     /// </summary>
     public void StartListening()
@@ -193,11 +198,16 @@ internal sealed partial class JsonRpc : IDisposable
         }
     }
 
-    private void CancelConnectionClosed()
+    private async Task CancelConnectionClosedAsync()
     {
         try
         {
-            _connectionClosedCts.Cancel();
+            // Host callbacks can synchronously wait for a restart gated on Completion.
+#if NET8_0_OR_GREATER
+            await _connectionClosedCts.CancelAsync().ConfigureAwait(false);
+#else
+            await Task.Run(() => _connectionClosedCts.Cancel()).ConfigureAwait(false);
+#endif
         }
         catch (AggregateException ex)
         {
@@ -323,7 +333,7 @@ internal sealed partial class JsonRpc : IDisposable
         }
 
         FailPendingRequests(reason);
-        CancelConnectionClosed();
+        _ = CancelConnectionClosedAsync();
         try
         {
             _disposeCts.Cancel();
@@ -471,7 +481,7 @@ internal sealed partial class JsonRpc : IDisposable
         finally
         {
             FailPendingRequests(new ConnectionLostException());
-            CancelConnectionClosed();
+            _ = CancelConnectionClosedAsync();
             _completionSource.TrySetResult();
         }
     }
