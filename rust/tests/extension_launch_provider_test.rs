@@ -172,7 +172,7 @@ fn launch_profile_request_and_result_serialize_exactly() {
     );
 }
 
-#[tokio::test(start_paused = true)]
+#[tokio::test]
 async fn configured_async_provider_dispatches_without_a_session() {
     let (client_write, mut server_read) = duplex(8192);
     let (mut server_write, client_read) = duplex(8192);

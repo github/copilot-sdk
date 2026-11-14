@@ -41,8 +41,8 @@ telemetry = [
 
 [dependency-groups]
 dev = [
-    "ruff==0.17.3",
-    "ty>=0.0.2,<0.0.94",
+    "ruff==0.17.2",
+    "ty>=0.0.2,<0.0.92",
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
     "pytest-timeout>=2.0.0",

@@ -10,15 +10,16 @@ use github_copilot_sdk::handler::{
 use github_copilot_sdk::rpc::ModelSetAllowedModelsRequest;
 use github_copilot_sdk::session_events::{
     SessionErrorData, SessionEventType, SessionInfoData, SessionModelChangeData, SessionResumeData,
-    SessionStartData, SessionWarningData, UserMessageAgentMode, UserMessageData,
+    SessionStartData, SessionWarningData, UserMessageData,
 };
 use github_copilot_sdk::tool::ToolHandler;
 use github_copilot_sdk::types::LogLevel as SessionLogLevel;
 use github_copilot_sdk::{
     Attachment, AttachmentLineRange, AttachmentSelectionPosition, AttachmentSelectionRange,
-    DefaultAgentConfig, Error, GitHubReferenceType, LogOptions, MessageOptions,
-    PermissionRequestData, RequestId, ResumeSessionConfig, SectionOverride, SessionConfig,
-    SessionId, SetModelOptions, SystemMessageConfig, Tool, ToolInvocation, ToolResult,
+    AzureProviderOptions, DefaultAgentConfig, Error, GitHubReferenceType, LogOptions,
+    MessageOptions, PermissionRequestData, ProviderConfig, RequestId, ResumeSessionConfig,
+    SectionOverride, SessionConfig, SessionId, SetModelOptions, SystemMessageConfig, Tool,
+    ToolInvocation, ToolResult,
 };
 use serde_json::json;
 
@@ -53,22 +54,48 @@ async fn shouldcreateanddisconnectsessions() {
                     .expect("session.start data");
                 assert_eq!(start.session_id, session.id().clone());
 
-                let raw_events = session.get_raw_events().await.expect("get raw events");
-                assert!(
-                    !raw_events.is_empty(),
-                    "expected initial raw session events"
-                );
-                assert_eq!(raw_events[0]["type"], "session.start");
-                assert_eq!(
-                    raw_events[0].get("parentId"),
-                    Some(&serde_json::Value::Null)
-                );
-
                 session.disconnect().await.expect("disconnect session");
                 assert!(
                     session.get_events().await.is_err(),
                     "disconnected session should no longer serve message history"
                 );
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn should_have_stateful_conversation() {
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "session",
+        "should_have_stateful_conversation",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(ctx.approve_all_session_config())
+                    .await
+                    .expect("create session");
+
+                let first = session
+                    .send_and_wait("What is 1+1?")
+                    .await
+                    .expect("first send")
+                    .expect("first assistant message");
+                assert!(assistant_message_content(&first).contains('2'));
+
+                let second = session
+                    .send_and_wait("Now if you double that, what do you get?")
+                    .await
+                    .expect("second send")
+                    .expect("second assistant message");
+                assert!(assistant_message_content(&second).contains('4'));
+
+                session.disconnect().await.expect("disconnect session");
                 client.stop().await.expect("stop client");
             })
         },
@@ -324,6 +351,41 @@ async fn should_create_a_session_with_defaultagent_excludedtools() {
                 let exchanges = ctx.exchanges();
                 let tool_names = get_tool_names(&exchanges[0]);
                 assert!(!tool_names.contains(&"secret_tool".to_string()));
+
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn should_create_session_with_custom_tool() {
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "session",
+        "should_create_session_with_custom_tool",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(
+                        SessionConfig::default()
+                            .with_github_token(super::support::DEFAULT_TEST_TOKEN)
+                            .with_permission_handler(Arc::new(ApproveAllHandler))
+                            .with_tools(vec![secret_number_tool()]),
+                    )
+                    .await
+                    .expect("create session");
+
+                let answer = session
+                    .send_and_wait("What is the secret number for key ALPHA?")
+                    .await
+                    .expect("send")
+                    .expect("assistant message");
+                assert!(assistant_message_content(&answer).contains("54321"));
 
                 session.disconnect().await.expect("disconnect session");
                 client.stop().await.expect("stop client");
@@ -665,6 +727,42 @@ async fn resumes_a_persisted_session_from_a_new_client_when_an_mcp_oauth_handler
 }
 
 #[tokio::test]
+async fn should_receive_session_events() {
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "session",
+        "should_receive_session_events",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(ctx.approve_all_session_config())
+                    .await
+                    .expect("create session");
+
+                let events = session.subscribe();
+                let answer = session
+                    .send_and_wait("What is 100+200?")
+                    .await
+                    .expect("send")
+                    .expect("assistant message");
+                assert!(assistant_message_content(&answer).contains("300"));
+                let observed = collect_until_idle(events).await;
+                let types = event_types(&observed);
+                assert!(types.contains(&"user.message"));
+                assert!(types.contains(&"assistant.message"));
+                assert!(types.contains(&"session.idle"));
+
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
+    .await;
+}
+
+#[tokio::test]
 async fn send_returns_immediately_while_events_stream_in_background() {
     struct GatedPermissionHandler {
         entered: tokio::sync::Notify,
@@ -802,6 +900,47 @@ async fn sendandwait_blocks_until_session_idle_and_returns_final_assistant_messa
 }
 
 #[tokio::test]
+async fn should_list_sessions_with_context() {
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "session",
+        "should_list_sessions_with_context",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(ctx.approve_all_session_config())
+                    .await
+                    .expect("create session");
+                let session_id = session.id().clone();
+
+                session.send_and_wait("Say OK.").await.expect("send");
+                wait_for_condition("session to appear in list", || {
+                    let client = client.clone();
+                    let session_id = session_id.clone();
+                    async move {
+                        client.list_sessions(None).await.is_ok_and(|sessions| {
+                            sessions
+                                .iter()
+                                .any(|session| session.session_id == session_id)
+                        })
+                    }
+                })
+                .await;
+
+                let all_sessions = client.list_sessions(None).await.expect("list sessions");
+                assert!(!all_sessions.is_empty());
+
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
+    .await;
+}
+
+#[tokio::test]
 async fn should_get_session_metadata_by_id() {
     super::support::with_shared_e2e_context(
         &E2E,
@@ -928,6 +1067,41 @@ async fn should_create_session_with_custom_config_dir() {
                     .join(session.id().as_str())
                     .join("events.jsonl");
                 assert!(events_log.is_file(), "{}", events_log.display());
+
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn should_set_model_on_existing_session() {
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "session",
+        "should_set_model_on_existing_session",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(ctx.approve_all_session_config())
+                    .await
+                    .expect("create session");
+                let model_changed = tokio::spawn(wait_for_event(
+                    session.subscribe(),
+                    "session.model_change",
+                    |event| event.parsed_type() == SessionEventType::SessionModelChange,
+                ));
+
+                session.set_model("gpt-4.1", None).await.expect("set model");
+                let event = model_changed.await.expect("model change task");
+                let data = event
+                    .typed_data::<SessionModelChangeData>()
+                    .expect("session.model_change data");
+                assert_eq!(data.new_model, "gpt-4.1");
 
                 session.disconnect().await.expect("disconnect session");
                 client.stop().await.expect("stop client");
@@ -1565,7 +1739,7 @@ async fn should_send_with_mode_property() {
                         Some(json!({
                             "sessionId": session.id().as_str(),
                             "prompt": "Say mode ok.",
-                            "agentMode": "plan",
+                            "mode": "plan",
                         })),
                     )
                     .await
@@ -1587,10 +1761,107 @@ async fn should_send_with_mode_property() {
                     .typed_data::<UserMessageData>()
                     .expect("user.message data");
                 assert_eq!(data.content, "Say mode ok.");
-                assert_eq!(data.agent_mode, Some(UserMessageAgentMode::Plan));
+                assert!(
+                    data.agent_mode.is_none(),
+                    "runtime should accept but not echo per-message mode"
+                );
 
                 session.disconnect().await.expect("disconnect session");
                 client.stop().await.expect("stop client");
+            })
+        },
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn should_create_session_with_custom_provider() {
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "session",
+        "should_create_session_with_custom_provider",
+        |ctx| {
+            Box::pin(async move {
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(
+                        SessionConfig::default().with_provider(
+                            ProviderConfig::new("https://api.openai.com/v1")
+                                .with_provider_type("openai")
+                                .with_api_key("fake-key"),
+                        ),
+                    )
+                    .await
+                    .expect("create session");
+                assert!(!session.id().as_str().is_empty());
+                let _ = session.disconnect().await;
+                let _ = client.stop().await;
+            })
+        },
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn should_create_session_with_azure_provider() {
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "session",
+        "should_create_session_with_azure_provider",
+        |ctx| {
+            Box::pin(async move {
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(
+                        SessionConfig::default().with_provider(
+                            ProviderConfig::new("https://my-resource.openai.azure.com")
+                                .with_provider_type("azure")
+                                .with_api_key("fake-key")
+                                .with_azure(AzureProviderOptions {
+                                    api_version: Some("2024-02-15-preview".to_string()),
+                                }),
+                        ),
+                    )
+                    .await
+                    .expect("create session");
+                assert!(!session.id().as_str().is_empty());
+                let _ = session.disconnect().await;
+                let _ = client.stop().await;
+            })
+        },
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn should_resume_session_with_custom_provider() {
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "session",
+        "should_resume_session_with_custom_provider",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(ctx.approve_all_session_config())
+                    .await
+                    .expect("create session");
+                let session_id = session.id().clone();
+
+                let mut config = ResumeSessionConfig::new(session_id.clone())
+                    .with_permission_handler(Arc::new(ApproveAllHandler));
+                config.provider = Some(
+                    ProviderConfig::new("https://api.openai.com/v1")
+                        .with_provider_type("openai")
+                        .with_api_key("fake-key"),
+                );
+                let resumed = client.resume_session(config).await.expect("resume session");
+                assert_eq!(resumed.id(), &session_id);
+
+                let _ = resumed.disconnect().await;
+                let _ = session.disconnect().await;
+                let _ = client.stop().await;
             })
         },
     )
@@ -1624,6 +1895,24 @@ impl McpAuthHandler for CancelMcpAuthHandler {
     }
 }
 
+struct SecretNumberTool;
+
+#[async_trait::async_trait]
+impl ToolHandler for SecretNumberTool {
+    async fn call(&self, invocation: ToolInvocation) -> Result<ToolResult, Error> {
+        let key = invocation
+            .arguments
+            .get("key")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_default();
+        Ok(ToolResult::Text(if key == "ALPHA" {
+            "54321".to_string()
+        } else {
+            "0".to_string()
+        }))
+    }
+}
+
 fn secret_tool() -> Tool {
     Tool::new("secret_tool")
         .with_description("A secret tool hidden from the default agent")
@@ -1646,5 +1935,20 @@ impl ToolHandler for SecretTool {
     }
 }
 
+fn secret_number_tool() -> Tool {
+    Tool::new("get_secret_number")
+        .with_description("Gets the secret number")
+        .with_parameters(json!({
+            "type": "object",
+            "properties": {
+                "key": {
+                    "type": "string",
+                    "description": "Key"
+                }
+            },
+            "required": ["key"]
+        }))
+        .with_handler(Arc::new(SecretNumberTool))
+}
 static E2E: super::support::SharedE2eGroup =
-    super::support::SharedE2eGroup::standard("session", 24);
+    super::support::SharedE2eGroup::standard("session", 29);

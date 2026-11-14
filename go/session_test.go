@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"reflect"
 	"strconv"
 	"strings"
@@ -35,39 +34,6 @@ func newTestSession() (*Session, func()) {
 
 func newTestEvent() SessionEvent {
 	return SessionEvent{Data: &SessionIdleData{}}
-}
-
-func TestRawHistoryPreservesAnalyticsArchive(t *testing.T) {
-	session, server := newSetToolsTestSession(t)
-	const original = `{"id":"event-1","parentId":null,"timestamp":"2026-01-01T00:00:00.000Z","type":"user.message","data":{"content":"Fix the build","future":{"detail":[null,"kept"]}},"futureEnvelope":{"kept":true}}`
-	completed := make(chan error, 1)
-	go func() {
-		events, err := session.GetRawEvents(t.Context())
-		if err == nil {
-			_, err = rpc.NewServerRPC(server.client).TaskAnalytics.ClassifyTrajectory(t.Context(), &rpc.TaskAnalyticsClassifyTrajectoryRequest{
-				Events: rpc.SessionEventsAsTrajectory(events),
-			})
-		}
-		completed <- err
-	}()
-
-	history := server.expectRequest(t, "session.getMessages")
-	if history.Params["sessionId"] != session.SessionID {
-		t.Fatalf("Unexpected history session: %v", history.Params)
-	}
-	server.respond(t, history.ID, map[string]any{"events": []json.RawMessage{json.RawMessage(original)}})
-	classification := server.expectRequest(t, "taskAnalytics.classifyTrajectory")
-	server.respond(t, classification.ID, map[string]any{"classifications": []any{}})
-	if err := <-completed; err != nil {
-		t.Fatal(err)
-	}
-	var expected any
-	if err := json.Unmarshal([]byte(original), &expected); err != nil {
-		t.Fatal(err)
-	}
-	if !reflect.DeepEqual(classification.Params["events"], []any{expected}) {
-		t.Fatalf("Archive changed on the wire:\ngot: %#v\nwant: %#v", classification.Params["events"], []any{expected})
-	}
 }
 
 func TestPermissionHandlerReceivesDerivedPromptContext(t *testing.T) {
@@ -106,7 +72,7 @@ func TestPermissionHandlerReceivesDerivedPromptContext(t *testing.T) {
 			PromptRequest:              promptRequest,
 			AssistedApprovalAssessment: assessment,
 		},
-	}, nil)
+	})
 
 	if observed.PromptRequest != promptRequest {
 		t.Fatalf("expected derived prompt context, got %#v", observed.PromptRequest)
@@ -119,79 +85,10 @@ func TestPermissionHandlerReceivesDerivedPromptContext(t *testing.T) {
 	}
 }
 
-func (s *Session) dispatchEvent(event SessionEvent) {
-	s.dispatchEventWithPermissionEnvelope(event, nil, nil)
-}
-
-func TestPermissionInvocationWithoutProgramOwnership(t *testing.T) {
-	invocation := PermissionInvocation{SessionID: "session-1", ManagedSettingsEnabled: true}
-	if invocation.SessionID != "session-1" || !invocation.ManagedSettingsEnabled || invocation.ProgramToolCallID != nil {
-		t.Fatalf("unexpected ordinary invocation: %#v", invocation)
-	}
-}
-
-func TestExternalToolDispatchHonorsDeclaredOwnership(t *testing.T) {
-	for _, test := range []struct {
-		name       string
-		hasHandler *bool
-	}{
-		{"legacy", nil},
-		{"callback", ptr(true)},
-		{"declaration-only", ptr(false)},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			session, cleanup := newTestSession()
-			defer cleanup()
-			defer session.cancelPendingExternalTools()
-			session.SessionID = "session-1"
-			session.registerTools([]Tool{{
-				Name: "lookup",
-				Handler: func(invocation ToolInvocation) (ToolResult, error) {
-					<-invocation.TraceContext.Done()
-					return ToolResult{}, invocation.TraceContext.Err()
-				},
-			}})
-			delivered := make(chan SessionEvent, 1)
-			session.On(func(event SessionEvent) { delivered <- event })
-			data := map[string]any{
-				"requestId": "request-1", "sessionId": session.SessionID,
-				"toolCallId": "call-1", "toolName": "lookup", "arguments": map[string]any{},
-			}
-			if test.hasHandler != nil {
-				data["hasHandler"] = *test.hasHandler
-			}
-			payload, err := json.Marshal(map[string]any{
-				"sessionId": session.SessionID,
-				"event": map[string]any{
-					"id":        "00000000-0000-4000-8000-000000000001",
-					"timestamp": "2026-01-01T00:00:00Z",
-					"type":      "external_tool.requested", "data": data,
-				},
-			})
-			if err != nil {
-				t.Fatal(err)
-			}
-			var request sessionEventRequest
-			if err := json.Unmarshal(payload, &request); err != nil {
-				t.Fatal(err)
-			}
-			client := &Client{sessions: map[string]*Session{session.SessionID: session}}
-			client.handleSessionEvent(request)
-			session.pendingExternalToolsM.Lock()
-			_, started := session.pendingExternalTools["request-1"]
-			session.pendingExternalToolsM.Unlock()
-			if expected := test.hasHandler == nil || *test.hasHandler; started != expected {
-				t.Fatalf("SDK callback started = %v, want %v", started, expected)
-			}
-			select {
-			case event := <-delivered:
-				if data, ok := event.Data.(*ExternalToolRequestedData); !ok || data.RequestID != "request-1" {
-					t.Fatalf("unexpected subscriber event: %#v", event)
-				}
-			case <-time.After(time.Second):
-				t.Fatal("tool request was not delivered to subscribers")
-			}
-		})
+func TestPermissionInvocationPreservesPositionalFields(t *testing.T) {
+	invocation := PermissionInvocation{"session-1", true}
+	if invocation.SessionID != "session-1" || !invocation.ManagedSettingsEnabled {
+		t.Fatalf("unexpected legacy invocation: %#v", invocation)
 	}
 }
 
@@ -366,335 +263,6 @@ func TestToolResultWithEmptyTextIsSentAsEmptyText(t *testing.T) {
 	}
 }
 
-func TestToolResultThatFailsToSendIsReportedAndAnsweredWithError(t *testing.T) {
-	logs := captureSkillProviderLog(t)
-	session, server := newSetToolsTestSession(t)
-	session.registerTools([]Tool{{Name: "record_note", Handler: func(ToolInvocation) (ToolResult, error) {
-		return ToolResult{TextResultForLLM: "ok"}, nil
-	}}})
-	session.startExternalTool(&ExternalToolRequestedData{
-		RequestID:  "request-1",
-		SessionID:  "session-1",
-		ToolCallID: "tool-call-1",
-		ToolName:   "record_note",
-		Arguments:  map[string]any{},
-	}, "")
-
-	delivery := server.expectRequest(t, "session.tools.handlePendingToolCall")
-	if _, ok := delivery.Params["result"].(map[string]any); !ok {
-		t.Fatalf("first params = %#v, want the tool result", delivery.Params)
-	}
-	server.respondError(t, delivery.ID, -32603, "tool result rejected")
-
-	answer := server.expectRequest(t, "session.tools.handlePendingToolCall")
-	if answer.Params["requestId"] != "request-1" {
-		t.Errorf("requestId = %#v, want request-1", answer.Params["requestId"])
-	}
-	if result, ok := answer.Params["result"]; ok {
-		t.Errorf("result = %#v, want none", result)
-	}
-	if want := "JSON-RPC Error -32603: tool result rejected"; answer.Params["error"] != want {
-		t.Errorf("error = %#v, want %q", answer.Params["error"], want)
-	}
-	server.respond(t, answer.ID, map[string]any{})
-	if want := "external tool result delivery failed: session_id=session-1 request_id=request-1 tool=record_note error=JSON-RPC Error -32603: tool result rejected"; !strings.Contains(logs.text(), want) {
-		t.Errorf("log = %q, want it to contain %q", logs.text(), want)
-	}
-}
-
-func TestToolResultThatFailsToSendAfterDisconnectIsNotAnswered(t *testing.T) {
-	logs := captureSkillProviderLog(t)
-	session, server := newSetToolsTestSession(t)
-	session.registerTools([]Tool{{Name: "record_note", Handler: func(ToolInvocation) (ToolResult, error) {
-		return ToolResult{TextResultForLLM: "ok"}, nil
-	}}})
-	session.startExternalTool(&ExternalToolRequestedData{
-		RequestID:  "request-1",
-		SessionID:  "session-1",
-		ToolCallID: "tool-call-1",
-		ToolName:   "record_note",
-		Arguments:  map[string]any{},
-	}, "")
-
-	delivery := server.expectRequest(t, "session.tools.handlePendingToolCall")
-	// The request is already claimed, so disconnecting cannot cancel it.
-	session.cancelPendingExternalTools()
-	server.respondError(t, delivery.ID, -32603, "tool result rejected")
-
-	server.expectNoRequest(t)
-	if strings.Contains(logs.text(), "external tool result delivery failed") {
-		t.Errorf("log = %q, want no delivery failure after disconnect", logs.text())
-	}
-}
-
-func TestSetToolsTestSessionCleanupRetiresInFlightToolResult(t *testing.T) {
-	logs := captureSkillProviderLog(t)
-	invocations := make(chan context.Context, 1)
-	if !t.Run("fixture", func(t *testing.T) {
-		session, server := newSetToolsTestSession(t)
-		session.registerTools([]Tool{{Name: "record_note", Handler: func(invocation ToolInvocation) (ToolResult, error) {
-			invocations <- invocation.TraceContext
-			return ToolResult{TextResultForLLM: "ok"}, nil
-		}}})
-		session.startExternalTool(&ExternalToolRequestedData{
-			RequestID:  "request-1",
-			SessionID:  "session-1",
-			ToolCallID: "tool-call-1",
-			ToolName:   "record_note",
-			Arguments:  map[string]any{},
-		}, "")
-
-		// Leave the claimed result unanswered so fixture cleanup interrupts delivery.
-		server.expectRequest(t, "session.tools.handlePendingToolCall")
-	}) {
-		return
-	}
-
-	// A claimed call is no longer pending; its context closes when the sender exits.
-	ctx := <-invocations
-	select {
-	case <-ctx.Done():
-	case <-time.After(2 * time.Second):
-		t.Fatal("tool result sender did not finish after fixture cleanup")
-	}
-	if strings.Contains(logs.text(), "external tool result delivery failed") {
-		t.Errorf("log = %q, want no delivery failure from fixture cleanup", logs.text())
-	}
-}
-
-func TestToolErrorThatFailsToSendIsAnsweredOnceWithDeliveryError(t *testing.T) {
-	tests := []struct {
-		name    string
-		handler ToolHandler
-		wantErr string
-	}{
-		{
-			name: "handler error",
-			handler: func(ToolInvocation) (ToolResult, error) {
-				return ToolResult{}, errors.New("handler failed")
-			},
-			wantErr: "handler failed",
-		},
-		{
-			name: "handler panic",
-			handler: func(ToolInvocation) (ToolResult, error) {
-				panic("handler failed")
-			},
-			wantErr: "tool panic: handler failed",
-		},
-		{
-			name: "invalid telemetry",
-			handler: func(ToolInvocation) (ToolResult, error) {
-				return ToolResult{ToolTelemetry: map[string]any{"invalid": math.NaN()}}, nil
-			},
-			wantErr: "failed to serialize tool telemetry: json: unsupported value: NaN",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			session, server := newSetToolsTestSession(t)
-			session.registerTools([]Tool{{Name: "record_note", Handler: tt.handler}})
-			session.startExternalTool(&ExternalToolRequestedData{
-				RequestID:  "request-1",
-				SessionID:  "session-1",
-				ToolCallID: "tool-call-1",
-				ToolName:   "record_note",
-				Arguments:  map[string]any{},
-			}, "")
-
-			delivery := server.expectRequest(t, "session.tools.handlePendingToolCall")
-			if delivery.Params["error"] != tt.wantErr {
-				t.Fatalf("initial error = %#v, want %q", delivery.Params["error"], tt.wantErr)
-			}
-			server.respondError(t, delivery.ID, -32603, "tool error rejected")
-
-			answer := server.expectRequest(t, "session.tools.handlePendingToolCall")
-			if answer.Params["requestId"] != "request-1" || answer.Params["error"] != "JSON-RPC Error -32603: tool error rejected" {
-				t.Fatalf("fallback params = %#v, want the same request with its delivery error", answer.Params)
-			}
-			if result, ok := answer.Params["result"]; ok {
-				t.Errorf("result = %#v, want none", result)
-			}
-			server.respondError(t, answer.ID, -32603, "fallback rejected")
-			server.expectNoRequest(t)
-		})
-	}
-}
-
-func TestToolResultWithUnencodableTelemetryIsAnsweredWithError(t *testing.T) {
-	type noArgs struct{}
-	tests := []struct {
-		name    string
-		tool    Tool
-		wantErr string
-	}{
-		{
-			name: "NaN telemetry value",
-			tool: Tool{Name: "record_note", Handler: func(ToolInvocation) (ToolResult, error) {
-				return ToolResult{TextResultForLLM: "ok", ToolTelemetry: map[string]any{"ratio": math.NaN()}}, nil
-			}},
-			wantErr: "failed to serialize tool telemetry: json: unsupported value: NaN",
-		},
-		{
-			name: "channel telemetry value",
-			tool: Tool{Name: "record_note", Handler: func(ToolInvocation) (ToolResult, error) {
-				return ToolResult{TextResultForLLM: "ok", ToolTelemetry: map[string]any{"updates": make(chan int)}}, nil
-			}},
-			wantErr: "failed to serialize tool telemetry: json: unsupported type: chan int",
-		},
-		{
-			name: "DefineTool handler returning a ToolResult",
-			tool: DefineTool("record_note", "Records a note", func(noArgs, ToolInvocation) (any, error) {
-				return ToolResult{TextResultForLLM: "ok", ToolTelemetry: map[string]any{"ratio": math.Inf(1)}}, nil
-			}),
-			wantErr: "failed to serialize tool telemetry: json: unsupported value: +Inf",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			session, server := newSetToolsTestSession(t)
-			session.registerTools([]Tool{tt.tool})
-			session.startExternalTool(&ExternalToolRequestedData{
-				RequestID:  "request-1",
-				SessionID:  "session-1",
-				ToolCallID: "tool-call-1",
-				ToolName:   "record_note",
-				Arguments:  map[string]any{},
-			}, "")
-
-			completion := server.expectRequest(t, "session.tools.handlePendingToolCall")
-			if result, ok := completion.Params["result"]; ok {
-				t.Errorf("result = %#v, want none", result)
-			}
-			if completion.Params["error"] != tt.wantErr {
-				t.Errorf("error = %#v, want %q", completion.Params["error"], tt.wantErr)
-			}
-			server.respond(t, completion.ID, map[string]any{})
-		})
-	}
-}
-
-func TestToolHandlerErrorWithEmptyMessageIsAnsweredWithError(t *testing.T) {
-	type noArgs struct{}
-	tests := []struct {
-		name    string
-		tool    Tool
-		wantErr string
-	}{
-		{
-			name: "error with an empty message",
-			tool: Tool{Name: "record_note", Handler: func(ToolInvocation) (ToolResult, error) {
-				return ToolResult{}, errors.New("")
-			}},
-			wantErr: "*errors.errorString",
-		},
-		{
-			name: "DefineTool handler returning an error with an empty message",
-			tool: DefineTool("record_note", "Records a note", func(noArgs, ToolInvocation) (any, error) {
-				return nil, errors.New("")
-			}),
-			wantErr: "*errors.errorString",
-		},
-		{
-			name: "error with a message",
-			tool: Tool{Name: "record_note", Handler: func(ToolInvocation) (ToolResult, error) {
-				return ToolResult{}, errors.New("disk full")
-			}},
-			wantErr: "disk full",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			session, server := newSetToolsTestSession(t)
-			session.registerTools([]Tool{tt.tool})
-			session.startExternalTool(&ExternalToolRequestedData{
-				RequestID:  "request-1",
-				SessionID:  "session-1",
-				ToolCallID: "tool-call-1",
-				ToolName:   "record_note",
-				Arguments:  map[string]any{},
-			}, "")
-
-			completion := server.expectRequest(t, "session.tools.handlePendingToolCall")
-			if result, ok := completion.Params["result"]; ok {
-				t.Errorf("result = %#v, want none", result)
-			}
-			if completion.Params["error"] != tt.wantErr {
-				t.Errorf("error = %#v, want %q", completion.Params["error"], tt.wantErr)
-			}
-			server.respond(t, completion.ID, map[string]any{})
-		})
-	}
-}
-
-func TestToolResultTelemetryIsEncodedOnce(t *testing.T) {
-	session, server := newSetToolsTestSession(t)
-	marker := &countingTelemetry{}
-	session.registerTools([]Tool{{Name: "record_note", Handler: func(ToolInvocation) (ToolResult, error) {
-		return ToolResult{TextResultForLLM: "ok", ToolTelemetry: map[string]any{"count": marker}}, nil
-	}}})
-	session.startExternalTool(&ExternalToolRequestedData{
-		RequestID:  "request-1",
-		SessionID:  "session-1",
-		ToolCallID: "tool-call-1",
-		ToolName:   "record_note",
-		Arguments:  map[string]any{},
-	}, "")
-
-	completion := server.expectRequest(t, "session.tools.handlePendingToolCall")
-	if err, ok := completion.Params["error"]; ok {
-		t.Fatalf("error = %#v, want a result", err)
-	}
-	result, _ := completion.Params["result"].(map[string]any)
-	telemetry, _ := result["toolTelemetry"].(map[string]any)
-	if telemetry["count"] != float64(1) {
-		t.Errorf("toolTelemetry = %#v, want the value from the first encoding", result["toolTelemetry"])
-	}
-	if marker.calls != 1 {
-		t.Errorf("telemetry value encoded %d times, want 1", marker.calls)
-	}
-	server.respond(t, completion.ID, map[string]any{})
-}
-
-func TestToolResultTelemetryIsEncodedInKeyOrder(t *testing.T) {
-	keys := []string{"a", "b", "c", "d", "e", "f", "g", "h"}
-	for run := 0; run < 20; run++ {
-		counter := new(int)
-		telemetry := map[string]any{}
-		for _, key := range keys {
-			telemetry[key] = sequencedTelemetry{counter}
-		}
-		encoded, err := encodeToolTelemetry(telemetry)
-		if err != nil {
-			t.Fatal(err)
-		}
-		for i, key := range keys {
-			if got, want := string(encoded[key].(json.RawMessage)), fmt.Sprint(i+1); got != want {
-				t.Fatalf("run %d: telemetry %q = %s, want %s (encoded in key order)", run, key, got, want)
-			}
-		}
-	}
-}
-
-// sequencedTelemetry encodes as the number of values its counter has encoded so far.
-type sequencedTelemetry struct{ counter *int }
-
-func (s sequencedTelemetry) MarshalJSON() ([]byte, error) {
-	*s.counter++
-	return []byte(fmt.Sprint(*s.counter)), nil
-}
-
-// countingTelemetry encodes successfully the first time and fails afterwards.
-type countingTelemetry struct{ calls int }
-
-func (c *countingTelemetry) MarshalJSON() ([]byte, error) {
-	c.calls++
-	if c.calls > 1 {
-		return nil, errors.New("encoded more than once")
-	}
-	return []byte("1"), nil
-}
-
 func TestDispatchEventReturnsAfterEventProcessingStops(t *testing.T) {
 	session := &Session{
 		eventCh:   make(chan SessionEvent),
@@ -847,7 +415,6 @@ func TestSession_SetToolsSendsPayloadAndInstallsHandlers(t *testing.T) {
 			OverridesBuiltInTool: true,
 			SkipPermission:       true,
 			IsTerminal:           true,
-			Idempotent:           true,
 			Defer:                ToolDeferNever,
 			Metadata:             map[string]any{"x-test": "metadata"},
 			Namespace:            &ToolNamespace{Name: "fruit", Description: "Fruit lookups"},
@@ -882,7 +449,7 @@ func TestSession_SetToolsSendsPayloadAndInstallsHandlers(t *testing.T) {
 	if description, ok := first["description"].(string); !ok || description != "" {
 		t.Fatalf("description = %#v, want empty string", first["description"])
 	}
-	for _, key := range []string{"overridesBuiltInTool", "skipPermission", "isTerminal", "idempotent", "hasHandler"} {
+	for _, key := range []string{"overridesBuiltInTool", "skipPermission", "isTerminal"} {
 		if first[key] != true {
 			t.Fatalf("%s = %v, want true", key, first[key])
 		}
@@ -904,13 +471,8 @@ func TestSession_SetToolsSendsPayloadAndInstallsHandlers(t *testing.T) {
 	if !ok {
 		t.Fatalf("second tool = %#v, want object", wireTools[1])
 	}
-	if second["hasHandler"] != false {
-		t.Fatalf("hasHandler = %#v, want false", second["hasHandler"])
-	}
-	for _, key := range []string{"namespace", "isTerminal", "idempotent"} {
-		if _, ok := second[key]; ok {
-			t.Fatalf("%s = %#v, want omitted", key, second[key])
-		}
+	if _, ok := second["namespace"]; ok {
+		t.Fatalf("namespace = %#v, want omitted", second["namespace"])
 	}
 
 	server.respond(t, request.ID, map[string]any{})
@@ -1286,7 +848,7 @@ func testSessionMCPAuthRequestResponse(t *testing.T, runtimeRefresh bool) {
 				ResourceMetadataURL: &resourceMetadataURL,
 			},
 		},
-	}, nil)
+	})
 	if observedRequest.ResourceMetadata == nil || *observedRequest.ResourceMetadata != `{"resource":"https://example.com/mcp"}` {
 		t.Fatalf("expected resource metadata to be propagated, got %#v", observedRequest.ResourceMetadata)
 	}
@@ -1546,7 +1108,7 @@ func captureMCPAuthPendingResult(t *testing.T, data *MCPOauthRequiredData, handl
 		RPC:       rpc.NewSessionRPC(client, "session-1"),
 	}
 	session.registerMCPAuthHandlers(handler, refreshHandler)
-	session.handleBroadcastEvent(SessionEvent{Data: data}, nil)
+	session.handleBroadcastEvent(SessionEvent{Data: data})
 
 	select {
 	case params := <-paramsCh:
@@ -1790,20 +1352,20 @@ func newSetToolsTestSession(t *testing.T) (*Session, *setToolsTestServer) {
 		errs:    make(chan error, 1),
 	}
 	go server.readRequests()
-	session := &Session{
-		SessionID:    "session-1",
-		client:       client,
-		toolHandlers: make(map[string]ToolHandler),
-		RPC:          rpc.NewSessionRPC(client, "session-1"),
-	}
 	t.Cleanup(func() {
-		session.cancelPendingExternalTools()
 		client.Stop()
 		stdinR.Close()
 		stdinW.Close()
 		stdoutR.Close()
 		stdoutW.Close()
 	})
+
+	session := &Session{
+		SessionID:    "session-1",
+		client:       client,
+		toolHandlers: make(map[string]ToolHandler),
+		RPC:          rpc.NewSessionRPC(client, "session-1"),
+	}
 	return session, server
 }
 
@@ -2509,7 +2071,9 @@ func TestSession_Capabilities(t *testing.T) {
 		session, cleanup := newTestSession()
 		defer cleanup()
 
-		session.setCapabilities(withRecoveryAwareSessionCapabilities(UICapabilities{Elicitation: true}))
+		session.setCapabilities(&SessionCapabilities{
+			UI: &UICapabilities{Elicitation: true},
+		})
 		caps := session.Capabilities()
 		if caps.UI == nil || !caps.UI.Elicitation {
 			t.Errorf("Expected UI.Elicitation to be true")
@@ -2520,7 +2084,9 @@ func TestSession_Capabilities(t *testing.T) {
 		session, cleanup := newTestSession()
 		defer cleanup()
 
-		session.setCapabilities(withRecoveryAwareSessionCapabilities(UICapabilities{Elicitation: true}))
+		session.setCapabilities(&SessionCapabilities{
+			UI: &UICapabilities{Elicitation: true},
+		})
 		session.setCapabilities(nil)
 		caps := session.Capabilities()
 		if caps.UI != nil {
@@ -2742,18 +2308,14 @@ func TestSession_ElicitationCapabilityGating(t *testing.T) {
 		session, cleanup := newTestSession()
 		defer cleanup()
 
-		session.setCapabilities(withRecoveryAwareSessionCapabilities(UICapabilities{Elicitation: true}))
+		session.setCapabilities(&SessionCapabilities{
+			UI: &UICapabilities{Elicitation: true},
+		})
 		err := session.assertElicitation()
 		if err != nil {
 			t.Errorf("Expected no error when elicitation capability is present, got %v", err)
 		}
 	})
-}
-
-func withRecoveryAwareSessionCapabilities(ui UICapabilities) *SessionCapabilitiesWithAutoModeRecovery {
-	return &SessionCapabilitiesWithAutoModeRecovery{
-		UI: &UICapabilitiesWithAutoModeRecovery{UICapabilities: ui},
-	}
 }
 
 func TestSession_CapabilitiesChangedKeepsCapabilitiesItDoesNotName(t *testing.T) {
@@ -2764,7 +2326,7 @@ func TestSession_CapabilitiesChangedKeepsCapabilitiesItDoesNotName(t *testing.T)
 	t.Run("an elicitation change keeps mcpApps", func(t *testing.T) {
 		session, cleanup := newTestSession()
 		defer cleanup()
-		session.setCapabilities(withRecoveryAwareSessionCapabilities(UICapabilities{MCPApps: true}))
+		session.setCapabilities(&SessionCapabilities{UI: &UICapabilities{MCPApps: true}})
 		before := session.Capabilities()
 
 		changed(session, CapabilitiesChangedUI{Elicitation: Bool(true)})
@@ -2783,7 +2345,7 @@ func TestSession_CapabilitiesChangedKeepsCapabilitiesItDoesNotName(t *testing.T)
 	t.Run("an mcpApps change is applied and keeps elicitation", func(t *testing.T) {
 		session, cleanup := newTestSession()
 		defer cleanup()
-		session.setCapabilities(withRecoveryAwareSessionCapabilities(UICapabilities{Elicitation: true}))
+		session.setCapabilities(&SessionCapabilities{UI: &UICapabilities{Elicitation: true}})
 
 		changed(session, CapabilitiesChangedUI{MCPApps: Bool(true)})
 
@@ -2798,7 +2360,7 @@ func TestSession_CapabilitiesChangedKeepsCapabilitiesItDoesNotName(t *testing.T)
 	t.Run("a change to false keeps the other capability", func(t *testing.T) {
 		session, cleanup := newTestSession()
 		defer cleanup()
-		session.setCapabilities(withRecoveryAwareSessionCapabilities(UICapabilities{Elicitation: true, MCPApps: true}))
+		session.setCapabilities(&SessionCapabilities{UI: &UICapabilities{Elicitation: true, MCPApps: true}})
 
 		changed(session, CapabilitiesChangedUI{Elicitation: Bool(false)})
 
@@ -2814,7 +2376,7 @@ func TestSession_CapabilitiesChangedKeepsCapabilitiesItDoesNotName(t *testing.T)
 func TestSession_CapabilitiesChangedAppliesInNotificationOrder(t *testing.T) {
 	session, cleanup := newTestSession()
 	defer cleanup()
-	session.setCapabilities(withRecoveryAwareSessionCapabilities(UICapabilities{Elicitation: true}))
+	session.setCapabilities(&SessionCapabilities{UI: &UICapabilities{Elicitation: true}})
 
 	for _, enabled := range []bool{true, false, true, false} {
 		session.dispatchEvent(SessionEvent{

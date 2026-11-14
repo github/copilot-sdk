@@ -18,10 +18,10 @@ import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.github.copilot.ffi.InProcessEnvGuard;
 import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.InProcessRuntimeConnection;
 import com.github.copilot.rpc.RuntimeConnection;
-import com.github.copilot.rpc.SessionConfig;
 
 /**
  * E2E test context that manages the test environment including the CapiProxy,
@@ -48,7 +48,7 @@ import com.github.copilot.rpc.SessionConfig;
  *
  * 	try (CopilotClient client = ctx.createClient()) {
  * 		CopilotSession session = client
- * 				.createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+ * 				.createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
  * 		// ... run test ...
  * 	}
  * }
@@ -74,6 +74,7 @@ public class E2ETestContext implements AutoCloseable {
     private String proxyUrl;
     private final CapiProxy proxy;
     private final Path repoRoot;
+    private final List<InProcessEnvGuard> inProcessEnvGuards = new ArrayList<>();
     private Path currentSnapshotFile;
 
     private E2ETestContext(String cliPath, Path homeDir, Path workDir, String proxyUrl, CapiProxy proxy,
@@ -101,7 +102,7 @@ public class E2ETestContext implements AutoCloseable {
 
         Path tempDir = Paths.get(System.getProperty("java.io.tmpdir"));
         Path homeDir = Files.createTempDirectory(tempDir, "copilot-test-config-");
-        Path workDir = Files.createTempDirectory(tempDir, "copilot-test-work-").toRealPath();
+        Path workDir = Files.createTempDirectory(tempDir, "copilot-test-work-");
 
         CapiProxy proxy = new CapiProxy();
         String proxyUrl = proxy.start();
@@ -146,15 +147,6 @@ public class E2ETestContext implements AutoCloseable {
      */
     public Path getWorkDir() {
         return workDir;
-    }
-
-    /**
-     * Creates session options rooted in this fixture without changing process cwd.
-     *
-     * @return session options with the owned working directory
-     */
-    public SessionConfig newSessionConfig() {
-        return new SessionConfig().setWorkingDirectory(workDir.toString()).setFeatureFlags(Map.of("MCP_APPS", true));
     }
 
     /**
@@ -575,8 +567,6 @@ public class E2ETestContext implements AutoCloseable {
 
         env.put("GH_TOKEN", DEFAULT_GITHUB_TOKEN);
         env.put("GITHUB_TOKEN", DEFAULT_GITHUB_TOKEN);
-        env.put("COPILOT_HMAC_KEY", "");
-        env.put("CAPI_HMAC_KEY", "");
         return env;
     }
 
@@ -600,20 +590,9 @@ public class E2ETestContext implements AutoCloseable {
      * @return a new CopilotClient
      */
     public CopilotClient createClient(CopilotClientOptions options) {
-        applyContextOptions(options);
-        if (options.getCliUrl() == null
-                && !(options.getConnection() instanceof com.github.copilot.rpc.UriRuntimeConnection)
-                && options.getInternalTestOptions() == null) {
-            Map<String, String> env = new HashMap<>(
-                    options.getEnvironment() != null ? options.getEnvironment() : getEnvironment());
-            options.setInternalTestOptions(new com.github.copilot.rpc.InternalTestOptions()
-                    .setCopilotApiUrl(env.get("COPILOT_API_URL"))
-                    .setGitHubApiUrl(env.get("COPILOT_DEBUG_GITHUB_API_URL")).setProxyUrl(env.get("HTTPS_PROXY"))
-                    .setNoProxy(env.get("NO_PROXY")).setCaCertificatePath(env.get("NODE_EXTRA_CA_CERTS")));
-            options.getInternalTestOptions().toEnvironment().keySet().forEach(env::remove);
-            if (!isInProcessMode(options)) {
-                options.setEnvironment(env);
-            }
+        CopilotClient client = applyContextOptions(options);
+        if (client != null) {
+            return client;
         }
         if (options.getGitHubToken() == null) {
             options.setGitHubToken(DEFAULT_GITHUB_TOKEN);
@@ -622,29 +601,30 @@ public class E2ETestContext implements AutoCloseable {
         return new CopilotClient(options);
     }
 
-    private void applyContextOptions(CopilotClientOptions options) {
-        if (options.getCopilotHome() == null) {
-            options.setCopilotHome(homeDir.toString());
-        }
-        if (!isInProcessMode(options)) {
-            if (options.getCliPath() == null) {
-                if (options.getConnection() == null) {
-                    options.setCliPath(cliPath);
-                } else if (options.getConnection() instanceof com.github.copilot.rpc.StdioRuntimeConnection stdio
-                        && stdio.getPath() == null) {
-                    stdio.setPath(cliPath);
-                } else if (options.getConnection() instanceof com.github.copilot.rpc.TcpRuntimeConnection tcp
-                        && tcp.getPath() == null) {
-                    tcp.setPath(cliPath);
-                }
-            }
-            if (options.getCwd() == null) {
-                options.setCwd(workDir.toString());
-            }
-            if (options.getEnvironment() == null || options.getEnvironment().isEmpty()) {
-                options.setEnvironment(getEnvironment());
+    private CopilotClient applyContextOptions(CopilotClientOptions options) {
+        if (isInProcessMode(options)) {
+            InProcessEnvGuard guard = new InProcessEnvGuard(buildInProcessEnvironment(options));
+            inProcessEnvGuards.add(guard);
+            try {
+                options.setEnvironment(null);
+                options.setCwd(null);
+                options.setCliArgs(null);
+                return new CopilotClient(options, guard::close);
+            } catch (RuntimeException e) {
+                guard.close();
+                throw e;
             }
         }
+        if (options.getCliPath() == null) {
+            options.setCliPath(cliPath);
+        }
+        if (options.getCwd() == null) {
+            options.setCwd(workDir.toString());
+        }
+        if (options.getEnvironment() == null || options.getEnvironment().isEmpty()) {
+            options.setEnvironment(getEnvironment());
+        }
+        return null;
     }
 
     private boolean isInProcessMode(CopilotClientOptions options) {
@@ -658,6 +638,16 @@ public class E2ETestContext implements AutoCloseable {
         }
         String defaultConnection = System.getenv("COPILOT_SDK_DEFAULT_CONNECTION");
         return defaultConnection != null && "inprocess".equalsIgnoreCase(defaultConnection.trim());
+    }
+
+    private Map<String, String> buildInProcessEnvironment(CopilotClientOptions options) {
+        Map<String, String> env = new HashMap<>(getEnvironment());
+        Map<String, String> optionEnvironment = options.getEnvironment();
+        if (optionEnvironment != null && !optionEnvironment.isEmpty()) {
+            env.putAll(optionEnvironment);
+            options.setEnvironment(null);
+        }
+        return env;
     }
 
     /**
@@ -734,6 +724,9 @@ public class E2ETestContext implements AutoCloseable {
 
     @Override
     public void close() throws Exception {
+        for (int i = inProcessEnvGuards.size() - 1; i >= 0; i--) {
+            inProcessEnvGuards.get(i).close();
+        }
         try {
             proxy.stop();
         } finally {

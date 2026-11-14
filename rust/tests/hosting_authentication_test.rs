@@ -235,8 +235,6 @@ async fn real_host_custom_and_anonymous_byok_create_and_cold_resume() {
             custom("2099-01-01T00:00:00Z", "rust-owner")
         };
         let extension = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .canonicalize()
-            .unwrap()
             .parent()
             .unwrap()
             .join("nodejs/dist")

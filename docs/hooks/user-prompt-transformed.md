@@ -8,7 +8,7 @@ Use it when you need to inspect or replace the exact model-facing prompt. The `p
 
 | Input field | Type | Description |
 | --- | --- | --- |
-| `sessionId` | string | Session reported by the hook input, not necessarily the callback owner's session |
+| `sessionId` | string | Runtime session ID |
 | `timestamp` | date/time | Time the hook was invoked |
 | `workingDirectory` | string | Current working directory |
 | `prompt` | string | Prompt after `userPromptSubmitted` hooks |
@@ -202,33 +202,6 @@ var session = client.createSession(new SessionConfig().setHooks(hooks)).get();
 
 <details>
 <summary><strong>Rust</strong></summary>
-
-<!-- docs-validate: hidden -->
-```rust
-struct MyHooks;
-
-fn redact(prompt: &str) -> String {
-    prompt.to_string()
-}
-
-#[async_trait]
-impl SessionHooks for MyHooks {
-    async fn on_user_prompt_transformed(
-        &self,
-        input: UserPromptTransformedInput,
-        _ctx: HookContext,
-    ) -> Option<UserPromptTransformedOutput> {
-        Some(UserPromptTransformedOutput {
-            modified_transformed_prompt: Some(redact(&input.transformed_prompt)),
-        })
-    }
-}
-
-let session = client
-    .create_session(SessionConfig::default().with_hooks(Arc::new(MyHooks)))
-    .await?;
-```
-<!-- /docs-validate: hidden -->
 
 ```rust
 #[async_trait]

@@ -5,7 +5,6 @@
 #![cfg(test)]
 
 use std::future::Future;
-use std::sync::atomic::AtomicUsize;
 use std::sync::mpsc as blocking;
 use std::time::Duration;
 
@@ -26,7 +25,6 @@ struct Native {
     reply: AtomicBool,
     close_gate: Mutex<Option<(blocking::Sender<()>, blocking::Receiver<()>)>>,
     shutdown_gate: Mutex<Option<(blocking::Sender<()>, blocking::Receiver<()>)>>,
-    shutdowns: AtomicUsize,
 }
 
 fn peers() -> &'static Mutex<HashMap<u32, Arc<Native>>> {
@@ -85,7 +83,6 @@ unsafe extern "C" fn close(connection: u32) -> bool {
 unsafe extern "C" fn shutdown(server: u32) -> bool {
     let native = peers().lock().get(&server).cloned();
     if let Some(native) = native {
-        native.shutdowns.fetch_add(1, Ordering::SeqCst);
         wait_at(&native.shutdown_gate);
     }
     true
@@ -99,7 +96,7 @@ unsafe extern "C" fn run_ui(_connection: u32, _action: u32) -> bool {
     true
 }
 
-pub(crate) struct Peer {
+struct Peer {
     client: Option<Client>,
     shared: Arc<FfiShared>,
     native: Arc<Native>,
@@ -108,10 +105,6 @@ pub(crate) struct Peer {
 
 impl Peer {
     fn new() -> Self {
-        Self::with_ownership(true)
-    }
-
-    pub(crate) fn with_ownership(owns_host: bool) -> Self {
         let id = NEXT_ID.fetch_add(1, Ordering::SeqCst);
         let (tx, rx) = mpsc::unbounded_channel();
         let callback = Box::into_raw(Box::new(CallbackState {
@@ -125,15 +118,11 @@ impl Peer {
             reply: AtomicBool::new(true),
             close_gate: Mutex::new(None),
             shutdown_gate: Mutex::new(None),
-            shutdowns: AtomicUsize::new(0),
         });
         peers().lock().insert(id, native.clone());
         let shared = Arc::new(FfiShared {
-            #[cfg(copilot_cli_host)]
-            library: super::tests::library_without_private_admission(),
-            auth_owner: Mutex::new(None),
             host_shutdown: shutdown,
-            owns_host,
+            owns_host: true,
             connection_write: write,
             connection_close: close,
             connection_set_ui_thread_handler: configure_ui,
@@ -180,13 +169,8 @@ impl Peer {
         }
     }
 
-    pub(crate) fn client(&self) -> &Client {
+    fn client(&self) -> &Client {
         self.client.as_ref().unwrap()
-    }
-
-    #[cfg(copilot_cli_host)]
-    pub(crate) fn shutdowns(&self) -> usize {
-        self.native.shutdowns.load(Ordering::SeqCst)
     }
 }
 

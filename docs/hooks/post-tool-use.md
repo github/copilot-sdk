@@ -48,16 +48,12 @@ type PostToolUseHandler = (
 
 ```python
 from copilot.session import PostToolUseHookInput, PostToolUseHookOutput
-from copilot.session import PostToolUseHandler as SdkPostToolUseHandler
 from typing import Callable, Awaitable
 
 PostToolUseHandler = Callable[
     [PostToolUseHookInput, dict[str, str]],
     Awaitable[PostToolUseHookOutput | None]
 ]
-
-def check(handler: PostToolUseHandler) -> SdkPostToolUseHandler:
-    return handler
 ```
 
 <!-- /docs-validate: hidden -->
@@ -81,19 +77,10 @@ package main
 
 import copilot "github.com/github/copilot-sdk/go"
 
-// Aliases let the signature below use the package's own type names.
-type (
-    PostToolUseHookInput  = copilot.PostToolUseHookInput
-    HookInvocation        = copilot.HookInvocation
-    PostToolUseHookOutput = copilot.PostToolUseHookOutput
-)
-
 type PostToolUseHandler func(
-    input PostToolUseHookInput,
-    invocation HookInvocation,
-) (*PostToolUseHookOutput, error)
-
-var _ = copilot.PostToolUseHandler(PostToolUseHandler(nil))
+    input copilot.PostToolUseHookInput,
+    invocation copilot.HookInvocation,
+) (*copilot.PostToolUseHookOutput, error)
 
 func main() {}
 ```
@@ -120,12 +107,6 @@ using GitHub.Copilot;
 public delegate Task<PostToolUseHookOutput?> PostToolUseHandler(
     PostToolUseHookInput input,
     HookInvocation invocation);
-
-static class PostToolUseHandlerCheck
-{
-    static SessionHooks Check(PostToolUseHandler handler) =>
-        new() { OnPostToolUse = handler.Invoke };
-}
 ```
 
 <!-- /docs-validate: hidden -->
@@ -147,24 +128,8 @@ import com.github.copilot.rpc.*;
 import java.util.concurrent.CompletableFuture;
 
 public class PostToolUseSignature {
-    static class Documented {
-        @FunctionalInterface
-        public interface PostToolUseHandler {
-            CompletableFuture<PostToolUseHookOutput> handle(
-                PostToolUseHookInput input,
-                HookInvocation invocation);
-        }
-    }
-
-    // The documented interface and the SDK's accept each other's implementations.
-    static PostToolUseHandler toSdk(Documented.PostToolUseHandler documented) {
-        return documented::handle;
-    }
-
-    static Documented.PostToolUseHandler fromSdk(PostToolUseHandler sdk) {
-        return sdk::handle;
-    }
-
+    PostToolUseHandler handler = (PostToolUseHookInput input, HookInvocation invocation) ->
+        CompletableFuture.completedFuture(null);
     public static void main(String[] args) {}
 }
 ```
@@ -268,6 +233,7 @@ import (
 func main() {
 	client := copilot.NewClient(nil)
 	session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
+		OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 		Hooks: &copilot.SessionHooks{
 			OnPostToolUse: func(input copilot.PostToolUseHookInput, inv copilot.HookInvocation) (*copilot.PostToolUseHookOutput, error) {
 				fmt.Printf("[%s] Tool: %s\n", inv.SessionID, input.ToolName)
@@ -300,6 +266,35 @@ session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
 
 <details>
 <summary><strong>.NET</strong></summary>
+
+<!-- docs-validate: hidden -->
+
+```csharp
+using GitHub.Copilot;
+
+public static class PostToolUseExample
+{
+    public static async Task Main()
+    {
+        await using var client = new CopilotClient();
+        var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            Hooks = new SessionHooks
+            {
+                OnPostToolUse = (input, invocation) =>
+                {
+                    Console.WriteLine($"[{invocation.SessionId}] Tool: {input.ToolName}");
+                    Console.WriteLine($"  Args: {input.ToolArgs}");
+                    Console.WriteLine($"  Result: {input.ToolResult}");
+                    return Task.FromResult<PostToolUseHookOutput?>(null);
+                },
+            },
+        });
+    }
+}
+```
+
+<!-- /docs-validate: hidden -->
 
 ```csharp
 var session = await client.CreateSessionAsync(new SessionConfig
@@ -380,21 +375,18 @@ const SENSITIVE_PATTERNS = [
   /secret["\s:=]+["']?[\w-]+["']?/gi,
 ];
 
-const redact = (text: string) =>
-  SENSITIVE_PATTERNS.reduce((result, pattern) => result.replace(pattern, "[REDACTED]"), text);
-
 const session = await client.createSession({
   hooks: {
     onPostToolUse: async (input) => {
-      const { textResultForLlm, sessionLog } = input.toolResult;
-      const redacted = {
-        ...input.toolResult,
-        textResultForLlm: redact(textResultForLlm),
-        sessionLog: sessionLog && redact(sessionLog),
-      };
+      if (typeof input.toolResult === "string") {
+        let redacted = input.toolResult;
+        for (const pattern of SENSITIVE_PATTERNS) {
+          redacted = redacted.replace(pattern, "[REDACTED]");
+        }
 
-      if (redacted.textResultForLlm !== textResultForLlm || redacted.sessionLog !== sessionLog) {
-        return { modifiedResult: redacted };
+        if (redacted !== input.toolResult) {
+          return { modifiedResult: redacted };
+        }
       }
       return null;
     },
@@ -410,15 +402,16 @@ const MAX_RESULT_LENGTH = 10000;
 const session = await client.createSession({
   hooks: {
     onPostToolUse: async (input) => {
-      const text = input.toolResult.textResultForLlm;
+      const resultStr = JSON.stringify(input.toolResult);
 
-      if (text.length > MAX_RESULT_LENGTH) {
+      if (resultStr.length > MAX_RESULT_LENGTH) {
         return {
           modifiedResult: {
-            ...input.toolResult,
-            textResultForLlm: text.substring(0, MAX_RESULT_LENGTH) + "...",
+            truncated: true,
+            originalLength: resultStr.length,
+            content: resultStr.substring(0, MAX_RESULT_LENGTH) + "...",
           },
-          additionalContext: `Note: Result was truncated from ${text.length} to ${MAX_RESULT_LENGTH} characters.`,
+          additionalContext: `Note: Result was truncated from ${resultStr.length} to ${MAX_RESULT_LENGTH} characters.`,
         };
       }
       return null;

@@ -17,10 +17,10 @@ Extensions add custom tools, hooks, and behaviors to the Copilot CLI. They run a
 ```
 
 1. **Discovery**: The CLI scans `.github/extensions/` (project) and the user's copilot config extensions directory for subdirectories containing an `extension.mjs`, `extension.cjs` or `extension.js` entry file.
-2. **Launch**: Legacy extensions start eagerly. Extensions with a valid opt-in `extension.json` advertise native tools/canvases without starting, and launch on first admitted demand. Each launched extension is a child process with `@github/copilot-sdk` available via an automatic module resolver.
+2. **Launch**: Each extension is forked as a child process with `@github/copilot-sdk` available via an automatic module resolver.
 3. **Connection**: The extension calls `joinSession()` which establishes a JSON-RPC connection over stdio to the CLI and attaches to the user's current foreground session.
 4. **Registration**: Tools and hooks declared in the session options are registered with the CLI and become available to the agent.
-5. **Lifecycle**: Extensions reload on `/clear` or foreground-session replacement and stop on CLI exit. On macOS and Linux, ordinary stop/reload sends SIGTERM, then SIGKILL after 5s if still running. CLI exit and session/service teardown use a shared 1s grace period, including disabling extensions on SDK resume; Windows kills immediately without a grace period.
+5. **Lifecycle**: Extensions are reloaded on `/clear` (or if the foreground session is replaced) and stopped on CLI exit (SIGTERM, then SIGKILL after 5s).
 
 ## File Structure
 
@@ -34,45 +34,6 @@ Extensions add custom tools, hooks, and behaviors to the Copilot CLI. They run a
 - `.mjs` (ES modules) is the recommended form and is what the scaffold generates. `.cjs` is CommonJS, and `.js` is loaded under Node's usual module-type rules. TypeScript (`.ts`) is not supported.
 - Each extension lives in its own subdirectory.
 - The `@github/copilot-sdk` import is resolved automatically — you don't install it.
-
-In Protected Mode, local sessions that opt into extensions add filesystem access for the
-configured user extensions directory, validated project `.github/extensions/`, and their own
-session's `extensions/` directory. Agent file tools and newly launched shell
-commands use these additions; extension provider processes do not.
-
-These are additive permissions, not visibility restrictions. Independent workspace
-or user grants remain effective. Loading and management modes control extension
-capabilities, not source-file confidentiality. Managed policy still applies, and an automatic scope grant is withheld
-if its subtree overlaps an explicit read-only or denied path, including absent
-descendants and future glob matches.
-
-Redirected scope children do not add permissions to their link targets. Scaffold
-and workflow source writes check the effective filesystem policy and use pinned,
-no-follow directory handles so directory replacement cannot redirect a write.
-
-## Opting Into Request-Driven Activation
-
-Place a version 1 `extension.json` beside `extension.mjs`, with
-`"initialization": "module"` and nonempty `tools` and/or `canvases` arrays using
-the existing native-tool/canvas wire definitions. Import those same declarations
-in the entrypoint and add handlers so the advertised schemas cannot drift.
-Omit absent optional fields rather than writing null. Missing metadata preserves
-eager startup; invalid metadata also produces a diagnostic.
-
-Only native-tool and canvas entry demand is supported. Background event observers,
-hooks, MCP-only entrypoints, commands, workflows, skills, agents, and system-message
-changes must not depend on this activation mechanism. Postactivation MCP
-registration continues to work normally.
-
-Finish `joinSession()` and required listener setup before awaited module import
-completes. The bootstrap explicitly signals that boundary; the first operation and
-its tool-start event wait for it. Consent-aware join waits are preserved, followed
-by a bounded module-completion wait. Missing or mismatched actual registrations
-reject the first call and withdraw the stale advertisement; failed operations are
-never automatically replayed.
-
-The sidecar is limited to 256 KiB. Unknown fields or unsupported versions also
-produce diagnostics and preserve eager startup.
 
 ## The SDK
 

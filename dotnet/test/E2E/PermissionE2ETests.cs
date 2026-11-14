@@ -349,42 +349,25 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
     [Fact]
     public async Task Should_Receive_ToolCallId_In_Permission_Requests()
     {
-        // Reuse a real file edit so replay does not depend on whether a shell command has exited.
-        await Ctx.ConfigureForTestAsync("permissions", nameof(Should_Invoke_Permission_Handler_For_Write_Operations));
-
-        string? permissionToolCallId = null;
+        var receivedToolCallId = false;
         var session = await CreateSessionAsync(new SessionConfig
         {
             OnPermissionRequest = (request, invocation) =>
             {
-                if (request is PermissionRequestWrite write)
+                if (request is PermissionRequestShell shell && !string.IsNullOrEmpty(shell.ToolCallId))
                 {
-                    permissionToolCallId = write.ToolCallId;
+                    receivedToolCallId = true;
                 }
                 return Task.FromResult<PermissionDecision>(PermissionDecision.ApproveOnce());
             }
         });
 
-        ToolExecutionCompleteEvent? toolCompleted = null;
-        using var subscription = session.On<ToolExecutionCompleteEvent>(evt =>
-        {
-            if (evt.Data.ToolCallId == permissionToolCallId)
-            {
-                toolCompleted = evt;
-            }
-        });
-        var testFilePath = Path.Combine(Ctx.WorkDir, "test.txt");
-        await File.WriteAllTextAsync(testFilePath, "original content");
-
         await TestHelper.SendAndGetFinalAssistantMessageAsync(session, new MessageOptions
         {
-            Prompt = "Edit test.txt and replace 'original' with 'modified'"
+            Prompt = "Run 'echo test'"
         });
 
-        Assert.False(string.IsNullOrWhiteSpace(permissionToolCallId), "Should have received toolCallId in write permission request");
-        Assert.NotNull(toolCompleted);
-        Assert.True(toolCompleted.Data.Success);
-        Assert.Equal("modified content", await File.ReadAllTextAsync(testFilePath));
+        Assert.True(receivedToolCallId, "Should have received toolCallId in permission request");
     }
 
     [Fact]

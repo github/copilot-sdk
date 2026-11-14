@@ -1403,29 +1403,6 @@ class CopilotToolProcessorTest {
                 "Expected Boolean.TRUE for isTerminal in the final constructor position, got:\n" + generated);
     }
 
-    @Test
-    void generatesIdempotentHint() {
-        String source = """
-                package test;
-                import com.github.copilot.tool.CopilotTool;
-                public class HintTools {
-                    @CopilotTool(value = "Sets", idempotent = true)
-                    public String set() {
-                        return "set";
-                    }
-                }
-                """;
-
-        CompilationResult result = compileWithProcessor(List.of(inMemorySource("test.HintTools", source)));
-        assertNoErrors(result);
-        String generated = result.getGeneratedSource("test.HintTools$$CopilotToolMeta");
-        String normalizedGenerated = generated.replace("\r\n", "\n").replace('\r', '\n');
-        assertTrue(
-                normalizedGenerated.contains(
-                        "                null,\n                null,\n                Boolean.TRUE\n            )"),
-                "Expected Boolean.TRUE for idempotent after isTerminal and namespace, got:\n" + generated);
-    }
-
     // ── Test: Combined flags all apply independently ────────────────────────────
 
     @Test

@@ -307,6 +307,22 @@ async fn publication_racing_empty_queue_handoff_has_no_gap_or_duplicate() {
 }
 
 #[tokio::test]
+async fn shutdown_discards_unclaimed_bootstrap() {
+    let (tx, _) = broadcast::channel(1);
+    let bootstrap = ResumeBootstrap::new(&tx);
+    bootstrap.publish(&tx, make_event("unclaimed"));
+    bootstrap.release_unclaimed();
+    assert!(matches!(
+        *bootstrap.state.lock(),
+        ResumeBootstrapState::Disabled
+    ));
+    let mut events = bootstrap.subscribe(&tx);
+    assert!(events.recv().now_or_never().is_none());
+    bootstrap.publish(&tx, make_event("live"));
+    assert_eq!(recv_ready(&mut events).unwrap().id, "live");
+}
+
+#[tokio::test]
 async fn dropping_unpolled_bootstrap_owner_discards_backlog_without_transfer() {
     let (tx, _) = broadcast::channel(8);
     let bootstrap = ResumeBootstrap::new(&tx);
@@ -370,6 +386,28 @@ async fn cleanup_releases_backlog_when_task_is_aborted_before_first_poll() {
         .unwrap()
         .unwrap_err();
     assert!(error.is_cancelled(), "expected cancellation, got {error:?}");
+    assert!(matches!(
+        *bootstrap.state.lock(),
+        ResumeBootstrapState::Disabled
+    ));
+    assert_eq!(Arc::strong_count(&bootstrap), 1);
+}
+
+#[tokio::test]
+async fn cleanup_releases_backlog_when_task_panics() {
+    let (tx, _) = broadcast::channel(1);
+    let bootstrap = ResumeBootstrap::new(&tx);
+    bootstrap.publish(&tx, make_event("unclaimed"));
+    let cleanup = bootstrap.cleanup_guard();
+    let task = tokio::spawn(async move {
+        let _cleanup = cleanup;
+        panic!("simulated event-loop unwind");
+    });
+    let error = timeout(Duration::from_secs(5), task)
+        .await
+        .unwrap()
+        .unwrap_err();
+    assert!(error.is_panic(), "expected panic, got {error:?}");
     assert!(matches!(
         *bootstrap.state.lock(),
         ResumeBootstrapState::Disabled

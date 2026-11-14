@@ -32,7 +32,6 @@ from typing import (
     TypedDict,
     TypeVar,
     cast,
-    overload,
     runtime_checkable,
 )
 
@@ -59,14 +58,12 @@ from .generated.rpc import (
     MCPOauthPendingRequestResponse,
     MCPServerConfigDeferTools,
     ModelSwitchAutoTierResult,
-    ModelSwitchFusionTierRequest,
     ModelSwitchToRequest,
     PermissionDecision,
     PermissionDecisionApproveOnce,
     PermissionDecisionContext,
     PermissionDecisionRequest,
     PermissionDecisionUserNotAvailable,
-    PermissionsSetModeResult,
     ProtocolExternalToolDefinition,
     ProviderTokenAcquireRequest,
     ProviderTokenAcquireResult,
@@ -89,9 +86,6 @@ from .generated.rpc import (
 )
 from .generated.rpc import (
     ContextTier as _RpcContextTier,
-)
-from .generated.rpc import (
-    FusionTier as _RpcFusionTier,
 )
 from .generated.rpc import ModelCapabilitiesOverride as _RpcModelCapabilitiesOverride
 from .generated.session_events import (
@@ -135,10 +129,6 @@ TResponse = TypeVar("TResponse", bound=BaseModel)
 # its behavior by registering a tool with this exact name and
 # ``overrides_built_in_tool=True``.
 _TOOL_SEARCH_TOOL_NAME = "tool_search_tool"
-
-# Shell authentication handler tasks, which can outlive their prompt. The event
-# loop holds tasks weakly, so these stay referenced until they end.
-_shell_authentication_answers: set[asyncio.Task[Any]] = set()
 
 
 if TYPE_CHECKING:
@@ -220,7 +210,6 @@ ReasoningEffort = str
 ReasoningSummary = Literal["none", "concise", "detailed"]
 ContextTier = Literal["default", "long_context"]
 AutoTier = str
-FusionTier = Literal["standard", "high", "max"]
 SessionFsConventions = Literal["posix", "windows"]
 
 
@@ -251,11 +240,6 @@ def _auto_tier_to_wire(auto_tier: AutoTier | _RpcAutoTier | None) -> str | None:
     return auto_tier
 
 
-def _fusion_tier_to_rpc(fusion_tier: FusionTier | _RpcFusionTier) -> _RpcFusionTier:
-    """Accept either the ``FusionTier`` string literal or the generated enum."""
-    return fusion_tier if isinstance(fusion_tier, _RpcFusionTier) else _RpcFusionTier(fusion_tier)
-
-
 def _tool_to_wire_definition(tool: Tool) -> ProtocolExternalToolDefinition:
     defer = MCPServerConfigDeferTools(tool.defer) if tool.defer is not None else None
     return ProtocolExternalToolDefinition(
@@ -264,12 +248,10 @@ def _tool_to_wire_definition(tool: Tool) -> ProtocolExternalToolDefinition:
         parameters=tool.parameters or None,
         overrides_built_in_tool=True if tool.overrides_built_in_tool else None,
         skip_permission=True if tool.skip_permission else None,
-        has_handler=tool.handler is not None,
         defer=defer,
         metadata=tool.metadata,
         is_terminal=True if tool.is_terminal else None,
         namespace=tool.namespace,
-        idempotent=True if tool.idempotent else None,
     )
 
 
@@ -302,59 +284,6 @@ def _hook_error_text(error: Any) -> Any:
 def _consume_task_exception(task: asyncio.Task[Any]) -> None:
     if not task.cancelled():
         task.exception()
-
-
-_handler_dispatches: dict[asyncio.Task[Any], asyncio.Task[Any]] = {}
-
-
-async def _run_handler(handler: Callable[..., Any], *args: Any) -> Any:
-    """Call a user handler, awaiting its result, in a task of its own.
-
-    A handler that cancels its own task then fails like any other handler instead
-    of looking like a cancellation of the dispatch that called it, while cancelling
-    the dispatch still cancels the handler.
-    """
-
-    dispatch = asyncio.current_task()
-
-    async def invoke() -> Any:
-        handler_task = asyncio.current_task()
-        if handler_task is not None and dispatch is not None:
-            _handler_dispatches[handler_task] = dispatch
-        try:
-            result = handler(*args)
-            if inspect.isawaitable(result):
-                result = await result
-            return result
-        finally:
-            if handler_task is not None:
-                _handler_dispatches.pop(handler_task, None)
-
-    return await asyncio.create_task(invoke())
-
-
-def _is_dispatch_cancellation(error: BaseException) -> bool:
-    """Whether ``error`` cancels the running dispatch task rather than reports a handler failure.
-
-    A CancelledError raised by a handler itself, for example from awaiting a future
-    that its owner cancelled, is a handler failure that still needs an answer.
-    """
-    task = asyncio.current_task()
-    return isinstance(error, asyncio.CancelledError) and task is not None and task.cancelling() > 0
-
-
-def _propagates_unanswered(error: BaseException) -> bool:
-    """Whether a dispatch re-raises ``error`` instead of answering its request with a failure.
-
-    A cancellation of the running dispatch task, an exit or interrupt (``SystemExit``,
-    ``KeyboardInterrupt``) and the coroutine being closed (``GeneratorExit``) propagate.
-    Anything else a handler raises is a handler failure that still needs an answer,
-    including a ``BaseException`` that is not an ``Exception``, such as the one
-    ``pytest.fail()`` raises.
-    """
-    return isinstance(
-        error, (KeyboardInterrupt, SystemExit, GeneratorExit)
-    ) or _is_dispatch_cancellation(error)
 
 
 class SessionFsCapabilities(TypedDict, total=False):
@@ -457,25 +386,7 @@ class AgentMessageSource:
             raise TypeError("agent_id must be a string")
 
 
-@dataclass(frozen=True)
-class AutomationMessageSource:
-    """Identify the automation a turn is sent on behalf of.
-
-    Use it for turns a host sends for an automation the user configured, such as
-    a recurring check-in. The turn defines the session's task like a user message
-    but carries no human authority. The automation ID is opaque and is sent
-    unchanged after the ``automation-`` prefix. It must not be empty: the
-    runtime does not treat ``automation-`` alone as an automation turn.
-    """
-
-    automation_id: str
-
-    def __post_init__(self) -> None:
-        if not isinstance(self.automation_id, str):
-            raise TypeError("automation_id must be a string")
-
-
-MessageSource = Literal["user", "system"] | AgentMessageSource | AutomationMessageSource
+MessageSource = Literal["user", "system"] | AgentMessageSource
 """Message provenance, independent of delivery mode."""
 
 # ============================================================================
@@ -504,8 +415,8 @@ class SystemMessageReplaceConfig(TypedDict):
 
 # Known system message section identifiers for the "customize" mode.
 
-SectionTransformFn = Callable[[str], str | None | Awaitable[str | None]]
-"""Transform callback: returns new section content, or None to preserve it."""
+SectionTransformFn = Callable[[str], str | Awaitable[str]]
+"""Transform callback: receives current section content, returns new content."""
 
 SectionOverrideAction = (
     Literal["replace", "remove", "append", "prepend", "preserve"] | SectionTransformFn
@@ -615,14 +526,10 @@ class AttributedPermissionResult:
     its permission reply. Wrapping a :data:`PermissionRequestResult` with this class
     forwards that context to the runtime as a sibling of the decision on the wire.
 
-    When the context says a person decided (``source`` ``human_response``), the
-    runtime records the decision as the person's own (``permission.completed``
-    ``decisionSource``, and authority for Assisted Permissions), but only from the
-    session's authenticated owning connection; from any other caller the decision
-    applies without that authority. Do not label automated decisions as a person's.
-    Build instances via :func:`create_attributed_permission_result` rather than
-    constructing directly, so re-attributing an already-wrapped result replaces the
-    context instead of nesting.
+    The context is informational only — it never changes permission behavior. Build
+    instances via :func:`create_attributed_permission_result` rather than constructing
+    directly, so re-attributing an already-wrapped result replaces the context instead
+    of nesting.
     """
 
     result: PermissionRequestResult
@@ -648,61 +555,9 @@ def create_attributed_permission_result(
     return AttributedPermissionResult(result=result, decision_context=decision_context)
 
 
-@overload
-def create_attributed_result(
-    result: PermissionRequestResult | AttributedPermissionResult,
-    decision_context: PermissionDecisionContext,
-) -> AttributedPermissionResult: ...
-@overload
-def create_attributed_result(
-    result: UserInputResponse, decision_context: PermissionDecisionContext
-) -> UserInputResponse: ...
-@overload
-def create_attributed_result(
-    result: ExitPlanModeResult, decision_context: PermissionDecisionContext
-) -> ExitPlanModeResult: ...
-@overload
-def create_attributed_result(
-    result: ElicitationResult, decision_context: PermissionDecisionContext
-) -> ElicitationHandlerResult: ...
-def create_attributed_result(
-    result: PermissionRequestResult
-    | AttributedPermissionResult
-    | UserInputResponse
-    | ExitPlanModeResult
-    | ElicitationResult,
-    decision_context: PermissionDecisionContext,
-) -> AttributedPermissionResult | UserInputResponse | ExitPlanModeResult | ElicitationHandlerResult:
-    """Label any prompt handler's result with who answered and how.
-
-    Works for a permission decision (same as
-    :func:`create_attributed_permission_result`), a user-input answer, a plan
-    review, or an elicitation answer. For the latter three it returns a copy of
-    ``result`` with ``decisionContext`` set, replacing any previous label.
-
-    Label a person's answer with ``source=PermissionDecisionSource.HUMAN_RESPONSE``
-    and ``response_capability=PermissionResponseCapability.INTERACTIVE``, including
-    when they decline or dismiss the prompt, so the runtime can count it as their
-    own authority for Assisted Permissions. The runtime decides which answers carry
-    authority, and accepts the label only from the session's owning connection;
-    any other answer still settles, without it. Leave automated answers unlabeled
-    or label them with a non-human ``source``.
-    """
-    if isinstance(result, dict):
-        return cast(
-            "UserInputResponse | ExitPlanModeResult | ElicitationHandlerResult",
-            {**result, "decisionContext": decision_context},
-        )
-    return create_attributed_permission_result(
-        cast("PermissionRequestResult | AttributedPermissionResult", result), decision_context
-    )
-
-
 class PermissionInvocation(TypedDict, total=False):
     session_id: Required[str]
     managed_settings_enabled: NotRequired[bool]
-    # Experimental: owning program invocation, absent for ordinary requests.
-    program_tool_call_id: NotRequired[str]
     assisted_approval_assessment: NotRequired[AssistedApprovalAssessment]
     # Only standard prompt kinds can clear a raw managed-approval requirement.
     # Missing and other prompt kinds must remain conservative.
@@ -826,71 +681,12 @@ class UserInputResponse(TypedDict):
 
     answer: str
     wasFreeform: bool
-    decisionContext: NotRequired[PermissionDecisionContext]
-    """Who answered and how (see :func:`create_attributed_result`).
-
-    When it says a person answered interactively, the runtime counts the answer
-    as the person's own authority for Assisted Permissions, but only from the
-    session's owning connection. Omit for automated answers.
-    """
 
 
 UserInputHandler = Callable[
     [UserInputRequest, dict[str, str]],
     UserInputResponse | Awaitable[UserInputResponse],
 ]
-
-
-class ShellAuthenticationRequest(TypedDict, total=False):
-    """A password or other answer that a shell command run by the agent asks
-    for, for example ``sudo -A``, ``ssh``, or ``git`` over HTTPS. The answer
-    goes only to the program that asked: it is not shown to the model and is
-    not recorded in session events."""
-
-    requestId: Required[str]
-    """Identifies the request. A cancellation for it carries the same id."""
-    program: Required[str]
-    """The program that asked: ``sudo``, ``ssh``, or ``git``."""
-    prompt: Required[str]
-    """The prompt text the program supplied."""
-    inputKind: Required[Literal["secret", "text", "confirm"]]
-    """``secret`` for a password or passphrase (mask the input), ``text`` for a
-    visible answer such as a user name, or ``confirm`` for a yes or no question
-    such as an ssh host-key check."""
-    command: Required[str]
-    """The shell command that triggered the prompt."""
-    cwd: Required[str]
-    """The command's working directory."""
-
-
-class ShellAuthenticationResponse(TypedDict, total=False):
-    """Answer to a :class:`ShellAuthenticationRequest`: ``{"action": "accept", "value": ...}``
-    or ``{"action": "cancel"}``. Answer a ``confirm`` request with ``"yes"``, or
-    cancel it to decline."""
-
-    action: Required[Literal["accept", "cancel"]]
-    value: str
-
-
-class ShellAuthenticationInvocation(TypedDict):
-    """Context for a :data:`ShellAuthenticationHandler` call."""
-
-    session_id: str
-    """The session whose command asked."""
-    cancelled: asyncio.Event
-    """Set when the answer is no longer needed, for example because the
-    command ended, the prompt timed out, or the session ended or switched to
-    autopilot. Close the input when it is set; an async handler still running
-    then is cancelled."""
-
-
-ShellAuthenticationHandler = Callable[
-    [ShellAuthenticationRequest, ShellAuthenticationInvocation],
-    ShellAuthenticationResponse | Awaitable[ShellAuthenticationResponse],
-]
-"""Handler for passwords and other answers that shell commands run by the
-agent ask for. Any exception, malformed answer, or cancellation cancels the
-prompt, so the program that asked fails instead of receiving a wrong value."""
 
 
 class ExitPlanModeRequest(TypedDict, total=False):
@@ -916,13 +712,6 @@ class ExitPlanModeResult(TypedDict, total=False):
     approved: Required[bool]
     selectedAction: NotRequired[str]
     feedback: NotRequired[str]
-    decisionContext: NotRequired[PermissionDecisionContext]
-    """Who answered and how (see :func:`create_attributed_result`).
-
-    When it says a person answered interactively, the runtime counts the review
-    as the person's own for Assisted Permissions, but only from the session's
-    owning connection. Omit for automated answers.
-    """
 
 
 ExitPlanModeHandler = Callable[
@@ -931,26 +720,11 @@ ExitPlanModeHandler = Callable[
 ]
 
 
-class AutoModeRecoveryContext(TypedDict):
-    """Offer to recover the active request, without resending or rewinding it."""
-
-    requestId: str
-    originalModel: str
-    allowAlways: bool
-    """Whether this offer permits remembering consent.
-
-    Currently true only for per-model rate limits.
-    """
-    interactionId: NotRequired[str]
-    originatingMessageId: NotRequired[str]
-
-
 class AutoModeSwitchRequest(TypedDict, total=False):
-    """Request for a legacy Auto switch or eligible active-request recovery."""
+    """Request to switch to auto mode after an eligible rate limit."""
 
     errorCode: NotRequired[str]
     retryAfterSeconds: NotRequired[float]
-    autoModeRecovery: NotRequired[AutoModeRecoveryContext]
 
 
 AutoModeSwitchResponse = Literal["yes", "yes_always", "no"]
@@ -1010,8 +784,6 @@ class SessionUiCapabilities(TypedDict, total=False):
 
     elicitation: bool
     """Whether the host supports interactive elicitation dialogs."""
-    autoModeRecovery: bool
-    """Whether the runtime acknowledges retained-request Auto recovery. Absent means unsupported."""
     mcpApps: bool
     """**Experimental.** This capability is part of an experimental wire-protocol
     surface (SEP-1865) and may change or be removed in a future release.
@@ -1045,18 +817,6 @@ class ElicitationResult(TypedDict, total=False):
     or ``"cancel"`` (dismissed)."""
     content: dict[str, ElicitationFieldValue]
     """Form values submitted by the user (present when action is ``"accept"``)."""
-
-
-class ElicitationHandlerResult(ElicitationResult, total=False):
-    """Result an :data:`ElicitationHandler` returns: the :class:`ElicitationResult`,
-    optionally labeled with who answered (see :func:`create_attributed_result`)."""
-
-    decisionContext: PermissionDecisionContext
-    """Who answered and how. When it says a person answered interactively
-    (``source`` ``human_response``, ``response_capability`` ``interactive``), the
-    runtime counts the answer as the person's own authority for Assisted
-    Permissions, but only from the session's owning connection. Omit for
-    automated answers."""
 
 
 class ElicitationParams(TypedDict):
@@ -1110,14 +870,9 @@ class ElicitationContext(TypedDict, total=False):
 
 ElicitationHandler = Callable[
     [ElicitationContext],
-    ElicitationResult
-    | ElicitationHandlerResult
-    | Awaitable[ElicitationResult | ElicitationHandlerResult],
+    ElicitationResult | Awaitable[ElicitationResult],
 ]
-"""Handler invoked when the server dispatches an elicitation request to this client.
-
-Return an :class:`ElicitationHandlerResult` (or a plain :class:`ElicitationResult`)
-with the user's response."""
+"""Handler invoked when the server dispatches an elicitation request to this client."""
 
 CreateSessionFsHandler = Callable[["CopilotSession"], "SessionFsProvider"]
 
@@ -1337,10 +1092,7 @@ class PreMcpToolCallHookOutput(TypedDict, total=False):
 
     metaToUse semantics:
     - Key absent: preserve the current request _meta
-    - Key present with None value: drop hook-controlled _meta; the runtime
-      still sends its own keys, com.github.copilot/toolCallId and
-      com.github.copilot/turnId (present only when the turn was started with
-      a client_turn_id)
+    - Key present with None value: omit _meta from the request
     - Key present with dict value: use this dict as request _meta
     """
 
@@ -1836,8 +1588,7 @@ class LargeToolOutputConfig(TypedDict, total=False):
 
     # Whether large output handling is enabled. Default True.
     enabled: bool
-    # Maximum size in bytes before output is written to a temp file.
-    # Uses the runtime's configured threshold when unset (20480 bytes by default).
+    # Maximum size in bytes before output is written to a temp file. Default 50KB.
     max_size_bytes: int
     # Directory to write temp files to. Defaults to the OS temp directory.
     output_directory: str
@@ -1911,34 +1662,6 @@ class MemoryConfiguration(TypedDict):
     # "user-prompt" places memories in generated user-role messages.
     # Experimental: this option may change or be removed in a future release.
     mode: NotRequired[Literal["system-prompt", "user-prompt"]]
-    # Stores memories in the app instead of the built-in memory backends.
-    # The runtime validates the memory, filters secrets and requests approval,
-    # then awaits this callback. ``store_memory`` succeeds only after the
-    # callback returns; an exception fails the tool call with a generic message
-    # and nothing is stored elsewhere. While set, the runtime retrieves no
-    # memories and ``vote_memory`` is unavailable, so supply recall yourself,
-    # for example through ``system_message``. Requires ``enabled`` to be true;
-    # unsupported for cloud sessions. Never sent on the wire.
-    # Experimental: this option may change or be removed in a future release.
-    store_memory: NotRequired[Callable[[StoredMemory], Awaitable[None]]]
-
-
-class StoredMemory(TypedDict):
-    """A memory the agent asked to store, after validation, secret filtering and approval.
-
-    **Experimental.** This type may change or be removed in a future release.
-    """
-
-    # ID of the session that stored the memory.
-    session_id: str
-    # Short topic the memory is about.
-    subject: str
-    # The fact to remember.
-    fact: str
-    # Sources supporting the fact, such as file paths with line numbers.
-    citations: str
-    # Why the agent considers the fact worth remembering.
-    reason: str
 
 
 # ============================================================================
@@ -2024,7 +1747,7 @@ ProviderConfigModelProvider = Literal[
 class ProviderConfig(TypedDict, total=False):
     """Configuration for a custom API provider"""
 
-    type: Literal["openai", "azure", "anthropic", "google"]
+    type: Literal["openai", "azure", "anthropic"]
     wire_api: Literal["completions", "responses"]
     # Transport for OpenAI Responses requests. Defaults to "http". Set
     # "websockets" to deliver Responses API requests over a persistent WebSocket
@@ -2032,7 +1755,9 @@ class ProviderConfig(TypedDict, total=False):
     # wire_api "responses".
     transport: Literal["http", "websockets"]
     # Product serving the model, such as "ollama" or "lm_studio", reported in
-    # telemetry as model_provider. Only affects telemetry.
+    # telemetry as model_provider. "azure_openai" also omits explicit
+    # prompt-cache breakpoints, which limit cross-turn cache reuse on Azure; set
+    # it for a proxy or custom domain in front of Azure OpenAI.
     model_provider: ProviderConfigModelProvider
     base_url: str
     api_key: str
@@ -2091,10 +1816,12 @@ class NamedProviderConfig(TypedDict, total=False):
 
     # Stable identifier referenced by ProviderModelConfig.provider. Must not contain "/".
     name: str
-    type: Literal["openai", "azure", "anthropic", "google"]
+    type: Literal["openai", "azure", "anthropic"]
     wire_api: Literal["completions", "responses"]
     # Product serving this provider's models, such as "ollama" or "lm_studio",
-    # reported in telemetry as model_provider. Only affects telemetry.
+    # reported in telemetry as model_provider. "azure_openai" also omits
+    # explicit prompt-cache breakpoints, which limit cross-turn cache reuse on
+    # Azure; set it for a proxy or custom domain in front of Azure OpenAI.
     model_provider: ProviderConfigModelProvider
     base_url: str
     api_key: str
@@ -2128,10 +1855,6 @@ class ProviderModelConfig(TypedDict, total=False):
     id: str
     # Name of the NamedProviderConfig that serves this model.
     provider: str
-    # Persisted on-device Auto annotation.
-    auto_local: Any
-    # Provider-published model metadata, including live Auto routing annotations.
-    metadata: dict[str, Any]
     # Model name sent to the provider API for inference. Defaults to id.
     wire_model: str
     # Well-known base model id used for behavior/capability/config lookup. Defaults to id.
@@ -2279,10 +2002,6 @@ class CopilotSession:
         """
         self.session_id = session_id
         self.transcript_recovery: TranscriptRecoveryReport | None = None
-        # Outcome of the ``permission_mode`` requested at create or resume:
-        # whether it was applied and the authoritative mode. None when no mode
-        # was requested.
-        self.permission_mode_result: PermissionsSetModeResult | None = None
         self._managed_settings_enabled = managed_settings_enabled
         self._client = client
         self._workspace_path = os.fsdecode(workspace_path) if workspace_path is not None else None
@@ -2298,10 +2017,6 @@ class CopilotSession:
         self._mcp_auth_handler_lock = threading.Lock()
         self._user_input_handler: UserInputHandler | None = None
         self._user_input_handler_lock = threading.Lock()
-        self._shell_authentication_handler: ShellAuthenticationHandler | None = None
-        self._shell_authentication_handler_lock = threading.Lock()
-        # Set when this session can no longer use the answers it waits for.
-        self._pending_shell_authentication_requests: set[asyncio.Event] = set()
         self._exit_plan_mode_handler: ExitPlanModeHandler | None = None
         self._exit_plan_mode_handler_lock = threading.Lock()
         self._auto_mode_switch_handler: AutoModeSwitchHandler | None = None
@@ -2314,7 +2029,6 @@ class CopilotSession:
         self._command_handlers_lock = threading.Lock()
         self._skill_provider: SkillProvider | None = None
         self._skill_provider_lock = threading.Lock()
-        self._memory_store_handler: Callable[[StoredMemory], Awaitable[None]] | None = None
         self._bearer_token_providers: dict[str, BearerTokenProvider] = {}
         self._bearer_token_providers_lock = threading.Lock()
         self._elicitation_handler: ElicitationHandler | None = None
@@ -2332,15 +2046,10 @@ class CopilotSession:
         self._completion_rpc_unsupported = False
         self._disconnect_lock = asyncio.Lock()
         self._on_disconnect = on_disconnect
-        self._release_from_client: Callable[[CopilotSession], None] | None = None
 
     def _set_disconnect_callback(self, callback: Callable[[], None]) -> None:
         """Set the client-owned cleanup callback before the session becomes active."""
         self._on_disconnect = callback
-
-    def _set_release_from_client(self, release: Callable[[CopilotSession], None]) -> None:
-        """Set how the owning client stops tracking this session after :meth:`disconnect`."""
-        self._release_from_client = release
 
     def _run_disconnect_callback(self) -> None:
         callback = self._on_disconnect
@@ -2352,10 +2061,8 @@ class CopilotSession:
         pending_external_tools = list(self._pending_external_tools.values())
         self._pending_external_tools.clear()
         current_task = asyncio.current_task()
-        # A handler shutting down its client must not cancel its own awaiting dispatch.
-        dispatch = _handler_dispatches.get(current_task) if current_task is not None else None
         for task in pending_external_tools:
-            if task is not current_task and task is not dispatch:
+            if task is not current_task:
                 task.cancel()
 
     def _mark_disconnected(self) -> None:
@@ -2378,21 +2085,12 @@ class CopilotSession:
             self._mcp_auth_handler = None
         with self._user_input_handler_lock:
             self._user_input_handler = None
-        with self._shell_authentication_handler_lock:
-            self._shell_authentication_handler = None
-            pending_shell_authentication_requests = tuple(
-                self._pending_shell_authentication_requests
-            )
-            self._pending_shell_authentication_requests.clear()
-        for cancelled in pending_shell_authentication_requests:
-            cancelled.set()
         with self._exit_plan_mode_handler_lock:
             self._exit_plan_mode_handler = None
         with self._auto_mode_switch_handler_lock:
             self._auto_mode_switch_handler = None
         with self._hooks_lock:
             self._hooks = None
-        self._memory_store_handler = None
         with self._transform_callbacks_lock:
             self._transform_callbacks = None
         with self._command_handlers_lock:
@@ -2468,7 +2166,6 @@ class CopilotSession:
         agent_mode: Literal["interactive", "plan", "autopilot", "shell"] | None = None,
         request_headers: dict[str, str] | None = None,
         display_prompt: str | None = None,
-        client_turn_id: str | None = None,
         response_schema: dict[str, Any] | type[BaseModel] | None = None,
     ) -> str:
         """
@@ -2482,9 +2179,8 @@ class CopilotSession:
             prompt: The message text to send.
             attachments: Optional file, directory, selection, blob, or extension-context
                 attachments.
-            source: Optional message provenance (``"user"``, ``"system"``,
-                :class:`AgentMessageSource` for an identified agent, or
-                :class:`AutomationMessageSource` for a configured automation).
+            source: Optional message provenance (``"user"``, ``"system"``, or
+                :class:`AgentMessageSource` for an identified agent).
                 Omitted when None, preserving the runtime's default for user messages.
             mode: Message delivery mode (``"enqueue"`` or ``"immediate"``).
             agent_mode: The UI mode the agent was in when this message was sent
@@ -2493,17 +2189,6 @@ class CopilotSession:
             request_headers: Optional per-turn HTTP headers for outbound model requests.
             display_prompt: If provided, this is shown in the timeline instead of
                 ``prompt``.
-            client_turn_id: Opaque caller-chosen ID for the turn this message starts.
-                The runtime copies it unchanged into
-                ``_meta["com.github.copilot/turnId"]`` on every MCP ``tools/call``
-                made while serving that turn, including calls from sub-agents and
-                Autopilot continuations. When a running turn consumes the
-                message as visible user steering, the value (or its absence)
-                replaces the turn's ID from the next model call onward. The
-                ``user.message`` event for the message echoes it as
-                ``clientTurnId`` and is persisted like other events; the value
-                stamped on MCP calls is held in memory only and is not restored
-                on resume.
             response_schema: JSON Schema or a Pydantic model for this run. Independent
                 sends do not inherit it. Immediate steering cannot specify a schema.
 
@@ -2528,7 +2213,6 @@ class CopilotSession:
                 agent_mode,
                 request_headers,
                 display_prompt,
-                client_turn_id,
                 response_schema,
             )
         )
@@ -2542,19 +2226,15 @@ class CopilotSession:
         agent_mode: Literal["interactive", "plan", "autopilot", "shell"] | None,
         request_headers: dict[str, str] | None,
         display_prompt: str | None,
-        client_turn_id: str | None,
         response_schema: dict[str, Any] | type[BaseModel] | None,
     ) -> dict[str, Any]:
         params: dict[str, Any] = {"prompt": prompt}
         if attachments is not None:
             params["attachments"] = attachments
         if source is not None:
-            if isinstance(source, AgentMessageSource):
-                params["source"] = "agent-" + source.agent_id
-            elif isinstance(source, AutomationMessageSource):
-                params["source"] = "automation-" + source.automation_id
-            else:
-                params["source"] = source
+            params["source"] = (
+                "agent-" + source.agent_id if isinstance(source, AgentMessageSource) else source
+            )
         if mode is not None:
             params["mode"] = mode
         if agent_mode is not None:
@@ -2563,8 +2243,6 @@ class CopilotSession:
             params["requestHeaders"] = request_headers
         if display_prompt is not None:
             params["displayPrompt"] = display_prompt
-        if client_turn_id is not None:
-            params["clientTurnId"] = client_turn_id
         if response_schema is not None:
             schema = (
                 response_schema.model_json_schema()
@@ -2618,9 +2296,8 @@ class CopilotSession:
         The agent sees the new tools from its next model request, which can fall
         within a turn in progress. A model request already in flight was made
         with the previous tools, so the agent can still call a tool you removed.
-        If no connected client supplies a tool with that name any more, the call
-        fails with an error that tells the agent the tool is no longer available,
-        and the turn continues. If you don't want the agent to see that failure,
+        This session doesn't answer that call, and it can stay pending until the
+        turn is aborted. If a running turn might still call a tool you remove,
         replace tools while the session is idle.
         """
         if self._destroyed:
@@ -2661,7 +2338,6 @@ class CopilotSession:
         agent_mode: Literal["interactive", "plan", "autopilot", "shell"] | None = None,
         request_headers: dict[str, str] | None = None,
         display_prompt: str | None = None,
-        client_turn_id: str | None = None,
         response_schema: dict[str, Any] | type[BaseModel] | None = None,
         timeout: float = 60.0,
     ) -> SessionEvent | None:
@@ -2681,9 +2357,8 @@ class CopilotSession:
         Args:
             prompt: The message text to send.
             attachments: Optional file, directory, or selection attachments.
-            source: Optional message provenance (``"user"``, ``"system"``,
-                :class:`AgentMessageSource` for an identified agent, or
-                :class:`AutomationMessageSource` for a configured automation),
+            source: Optional message provenance (``"user"``, ``"system"``, or
+                :class:`AgentMessageSource` for an identified agent),
                 independent of delivery mode. Omitted when None.
             mode: Message delivery mode (``"enqueue"`` or ``"immediate"``).
             agent_mode: The UI mode the agent was in when this message was sent
@@ -2692,17 +2367,6 @@ class CopilotSession:
             request_headers: Optional per-turn HTTP headers for outbound model requests.
             display_prompt: If provided, this is shown in the timeline instead of
                 ``prompt``.
-            client_turn_id: Opaque caller-chosen ID for the turn this message starts.
-                The runtime copies it unchanged into
-                ``_meta["com.github.copilot/turnId"]`` on every MCP ``tools/call``
-                made while serving that turn, including calls from sub-agents and
-                Autopilot continuations. When a running turn consumes the
-                message as visible user steering, the value (or its absence)
-                replaces the turn's ID from the next model call onward. The
-                ``user.message`` event for the message echoes it as
-                ``clientTurnId`` and is persisted like other events; the value
-                stamped on MCP calls is held in memory only and is not restored
-                on resume.
             timeout: Timeout in seconds (default: 60). Controls how long to wait;
                 does not abort in-flight agent work.
             response_schema: A per-run schema. Waits for the last correlated root
@@ -2734,7 +2398,6 @@ class CopilotSession:
                     agent_mode,
                     request_headers,
                     display_prompt,
-                    client_turn_id,
                     response_schema,
                 )
                 if asyncio.get_running_loop().time() >= deadline:
@@ -3002,7 +2665,6 @@ class CopilotSession:
         agent_mode: Literal["interactive", "plan", "autopilot", "shell"] | None = None,
         request_headers: dict[str, str] | None = None,
         display_prompt: str | None = None,
-        client_turn_id: str | None = None,
         timeout: float = 60.0,
     ) -> TResponse:
         """Infer a schema using Pydantic, then validate and return the final result.
@@ -3029,7 +2691,6 @@ class CopilotSession:
             agent_mode=agent_mode,
             request_headers=request_headers,
             display_prompt=display_prompt,
-            client_turn_id=client_turn_id,
             response_schema=response_type,
             timeout=timeout,
         )
@@ -3224,15 +2885,13 @@ class CopilotSession:
         """
         match event.data:
             case ExternalToolRequestedData() as data:
-                if data._has_handler is False:
-                    return
                 request_id = data.request_id
                 tool_name = data.tool_name
                 if self._destroyed or not request_id or not tool_name:
                     return
 
                 handler = self._get_tool_handler(tool_name)
-                if handler is None:
+                if not handler:
                     return  # This client doesn't handle this tool; another client will.
 
                 tool_call_id = data.tool_call_id or ""
@@ -3297,7 +2956,6 @@ class CopilotSession:
                         perm_handler,
                         data.prompt_request,
                         data.assisted_approval_assessment,
-                        data.program_tool_call_id,
                     )
                 )
 
@@ -3396,13 +3054,11 @@ class CopilotSession:
             case CapabilitiesChangedData() as data:
                 # The event names only the capabilities that changed; keep the rest.
                 if data.ui is not None:
-                    ui_cap: SessionUiCapabilities = {**(self._capabilities.get("ui") or {})}
+                    ui_cap = self._capabilities.get("ui", SessionUiCapabilities()).copy()
                     if data.ui.elicitation is not None:
                         ui_cap["elicitation"] = data.ui.elicitation
                     if data.ui.mcp_apps is not None:
                         ui_cap["mcpApps"] = data.ui.mcp_apps
-                    if data.ui.auto_mode_recovery is not None:
-                        ui_cap["autoModeRecovery"] = data.ui.auto_mode_recovery
                     self._capabilities = {**self._capabilities, "ui": ui_cap}
 
             case SessionCanvasOpenedData() as data:
@@ -3433,7 +3089,6 @@ class CopilotSession:
         agent_id: str | None = None,
     ) -> None:
         """Execute a tool handler and send the result back via HandlePendingToolCall RPC."""
-        claimed = False
         try:
             # The built-in tool-search tool receives a snapshot of the session's
             # currently initialized tools so an override can filter the live
@@ -3460,7 +3115,9 @@ class CopilotSession:
 
             with trace_context(traceparent, tracestate):
                 handler_start = time.perf_counter()
-                result = await _run_handler(handler, invocation)
+                result = handler(invocation)
+                if inspect.isawaitable(result):
+                    result = await result
                 log_timing(
                     logger,
                     logging.DEBUG,
@@ -3490,7 +3147,6 @@ class CopilotSession:
             if tool_result._from_exception:
                 if not self._claim_external_tool(request_id):
                     return
-                claimed = True
                 rpc_start = time.perf_counter()
                 await self.rpc.tools.handle_pending_tool_call(
                     HandlePendingToolCallRequest(
@@ -3509,15 +3165,8 @@ class CopilotSession:
                     tool_name=tool_name,
                 )
             else:
-                # Telemetry that cannot be encoded as JSON would stop the result from
-                # being sent at all, leaving the call unanswered, so answer it with the error.
-                try:
-                    json.dumps(tool_result.tool_telemetry, allow_nan=False)
-                except Exception as exc:
-                    raise ValueError(f"failed to serialize tool telemetry: {exc}") from exc
                 if not self._claim_external_tool(request_id):
                     return
-                claimed = True
                 rpc_start = time.perf_counter()
                 await self.rpc.tools.handle_pending_tool_call(
                     HandlePendingToolCallRequest(
@@ -3535,50 +3184,18 @@ class CopilotSession:
                     tool_call_id=tool_call_id,
                     tool_name=tool_name,
                 )
-        except BaseException as exc:
-            # Cancelling this task (another client answered the call, or the session
-            # closed) propagates without an answer; any other failure answers the call.
-            if _propagates_unanswered(exc):
-                raise
-            if claimed:
-                # The handler finished but its result never reached the runtime, which
-                # is still waiting on the call. This invocation already owns the
-                # request, so report the failure and answer the call with it.
-                if self._destroyed:
-                    return
-                logger.error(
-                    "External tool result delivery failed: session_id=%s request_id=%s tool=%s",
-                    self.session_id,
-                    request_id,
-                    tool_name,
-                    exc_info=exc,
-                )
-            elif not self._claim_external_tool(request_id):
+        except Exception as exc:
+            if not self._claim_external_tool(request_id):
                 return
-            # A handler error is an initial response too. Retry its failed delivery
-            # once, but never recursively retry the fallback error response.
-            # An empty error reads as no error, so the call would count as a success.
-            error = str(exc) or type(exc).__name__
-            for attempt in range(1 if claimed else 2):
-                try:
-                    await self.rpc.tools.handle_pending_tool_call(
-                        HandlePendingToolCallRequest(
-                            request_id=request_id,
-                            error=error,
-                        )
+            try:
+                await self.rpc.tools.handle_pending_tool_call(
+                    HandlePendingToolCallRequest(
+                        request_id=request_id,
+                        error=str(exc),
                     )
-                    return
-                except (JsonRpcError, ProcessExitedError, OSError) as send_exc:
-                    if claimed or attempt == 1 or self._destroyed:
-                        return  # Connection lost or RPC error — nothing more we can do
-                    logger.error(
-                        "External tool error delivery failed: session_id=%s request_id=%s tool=%s",
-                        self.session_id,
-                        request_id,
-                        tool_name,
-                        exc_info=send_exc,
-                    )
-                    error = str(send_exc) or type(send_exc).__name__
+                )
+            except (JsonRpcError, ProcessExitedError, OSError):
+                pass  # Connection lost or RPC error — nothing we can do
 
     def _remove_pending_external_tool(self, request_id: str, completed: asyncio.Task[None]) -> None:
         if self._pending_external_tools.get(request_id) is completed:
@@ -3598,7 +3215,6 @@ class CopilotSession:
         handler: _PermissionHandlerFn,
         prompt_request: PermissionPromptRequest | None = None,
         assisted_approval_assessment: AssistedApprovalAssessment | None = None,
-        program_tool_call_id: str | None = None,
     ) -> None:
         """Execute a permission handler and respond via RPC."""
         try:
@@ -3611,9 +3227,9 @@ class CopilotSession:
                 invocation["prompt_request"] = prompt_request
             if assisted_approval_assessment is not None:
                 invocation["assisted_approval_assessment"] = assisted_approval_assessment
-            if program_tool_call_id is not None:
-                invocation["program_tool_call_id"] = program_tool_call_id
-            result = await _run_handler(handler, permission_request, invocation)
+            result = handler(permission_request, invocation)
+            if inspect.isawaitable(result):
+                result = await result
             log_timing(
                 logger,
                 logging.DEBUG,
@@ -3647,9 +3263,7 @@ class CopilotSession:
                 session_id=self.session_id,
                 request_id=request_id,
             )
-        except (Exception, asyncio.CancelledError) as exc:
-            if _is_dispatch_cancellation(exc):
-                raise
+        except Exception:
             logger.exception(
                 "Permission handler or response delivery failed",
                 extra={"session_id": self.session_id, "request_id": request_id},
@@ -3673,10 +3287,11 @@ class CopilotSession:
         request_id = request["requestId"]
         try:
             handler_start = time.perf_counter()
-            result = cast(
-                McpAuthHandlerResult,
-                await _run_handler(handler, request, {"sessionId": self.session_id}),
-            )
+            maybe_result = handler(request, {"sessionId": self.session_id})
+            if inspect.isawaitable(maybe_result):
+                result = cast(McpAuthHandlerResult, await maybe_result)
+            else:
+                result = maybe_result
             log_timing(
                 logger,
                 logging.DEBUG,
@@ -3711,9 +3326,7 @@ class CopilotSession:
                     result=rpc_result,
                 )
             )
-        except (Exception, asyncio.CancelledError) as exc:
-            if _is_dispatch_cancellation(exc):
-                raise
+        except Exception:
             try:
                 await self.rpc.mcp.oauth.handle_pending_request(
                     MCPOauthHandlePendingRequest(
@@ -3755,7 +3368,9 @@ class CopilotSession:
                 args=args,
             )
             handler_start = time.perf_counter()
-            await _run_handler(handler, ctx)
+            result = handler(ctx)
+            if inspect.isawaitable(result):
+                await result
             log_timing(
                 logger,
                 logging.DEBUG,
@@ -3778,10 +3393,8 @@ class CopilotSession:
                 request_id=request_id,
                 command_name=command_name,
             )
-        except BaseException as exc:
-            if _propagates_unanswered(exc):
-                raise
-            message = str(exc) or type(exc).__name__
+        except Exception as exc:
+            message = str(exc)
             try:
                 await self.rpc.commands.handle_pending_command(
                     CommandsHandlePendingCommandRequest(
@@ -3806,10 +3419,11 @@ class CopilotSession:
             handler = self._elicitation_handler
         if not handler:
             return
-
         try:
             handler_start = time.perf_counter()
-            result = cast(ElicitationHandlerResult, await _run_handler(handler, context))
+            result = handler(context)
+            if inspect.isawaitable(result):
+                result = await result
             log_timing(
                 logger,
                 logging.DEBUG,
@@ -3818,6 +3432,7 @@ class CopilotSession:
                 session_id=self.session_id,
                 request_id=request_id,
             )
+            result = cast(ElicitationResult, result)
             action_val = result.get("action", "cancel")
             rpc_result = UIElicitationResponse(
                 action=UIElicitationResponseAction(action_val),
@@ -3828,7 +3443,6 @@ class CopilotSession:
                 UIHandlePendingElicitationRequest(
                     request_id=request_id,
                     result=rpc_result,
-                    decision_context=result.get("decisionContext"),
                 )
             )
             log_timing(
@@ -3839,9 +3453,7 @@ class CopilotSession:
                 session_id=self.session_id,
                 request_id=request_id,
             )
-        except BaseException as error:
-            if _propagates_unanswered(error):
-                raise
+        except Exception:
             # Handler failed — attempt to cancel so the request doesn't hang
             try:
                 await self.rpc.ui.handle_pending_elicitation(
@@ -4052,11 +3664,15 @@ class CopilotSession:
             result = call()
             if inspect.isawaitable(result):
                 result = await result
-        except BaseException as error:
-            # Propagate only what _propagates_unanswered names, such as a cancellation of this
-            # dispatch task; anything else the provider raises is a provider failure.
-            if _propagates_unanswered(error):
+        except asyncio.CancelledError:
+            # Only a cancellation of this dispatch task propagates; one raised by
+            # the provider itself is an ordinary provider failure.
+            task = asyncio.current_task()
+            if task is not None and task.cancelling():
                 raise
+            self._log_skill_provider_failure(operation)
+            raise _skill_provider_failure_error(operation) from None
+        except Exception:
             self._log_skill_provider_failure(operation)
             raise _skill_provider_failure_error(operation) from None
         log_timing(
@@ -4075,31 +3691,6 @@ class CopilotSession:
             extra={"session_id": self.session_id},
             exc_info=True,
         )
-
-    def _register_memory_store(
-        self, handler: Callable[[StoredMemory], Awaitable[None]] | None
-    ) -> None:
-        """Register or clear the session's app memory store callback."""
-        self._memory_store_handler = handler
-
-    async def _handle_memory_store(self, memory: StoredMemory) -> None:
-        handler = self._memory_store_handler
-        if handler is None:
-            raise JsonRpcError(-32603, "No memory store is registered")
-        try:
-            # Its own task, so a callback cancelling itself never marks this request task cancelled.
-            await asyncio.ensure_future(handler(memory))
-        except BaseException as error:
-            # Propagate only what _propagates_unanswered names, such as the runtime's cancellation;
-            # any other failure, a callback cancelling itself included, answers the request.
-            if _propagates_unanswered(error):
-                raise
-            logger.warning(
-                "Memory store callback failed",
-                extra={"session_id": self.session_id},
-                exc_info=True,
-            )
-            raise JsonRpcError(-32603, "Memory store callback failed") from None
 
     def _register_permission_handler(self, handler: _PermissionHandlerFn | None) -> None:
         """
@@ -4231,109 +3822,6 @@ class CopilotSession:
         except Exception:
             raise
 
-    def _log_shell_authentication_failure(
-        self, request: ShellAuthenticationRequest, error: BaseException
-    ) -> None:
-        # The error's message could contain the answer, so only its type is logged.
-        logger.error(
-            "Shell authentication handler failed with %s",
-            type(error).__name__,
-            extra={"session_id": self.session_id, "request_id": request.get("requestId")},
-        )
-
-    async def _settle_shell_authentication_answer(
-        self,
-        request: ShellAuthenticationRequest,
-        cancelled: asyncio.Event,
-        answer: Awaitable[Any],
-    ) -> Any:
-        # This task can outlive its prompt, and asyncio reports a failed task with
-        # the error's message, which could contain the answer.
-        try:
-            return await answer
-        except Exception as exc:  # pylint: disable=broad-except
-            if not cancelled.is_set():
-                self._log_shell_authentication_failure(request, exc)
-            return None
-
-    def _register_shell_authentication_handler(
-        self, handler: ShellAuthenticationHandler | None
-    ) -> None:
-        """
-        Register the handler for passwords and other answers that shell
-        commands run by the agent ask for.
-
-        Note:
-            This method is internal. Shell authentication handlers are typically
-            registered when creating a session via
-            :meth:`CopilotClient.create_session`.
-
-        Args:
-            handler: The shell authentication handler, or None to remove it.
-        """
-        with self._shell_authentication_handler_lock:
-            self._shell_authentication_handler = handler
-
-    async def _handle_shell_authentication_request(
-        self, request: ShellAuthenticationRequest, cancelled: asyncio.Event
-    ) -> ShellAuthenticationResponse:
-        """
-        Ask the registered handler for a secret. Any failure, a malformed
-        answer, or ``cancelled`` being set cancels the prompt, so the program
-        that asked fails instead of receiving a wrong value. Never logs the
-        answer.
-
-        Note:
-            This method is internal and should not be called directly.
-        """
-        with self._shell_authentication_handler_lock:
-            handler = self._shell_authentication_handler
-            if handler is None or cancelled.is_set():
-                return {"action": "cancel"}
-            self._pending_shell_authentication_requests.add(cancelled)
-        try:
-            result: Any = handler(request, {"session_id": self.session_id, "cancelled": cancelled})
-            if inspect.isawaitable(result):
-                answer = asyncio.create_task(
-                    self._settle_shell_authentication_answer(request, cancelled, result)
-                )
-                _shell_authentication_answers.add(answer)
-                answer.add_done_callback(_shell_authentication_answers.discard)
-                closed = asyncio.ensure_future(cancelled.wait())
-                try:
-                    # A handler that never finishes after its prompt closes
-                    # must not keep the request open.
-                    await asyncio.wait({answer, closed}, return_when=asyncio.FIRST_COMPLETED)
-                finally:
-                    closed.cancel()
-                if not answer.done():
-                    answer.cancel()
-                    return {"action": "cancel"}
-                result = answer.result()
-            if (
-                cancelled.is_set()
-                or not isinstance(result, dict)
-                or result.get("action") != "accept"
-                or not isinstance(result.get("value"), str)
-            ):
-                return {"action": "cancel"}
-            return {"action": "accept", "value": result["value"]}
-        except asyncio.CancelledError as exc:
-            # Only a cancellation of this request task propagates; a handler that
-            # cancels itself declines the prompt like any other failure.
-            task = asyncio.current_task()
-            if task is not None and task.cancelling():
-                raise
-            if not cancelled.is_set():
-                self._log_shell_authentication_failure(request, exc)
-            return {"action": "cancel"}
-        except Exception as exc:  # pylint: disable=broad-except
-            self._log_shell_authentication_failure(request, exc)
-            return {"action": "cancel"}
-        finally:
-            with self._shell_authentication_handler_lock:
-                self._pending_shell_authentication_requests.discard(cancelled)
-
     async def _handle_exit_plan_mode_request(self, request: dict) -> ExitPlanModeResult:
         """Handle an exitPlanMode.request callback from the runtime."""
         with self._exit_plan_mode_handler_lock:
@@ -4380,8 +3868,6 @@ class CopilotSession:
             typed_request["errorCode"] = request["errorCode"]
         if request.get("retryAfterSeconds") is not None:
             typed_request["retryAfterSeconds"] = request["retryAfterSeconds"]
-        if request.get("autoModeRecovery") is not None:
-            typed_request["autoModeRecovery"] = request["autoModeRecovery"]
 
         result = handler(typed_request, {"session_id": self.session_id})
         if inspect.isawaitable(result):
@@ -4436,10 +3922,7 @@ class CopilotSession:
                     transformed = callback(content)
                     if inspect.isawaitable(transformed):
                         transformed = await transformed
-                    # A callback that returns no value leaves the section unchanged.
-                    result[section_id] = {
-                        "content": content if transformed is None else str(transformed)
-                    }
+                    result[section_id] = {"content": str(transformed)}
                 except Exception:
                     result[section_id] = {"content": content}
             else:
@@ -4515,10 +3998,9 @@ class CopilotSession:
             # normalized dict; cast to ``Any`` so ty doesn't try to narrow the
             # specific TypedDict variant from the runtime ``dict``.
             input_data = cast(Any, transformed)
-            with trace_context(transformed.get("traceparent"), transformed.get("tracestate")):
-                result = handler(input_data, {"session_id": self.session_id})
-                if inspect.isawaitable(result):
-                    result = await result
+            result = handler(input_data, {"session_id": self.session_id})
+            if inspect.isawaitable(result):
+                result = await result
             log_timing(
                 logger,
                 logging.DEBUG,
@@ -4543,7 +4025,6 @@ class CopilotSession:
 
         This returns the complete conversation history including user messages,
         assistant responses, tool executions, and other session events.
-        For lossless JSON, including task-analytics retries, use get_raw_events instead.
 
         Returns:
             A list of all session events in chronological order.
@@ -4559,25 +4040,10 @@ class CopilotSession:
             ...         case AssistantMessageData() as data:
             ...             print(f"Assistant: {data.content}")
         """
-        events_dicts = await self.get_raw_events()
-        return [session_event_from_dict(event_dict) for event_dict in events_dicts]
-
-    async def get_raw_events(self) -> list[dict[str, Any]]:
-        """
-        Retrieve session history without projecting it into typed events.
-
-        Preserves timestamp strings, explicit nulls, and unknown fields. The result
-        can be passed directly as TaskAnalyticsClassifyTrajectoryRequest.events
-        for exact archive identity across retries.
-
-        Returns:
-            Session event dictionaries in chronological order.
-
-        Raises:
-            Exception: If the session has been disconnected or the connection fails.
-        """
         response = await self._client.request("session.getMessages", {"sessionId": self.session_id})
-        return response["events"]
+        # Convert dict events to SessionEvent objects
+        events_dicts = response["events"]
+        return [session_event_from_dict(event_dict) for event_dict in events_dicts]
 
     async def disconnect(self) -> None:
         """
@@ -4607,18 +4073,12 @@ class CopilotSession:
                 if self._destroyed:
                     return
 
-            await self._detach_runtime()
-            self._mark_disconnected()
-            release = self._release_from_client
-            self._release_from_client = None
-            if release is not None:
-                release(self)
+            response = await self._client.request("session.detach", {"sessionId": self.session_id})
+            if not response.get("success"):
+                detail = response.get("error") or "unknown error"
+                raise RuntimeError(f"Failed to detach session {self.session_id}: {detail}")
 
-    async def _detach_runtime(self) -> None:
-        response = await self._client.request("session.detach", {"sessionId": self.session_id})
-        if not response.get("success"):
-            detail = response.get("error") or "unknown error"
-            raise RuntimeError(f"Failed to detach session {self.session_id}: {detail}")
+            self._mark_disconnected()
 
     async def __aenter__(self) -> CopilotSession:
         """Enable use as an async context manager."""
@@ -4668,7 +4128,6 @@ class CopilotSession:
         context_tier: ContextTier | None = None,
         model_capabilities: ModelCapabilitiesOverride | None = None,
         auto_tier: AutoTier | _RpcAutoTier | None | _Unset = _UNSET,
-        fusion_tier: FusionTier | _RpcFusionTier | None = None,
     ) -> None:
         """
         Change the model for this session.
@@ -4693,19 +4152,7 @@ class CopilotSession:
                 Omit the argument to leave the current preference alone. The
                 runtime rejects this option when ``model`` is anything other than
                 ``"auto"``; use :meth:`set_auto_tier` to change the preference
-                without changing the selected model. For Copilot Fusion, prefer
-                ``fusion_tier``: the ``balance``, ``hydrafusion`` and
-                ``hydrafusion-max`` identifiers it replaces remain accepted but
-                are deprecated.
-            fusion_tier: **Experimental.** Part of an experimental Auto routing
-                surface and may change or be removed in a future release.
-                Copilot Fusion tier (``"standard"``, ``"high"`` or ``"max"``) to
-                apply when ``model`` is ``"fusion"`` or ``"auto"``, matching the
-                CLI's ``--fusion-tier``. The runtime resolves the tier to the Auto
-                routing preference it stands for and stages it exactly like
-                ``auto_tier``. Cannot be combined with ``auto_tier``; use
-                :meth:`set_fusion_tier` to change the tier without changing the
-                selected model.
+                without changing the selected model.
 
         Raises:
             Exception: If the session has been destroyed or the connection fails.
@@ -4713,7 +4160,7 @@ class CopilotSession:
         Example:
             >>> await session.set_model("gpt-5.4")
             >>> await session.set_model("claude-sonnet-4.6", reasoning_effort="high")
-            >>> await session.set_model("fusion", fusion_tier="high")
+            >>> await session.set_model("auto", auto_tier="intelligence")
         """
         rpc_caps = None
         if model_capabilities is not None:
@@ -4728,7 +4175,6 @@ class CopilotSession:
             ),
             context_tier=(_RpcContextTier(context_tier) if context_tier is not None else None),
             model_capabilities=rpc_caps,
-            fusion_tier=(_fusion_tier_to_rpc(fusion_tier) if fusion_tier is not None else None),
         )
         if isinstance(auto_tier, _Unset):
             await self.rpc.model.switch_to(request)
@@ -4765,10 +4211,6 @@ class CopilotSession:
         Only the most recent request survives: issuing a new request replaces any
         earlier one that has not yet been claimed by a turn.
 
-        For Copilot Fusion, prefer :meth:`set_fusion_tier`. The ``balance``,
-        ``hydrafusion`` and ``hydrafusion-max`` identifiers it replaces remain
-        accepted but are deprecated.
-
         Args:
             auto_tier: Routing preference to activate, or ``None`` to return to
                 the provider's default Auto routing.
@@ -4792,40 +4234,6 @@ class CopilotSession:
                 "session.model.switchAutoTier",
                 {"sessionId": self.session_id, "autoTier": _auto_tier_to_wire(auto_tier)},
             )
-        )
-
-    async def set_fusion_tier(
-        self, fusion_tier: FusionTier | _RpcFusionTier
-    ) -> ModelSwitchAutoTierResult:
-        """
-        Change the Copilot Fusion tier without changing the selected model.
-
-        **Experimental.** Part of an experimental Auto routing surface and may
-        change or be removed in a future release.
-
-        Names the tier as the CLI's ``--fusion-tier`` does. The runtime resolves
-        the tier to the Auto routing preference it stands for and then handles the
-        request exactly like :meth:`set_auto_tier`: it takes effect on a later
-        user turn that uses the ``fusion`` or ``auto`` model. To return to the
-        provider's default routing, call ``set_auto_tier(None)``.
-
-        Args:
-            fusion_tier: Copilot Fusion tier to activate: ``"standard"``,
-                ``"high"`` or ``"max"``.
-
-        Returns:
-            The runtime's immediate acknowledgement and Auto preference snapshot.
-
-        Raises:
-            Exception: If the session has been destroyed or the connection fails.
-
-        Example:
-            >>> result = await session.set_fusion_tier("max")
-            >>> if result.status == ModelSwitchAutoTierStatus.PENDING:
-            ...     pass  # Takes effect on a later turn that uses Copilot Fusion.
-        """
-        return await self.rpc.model.switch_fusion_tier(
-            ModelSwitchFusionTierRequest(fusion_tier=_fusion_tier_to_rpc(fusion_tier))
         )
 
     async def log(

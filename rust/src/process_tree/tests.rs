@@ -25,9 +25,10 @@ use windows_sys::Win32::System::Diagnostics::ToolHelp::{
 };
 use windows_sys::Win32::System::JobObjects::IsProcessInJob;
 use windows_sys::Win32::System::Threading::{
-    GetCurrentProcess, GetCurrentThread, GetCurrentThreadId, OpenProcess, OpenProcessToken,
-    OpenThread, OpenThreadToken, PROCESS_SYNCHRONIZE, SetThreadToken, THREAD_ALL_ACCESS,
-    THREAD_QUERY_LIMITED_INFORMATION, THREAD_SUSPEND_RESUME, TerminateProcess, WaitForSingleObject,
+    GetCurrentProcess, GetCurrentProcessId, GetCurrentThread, GetCurrentThreadId, OpenProcess,
+    OpenProcessToken, OpenThread, OpenThreadToken, PROCESS_SYNCHRONIZE, SetThreadToken,
+    THREAD_ALL_ACCESS, THREAD_QUERY_LIMITED_INFORMATION, THREAD_SUSPEND_RESUME, TerminateProcess,
+    WaitForSingleObject,
 };
 
 use super::platform::{check_status, resume_initial_thread, resume_owned_thread};
@@ -607,9 +608,7 @@ async fn recovered_client(dir: &Path, tcp: bool) -> crate::Client {
         }));
     });
     let script = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../test/harness/stdio-shutdown-runtime.cjs")
-        .canonicalize()
-        .unwrap();
+        .join("../test/harness/stdio-shutdown-runtime.cjs");
     let mut options = crate::ClientOptions::new()
         .with_program(crate::CliProgram::Path("node".into()))
         .with_prefix_args([
@@ -878,4 +877,31 @@ fn foreign_snapshot_entries_cannot_be_resumed() {
     assert_eq!(error.kind(), io::ErrorKind::NotFound);
     assert_eq!(SNAPSHOTS.get(), (1, 1));
     assert_eq!(MARKERS.get(), (1, 1));
+}
+
+#[test]
+fn opened_foreign_thread_is_rejected_before_resume() {
+    let _reset = ResetHooks;
+    // SAFETY: the thread ID identifies this live test thread.
+    let handle = unsafe {
+        OpenThread(
+            THREAD_QUERY_LIMITED_INFORMATION | THREAD_SUSPEND_RESUME,
+            0,
+            GetCurrentThreadId(),
+        )
+    };
+    assert!(!handle.is_null(), "{}", io::Error::last_os_error());
+    // SAFETY: OpenThread returned a new uniquely owned handle.
+    let thread = unsafe { OwnedHandle::from_raw_handle(handle) };
+    let error = resume_owned_thread(thread.as_raw_handle().cast(), unsafe {
+        GetCurrentProcessId().wrapping_add(1)
+    })
+    .expect_err("opened handle belongs to a different process");
+    assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
+}
+
+#[test]
+fn invalid_thread_ownership_query_returns_error() {
+    let _reset = ResetHooks;
+    assert!(resume_owned_thread(ptr::null_mut(), 1).is_err());
 }

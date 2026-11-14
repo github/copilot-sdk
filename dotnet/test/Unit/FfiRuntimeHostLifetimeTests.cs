@@ -2,12 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using GitHub.Copilot.Test.Harness;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using System.Runtime.ExceptionServices;
 using Xunit;
 
 namespace GitHub.Copilot.Test.Unit;
@@ -15,81 +12,6 @@ namespace GitHub.Copilot.Test.Unit;
 public sealed class FfiRuntimeHostLifetimeTests
 {
     private static readonly string[] NoAutoLoginArguments = ["--no-auto-login"];
-
-    [Theory]
-    [InlineData("FfiRuntimeHost started.")]
-    [InlineData("CopilotClient.ConnectToServerAsync transport setup complete.")]
-    [InlineData("CopilotClient.StartAsync transport setup complete.")]
-    public async Task Failed_Startup_Releases_Native_Callback_Target(string checkpoint)
-    {
-        var homeDirectory = Path.Combine(Path.GetTempPath(), $"copilot-ffi-startup-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(homeDirectory);
-        Exception? failure = null;
-        try
-        {
-            var logger = await StartFailingClientAsync(homeDirectory, checkpoint);
-            await TestHelper.WaitForConditionAsync(() =>
-            {
-                CollectGarbage();
-                return !logger.IsAlive;
-            }, timeout: TimeSpan.FromSeconds(5),
-                timeoutMessage: "Failed startup retained the native callback target after force-stop and disposal.");
-        }
-        catch (Exception ex)
-        {
-            failure = ex;
-        }
-        finally
-        {
-            try
-            {
-                Directory.Delete(homeDirectory, recursive: true);
-            }
-            catch (Exception ex)
-            {
-                failure = failure is null ? ex : new AggregateException(failure, ex);
-            }
-        }
-        if (failure is not null)
-        {
-            ExceptionDispatchInfo.Capture(failure).Throw();
-        }
-    }
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private static async Task<WeakReference> StartFailingClientAsync(string homeDirectory, string checkpoint)
-    {
-        var logger = new FailingStartupLogger(checkpoint);
-        await using var client = new CopilotClient(new CopilotClientOptions
-        {
-            Connection = RuntimeConnection.ForInProcess(),
-            UseLoggedInUser = false,
-            BaseDirectory = homeDirectory,
-            Logger = logger,
-        });
-        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => client.StartAsync());
-        Assert.Same(logger.Failure, error);
-        await client.ForceStopAsync();
-        await client.DisposeAsync();
-
-        // The native callback's GCHandle roots the host, which retains its logger.
-        return new WeakReference(logger);
-    }
-
-    private sealed class FailingStartupLogger(string checkpoint) : ILogger
-    {
-        public InvalidOperationException Failure { get; } = new("Injected startup failure.");
-        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
-        public bool IsEnabled(LogLevel logLevel) => logLevel == LogLevel.Debug;
-        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
-            Func<TState, Exception?, string> formatter)
-        {
-            if (formatter(state, exception).StartsWith(checkpoint, StringComparison.Ordinal))
-            {
-                throw Failure;
-            }
-        }
-    }
 
     [Fact]
     public void Open_Connection_Keeps_Unreferenced_Host_Reachable_Until_Disposed()
@@ -175,14 +97,13 @@ public sealed class FfiRuntimeHostLifetimeTests
 
         Volatile.Write(ref allowClose, true);
         await cleanupCompleted.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        AssertNoCleanupRetryScheduled(hostType, host);
         Assert.Equal(1, Volatile.Read(ref callbackReleaseCalls));
         Assert.Equal(1, Volatile.Read(ref shutdownCalls));
 
         var closeCallsAfterCleanup = Volatile.Read(ref closeCalls);
         host.Dispose();
+        await Task.Delay(50);
 
-        AssertNoCleanupRetryScheduled(hostType, host);
         Assert.Equal(closeCallsAfterCleanup, Volatile.Read(ref closeCalls));
         Assert.Equal(1, Volatile.Read(ref callbackReleaseCalls));
         Assert.Equal(1, Volatile.Read(ref shutdownCalls));
@@ -224,26 +145,11 @@ public sealed class FfiRuntimeHostLifetimeTests
             .SetValue(host, (uint)11);
 
         host.Dispose();
-        AssertNoCleanupRetryScheduled(hostType, host);
-        host.Dispose();
-        AssertNoCleanupRetryScheduled(hostType, host);
+        Thread.Sleep(250);
 
         Assert.Equal(1, Volatile.Read(ref closeCalls));
         Assert.Equal(1, Volatile.Read(ref callbackReleaseCalls));
         Assert.Equal(1, Volatile.Read(ref shutdownCalls));
-    }
-
-    private static void AssertNoCleanupRetryScheduled(Type hostType, IDisposable host)
-    {
-        var lifecycleLock = hostType.GetField("_lifecycleLock", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .GetValue(host)!;
-        // The callback signals inside the lifecycle lock. Join that iteration before
-        // checking that no delayed cleanup remains, rather than waiting a quiet window.
-        lock (lifecycleLock)
-        {
-            Assert.False((bool)hostType.GetField("_cleanupRetryScheduled", BindingFlags.Instance | BindingFlags.NonPublic)!
-                .GetValue(host)!);
-        }
     }
 
     // Starts a real native host and returns only a weak reference, so nothing in managed

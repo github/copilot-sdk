@@ -128,6 +128,29 @@ async fn should_track_last_session_id_after_session_created() {
 }
 
 #[tokio::test]
+async fn should_get_null_foreground_session_id_in_headless_mode() {
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "client_api",
+        "should_get_null_foreground_session_id_in_headless_mode",
+        |ctx| {
+            Box::pin(async move {
+                let client = ctx.start_client().await;
+
+                let foreground = client
+                    .get_foreground_session_id()
+                    .await
+                    .expect("get foreground");
+
+                assert!(foreground.is_none());
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
+    .await;
+}
+
+#[tokio::test]
 async fn should_report_error_when_setting_foreground_session_in_headless_mode() {
     super::support::with_shared_e2e_context(
         &E2E,
@@ -162,4 +185,4 @@ async fn should_report_error_when_setting_foreground_session_in_headless_mode() 
     .await;
 }
 static E2E: super::support::SharedE2eGroup =
-    super::support::SharedE2eGroup::standard("client_api", 4);
+    super::support::SharedE2eGroup::standard("client_api", 5);

@@ -20,7 +20,6 @@ import (
 )
 
 func TestScenarioTestingCloudE2E(t *testing.T) {
-	t.Parallel()
 	t.Run("notifies steerability before first send", func(t *testing.T) {
 		var mu sync.Mutex
 		var events []copilot.SessionEvent

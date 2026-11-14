@@ -1,9 +1,5 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 
-#[expect(
-    dead_code,
-    reason = "message is used only by shipping acquisition callers"
-)]
 #[path = "../build/download.rs"]
 mod download;
 
@@ -40,6 +36,18 @@ fn native_tls_configuration_failures_remain_terminal() {
 }
 
 #[test]
+fn reports_http_reason_and_distinguishes_other_errors() {
+    assert_eq!(
+        download::message(&ureq::Error::StatusCode(407)),
+        "HTTP 407 Proxy Authentication Required"
+    );
+    assert_eq!(
+        download::message(&ureq::Error::InvalidProxyUrl),
+        "download error: invalid proxy url"
+    );
+}
+
+#[test]
 fn builds_platform_tls_agent() {
     let agent = download::agent();
     #[cfg(target_os = "macos")]
@@ -56,4 +64,9 @@ fn builds_platform_tls_agent() {
         agent.config().tls_config().root_certs(),
         ureq::tls::RootCerts::PlatformVerifier
     ));
+}
+
+#[test]
+fn body_deadline_exceeds_prior_two_minute_limit() {
+    assert!(download::BODY_TIMEOUT > std::time::Duration::from_secs(120));
 }

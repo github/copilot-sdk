@@ -343,6 +343,14 @@ async fn a_read_file_reply_is_written_as_published_for_every_escape_class() {
 
 #[tokio::test(flavor = "multi_thread")]
 #[parallel]
+async fn a_missing_file_reply_is_written_as_published() {
+    let (_session, mut server) = start(FixedProvider::with_file("/file.txt", String::new())).await;
+    let result = read_file(&mut server, 8, "/missing.txt").await;
+    assert_eq!(result["error"]["code"], "ENOENT");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[parallel]
 async fn write_file_stat_and_readdir_replies_are_written_as_published() {
     let (_session, mut server) = start(FixedProvider::with_file("/file.txt", String::new())).await;
     let written = reply_to(
@@ -353,13 +361,6 @@ async fn write_file_stat_and_readdir_replies_are_written_as_published() {
     )
     .await;
     assert_eq!(written, Value::Null);
-    let typed: github_copilot_sdk::rpc::SessionFsWriteFileResult =
-        serde_json::from_value(written.clone())
-            .expect("the public result alias accepts null success");
-    assert_eq!(
-        serde_json::to_value(typed).expect("the public result alias preserves null success"),
-        written
-    );
     let path = json!({"path": "/file.txt"});
     let stat = reply_to(&mut server, 10, "sessionFs.stat", path).await;
     assert_eq!(stat["size"], 42);
@@ -426,6 +427,16 @@ async fn a_sqlite_reply_deeper_than_the_cli_reads_is_answered_with_an_error() {
         r#"{"jsonrpc":"2.0","id":15,"error":{"code":-32603,"message":"the response nests deeper than 127 levels of arrays and objects, which the CLI cannot read"}}"#,
         "a reply the CLI cannot read goes out as an error for its request"
     );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[parallel]
+async fn a_six_mebibyte_reply_is_one_frame_written_as_published() {
+    let content = "0123456789abcdef".repeat(6 * 1024 * 1024 / 16);
+    let (_session, mut server) = start(FixedProvider::with_file("/big.txt", content.clone())).await;
+    let result = read_file(&mut server, 13, "/big.txt").await;
+    let length = result["content"].as_str().map(str::len);
+    assert_eq!(length, Some(content.len()));
 }
 
 /// The mechanism: between the request's write and the reply's last byte, the

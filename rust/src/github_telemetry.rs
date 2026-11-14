@@ -24,9 +24,5 @@ pub use crate::generated::api_types::{
 /// [`ClientOptions::on_github_telemetry`](crate::ClientOptions::on_github_telemetry).
 /// Registering a callback auto-enables telemetry forwarding on every session
 /// created or resumed by the client.
-///
-/// Runs on its own task, in arrival order, so a slow callback delays only
-/// later telemetry, not session or lifecycle events. It still occupies a
-/// runtime worker thread while it runs, so return promptly.
 #[doc(hidden)]
 pub type GitHubTelemetryCallback = Arc<dyn Fn(GitHubTelemetryNotification) + Send + Sync>;

@@ -4,8 +4,6 @@
 
 package com.github.copilot;
 
-import org.junit.jupiter.api.Tag;
-
 import static com.github.copilot.CopilotRequestTestSupport.SYNTHETIC_TEXT;
 import static com.github.copilot.CopilotRequestTestSupport.assistantText;
 import static com.github.copilot.CopilotRequestTestSupport.newLlmClient;
@@ -31,13 +29,13 @@ import com.github.copilot.CopilotRequestTestSupport.RecordingRequestHandler;
 import com.github.copilot.generated.AssistantMessageEvent;
 import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.PermissionHandler;
+import com.github.copilot.rpc.SessionConfig;
 
 /**
  * End-to-end coverage for {@link CopilotRequestHandler}: a synthetic HTTP turn
  * that the handler fully fabricates off-network, and a forwarding turn that
  * relays both the HTTP and WebSocket transports to a real in-process upstream.
  */
-@Tag("e2e")
 public class CopilotRequestHandlerE2ETest {
 
     private static E2ETestContext ctx;
@@ -61,7 +59,7 @@ public class CopilotRequestHandlerE2ETest {
 
         try (CopilotClient client = newLlmClient(ctx, handler)) {
             CopilotSession session = client
-                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             AssistantMessageEvent result = session.sendAndWait(new MessageOptions().setPrompt("Say OK.")).get(60,
                     TimeUnit.SECONDS);
@@ -144,8 +142,7 @@ public class CopilotRequestHandlerE2ETest {
             try (CopilotClient client = newLlmClient(ctx, handler,
                     "COPILOT_EXP_COPILOT_CLI_WEBSOCKET_RESPONSES=true")) {
                 CopilotSession session = client
-                        .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
-                        .get();
+                        .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
                 AssistantMessageEvent result = session.sendAndWait(new MessageOptions().setPrompt("Say OK.")).get(60,
                         TimeUnit.SECONDS);

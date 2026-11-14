@@ -49,9 +49,6 @@ public final class SendMessageRequest {
     @JsonProperty("displayPrompt")
     private String displayPrompt;
 
-    @JsonProperty("clientTurnId")
-    private String clientTurnId;
-
     @JsonProperty("responseFormat")
     private Map<String, Object> responseFormat;
 
@@ -150,20 +147,5 @@ public final class SendMessageRequest {
      */
     public void setDisplayPrompt(String displayPrompt) {
         this.displayPrompt = displayPrompt;
-    }
-
-    /** Gets the client turn ID. @return the client turn ID */
-    public String getClientTurnId() {
-        return clientTurnId;
-    }
-
-    /**
-     * Sets the caller-chosen ID for the turn this message starts.
-     *
-     * @param clientTurnId
-     *            the client turn ID, or {@code null} to omit it
-     */
-    public void setClientTurnId(String clientTurnId) {
-        this.clientTurnId = clientTurnId;
     }
 }

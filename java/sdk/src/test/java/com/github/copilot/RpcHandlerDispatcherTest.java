@@ -38,17 +38,11 @@ import com.github.copilot.rpc.PermissionRequestResultKind;
 import com.github.copilot.rpc.PreToolUseHookOutput;
 import com.github.copilot.rpc.SessionHooks;
 import com.github.copilot.rpc.SessionLifecycleEvent;
-import com.github.copilot.rpc.StoredMemory;
 import com.github.copilot.rpc.ToolDefinition;
 import com.github.copilot.rpc.ToolResultObject;
 import com.github.copilot.rpc.UserInputRequest;
 import com.github.copilot.rpc.UserInputResponse;
 import com.github.copilot.generated.rpc.GitHubTokenAcquireReason;
-import com.github.copilot.generated.rpc.PermissionDecisionContext;
-import com.github.copilot.generated.rpc.PermissionDecisionOutcome;
-import com.github.copilot.generated.rpc.PermissionDecisionSource;
-import com.github.copilot.generated.rpc.PermissionDecisionSurface;
-import com.github.copilot.generated.rpc.PermissionResponseCapability;
 import com.github.copilot.rpc.GitHubTokenProviderArgs;
 import com.github.copilot.rpc.GitHubTokenProviderResult;
 
@@ -62,8 +56,6 @@ class RpcHandlerDispatcherTest {
 
     private static final ObjectMapper MAPPER = JsonRpcClient.getObjectMapper();
     private static final int SOCKET_TIMEOUT_MS = 5000;
-    private static final String PERSON_ANSWERED_JSON = "{\"source\":\"human_response\","
-            + "\"responseCapability\":\"interactive\",\"surface\":\"sdk\",\"outcome\":\"prompted_user\"}";
 
     private Socket clientSideSocket;
     private Socket serverSideSocket;
@@ -527,113 +519,6 @@ class RpcHandlerDispatcherTest {
     }
 
     @Test
-    void userInputRequestHandlerThatThrowsAnErrorIsAnswered() throws Exception {
-        CopilotSession session = createSession("s1");
-        session.registerUserInputHandler((request, invocation) -> {
-            throw new AssertionError("boom");
-        });
-
-        ObjectNode params = MAPPER.createObjectNode();
-        params.put("sessionId", "s1");
-        params.put("question", "What?");
-
-        invokeHandler("userInput.request", "29", params);
-
-        JsonNode response = readResponse();
-        assertEquals(29, response.path("id").asInt());
-        assertEquals(-32603, response.at("/error/code").asInt());
-    }
-
-    // ===== memoryStore.store tests =====
-
-    @Test
-    void memoryStoreInvokesCallbackWithPayload() throws Exception {
-        CopilotSession session = createSession("s1");
-        AtomicReference<StoredMemory> received = new AtomicReference<>();
-        session.registerMemoryStore(item -> {
-            received.set(item);
-            return CompletableFuture.completedFuture(null);
-        });
-
-        ObjectNode params = MAPPER.createObjectNode();
-        params.put("sessionId", "s1");
-        params.put("subject", "package manager");
-        params.put("fact", "Use pnpm.");
-        params.put("citations", "package.json");
-        params.put("reason", "The workspace uses pnpm.");
-        invokeHandler("memoryStore.store", "90", params);
-
-        JsonNode response = readResponse();
-        assertNull(response.get("error"));
-        assertTrue(response.has("result"));
-        assertTrue(response.get("result").isNull());
-        assertEquals(new StoredMemory("s1", "package manager", "Use pnpm.", "package.json", "The workspace uses pnpm."),
-                received.get());
-    }
-
-    @Test
-    void memoryStoreErrorsUseGenericMessages() throws Exception {
-        ObjectNode unknownParams = MAPPER.createObjectNode();
-        unknownParams.put("sessionId", "missing-session");
-        invokeHandler("memoryStore.store", "91", unknownParams);
-        assertEquals("Memory store owner is unavailable", readResponse().at("/error/message").asText());
-
-        CopilotSession session = createSession("s1");
-        ObjectNode params = MAPPER.createObjectNode();
-        params.put("sessionId", "s1");
-        invokeHandler("memoryStore.store", "92", params);
-        assertEquals("No memory store is registered", readResponse().at("/error/message").asText());
-
-        session.registerMemoryStore(
-                item -> CompletableFuture.failedFuture(new IllegalStateException("secret backend detail")));
-        invokeHandler("memoryStore.store", "93", params);
-        JsonNode failure = readResponse();
-        assertEquals(-32603, failure.at("/error/code").asInt());
-        assertEquals("Memory store callback failed", failure.at("/error/message").asText());
-        assertFalse(failure.toString().contains("secret backend detail"));
-    }
-
-    @Test
-    void memoryStoreCallbackThatThrowsAnErrorIsAnswered() throws Exception {
-        CopilotSession session = createSession("s1");
-        session.registerMemoryStore(item -> {
-            throw new AssertionError("secret assertion detail");
-        });
-
-        ObjectNode params = MAPPER.createObjectNode();
-        params.put("sessionId", "s1");
-        invokeHandler("memoryStore.store", "95", params);
-
-        JsonNode response = readResponse();
-        assertEquals(95, response.path("id").asInt());
-        assertEquals(-32603, response.at("/error/code").asInt());
-        assertEquals("Memory store callback failed", response.at("/error/message").asText());
-        assertFalse(response.toString().contains("secret assertion detail"));
-    }
-
-    @Test
-    void memoryStoreCallIsCancelledByCancelRequest() throws Exception {
-        CopilotSession session = createSession("s1");
-        var entered = new CountDownLatch(1);
-        var pending = new CompletableFuture<Void>();
-        session.registerMemoryStore(item -> {
-            entered.countDown();
-            return pending;
-        });
-
-        ObjectNode params = MAPPER.createObjectNode();
-        params.put("sessionId", "s1");
-        invokeHandler("memoryStore.store", "94", params);
-        assertTrue(entered.await(5, TimeUnit.SECONDS));
-        dispatcher.handleCancelRequest(MAPPER.createObjectNode().put("id", 94));
-
-        JsonNode response = readResponse();
-        assertEquals(94, response.path("id").asInt());
-        assertEquals(-32800, response.at("/error/code").asInt());
-        assertTrue(pending.isCancelled());
-    }
-
-    @Test
     void userInputRequestPassesRuntimeRequestIdToHandler() throws Exception {
         CopilotSession session = createSession("s1");
         var received = new CompletableFuture<UserInputRequest>();
@@ -675,40 +560,6 @@ class RpcHandlerDispatcherTest {
         assertEquals("yes", response.get("result").get("answer").asText());
         UserInputRequest request = received.get(SOCKET_TIMEOUT_MS, TimeUnit.MILLISECONDS);
         assertNull(request.getRequestId());
-    }
-
-    @Test
-    void userInputReplyCarriesPersonAnsweredLabelAtTopLevel() throws Exception {
-        CopilotSession session = createSession("s1");
-        session.registerUserInputHandler(
-                (request, invocation) -> CompletableFuture.completedFuture(new UserInputResponse()
-                        .setAnswer("Only src/app.ts").setWasFreeform(true).setDecisionContext(personAnswered())));
-
-        ObjectNode params = MAPPER.createObjectNode();
-        params.put("sessionId", "s1");
-        params.put("question", "Which files?");
-
-        invokeHandler("userInput.request", "36", params);
-
-        JsonNode response = readResponse();
-        assertEquals(MAPPER.readTree("{\"answer\":\"Only src/app.ts\",\"wasFreeform\":true,\"decisionContext\":"
-                + PERSON_ANSWERED_JSON + "}"), response.get("result"));
-    }
-
-    @Test
-    void unlabeledUserInputReplyHasNoDecisionContextKey() throws Exception {
-        CopilotSession session = createSession("s1");
-        session.registerUserInputHandler((request, invocation) -> CompletableFuture
-                .completedFuture(new UserInputResponse().setAnswer("Only src/app.ts").setWasFreeform(true)));
-
-        ObjectNode params = MAPPER.createObjectNode();
-        params.put("sessionId", "s1");
-        params.put("question", "Which files?");
-
-        invokeHandler("userInput.request", "37", params);
-
-        JsonNode response = readResponse();
-        assertEquals(MAPPER.readTree("{\"answer\":\"Only src/app.ts\",\"wasFreeform\":true}"), response.get("result"));
     }
 
     // ===== exitPlanMode.request tests =====
@@ -760,85 +611,6 @@ class RpcHandlerDispatcherTest {
         assertTrue(response.get("result").get("approved").asBoolean());
         ExitPlanModeRequest request = received.get(SOCKET_TIMEOUT_MS, TimeUnit.MILLISECONDS);
         assertNull(request.getRequestId());
-    }
-
-    @Test
-    void exitPlanModeRequestHandlerThatThrowsAnErrorIsAnswered() throws Exception {
-        CopilotSession session = createSession("s1");
-        session.registerExitPlanModeHandler((request, invocation) -> {
-            throw new AssertionError("boom");
-        });
-
-        ObjectNode params = MAPPER.createObjectNode();
-        params.put("sessionId", "s1");
-        params.put("summary", "Implement the plan");
-
-        invokeHandler("exitPlanMode.request", "35", params);
-
-        JsonNode response = readResponse();
-        assertEquals(35, response.path("id").asInt());
-        assertEquals(-32603, response.at("/error/code").asInt());
-    }
-
-    @Test
-    void exitPlanModeReplyCarriesPersonAnsweredLabelAtTopLevel() throws Exception {
-        CopilotSession session = createSession("s1");
-        session.registerExitPlanModeHandler(
-                (request, invocation) -> CompletableFuture.completedFuture(new ExitPlanModeResult().setApproved(true)
-                        .setSelectedAction("interactive").setDecisionContext(personAnswered())));
-
-        invokeHandler("exitPlanMode.request", "38", exitPlanModeParams());
-
-        JsonNode response = readResponse();
-        assertEquals(MAPPER.readTree("{\"approved\":true,\"selectedAction\":\"interactive\",\"decisionContext\":"
-                + PERSON_ANSWERED_JSON + "}"), response.get("result"));
-    }
-
-    @Test
-    void unlabeledExitPlanModeReplyHasNoDecisionContextKey() throws Exception {
-        CopilotSession session = createSession("s1");
-        session.registerExitPlanModeHandler((request, invocation) -> CompletableFuture
-                .completedFuture(new ExitPlanModeResult().setApproved(true).setSelectedAction("interactive")));
-
-        invokeHandler("exitPlanMode.request", "39", exitPlanModeParams());
-
-        JsonNode response = readResponse();
-        assertEquals(MAPPER.readTree("{\"approved\":true,\"selectedAction\":\"interactive\"}"), response.get("result"));
-    }
-
-    private static ObjectNode exitPlanModeParams() {
-        ObjectNode params = MAPPER.createObjectNode();
-        params.put("sessionId", "s1");
-        params.put("summary", "Implement the plan");
-        params.putArray("actions").add("interactive").add("autopilot");
-        params.put("recommendedAction", "interactive");
-        return params;
-    }
-
-    private static PermissionDecisionContext personAnswered() {
-        return PermissionDecisionContext.builder().source(PermissionDecisionSource.HUMAN_RESPONSE)
-                .responseCapability(PermissionResponseCapability.INTERACTIVE).surface(PermissionDecisionSurface.SDK)
-                .outcome(PermissionDecisionOutcome.PROMPTED_USER).build();
-    }
-
-    // ===== autoModeSwitch.request tests =====
-
-    @Test
-    void autoModeSwitchRequestHandlerThatThrowsAnErrorIsAnswered() throws Exception {
-        CopilotSession session = createSession("s1");
-        session.registerAutoModeSwitchHandler((request, invocation) -> {
-            throw new AssertionError("boom");
-        });
-
-        ObjectNode params = MAPPER.createObjectNode();
-        params.put("sessionId", "s1");
-        params.put("errorCode", "user_weekly_rate_limited");
-
-        invokeHandler("autoModeSwitch.request", "36", params);
-
-        JsonNode response = readResponse();
-        assertEquals(36, response.path("id").asInt());
-        assertEquals(-32603, response.at("/error/code").asInt());
     }
 
     // ===== skillProvider.* tests =====
@@ -1026,7 +798,7 @@ class RpcHandlerDispatcherTest {
         params.put("name", "docs");
         invokeHandler("skillProvider.read", "71", params);
         assertTrue(entered.await(5, TimeUnit.SECONDS));
-        dispatcher.cancelCallbacks();
+        dispatcher.cancelSkillProviderCalls();
 
         assertEquals(-32800, readResponse().at("/error/code").asInt());
         assertTrue(pending.isCancelled());
@@ -1175,30 +947,6 @@ class RpcHandlerDispatcherTest {
     }
 
     @Test
-    void systemMessageTransformKeepsSectionWhenCallbackThrowsOrReturnsNull() throws Exception {
-        // A failing callback keeps its own section; other sections still transform
-        CopilotSession session = createSession("s1");
-        Map<String, Function<String, CompletableFuture<String>>> callbacks = Map.of("identity", content -> {
-            throw new IllegalStateException("transform failed");
-        }, "tone", content -> null, "safety", content -> CompletableFuture.completedFuture(content + " (transformed)"));
-        session.registerTransformCallbacks(callbacks);
-
-        ObjectNode params = MAPPER.createObjectNode();
-        params.put("sessionId", "s1");
-        ObjectNode sections = params.putObject("sections");
-        sections.putObject("identity").put("content", "Original identity");
-        sections.putObject("tone").put("content", "Original tone");
-        sections.putObject("safety").put("content", "Original safety");
-
-        invokeHandler("systemMessage.transform", "44", params);
-
-        JsonNode resultSections = readResponse().get("result").get("sections");
-        assertEquals("Original identity", resultSections.get("identity").get("content").asText());
-        assertEquals("Original tone", resultSections.get("tone").get("content").asText());
-        assertEquals("Original safety (transformed)", resultSections.get("safety").get("content").asText());
-    }
-
-    @Test
     void systemMessageTransformWithKnownSessionNoCallbacks() throws Exception {
         // Session without transform callbacks returns the sections unchanged
         createSession("s1");
@@ -1216,28 +964,6 @@ class RpcHandlerDispatcherTest {
         JsonNode resultSections = response.get("result").get("sections");
         assertNotNull(resultSections);
         assertEquals("Original content", resultSections.get("identity").get("content").asText());
-    }
-
-    @Test
-    void systemMessageTransformKeepsSectionWhenCallbackCompletesWithNull() throws Exception {
-        // A null result keeps the section; an empty string still clears it
-        CopilotSession session = createSession("s1");
-        Map<String, Function<String, CompletableFuture<String>>> callbacks = Map.of("identity",
-                content -> CompletableFuture.completedFuture(null), "tone",
-                content -> CompletableFuture.completedFuture(""));
-        session.registerTransformCallbacks(callbacks);
-
-        ObjectNode params = MAPPER.createObjectNode();
-        params.put("sessionId", "s1");
-        ObjectNode sections = params.putObject("sections");
-        sections.putObject("identity").put("content", "Original identity");
-        sections.putObject("tone").put("content", "Original tone");
-
-        invokeHandler("systemMessage.transform", "43", params);
-
-        JsonNode resultSections = readResponse().get("result").get("sections");
-        assertEquals("Original identity", resultSections.get("identity").get("content").asText());
-        assertEquals("", resultSections.get("tone").get("content").asText());
     }
 
     private static SkillProvider skillProvider(Supplier<CompletableFuture<List<SkillProviderDescriptor>>> listSkills,

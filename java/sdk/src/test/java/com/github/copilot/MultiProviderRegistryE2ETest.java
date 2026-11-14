@@ -4,8 +4,6 @@
 
 package com.github.copilot;
 
-import org.junit.jupiter.api.Tag;
-
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.HashSet;
@@ -24,6 +22,7 @@ import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.NamedProviderConfig;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.ProviderModelConfig;
+import com.github.copilot.rpc.SessionConfig;
 
 /**
  * End-to-end coverage for the experimental multi-provider BYOK registry
@@ -33,7 +32,6 @@ import com.github.copilot.rpc.ProviderModelConfig;
  * launched, and route inference to the configured provider with the configured
  * wire model and headers.
  */
-@Tag("e2e")
 public class MultiProviderRegistryE2ETest {
 
     private static E2ETestContext ctx;
@@ -94,7 +92,7 @@ public class MultiProviderRegistryE2ETest {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(ctx.newSessionConfig().setProviders(registryProviders()).setModels(registryModels())
+                    .createSession(new SessionConfig().setProviders(registryProviders()).setModels(registryModels())
                             .setCustomAgents(registryAgents()).setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
                     .get();
 
@@ -168,7 +166,7 @@ public class MultiProviderRegistryE2ETest {
                     new ProviderModelConfig().setId("haiku").setProvider("alpha").setWireModel("byok-gpt-4o-mini"),
                     new ProviderModelConfig().setId("turbo").setProvider("delta").setWireModel("byok-gpt-4-turbo"));
 
-            CopilotSession session = client.createSession(ctx.newSessionConfig().setModel(selectionId)
+            CopilotSession session = client.createSession(new SessionConfig().setModel(selectionId)
                     .setProviders(providers).setModels(models).setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
                     .get();
 

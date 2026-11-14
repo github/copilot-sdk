@@ -79,6 +79,16 @@ fn validate_tool_filter_list_accepts_only_qualified_wildcards() {
 }
 
 #[test]
+fn builtin_tools_isolated_contents() {
+    assert!(BUILTIN_TOOLS_ISOLATED.contains(&"ask_user"));
+    assert!(BUILTIN_TOOLS_ISOLATED.contains(&"task_complete"));
+    assert!(BUILTIN_TOOLS_ISOLATED.contains(&"skill"));
+    assert!(!BUILTIN_TOOLS_ISOLATED.contains(&"bash"));
+    assert!(!BUILTIN_TOOLS_ISOLATED.contains(&"edit"));
+    assert!(!BUILTIN_TOOLS_ISOLATED.contains(&"web_fetch"));
+}
+
+#[test]
 fn system_message_copilot_cli_passes_through_unchanged() {
     let cfg = SystemMessageConfig {
         mode: Some("append".to_string()),

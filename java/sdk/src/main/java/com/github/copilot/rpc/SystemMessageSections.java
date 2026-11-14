@@ -6,7 +6,7 @@ package com.github.copilot.rpc;
 
 /**
  * Well-known system message section identifiers for use with
- * {@link com.github.copilot.SystemMessageMode#CUSTOMIZE} mode.
+ * {@link SystemMessageMode#CUSTOMIZE} mode.
  * <p>
  * Each constant names a section of the default Copilot system message. Pass
  * these as keys in the {@code sections} map of {@link SystemMessageConfig} to

@@ -203,34 +203,6 @@ class CopilotRequestHandlerProtocolTest {
         }
     }
 
-    @org.junit.jupiter.api.Test
-    void framesAfterRequestFinishedAreIgnored() throws Exception {
-        var handler = new MetadataHandler(false);
-        try (var peer = new ProtocolPeer(handler)) {
-            peer.startRequest("finished", null, false);
-            peer.sendChunk("finished", "request-body", null, true);
-            peer.ack(peer.nextMethod());
-            JsonNode end = peer.nextMethod();
-            assertTrue(end.path("params").path("end").asBoolean());
-            peer.ack(end);
-
-            Map<?, ?> pending = peer.pendingRequests();
-            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(DEADLINE_SECONDS);
-            while (!pending.isEmpty() && System.nanoTime() < deadline) {
-                Thread.sleep(10);
-            }
-            assertTrue(pending.isEmpty(), "finished request was not removed: " + pending.keySet());
-
-            // Frames the runtime can still send, such as its cancel of a response it
-            // rejected over the size limit after the handler ended it.
-            ObjectNode cancel = MAPPER.createObjectNode().put("requestId", "finished").put("data", "")
-                    .put("cancel", true).put("end", true);
-            peer.expectSuccessfulResponse(peer.request("llmInference.httpRequestChunk", cancel));
-            peer.expectSuccessfulResponse(peer.sendChunk("finished", "late", null, false));
-            assertTrue(pending.isEmpty(), "late frames left entries: " + pending.keySet());
-        }
-    }
-
     @ParameterizedTest
     @NullSource
     @ValueSource(strings = {"logical-invocation", ""})
@@ -242,7 +214,6 @@ class CopilotRequestHandlerProtocolTest {
                 peer.sendChunk(requestId, "request-body", null, true);
                 JsonNode head = peer.nextMethod();
                 assertEquals(200, head.path("params").path("status").asInt());
-                assertEquals("present", head.path("params").path("headers").path("x-response").get(0).asText());
                 peer.ack(head);
                 JsonNode end = peer.nextMethod();
                 assertTrue(end.path("params").path("end").asBoolean());
@@ -273,7 +244,6 @@ class CopilotRequestHandlerProtocolTest {
             peer.startRequest("reused-socket", "opening-invocation", true);
             JsonNode head = peer.nextMethod();
             assertEquals(101, head.path("params").path("status").asInt());
-            assertFalse(head.path("params").has("headers"), head.toString());
             peer.ack(head);
             CopilotRequestContext connection = handler.contexts.poll(DEADLINE_SECONDS, TimeUnit.SECONDS);
             assertNotNull(connection);
@@ -403,11 +373,11 @@ class CopilotRequestHandlerProtocolTest {
             request("llmInference.httpRequestStart", params);
         }
 
-        int sendChunk(String requestId, String data, String invocationId, boolean end) throws Exception {
-            return sendChunk(requestId, data, invocationId, end, false);
+        void sendChunk(String requestId, String data, String invocationId, boolean end) throws Exception {
+            sendChunk(requestId, data, invocationId, end, false);
         }
 
-        int sendChunk(String requestId, String data, String invocationId, boolean end, boolean binary)
+        void sendChunk(String requestId, String data, String invocationId, boolean end, boolean binary)
                 throws Exception {
             if (binary) {
                 data = Base64.getEncoder().encodeToString(data.getBytes(StandardCharsets.UTF_8));
@@ -417,86 +387,35 @@ class CopilotRequestHandlerProtocolTest {
             if (invocationId != null) {
                 params.put("agentInvocationId", invocationId);
             }
-            return request("llmInference.httpRequestChunk", params);
+            request("llmInference.httpRequestChunk", params);
         }
 
-        Map<?, ?> pendingRequests() throws Exception {
-            var future = (java.util.concurrent.CompletableFuture<?>) field(client, "connectionFuture");
-            Object connection = future.get(DEADLINE_SECONDS, TimeUnit.SECONDS);
-            JsonRpcClient rpc = (JsonRpcClient) fieldOfType(connection, JsonRpcClient.class);
-            var handlers = (Map<?, ?>) field(rpc, "notificationHandlers");
-            Object lambda = handlers.get("llmInference.httpRequestChunk");
-            Object adapter = fieldOfType(lambda, LlmInferenceAdapter.class);
-            return (Map<?, ?>) field(adapter, "pending");
-        }
-
-        private static Object field(Object owner, String name) throws Exception {
-            for (Class<?> c = owner.getClass(); c != null; c = c.getSuperclass()) {
-                try {
-                    var f = c.getDeclaredField(name);
-                    f.setAccessible(true);
-                    return f.get(owner);
-                } catch (NoSuchFieldException e) {
-                    // keep looking in the superclass
-                }
-            }
-            throw new NoSuchFieldException(name);
-        }
-
-        private static Object fieldOfType(Object owner, Class<?> type) throws Exception {
-            for (var f : owner.getClass().getDeclaredFields()) {
-                f.setAccessible(true);
-                Object value = f.get(owner);
-                if (type.isInstance(value)) {
-                    return value;
-                }
-            }
-            throw new NoSuchFieldException(type.getName() + " in " + owner.getClass());
-        }
-
-        int request(String method, JsonNode params) throws Exception {
-            int id = nextId++;
-            ObjectNode frame = MAPPER.createObjectNode().put("jsonrpc", "2.0").put("id", id).put("method", method);
+        void request(String method, JsonNode params) throws Exception {
+            ObjectNode frame = MAPPER.createObjectNode().put("jsonrpc", "2.0").put("id", nextId++).put("method",
+                    method);
             frame.set("params", params);
             write(frame);
-            return id;
-        }
-
-        void expectSuccessfulResponse(int id) throws Exception {
-            while (true) {
-                JsonNode frame = readFrame();
-                assertFalse(frame.has("method"), frame.toString());
-                assertFalse(frame.has("error"), frame.toString());
-                assertTrue(frame.has("result"), frame.toString());
-                if (frame.path("id").asInt() == id) {
-                    return;
-                }
-            }
         }
 
         JsonNode nextMethod() throws Exception {
             while (true) {
-                JsonNode frame = readFrame();
+                InputStream in = socket.getInputStream();
+                var header = new ByteArrayOutputStream();
+                while (!header.toString(StandardCharsets.US_ASCII).endsWith("\r\n\r\n")) {
+                    int b = in.read();
+                    assertNotEquals(-1, b, "Unexpected protocol EOF");
+                    header.write(b);
+                }
+                String text = header.toString(StandardCharsets.US_ASCII);
+                int length = Integer.parseInt(text.split("\r\n")[0].split(":")[1].trim());
+                byte[] body = in.readNBytes(length);
+                assertEquals(length, body.length);
+                JsonNode frame = MAPPER.readTree(body);
                 if (frame.has("method")) {
                     return frame;
                 }
                 assertFalse(frame.has("error"), frame.toString());
             }
-        }
-
-        private JsonNode readFrame() throws Exception {
-            InputStream in = socket.getInputStream();
-            var header = new ByteArrayOutputStream();
-            while (!header.toString(StandardCharsets.US_ASCII).endsWith("\r\n\r\n")) {
-                int b = in.read();
-                assertNotEquals(-1, b, "Unexpected protocol EOF");
-                header.write(b);
-            }
-            String text = header.toString(StandardCharsets.US_ASCII);
-            int length = Integer.parseInt(text.split("\r\n")[0].split(":")[1].trim());
-            byte[] body = in.readNBytes(length);
-            assertEquals(length, body.length);
-            return MAPPER.readTree(body);
         }
 
         void ack(JsonNode frame) throws Exception {
@@ -540,7 +459,7 @@ class CopilotRequestHandlerProtocolTest {
         }
         @Override
         public HttpHeaders headers() {
-            return HttpHeaders.of(Map.of("x-response", List.of("present")), (name, value) -> true);
+            return HttpHeaders.of(Map.of(), (name, value) -> true);
         }
         @Override
         public Optional<SSLSession> sslSession() {

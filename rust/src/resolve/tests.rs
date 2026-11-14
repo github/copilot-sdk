@@ -26,25 +26,3 @@ fn runtime_pair_requires_adjacent_nonempty_runtime_node() {
     fs::write(dir.path().join("runtime.node"), b"runtime").expect("write runtime.node");
     validate_runtime_pair(&wrapper).expect("complete pair is valid");
 }
-
-#[cfg(has_bundled_cli)]
-#[test]
-fn bundled_runtime_extraction_failure_names_the_directory() {
-    let fixture = tempdir().expect("temp dir");
-    let extract_dir = fixture.path().join("extract");
-    fs::write(&extract_dir, b"not a directory").expect("block extraction directory");
-
-    let message = super::bundled_program(Some(&extract_dir), true)
-        .expect_err("blocked extraction must fail")
-        .to_string();
-    assert!(
-        message.contains(&extract_dir.display().to_string()),
-        "{message}"
-    );
-
-    fs::remove_file(&extract_dir).expect("unblock extraction directory");
-    let runtime = super::bundled_program(Some(&extract_dir), true)
-        .expect("retry after unblocking extraction directory")
-        .expect("runtime is bundled");
-    assert!(runtime.starts_with(&extract_dir), "{}", runtime.display());
-}

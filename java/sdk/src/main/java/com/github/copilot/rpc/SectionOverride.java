@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * Override operation for a single system message section in
- * {@link com.github.copilot.SystemMessageMode#CUSTOMIZE} mode.
+ * {@link SystemMessageMode#CUSTOMIZE} mode.
  * <p>
  * Each {@code SectionOverride} describes how one named section of the default
  * system message should be modified. The section name keys come from

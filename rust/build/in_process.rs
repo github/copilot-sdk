@@ -15,6 +15,8 @@ mod openssl_linkage;
 
 #[cfg(any(target_os = "linux", test))]
 use openssl_linkage::require_dynamic_openssl;
+#[cfg(test)]
+use openssl_linkage::require_openssl_3;
 
 #[path = "../src/cache_paths.rs"]
 mod cache_paths;
@@ -169,8 +171,7 @@ pub(crate) fn main() {
         // recomputes this same path from `COPILOT_SDK_CLI_CACHE_ID` + the
         // OS-derived binary name + optional `COPILOT_CLI_EXTRACT_DIR`,
         // so we don't bake an absolute path into the crate.
-        let install_dir = cache_paths::extracted_runtime_install_dir(&cache_identity)
-            .unwrap_or_else(|error| panic!("cannot select runtime extraction directory: {error}"));
+        let install_dir = cache_paths::extracted_runtime_install_dir(&cache_identity);
         let required_paths = [
             install_dir.join(platform.runtime_wrapper_name()),
             install_dir.join("runtime.node"),
@@ -1093,11 +1094,7 @@ fn archive_tar_entry_size(targz: &[u8], binary_name: &str) -> Option<u64> {
             continue;
         };
         let name = path.to_string_lossy();
-        if name == binary_name
-            || name
-                .strip_suffix(binary_name)
-                .is_some_and(|prefix| prefix.ends_with('/'))
-        {
+        if name == binary_name || name.ends_with(&format!("/{binary_name}")) {
             return Some(entry.size());
         }
     }
@@ -1114,22 +1111,17 @@ fn archive_zip_entry_size(zip_bytes: &[u8], binary_name: &str) -> Option<u64> {
             let name = entry
                 .name()
                 .unwrap_or_else(|e| panic!("failed to read zip entry {index} name: {e}"));
-            (name == binary_name
-                || name
-                    .strip_suffix(binary_name)
-                    .is_some_and(|prefix| prefix.ends_with('/')))
-            .then(|| entry.size())
+            (name == binary_name || name.ends_with(&format!("/{binary_name}")))
+                .then(|| entry.size())
         })
     })
 }
 
 fn verify_hash(data: &[u8], expected: &str) -> bool {
-    use std::fmt::Write as _;
-
-    let mut actual = String::with_capacity(64);
-    for byte in archive_hash::sha256(data) {
-        write!(actual, "{byte:02x}").expect("writing to a String cannot fail");
-    }
+    let actual: String = archive_hash::sha256(data)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
     actual == expected
 }
 

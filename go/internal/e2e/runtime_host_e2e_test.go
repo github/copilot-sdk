@@ -67,7 +67,7 @@ func connectAhpTest(t *testing.T, ahp *testharness.AhpTestClient, host *copilot.
 }
 
 type ahpApplication struct {
-	client   *testharness.Client
+	client   *copilot.Client
 	workDir  string
 	session  atomic.Pointer[copilot.Session]
 	creates  atomic.Int32
@@ -80,7 +80,7 @@ type ahpApplication struct {
 	exited   chan copilot.AhpHostExit
 }
 
-func newAhpApplication(client *testharness.Client, workDir string) *ahpApplication {
+func newAhpApplication(client *copilot.Client, workDir string) *ahpApplication {
 	return &ahpApplication{
 		client: client, workDir: workDir,
 		released: make(chan *copilot.Session, 4), exited: make(chan copilot.AhpHostExit, 4),
@@ -119,7 +119,6 @@ func (a *ahpApplication) createConfig(config *copilot.SessionConfig) {
 func (a *ahpApplication) options() *copilot.AhpHostOptions {
 	return &copilot.AhpHostOptions{
 		Authentication:           copilot.AhpHostAuthentication{Mode: "github"},
-		Workspace:                &a.workDir,
 		LocalServer:              &rpc.HostLocalServerOptions{},
 		AllowCreatingNewSessions: copilot.Bool(true),
 		CreateSession: func(ctx context.Context, request copilot.AhpSessionCreateRequest) (*copilot.Session, error) {
@@ -198,7 +197,6 @@ func awaitAhpRelease(t *testing.T, app *ahpApplication) {
 }
 
 func TestRuntimeHostE2E(t *testing.T) {
-	t.Parallel()
 	if os.Getenv("COPILOT_RUNTIME_HOST_E2E") != "1" {
 		t.Skip("Requires an integrated runtime; set COPILOT_RUNTIME_HOST_E2E=1")
 	}

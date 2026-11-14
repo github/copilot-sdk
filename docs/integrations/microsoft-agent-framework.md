@@ -84,7 +84,7 @@ await using var copilotClient = new CopilotClient();
 await copilotClient.StartAsync();
 
 // Wrap as a MAF agent
-AIAgent agent = copilotClient.AsAIAgent(new SessionConfig { Model = "auto" });
+AIAgent agent = copilotClient.AsAIAgent(new SessionConfig { Model = "gpt-5.4" });
 
 // Use the standard MAF interface
 AgentResponse response = await agent.RunAsync("Explain how dependency injection works in ASP.NET Core");
@@ -123,7 +123,7 @@ var client = new CopilotClient();
 client.start().get();
 
 var session = client.createSession(new SessionConfig()
-    .setModel("auto")
+    .setModel("gpt-5.4")
     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
 ).get();
 
@@ -219,7 +219,7 @@ const getWeather = defineTool("GetWeather", {
 
 const client = new CopilotClient();
 const session = await client.createSession({
-    model: "auto",
+    model: "gpt-5.4",
     tools: [getWeather],
     onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
@@ -257,7 +257,7 @@ try (var client = new CopilotClient()) {
     client.start().get();
 
     var session = client.createSession(new SessionConfig()
-        .setModel("auto")
+        .setModel("gpt-5.4")
         .setTools(List.of(getWeather))
         .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
     ).get();
@@ -364,7 +364,7 @@ client.start().get();
 
 // Step 1: Code review session
 var reviewer = client.createSession(new SessionConfig()
-    .setModel("auto")
+    .setModel("gpt-5.4")
     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
 ).get();
 
@@ -374,7 +374,7 @@ var review = reviewer.sendAndWait(new MessageOptions()
 
 // Step 2: Documentation session using review output
 var documentor = client.createSession(new SessionConfig()
-    .setModel("auto")
+    .setModel("gpt-5.4")
     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
 ).get();
 
@@ -436,12 +436,12 @@ var client = new CopilotClient();
 client.start().get();
 
 var securitySession = client.createSession(new SessionConfig()
-    .setModel("auto")
+    .setModel("gpt-5.4")
     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
 ).get();
 
 var perfSession = client.createSession(new SessionConfig()
-    .setModel("auto")
+    .setModel("gpt-5.4")
     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
 ).get();
 
@@ -476,7 +476,7 @@ using Microsoft.Agents.AI;
 await using var copilotClient = new CopilotClient();
 await copilotClient.StartAsync();
 
-AIAgent agent = copilotClient.AsAIAgent(new SessionConfig { Model = "auto" });
+AIAgent agent = copilotClient.AsAIAgent(new SessionConfig { Model = "gpt-5.4" });
 
 await foreach (AgentResponseUpdate update in agent.RunStreamingAsync("Write a quicksort implementation in C#"))
 {
@@ -516,7 +516,7 @@ import { CopilotClient } from "@github/copilot-sdk";
 
 const client = new CopilotClient();
 const session = await client.createSession({
-    model: "auto",
+    model: "gpt-5.4",
     streaming: true,
     onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
@@ -542,7 +542,7 @@ var client = new CopilotClient();
 client.start().get();
 
 var session = client.createSession(new SessionConfig()
-    .setModel("auto")
+    .setModel("gpt-5.4")
     .setStreaming(true)
     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
 ).get();
@@ -597,7 +597,7 @@ import { CopilotClient } from "@github/copilot-sdk";
 
 const client = new CopilotClient();
 const session = await client.createSession({
-    model: "auto",
+    model: "gpt-5.4",
     onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 const response = await session.sendAndWait({ prompt: "Explain this code" });
@@ -607,16 +607,15 @@ const response = await session.sendAndWait({ prompt: "Explain this code" });
 
 When building multi-agent workflows, give each agent a specific role with clear instructions. Avoid overlapping responsibilities:
 
-<!-- docs-validate: strict -->
 ```typescript
 // ❌ Too vague — overlapping roles
-const vagueAgents = [
+const agents = [
     { instructions: "Help with code" },
     { instructions: "Assist with programming" },
 ];
 
 // ✅ Focused — clear separation of concerns
-const focusedAgents = [
+const agents = [
     { instructions: "Review code for security vulnerabilities. Flag SQL injection, XSS, and auth issues." },
     { instructions: "Optimize code performance. Focus on algorithmic complexity and memory usage." },
 ];

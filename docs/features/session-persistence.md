@@ -4,7 +4,7 @@ This guide walks you through the SDK's session persistence capabilities—how to
 
 ## How sessions work
 
-When you create a session, the Copilot CLI maintains conversation history, tool state, and planning context. The runtime saves this state to disk once the session handles its first message, so you can resume sessions across restarts, container migrations, or even different client instances.
+When you create a session, the Copilot CLI maintains conversation history, tool state, and planning context. By default, this state lives in memory and disappears when the session ends. With persistence enabled, you can resume sessions across restarts, container migrations, or even different client instances.
 
 ```mermaid
 flowchart LR
@@ -21,7 +21,7 @@ flowchart LR
 
 ## Quick start: creating a resumable session
 
-Every session that has handled a message is resumable by its ID. Without your own `session_id`, one is generated for you (read it from `session.sessionId` in TypeScript), so you must store it yourself. Providing your own ID lets you derive it from your application's data instead.
+The key to resumable sessions is providing your own `session_id`. Without one, the SDK generates a random ID and the session can't be resumed later.
 
 ### TypeScript
 
@@ -70,22 +70,22 @@ package main
 import (
 	"context"
 	copilot "github.com/github/copilot-sdk/go"
+	"github.com/github/copilot-sdk/go/rpc"
 )
 
 func main() {
 	ctx := context.Background()
 	client := copilot.NewClient(nil)
 
-	// Create a session with a meaningful ID
 	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
 		SessionID: "user-123-task-456",
 		Model:     "gpt-5.2-codex",
+		OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
+			return &rpc.PermissionDecisionApproveOnce{}, nil
+		},
 	})
 
-	// Do some work...
 	session.SendAndWait(ctx, copilot.MessageOptions{Prompt: "Analyze my codebase"})
-
-	// Session state is automatically persisted
 	_ = session
 }
 ```
@@ -321,7 +321,6 @@ When resuming a session, you can optionally reconfigure many settings. This is u
 | `excludedTools` | Disable specific tools |
 | `provider` | Re-provide BYOK credentials (required for BYOK sessions) |
 | `capi.autoTier` | Override the persisted Auto routing preference |
-| `capi.fusionTier` | Override the persisted Auto routing preference with a Copilot Fusion tier |
 | `capi.enableWebSocketResponses` | Choose the Responses API transport for the resumed session |
 | `reasoningEffort` | Adjust reasoning effort level |
 | `streaming` | Enable/disable streaming responses |
@@ -407,45 +406,6 @@ To select the `auto` model and its routing preference in a single call, stage th
 
 Node.js, Python, and Rust express all three states in a single value: Node.js and Python because `null`/`None` is distinguishable from an omitted argument, and Rust because `AutoTierPreference::Reset` is a distinct variant of the same option. Go, .NET, and Java have no way to distinguish "reset" from "unset" in one value, so they carry a separate reset flag. Omitting both always means "leave the current preference alone."
 
-### Copilot Fusion names
-
-The SDK accepts the same Copilot Fusion names as the CLI. `model: "fusion"` (case-insensitive) selects Copilot Fusion, and `fusionTier` selects its tier: `standard`, `high`, or `max`. Together they behave like `copilot --model fusion --fusion-tier <tier>`.
-
-<!-- docs-validate: strict -->
-```typescript
-import { approveAll } from "@github/copilot-sdk";
-
-const session = await client.createSession({
-  model: "fusion",
-  capi: { fusionTier: "high" },
-  onPermissionRequest: approveAll,
-});
-```
-
-The runtime resolves each tier to the Auto routing preference it stands for, using the same runtime-owned bindings as the CLI's `--fusion-tier`, and then handles it exactly like `autoTier`. The runtime owns these bindings and can change them. Currently they are:
-
-| Fusion tier | Auto routing preference |
-|-------------|-------------------------|
-| `standard` | `balance` |
-| `high` | `hydrafusion` |
-| `max` | `hydrafusion-max` |
-
-The selected model is reported as `auto`, and `model.getCurrent`, `session.model_change`, `session.start`, and `session.resume` report the resolved preference as `autoTier`. The runtime rejects `fusionTier` when it is combined with `autoTier` (including `autoTier: null`), when it is not one of the three tier names, or, on a model switch, when the model is not `fusion` or `auto`. Remote sessions reject `model: "fusion"`.
-
-| SDK | Create or resume | Stage a tier with the switch | Change the tier |
-|-----|------------------|------------------------------|-----------------|
-| Node.js | `capi: { fusionTier: "high" }` | `setModel("fusion", { fusionTier: "high" })` | `session.setFusionTier("high")` |
-| Python | `capi={"fusion_tier": "high"}` | `set_model("fusion", fusion_tier="high")` | `session.set_fusion_tier("high")` |
-| Go | `&CapiSessionOptions{FusionTier: copilot.FusionTierHigh}` | `SetModelOptions{FusionTier: &tier}` | `session.SetFusionTier(ctx, copilot.FusionTierHigh)` |
-| .NET | `new CapiSessionOptions { FusionTier = FusionTier.High }` | `new SetModelOptions { FusionTier = FusionTier.High }` | `session.SetFusionTierAsync(FusionTier.High)` |
-| Rust | `CapiSessionOptions::new().with_fusion_tier(FusionTier::High)` | `SetModelOptions::default().with_fusion_tier(FusionTier::High)` | `session.set_fusion_tier(FusionTier::High)` |
-| Java | `new CapiSessionOptions().setFusionTier(FusionTier.HIGH)` | `new SetModelOptions().setModel("fusion").setFusionTier(FusionTier.HIGH)` | `session.setFusionTier(FusionTier.HIGH)` |
-
-To return to the provider's default routing, use `setAutoTier` with `null`, as described in the previous section.
-
-> [!NOTE]
-> The routing identifiers that the Fusion tiers replace are deprecated: `autoTier` values `balance`, `hydrafusion`, and `hydrafusion-max`, and `model: "hydrafusion"` or `model: "hydrafusion-max"`. They remain accepted and behave as before. Use `model: "fusion"` with `fusionTier` instead.
-
 ### Responses transport on resume
 
 The optional `capi.enableWebSocketResponses` setting chooses the transport for the CAPI Responses API. It defaults to `true`, so the WebSocket transport is used whenever the selected model advertises the `ws:/responses` endpoint. Setting it to `false` falls back to the HTTP transport. In Python, use `capi={"enable_web_socket_responses": False}`.
@@ -505,12 +465,10 @@ Session state is saved to `~/.copilot/session-state/{sessionId}/`:
 ```
 ~/.copilot/session-state/
 └── user-123-task-456/
-    ├── events.jsonl          # Conversation history (session event log)
-    ├── workspace.yaml        # Session metadata
-    ├── checkpoints/          # Compaction summaries
-    │   ├── index.md          # Checkpoint index
-    │   ├── 001-<title>.md    # Written when the conversation is compacted
-    │   └── ...
+    ├── checkpoints/           # Conversation history snapshots
+    │   ├── 001.json          # Initial state
+    │   ├── 002.json          # After first interaction
+    │   └── ...               # Incremental checkpoints
     ├── plan.md               # Agent's planning state (if any)
     └── files/                # Session artifacts
         ├── analysis.md       # Files the agent created
@@ -713,8 +671,6 @@ await client.deleteSession("user-123-task-456");
 By default, sessions have **no idle timeout** and live indefinitely until explicitly disconnected or deleted. You can optionally configure a server-wide idle timeout via `CopilotClientOptions.sessionIdleTimeoutSeconds`:
 
 ```typescript
-import { CopilotClient } from "@github/copilot-sdk";
-
 const client = new CopilotClient({
   sessionIdleTimeoutSeconds: 30 * 60, // 30 minutes
 });
@@ -780,14 +736,12 @@ flowchart LR
 * ⚠️ Session ID validation before operations
 
 ```typescript
-import { CopilotClient, CopilotSession } from "@github/copilot-sdk";
-
 // Application-level access control for shared CLI
 async function resumeSessionWithAuth(
   client: CopilotClient,
   sessionId: string,
   currentUserId: string
-): Promise<CopilotSession> {
+): Promise<Session> {
   // Parse user from session ID
   const [sessionUserId] = sessionId.split("-");
   
@@ -872,7 +826,7 @@ The SDK doesn't provide built-in session locking. If multiple clients might acce
 
 ```typescript
 // Option 1: Application-level locking with Redis
-import { Redis } from "ioredis";
+import Redis from "ioredis";
 
 const redis = new Redis();
 
@@ -881,7 +835,7 @@ async function withSessionLock<T>(
   fn: () => Promise<T>
 ): Promise<T> {
   const lockKey = `session-lock:${sessionId}`;
-  const acquired = await redis.set(lockKey, "locked", "EX", 300, "NX");
+  const acquired = await redis.set(lockKey, "locked", "NX", "EX", 300);
   
   if (!acquired) {
     throw new Error("Session is in use by another client");
@@ -905,7 +859,7 @@ await withSessionLock("user-123-task-456", async () => {
 
 | Feature | How to Use |
 |---------|------------|
-| **Create resumable session** | Create a session and send a message; provide your own `sessionId` to choose the ID |
+| **Create resumable session** | Provide your own `sessionId` |
 | **Resume session** | `client.resumeSession(sessionId, config)` |
 | **BYOK resume** | Re-provide `provider` config |
 | **List sessions** | `client.listSessions(filter?)` |

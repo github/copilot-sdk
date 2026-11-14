@@ -69,6 +69,6 @@ rust_library(
     deps = [
         "@sdk_vendor__block-buffer-0.12.1//:block_buffer",
         "@sdk_vendor__crypto-common-0.2.2//:crypto_common",
-        "@sdk_vendor__inout-0.2.6//:inout",
+        "@sdk_vendor__inout-0.2.5//:inout",
     ],
 )

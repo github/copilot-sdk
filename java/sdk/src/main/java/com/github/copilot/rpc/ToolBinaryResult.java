@@ -29,7 +29,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * @param description
  *            the content description, helps the assistant understand the
  *            content
- * @see ToolResultObject#binaryResultsForLlm()
+ * @see ToolResultObject#setBinaryResultsForLlm(java.util.List)
  * @since 1.0.0
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)

@@ -51,7 +51,7 @@ async fn typed_admission_preserves_each_required_union_payload() {
         let (server_read, server_write) = tokio::io::split(server_stream);
         let client =
             Client::from_streams(client_read, client_write, home.path().to_owned()).unwrap();
-        let (notifications, _) = tokio::sync::mpsc::unbounded_channel();
+        let (notifications, _) = tokio::sync::broadcast::channel(1);
         let (requests, _) = tokio::sync::mpsc::unbounded_channel();
         let server =
             jsonrpc::JsonRpcClient::new(server_write, server_read, notifications, requests);

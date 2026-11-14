@@ -6,7 +6,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,499 +16,18 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
-	"runtime"
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/github/copilot-sdk/go/internal/embeddedcli"
 	"github.com/github/copilot-sdk/go/internal/jsonrpc2"
 	"github.com/github/copilot-sdk/go/internal/truncbuffer"
 	"github.com/github/copilot-sdk/go/rpc"
 )
 
 // This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.test.go instead
-
-func TestClientReconnectsAfterTransportLoss(t *testing.T) {
-	for _, action := range []string{"start", "create"} {
-		t.Run(action, func(t *testing.T) {
-			listener, err := net.ListenTCP("tcp", &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1)})
-			if err != nil {
-				t.Fatal(err)
-			}
-			t.Cleanup(func() { listener.Close() })
-			oldSession, _ := newSetToolsTestSession(t)
-			oldSession.client.Stop()
-			client := NewClient(&ClientOptions{Connection: URIConnection{URL: listener.Addr().String()}})
-			client.client = oldSession.client
-			if action == "start" {
-				client.state = stateConnected
-			}
-			t.Cleanup(client.ForceStop)
-			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
-			defer cancel()
-			completed := make(chan error, 1)
-			go func() {
-				if action == "start" {
-					completed <- client.Start(ctx)
-				} else {
-					_, err := client.CreateSession(ctx, &SessionConfig{SessionID: "reconnected"})
-					completed <- err
-				}
-			}()
-			if err := listener.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
-				t.Fatal(err)
-			}
-			conn, err := listener.Accept()
-			if err != nil {
-				t.Fatal("client did not reconnect:", err)
-			}
-			t.Cleanup(func() { conn.Close() })
-			peer := &installationConfirmationPeer{t: t, conn: conn, reader: bufio.NewReader(conn)}
-			connect := peer.readMessage()
-			if connect.Method != "connect" {
-				t.Fatalf("first request = %q, want connect", connect.Method)
-			}
-			peer.write(map[string]any{"jsonrpc": "2.0", "id": connect.ID, "result": map[string]any{
-				"ok": true, "protocolVersion": SDKProtocolVersion, "version": "test",
-			}})
-			if action == "create" {
-				create := peer.readMessage()
-				if create.Method != "session.create" {
-					t.Fatalf("request = %q, want session.create", create.Method)
-				}
-				peer.write(map[string]any{"jsonrpc": "2.0", "id": create.ID, "result": map[string]any{"sessionId": "reconnected"}})
-			}
-			select {
-			case err := <-completed:
-				if err != nil {
-					t.Fatal("request after reconnect:", err)
-				}
-			case <-ctx.Done():
-				t.Fatal("request did not finish:", ctx.Err())
-			}
-		})
-	}
-}
-
-func TestClientStartAfterTransportLossRetiresLostSessions(t *testing.T) {
-	listener, err := net.ListenTCP("tcp", &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1)})
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { listener.Close() })
-	clientConn, serverConn := net.Pipe()
-	t.Cleanup(func() {
-		clientConn.Close()
-		serverConn.Close()
-	})
-	lostTransport := jsonrpc2.NewClient(clientConn, clientConn)
-	client := NewClient(&ClientOptions{Connection: URIConnection{URL: listener.Addr().String()}})
-	t.Cleanup(client.ForceStop)
-	client.client, client.RPC, client.state = lostTransport, rpc.NewServerRPC(lostTransport), stateConnected
-	client.setupNotificationHandler()
-	lostTransport.Start()
-	lostPeer := &installationConfirmationPeer{t: t, conn: serverConn, reader: bufio.NewReader(serverConn)}
-	session := newSession("lost-session", lostTransport, "", false)
-	client.sessionsMux.Lock()
-	client.sessions[session.SessionID] = session
-	client.sessionsMux.Unlock()
-
-	// A runtime without session.sendAndWait leaves SendAndWait waiting for the
-	// idle event, which the lost connection never delivers.
-	waitDone := make(chan error, 1)
-	go func() {
-		_, err := session.SendAndWait(t.Context(), MessageOptions{Prompt: "hello"})
-		waitDone <- err
-	}()
-	completion := lostPeer.readMessage()
-	if completion.Method != "session.sendAndWait" {
-		t.Fatalf("request = %q, want session.sendAndWait", completion.Method)
-	}
-	lostPeer.write(map[string]any{"jsonrpc": "2.0", "id": completion.ID, "error": map[string]any{
-		"code": jsonrpc2.ErrMethodNotFound.Code, "message": "method not found",
-	}})
-	send := lostPeer.readMessage()
-	if send.Method != "session.send" {
-		t.Fatalf("request = %q, want session.send", send.Method)
-	}
-	lostPeer.write(map[string]any{"jsonrpc": "2.0", "id": send.ID, "result": map[string]any{"messageId": "message-1"}})
-	serverConn.Close()
-	select {
-	case <-lostTransport.ConnectionClosed():
-	case <-time.After(5 * time.Second):
-		t.Fatal("transport did not observe the lost connection")
-	}
-
-	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
-	defer cancel()
-	started := make(chan error, 1)
-	go func() { started <- client.Start(ctx) }()
-	if err := listener.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
-		t.Fatal(err)
-	}
-	conn, err := listener.Accept()
-	if err != nil {
-		t.Fatal("client did not reconnect:", err)
-	}
-	t.Cleanup(func() { conn.Close() })
-	peer := &installationConfirmationPeer{t: t, conn: conn, reader: bufio.NewReader(conn)}
-	connect := peer.readMessage()
-	if connect.Method != "connect" {
-		t.Fatalf("first request = %q, want connect", connect.Method)
-	}
-	peer.write(map[string]any{"jsonrpc": "2.0", "id": connect.ID, "result": map[string]any{
-		"ok": true, "protocolVersion": SDKProtocolVersion, "version": "test",
-	}})
-	if err := <-started; err != nil {
-		t.Fatal("Start after transport loss:", err)
-	}
-
-	client.sessionsMux.Lock()
-	_, resident := client.sessions[session.SessionID]
-	client.sessionsMux.Unlock()
-	if resident {
-		t.Error("Start kept the lost connection's session")
-	}
-	select {
-	case <-session.eventDone:
-	default:
-		t.Error("Start left the lost connection's session processing events")
-	}
-	select {
-	case err := <-waitDone:
-		if err == nil || !strings.Contains(err.Error(), "session closed before response completed") {
-			t.Fatalf("SendAndWait error = %v, want session closed before response completed", err)
-		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("SendAndWait on the lost session was still waiting after Start reconnected")
-	}
-}
-
-// TestClientExitingRuntimeProcess stands in for a runtime that publishes a
-// session lifecycle notification and exits when the next request arrives,
-// without answering it.
-func TestClientExitingRuntimeProcess(t *testing.T) {
-	if os.Getenv("GO_WANT_EXITING_RUNTIME") != "1" {
-		return
-	}
-	notification, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "method": "session.lifecycle", "params": map[string]any{
-		"type": "session.updated", "sessionId": "lifecycle-session",
-	}})
-	fmt.Fprintf(os.Stdout, "Content-Length: %d\r\n\r\n%s", len(notification), notification)
-	// Read the whole request before exiting: the client writes its header and
-	// body separately, and exiting between them fails the write with a broken
-	// pipe instead of the request with the runtime's exit.
-	_, _ = readTestJSONRPCFrame(os.Stdin)
-	os.Exit(3)
-}
-
-// connectRuntimeProcess connects client over stdio to the test binary running
-// helperTest, as Start does for a runtime it spawns.
-func connectRuntimeProcess(t *testing.T, client *Client, helperTest, env string) *jsonrpc2.Client {
-	t.Helper()
-	process := exec.Command(os.Args[0], "-test.run=^"+helperTest+"$")
-	process.Env = append(os.Environ(), env)
-	stdin, err := process.StdinPipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	stdout, err := process.StdoutPipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := process.Start(); err != nil {
-		t.Fatal(err)
-	}
-	client.process = process
-	client.processStdin = stdin
-	client.monitorProcess()
-	done := client.processDone
-	t.Cleanup(func() {
-		process.Process.Kill()
-		<-done
-	})
-	transport := jsonrpc2.NewClient(stdin, stdout)
-	transport.SetProcessDone(client.processDone, client.processErrorPtr)
-	client.client, client.RPC, client.internalRPC = transport, rpc.NewServerRPC(transport), rpc.NewInternalServerRPC(transport)
-	client.setupNotificationHandler()
-	transport.Start()
-	client.state = stateConnected
-	return transport
-}
-
-func TestClientStartAfterRuntimeExitReconnectsWhileReaderIsBusy(t *testing.T) {
-	client := NewClient(&ClientOptions{Connection: StdioConnection{Path: filepath.Join(t.TempDir(), "missing-runtime")}})
-	t.Cleanup(client.ForceStop)
-	release := make(chan struct{})
-	var releaseOnce sync.Once
-	releaseListener := func() { releaseOnce.Do(func() { close(release) }) }
-	// Cleanups run last-in first-out, so the listener is released before ForceStop joins the reader.
-	t.Cleanup(releaseListener)
-	listening := make(chan struct{}, 1)
-	client.On(func(SessionLifecycleEvent) {
-		select {
-		case listening <- struct{}{}:
-		default:
-		}
-		<-release
-	})
-	transport := connectRuntimeProcess(t, client, "TestClientExitingRuntimeProcess", "GO_WANT_EXITING_RUNTIME=1")
-
-	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
-	defer cancel()
-	select {
-	case <-listening:
-	case <-ctx.Done():
-		t.Fatal("the lifecycle listener did not run")
-	}
-	// The runtime exits on this request. The reader is still in the listener,
-	// so the request fails with the exit before the connection closes.
-	if _, err := client.Ping(ctx, ""); err == nil || !strings.Contains(err.Error(), "exit status 3") {
-		t.Fatalf("Ping error = %v, want the runtime's exit status", err)
-	}
-	select {
-	case <-transport.ConnectionClosed():
-		t.Fatal("the connection closed while the reader was in the listener")
-	default:
-	}
-
-	started := make(chan error, 1)
-	go func() { started <- client.Start(ctx) }()
-	ticker := time.NewTicker(time.Millisecond)
-	defer ticker.Stop()
-	var startErr error
-wait:
-	for {
-		select {
-		case startErr = <-started:
-			break wait
-		case <-ticker.C:
-			// Keep the reader busy until Start has retired the exited runtime,
-			// so Start cannot rely on the connection closing first.
-			if client.osProcess.Load() == nil {
-				releaseListener()
-			}
-		case <-ctx.Done():
-			t.Fatal("Start did not return:", ctx.Err())
-		}
-	}
-	if startErr == nil {
-		t.Fatal("Start returned nil without starting a new runtime after the runtime exited")
-	}
-	if !strings.Contains(startErr.Error(), "missing-runtime") {
-		t.Fatalf("Start error = %v, want the replacement runtime's start error", startErr)
-	}
-	// Start does not wait for the reader, which closes the exited runtime's
-	// connection once the listener returns.
-	releaseListener()
-	select {
-	case <-transport.ConnectionClosed():
-	case <-ctx.Done():
-		t.Error("Start kept the exited runtime's connection open")
-	}
-}
-
-func TestClientStartFromALifecycleListenerAfterRuntimeExit(t *testing.T) {
-	client := NewClient(&ClientOptions{Connection: StdioConnection{Path: filepath.Join(t.TempDir(), "missing-runtime")}})
-	t.Cleanup(client.ForceStop)
-	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
-	defer cancel()
-	listening := make(chan struct{})
-	pinged := make(chan struct{})
-	started := make(chan error, 1)
-	var transport *jsonrpc2.Client
-	var once sync.Once
-	client.On(func(SessionLifecycleEvent) {
-		once.Do(func() {
-			close(listening)
-			select {
-			case <-pinged:
-			case <-ctx.Done():
-				return
-			}
-			// The listener runs on the connection's reader, so Start must not
-			// wait for the reader to finish.
-			err := client.Start(context.Background())
-			select {
-			case <-transport.ConnectionClosed():
-			default:
-				t.Error("Start left the exited runtime's connection open while its reader was busy")
-			}
-			started <- err
-		})
-	})
-	transport = connectRuntimeProcess(t, client, "TestClientExitingRuntimeProcess", "GO_WANT_EXITING_RUNTIME=1")
-	// Wait until the reader has the notification: the runtime exits on the
-	// next request, and an unread notification is lost with its output.
-	select {
-	case <-listening:
-	case <-ctx.Done():
-		t.Fatal("the lifecycle listener did not run")
-	}
-
-	if _, err := client.Ping(ctx, ""); err == nil || !strings.Contains(err.Error(), "exit status 3") {
-		t.Fatalf("Ping error = %v, want the runtime's exit status", err)
-	}
-	close(pinged)
-	select {
-	case err := <-started:
-		if err == nil || !strings.Contains(err.Error(), "missing-runtime") {
-			t.Fatalf("Start error = %v, want the replacement runtime's start error", err)
-		}
-	case <-ctx.Done():
-		t.Fatal("Start called from a lifecycle listener did not return")
-	}
-}
-
-func TestClientStartKeepsTheConnectionToARunningRuntime(t *testing.T) {
-	client := NewClient(&ClientOptions{Connection: StdioConnection{Path: filepath.Join(t.TempDir(), "missing-runtime")}})
-	t.Cleanup(client.ForceStop)
-	transport := connectRuntimeProcess(t, client, "TestClientReconnectOwnerProcess", "GO_WANT_RECONNECT_OWNER=1")
-
-	if err := client.Start(t.Context()); err != nil {
-		t.Fatal("Start on a connected client:", err)
-	}
-	if client.client != transport {
-		t.Error("Start replaced the connection to a running runtime")
-	}
-	select {
-	case <-client.processDone:
-		t.Error("Start stopped a running runtime")
-	default:
-	}
-}
-
-type reconnectOwnerHost struct {
-	inProcessHost
-	disposed bool
-}
-
-func (h *reconnectOwnerHost) Dispose() { h.disposed = true }
-
-func TestClientReconnectOwnerProcess(t *testing.T) {
-	if os.Getenv("GO_WANT_RECONNECT_OWNER") != "1" {
-		return
-	}
-	_, _ = io.Copy(io.Discard, os.Stdin)
-	os.Exit(0)
-}
-
-func TestClientReconnectRetiresPreviousOwnerBeforeStarting(t *testing.T) {
-	for _, owner := range []string{"process", "exited process", "released process", "ffi"} {
-		t.Run(owner, func(t *testing.T) {
-			client := NewClient(&ClientOptions{Connection: StdioConnection{Path: filepath.Join(t.TempDir(), "missing-runtime")}})
-			t.Cleanup(client.ForceStop)
-			oldSession, _ := newSetToolsTestSession(t)
-			oldSession.client.Stop()
-			client.client = oldSession.client
-			client.state = stateConnected
-			var processDone <-chan struct{}
-			host := &reconnectOwnerHost{}
-			if owner == "ffi" {
-				client.ffiHost = host
-			} else {
-				process := exec.Command(os.Args[0], "-test.run=^TestClientReconnectOwnerProcess$")
-				process.Env = append(os.Environ(), "GO_WANT_RECONNECT_OWNER=1")
-				stdin, err := process.StdinPipe()
-				if err != nil {
-					t.Fatal(err)
-				}
-				t.Cleanup(func() { stdin.Close() })
-				if err := process.Start(); err != nil {
-					t.Fatal(err)
-				}
-				client.process = process
-				client.processStdin = stdin
-				client.monitorProcess()
-				processDone = client.processDone
-				t.Cleanup(func() {
-					process.Process.Kill()
-					<-processDone
-				})
-				if owner == "exited process" || owner == "released process" {
-					var released *os.Process
-					if owner == "released process" {
-						released, err = os.FindProcess(process.Process.Pid)
-						if err != nil {
-							t.Fatal(err)
-						}
-					}
-					stdin.Close()
-					<-processDone
-					if released != nil {
-						if err := released.Release(); err != nil {
-							t.Fatal(err)
-						}
-						client.osProcess.Store(released)
-					}
-				}
-			}
-
-			if err := client.Start(t.Context()); err == nil || !strings.Contains(err.Error(), "missing-runtime") {
-				t.Fatalf("Start error = %v, want the replacement executable error", err)
-			}
-			if owner == "ffi" {
-				if !host.disposed || client.ffiHost != nil {
-					t.Fatal("Start did not dispose the previous FFI host")
-				}
-			} else {
-				select {
-				case <-processDone:
-				default:
-					t.Fatal("Start did not reap the previous process")
-				}
-				if client.osProcess.Load() != nil {
-					t.Fatal("Start retained the previous process owner")
-				}
-			}
-		})
-	}
-}
-
-func TestClientReconnectRetainsOwnerAfterKillFailure(t *testing.T) {
-	client := NewClient(nil)
-	t.Cleanup(client.ForceStop)
-	process := exec.Command(os.Args[0], "-test.run=^TestClientReconnectOwnerProcess$")
-	process.Env = append(os.Environ(), "GO_WANT_RECONNECT_OWNER=1")
-	stdin, err := process.StdinPipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { stdin.Close() })
-	if err := process.Start(); err != nil {
-		t.Fatal(err)
-	}
-	client.process = process
-	client.monitorProcess()
-	done := client.processDone
-	t.Cleanup(func() {
-		process.Process.Kill()
-		<-done
-	})
-	released, err := os.FindProcess(process.Process.Pid)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := released.Release(); err != nil {
-		t.Fatal(err)
-	}
-	client.osProcess.Store(released)
-
-	for attempt := 1; attempt <= 2; attempt++ {
-		if err := client.killProcess(); err == nil {
-			t.Fatalf("kill attempt %d reported success with a released handle", attempt)
-		}
-		select {
-		case <-done:
-			t.Fatal("the runtime exited before retirement could be retried")
-		default:
-		}
-	}
-}
 
 func TestGetStatusResponseHostDiagnostics(t *testing.T) {
 	for _, state := range []string{"", "pending", "enabled", "disabled"} {
@@ -568,59 +86,13 @@ func TestResolveRuntimeExecutable(t *testing.T) {
 	})
 }
 
-func TestClientEmbeddedInstallFailure(t *testing.T) {
-	const childKey = "COPILOT_SDK_TEST_INSTALL_FAILURE"
-	if os.Getenv(childKey) != "1" {
-		cmd := exec.Command(os.Args[0], "-test.run=^TestClientEmbeddedInstallFailure$")
-		cmd.Env = setEnvValue(os.Environ(), childKey, "1")
-		if output, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("isolated embedded-cache test: %v\n%s", err, output)
-		}
-		return
-	}
-
-	t.Setenv("COPILOT_CLI_PATH", "")
-	tempDir := t.TempDir()
-	blockedDir := filepath.Join(tempDir, "not-a-directory")
-	if err := os.WriteFile(blockedDir, []byte("block installation"), 0600); err != nil {
-		t.Fatal(err)
-	}
-	cli, wrapper, node := []byte("cli"), []byte("wrapper"), []byte("node")
-	cliHash, wrapperHash, nodeHash := sha256.Sum256(cli), sha256.Sum256(wrapper), sha256.Sum256(node)
-	embeddedcli.Setup(embeddedcli.Config{
-		Cli:                   bytes.NewReader(cli),
-		CliHash:               cliHash[:],
-		RuntimeExecutable:     bytes.NewReader(wrapper),
-		RuntimeExecutableHash: wrapperHash[:],
-		RuntimeNode:           bytes.NewReader(node),
-		RuntimeNodeHash:       nodeHash[:],
-		Dir:                   blockedDir,
-	})
-	for name, connection := range map[string]RuntimeConnection{
-		"managed":   StdioConnection{},
-		"inprocess": InProcessConnection{},
-	} {
-		t.Run(name, func(t *testing.T) {
-			client := NewClient(&ClientOptions{Connection: connection})
-			err := client.Start(context.Background())
-			want := "creating install directory"
-			if name == "inprocess" && !inProcessAvailable {
-				want = "in-process transport unavailable"
-			}
-			if err == nil || !strings.Contains(err.Error(), want) {
-				t.Fatalf("Start must expose %q, got %v", want, err)
-			}
-		})
-	}
-}
-
 func TestClient_URLParsing(t *testing.T) {
 	t.Run("should parse port-only URL format", func(t *testing.T) {
 		client := NewClient(&ClientOptions{
 			Connection: URIConnection{URL: "8080"},
 		})
-		if client.RuntimePort() != 8080 {
-			t.Errorf("Expected port 8080, got %d", client.RuntimePort())
+		if client.actualPort != 8080 {
+			t.Errorf("Expected port 8080, got %d", client.actualPort)
 		}
 		if client.actualHost != "localhost" {
 			t.Errorf("Expected host localhost, got %s", client.actualHost)
@@ -634,8 +106,8 @@ func TestClient_URLParsing(t *testing.T) {
 		client := NewClient(&ClientOptions{
 			Connection: URIConnection{URL: "127.0.0.1:9000"},
 		})
-		if client.RuntimePort() != 9000 || client.actualHost != "127.0.0.1" {
-			t.Errorf("Expected 127.0.0.1:9000, got %s:%d", client.actualHost, client.RuntimePort())
+		if client.actualPort != 9000 || client.actualHost != "127.0.0.1" {
+			t.Errorf("Expected 127.0.0.1:9000, got %s:%d", client.actualHost, client.actualPort)
 		}
 	})
 
@@ -643,8 +115,8 @@ func TestClient_URLParsing(t *testing.T) {
 		client := NewClient(&ClientOptions{
 			Connection: URIConnection{URL: "[::1]:9000"},
 		})
-		if client.RuntimePort() != 9000 || client.actualHost != "::1" {
-			t.Errorf("Expected [::1]:9000, got %s:%d", client.actualHost, client.RuntimePort())
+		if client.actualPort != 9000 || client.actualHost != "::1" {
+			t.Errorf("Expected [::1]:9000, got %s:%d", client.actualHost, client.actualPort)
 		}
 	})
 
@@ -652,8 +124,8 @@ func TestClient_URLParsing(t *testing.T) {
 		client := NewClient(&ClientOptions{
 			Connection: URIConnection{URL: "http://localhost:7000"},
 		})
-		if client.RuntimePort() != 7000 || client.actualHost != "localhost" {
-			t.Errorf("Expected localhost:7000, got %s:%d", client.actualHost, client.RuntimePort())
+		if client.actualPort != 7000 || client.actualHost != "localhost" {
+			t.Errorf("Expected localhost:7000, got %s:%d", client.actualHost, client.actualPort)
 		}
 	})
 
@@ -661,8 +133,8 @@ func TestClient_URLParsing(t *testing.T) {
 		client := NewClient(&ClientOptions{
 			Connection: URIConnection{URL: "http://[::1]:7000"},
 		})
-		if client.RuntimePort() != 7000 || client.actualHost != "::1" {
-			t.Errorf("Expected [::1]:7000, got %s:%d", client.actualHost, client.RuntimePort())
+		if client.actualPort != 7000 || client.actualHost != "::1" {
+			t.Errorf("Expected [::1]:7000, got %s:%d", client.actualHost, client.actualPort)
 		}
 	})
 
@@ -675,29 +147,12 @@ func TestClient_URLParsing(t *testing.T) {
 		NewClient(&ClientOptions{Connection: URIConnection{URL: "[not-ipv6]:1234"}})
 	})
 
-	for _, url := range []string{
-		"https://example.com:443",
-		"HtTpS://example.com:443",
-		"https://[::1]:9000",
-		"https://localhost:9000",
-	} {
-		t.Run("should reject HTTPS URL "+url, func(t *testing.T) {
-			defer func() {
-				want := "HTTPS runtime connections are not supported: this transport uses plaintext TCP, not TLS"
-				if r := recover(); r != want {
-					t.Errorf("Expected panic %q, got %v", want, r)
-				}
-			}()
-			NewClient(&ClientOptions{
-				Connection: URIConnection{URL: url, ConnectionToken: "connection-secret"},
-			})
+	t.Run("should parse https://host:port URL format", func(t *testing.T) {
+		client := NewClient(&ClientOptions{
+			Connection: URIConnection{URL: "https://example.com:443"},
 		})
-	}
-
-	t.Run("should parse a host named https", func(t *testing.T) {
-		client := NewClient(&ClientOptions{Connection: URIConnection{URL: "https:9000"}})
-		if client.RuntimePort() != 9000 || client.actualHost != "https" {
-			t.Errorf("Expected https:9000, got %s:%d", client.actualHost, client.RuntimePort())
+		if client.actualPort != 443 || client.actualHost != "example.com" {
+			t.Errorf("Expected example.com:443, got %s:%d", client.actualHost, client.actualPort)
 		}
 	})
 
@@ -1163,424 +618,6 @@ func TestClient_StopRequestsRuntimeShutdownForOwnedProcess(t *testing.T) {
 	server.Stop()
 }
 
-func TestClient_StopShutsDownRuntimeWhenSessionDetachNeverAnswers(t *testing.T) {
-	previousTimeout := runtimeShutdownTimeout
-	runtimeShutdownTimeout = 200 * time.Millisecond
-	t.Cleanup(func() { runtimeShutdownTimeout = previousTimeout })
-
-	rpcClient, server, shutdownCalled := newRuntimeShutdownRpcPair(t)
-	t.Cleanup(server.Stop)
-	release := make(chan struct{})
-	t.Cleanup(func() { close(release) })
-	server.SetRequestHandler("session.detach", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-		<-release
-		return []byte(`{"success":true}`), nil
-	})
-	sessions := make(map[string]*Session)
-	for _, id := range []string{"session-1", "session-2"} {
-		sessions[id] = newSession(id, rpcClient, "", false)
-	}
-	client := &Client{
-		process:     &exec.Cmd{},
-		client:      rpcClient,
-		RPC:         rpc.NewServerRPC(rpcClient),
-		sessions:    sessions,
-		processDone: make(chan struct{}),
-	}
-	close(client.processDone)
-
-	stopped := make(chan error, 1)
-	go func() { stopped <- client.Stop() }()
-	var err error
-	select {
-	case err = <-stopped:
-	case <-time.After(5 * time.Second):
-		t.Fatal("Stop did not return while session.detach went unanswered")
-	}
-
-	if !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("Stop error = %v, want a session.detach deadline error", err)
-	}
-	for _, id := range []string{"session-1", "session-2"} {
-		if !strings.Contains(err.Error(), "failed to disconnect session "+id) {
-			t.Errorf("Stop error = %v, want a disconnect failure for %s", err, id)
-		}
-	}
-	select {
-	case <-shutdownCalled:
-	default:
-		t.Fatal("Stop did not request runtime.shutdown")
-	}
-	if len(client.sessions) != 0 {
-		t.Fatal("Stop did not clear sessions")
-	}
-}
-
-func newSessionTrackingTestClient(t *testing.T, detachErr *jsonrpc2.Error) *Client {
-	t.Helper()
-	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
-	t.Cleanup(server.Stop)
-	for _, method := range []string{"session.create", "session.resume"} {
-		server.SetRequestHandler(method, func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-			return []byte(`{"sessionId":"` + sessionIDFromParams(t, params) + `"}`), nil
-		})
-	}
-	server.SetRequestHandler("session.detach", func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-		if detachErr != nil {
-			return nil, detachErr
-		}
-		return []byte(`{"success":true}`), nil
-	})
-	return &Client{
-		client:   rpcClient,
-		RPC:      rpc.NewServerRPC(rpcClient),
-		sessions: make(map[string]*Session),
-	}
-}
-
-func trackedSession(c *Client, sessionID string) *Session {
-	c.sessionsMux.Lock()
-	defer c.sessionsMux.Unlock()
-	return c.sessions[sessionID]
-}
-
-func TestClient_DisconnectStopsTrackingSessionButKeepsResumedReplacement(t *testing.T) {
-	client := newSessionTrackingTestClient(t, nil)
-
-	created, err := client.CreateSession(t.Context(), &SessionConfig{})
-	if err != nil {
-		t.Fatalf("create session: %v", err)
-	}
-	sessionID := created.SessionID
-	if trackedSession(client, sessionID) != created {
-		t.Fatal("created session is not tracked")
-	}
-	if err := created.Disconnect(); err != nil {
-		t.Fatalf("disconnect session: %v", err)
-	}
-	if trackedSession(client, sessionID) != nil {
-		t.Fatal("disconnected session is still tracked by the client")
-	}
-
-	replaced, err := client.ResumeSession(t.Context(), sessionID, nil)
-	if err != nil {
-		t.Fatalf("resume session: %v", err)
-	}
-	replacement, err := client.ResumeSession(t.Context(), sessionID, nil)
-	if err != nil {
-		t.Fatalf("resume session again: %v", err)
-	}
-	if trackedSession(client, sessionID) != replacement {
-		t.Fatal("second resume did not replace the tracked session")
-	}
-	if err := replaced.Disconnect(); err != nil {
-		t.Fatalf("disconnect replaced session: %v", err)
-	}
-	if trackedSession(client, sessionID) != replacement {
-		t.Fatal("disconnecting a replaced session removed its replacement")
-	}
-	if err := replacement.Disconnect(); err != nil {
-		t.Fatalf("disconnect replacement session: %v", err)
-	}
-	if trackedSession(client, sessionID) != nil {
-		t.Fatal("disconnected replacement is still tracked by the client")
-	}
-}
-
-func TestClient_FailedDisconnectKeepsSessionTracked(t *testing.T) {
-	client := newSessionTrackingTestClient(t, &jsonrpc2.Error{Code: -32000, Message: "detach failed"})
-
-	session, err := client.CreateSession(t.Context(), &SessionConfig{})
-	if err != nil {
-		t.Fatalf("create session: %v", err)
-	}
-	if err := session.Disconnect(); err == nil || !strings.Contains(err.Error(), "detach failed") {
-		t.Fatalf("Disconnect error = %v, want the detach failure", err)
-	}
-	if trackedSession(client, session.SessionID) != session {
-		t.Fatal("a session whose detach failed is no longer tracked, so Stop cannot retry it")
-	}
-}
-
-func TestClient_FailedResumeDoesNotRestoreDisconnectedSession(t *testing.T) {
-	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
-	t.Cleanup(server.Stop)
-	client := &Client{
-		client:   rpcClient,
-		RPC:      rpc.NewServerRPC(rpcClient),
-		sessions: make(map[string]*Session),
-	}
-	server.SetRequestHandler("session.create", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-		return []byte(`{"sessionId":"` + sessionIDFromParams(t, params) + `"}`), nil
-	})
-	server.SetRequestHandler("session.detach", func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-		return []byte(`{"success":true}`), nil
-	})
-	resident, err := client.CreateSession(t.Context(), &SessionConfig{})
-	if err != nil {
-		t.Fatalf("create session: %v", err)
-	}
-	t.Cleanup(resident.stopEventProcessing)
-	server.SetRequestHandler("session.resume", func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-		if err := resident.Disconnect(); err != nil {
-			return nil, &jsonrpc2.Error{Code: -32000, Message: err.Error()}
-		}
-		return nil, &jsonrpc2.Error{Code: -32000, Message: "resume rejected"}
-	})
-
-	_, err = client.ResumeSession(t.Context(), resident.SessionID, nil)
-	if err == nil || !strings.Contains(err.Error(), "resume rejected") {
-		t.Fatalf("ResumeSession error = %v, want resume rejected", err)
-	}
-	if trackedSession(client, resident.SessionID) != nil {
-		t.Fatal("failed resume restored a disconnected resident")
-	}
-}
-
-func TestClient_FailedResumeKeepsFailedDetachTracked(t *testing.T) {
-	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
-	t.Cleanup(server.Stop)
-	client := &Client{
-		client:   rpcClient,
-		RPC:      rpc.NewServerRPC(rpcClient),
-		sessions: make(map[string]*Session),
-	}
-	server.SetRequestHandler("session.create", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-		return []byte(`{"sessionId":"` + sessionIDFromParams(t, params) + `"}`), nil
-	})
-	var detaches atomic.Int32
-	server.SetRequestHandler("session.detach", func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-		detaches.Add(1)
-		return nil, &jsonrpc2.Error{Code: -32000, Message: "detach failed"}
-	})
-	server.SetRequestHandler("session.resume", func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-		return nil, &jsonrpc2.Error{Code: -32000, Message: "resume rejected"}
-	})
-	resident, err := client.CreateSession(t.Context(), &SessionConfig{})
-	if err != nil {
-		t.Fatalf("create session: %v", err)
-	}
-	t.Cleanup(resident.stopEventProcessing)
-	if err := resident.Disconnect(); err == nil {
-		t.Fatal("Disconnect succeeded, want detach failed")
-	}
-	if _, err := client.ResumeSession(t.Context(), resident.SessionID, nil); err == nil {
-		t.Fatal("ResumeSession succeeded, want resume rejected")
-	}
-	if trackedSession(client, resident.SessionID) != resident {
-		t.Fatal("failed resume lost the resident whose detach needs retrying")
-	}
-	stopError := client.Stop()
-	if detaches.Load() != 2 || stopError == nil || !strings.Contains(stopError.Error(), "detach failed") {
-		t.Fatalf("Stop: detaches = %d, error = %v; want a detach retry and its failure", detaches.Load(), stopError)
-	}
-}
-
-func TestClient_FailedResumeDoesNotRestoreResidentAfterForceStop(t *testing.T) {
-	for _, failedDetach := range []bool{false, true} {
-		t.Run(fmt.Sprintf("failedDetach=%t", failedDetach), func(t *testing.T) {
-			rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
-			t.Cleanup(server.Stop)
-			client := &Client{
-				client:   rpcClient,
-				RPC:      rpc.NewServerRPC(rpcClient),
-				sessions: make(map[string]*Session),
-			}
-			t.Cleanup(client.ForceStop)
-			server.SetRequestHandler("session.create", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-				return []byte(`{"sessionId":"` + sessionIDFromParams(t, params) + `"}`), nil
-			})
-			server.SetRequestHandler("session.detach", func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-				return nil, &jsonrpc2.Error{Code: -32000, Message: "detach failed"}
-			})
-			resident, err := client.CreateSession(t.Context(), &SessionConfig{})
-			if err != nil {
-				t.Fatalf("create session: %v", err)
-			}
-			t.Cleanup(resident.stopEventProcessing)
-			if failedDetach {
-				if err := resident.Disconnect(); err == nil {
-					t.Fatal("Disconnect succeeded, want detach failed")
-				}
-			}
-			forceStopped := make(chan struct{})
-			server.SetRequestHandler("session.resume", func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-				client.ForceStop()
-				close(forceStopped)
-				return nil, &jsonrpc2.Error{Code: -32000, Message: "resume rejected"}
-			})
-
-			if _, err := client.ResumeSession(t.Context(), resident.SessionID, nil); err == nil {
-				t.Fatal("ResumeSession succeeded after ForceStop")
-			}
-			<-forceStopped
-			if trackedSession(client, resident.SessionID) != nil {
-				t.Fatal("failed resume restored a resident after ForceStop")
-			}
-			assertSessionEventChannelClosed(t, resident)
-			if err := client.Stop(); err != nil {
-				t.Fatalf("Stop after ForceStop: %v", err)
-			}
-		})
-	}
-}
-
-func TestClient_FailedResumeKeepsResidentCallbacksUntilStopDetachCompletes(t *testing.T) {
-	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
-	t.Cleanup(server.Stop)
-	client := &Client{
-		client:   rpcClient,
-		RPC:      rpc.NewServerRPC(rpcClient),
-		sessions: make(map[string]*Session),
-	}
-	t.Cleanup(client.ForceStop)
-	server.SetRequestHandler("session.create", func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-		return []byte(`{"sessionId":"stopping-session"}`), nil
-	})
-	detaching := make(chan struct{})
-	finishDetach := make(chan struct{})
-	releaseDetach := sync.OnceFunc(func() { close(finishDetach) })
-	t.Cleanup(releaseDetach)
-	server.SetRequestHandler("session.detach", func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-		close(detaching)
-		<-finishDetach
-		return []byte(`{"success":true}`), nil
-	})
-	resumeStarted := make(chan struct{})
-	rejectResume := make(chan struct{})
-	reject := sync.OnceFunc(func() { close(rejectResume) })
-	t.Cleanup(reject)
-	server.SetRequestHandler("session.resume", func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-		close(resumeStarted)
-		<-rejectResume
-		return nil, &jsonrpc2.Error{Code: -32000, Message: "resume rejected"}
-	})
-	var hookCalls atomic.Int32
-	resident, err := client.CreateSession(t.Context(), &SessionConfig{
-		SessionID: "stopping-session",
-		Hooks: &SessionHooks{
-			OnSessionEnd: func(SessionEndHookInput, HookInvocation) (*SessionEndHookOutput, error) {
-				hookCalls.Add(1)
-				return nil, nil
-			},
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(resident.stopEventProcessing)
-	events := make(chan SessionEvent, 1)
-	resident.On(func(event SessionEvent) { events <- event })
-	resumed := make(chan error, 1)
-	go func() {
-		_, err := client.ResumeSession(t.Context(), resident.SessionID, nil)
-		resumed <- err
-	}()
-	<-resumeStarted
-	stopped := make(chan error, 1)
-	go func() { stopped <- client.Stop() }()
-	<-detaching
-
-	reject()
-	if err := <-resumed; err == nil || !strings.Contains(err.Error(), "resume rejected") {
-		t.Fatalf("ResumeSession error = %v, want resume rejected", err)
-	}
-	if trackedSession(client, resident.SessionID) != resident {
-		t.Fatal("failed resume lost resident routing before detach completed")
-	}
-	client.handleSessionEvent(sessionEventRequest{
-		SessionID: resident.SessionID,
-		Event:     rpc.SessionEventWithAutoModeRecovery{SessionEvent: SessionEvent{Data: &SessionIdleData{}}},
-	})
-	select {
-	case event := <-events:
-		if _, ok := event.Data.(*SessionIdleData); !ok {
-			t.Fatalf("event data = %T, want *SessionIdleData", event.Data)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("resident did not receive the terminal event before detach completed")
-	}
-	if _, err := client.handleHooksInvoke(hooksInvokeRequest{
-		SessionID: resident.SessionID,
-		Type:      "sessionEnd",
-		Input:     json.RawMessage(`{}`),
-	}); err != nil {
-		t.Fatalf("resident hook failed before detach completed: %v", err)
-	}
-	if hookCalls.Load() != 1 {
-		t.Fatalf("resident hook calls = %d, want 1", hookCalls.Load())
-	}
-	releaseDetach()
-	if err := <-stopped; err != nil {
-		t.Fatalf("Stop failed: %v", err)
-	}
-	assertSessionNotRegistered(t, client, resident.SessionID)
-	assertSessionEventChannelClosed(t, resident)
-}
-
-func TestClient_StopRetiresResidentAfterCanceledResumeAndQueuedCreate(t *testing.T) {
-	rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
-	t.Cleanup(server.Stop)
-	client := &Client{client: rpcClient, RPC: rpc.NewServerRPC(rpcClient), sessions: make(map[string]*Session)}
-	t.Cleanup(client.ForceStop)
-	release := make(chan struct{})
-	defer close(release)
-	server.SetRequestHandler("session.create", func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-		return []byte(`{"sessionId":"stopping-overlap"}`), nil
-	})
-	resident, err := client.CreateSession(t.Context(), &SessionConfig{SessionID: "stopping-overlap"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(resident.stopEventProcessing)
-	resumeStarted := make(chan struct{}, 1)
-	server.SetRequestHandler("session.resume", func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-		resumeStarted <- struct{}{}
-		<-release
-		return nil, &jsonrpc2.Error{Code: -32000, Message: "resume rejected"}
-	})
-	detaching := make(chan struct{}, 1)
-	finishDetach := make(chan struct{})
-	releaseDetach := sync.OnceFunc(func() { close(finishDetach) })
-	defer releaseDetach()
-	server.SetRequestHandler("session.detach", func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-		detaching <- struct{}{}
-		<-finishDetach
-		return []byte(`{"success":true}`), nil
-	})
-	resumeCtx, cancelResume := context.WithCancel(t.Context())
-	defer cancelResume()
-	createCtx, cancelCreate := context.WithCancel(t.Context())
-	defer cancelCreate()
-	resumed := make(chan error, 1)
-	created := make(chan error, 1)
-	go func() {
-		_, err := client.ResumeSession(resumeCtx, resident.SessionID, nil)
-		resumed <- err
-	}()
-	<-resumeStarted
-	go func() {
-		_, err := client.CreateSession(createCtx, &SessionConfig{SessionID: resident.SessionID})
-		created <- err
-	}()
-	stopped := make(chan error, 1)
-	go func() { stopped <- client.Stop() }()
-	<-detaching
-	cancelCreate()
-	if err := <-created; !errors.Is(err, context.Canceled) {
-		t.Fatalf("create error = %v, want cancellation", err)
-	}
-	cancelResume()
-	if err := <-resumed; !errors.Is(err, context.Canceled) {
-		t.Fatalf("resume error = %v, want cancellation", err)
-	}
-	releaseDetach()
-	if err := <-stopped; err != nil {
-		t.Fatalf("Stop failed: %v", err)
-	}
-	assertSessionEventChannelClosed(t, resident)
-}
-
 func TestClient_ForceStopAndExternalStopDoNotRequestRuntimeShutdown(t *testing.T) {
 	rpcClient, server, shutdownCalled := newRuntimeShutdownRpcPair(t)
 	client := &Client{
@@ -1748,7 +785,6 @@ func TestClient_ConnectionCloseCancelsPendingExternalTools(t *testing.T) {
 	session.pendingExternalTools = map[string]*pendingExternalTool{
 		"request-1": {ctx: ctx, cancel: cancel},
 	}
-	session.registerMemoryStore(func(context.Context, StoredMemory) error { return nil })
 	client := &Client{
 		client:           rpcClient,
 		RPC:              rpc.NewServerRPC(rpcClient),
@@ -1756,7 +792,7 @@ func TestClient_ConnectionCloseCancelsPendingExternalTools(t *testing.T) {
 		isExternalServer: true,
 	}
 
-	client.handleConnectionClose(client.client)
+	client.handleConnectionClose()
 
 	if len(client.sessions) != 1 {
 		t.Fatal("connection close removed sessions before Stop could clean them up")
@@ -1765,9 +801,6 @@ func TestClient_ConnectionCloseCancelsPendingExternalTools(t *testing.T) {
 	case <-ctx.Done():
 	case <-time.After(time.Second):
 		t.Fatal("connection close did not cancel the pending external tool")
-	}
-	if session.getMemoryStore() != nil {
-		t.Fatal("connection close did not clear the memory store")
 	}
 
 	if err := client.Stop(); err != nil {
@@ -2010,261 +1043,7 @@ func TestClient_CallAdmittedDuringStopFailsInsteadOfPanicking(t *testing.T) {
 	}
 }
 
-// connectionQueryServer answers the requests Ping, GetStatus, GetAuthStatus and
-// ListModels send. With holdConnect, its connect handler closes connected and
-// then waits for releaseConnect, keeping Start in progress; a legacy server has
-// no connect method, so Start falls back to ping.
-type connectionQueryServer struct {
-	addr           string
-	connected      chan struct{}
-	releaseConnect func()
-}
-
-func newConnectionQueryServer(t *testing.T, legacy, holdConnect bool) *connectionQueryServer {
-	t.Helper()
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("listen: %v", err)
-	}
-	release := make(chan struct{})
-	s := &connectionQueryServer{
-		addr:           listener.Addr().String(),
-		connected:      make(chan struct{}),
-		releaseConnect: sync.OnceFunc(func() { close(release) }),
-	}
-	if !holdConnect {
-		s.releaseConnect()
-	}
-	reportConnected := sync.OnceFunc(func() { close(s.connected) })
-	reply := func(result string) jsonrpc2.RequestHandler {
-		return func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) { return json.RawMessage(result), nil }
-	}
-	var mux sync.Mutex
-	var servers []*jsonrpc2.Client
-	t.Cleanup(func() {
-		s.releaseConnect()
-		listener.Close()
-		mux.Lock()
-		defer mux.Unlock()
-		for _, server := range servers {
-			server.Stop()
-		}
-	})
-	go func() {
-		for {
-			conn, err := listener.Accept()
-			if err != nil {
-				return
-			}
-			server := jsonrpc2.NewClient(conn, conn)
-			if !legacy {
-				server.SetRequestHandler("connect", func(json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-					reportConnected()
-					<-release
-					return json.RawMessage(`{"ok":true,"protocolVersion":3,"version":"test"}`), nil
-				})
-			}
-			server.SetRequestHandler("ping", reply(`{"message":"pong","timestamp":"2026-01-01T00:00:00Z","protocolVersion":3}`))
-			server.SetRequestHandler("status.get", reply(`{"version":"test","protocolVersion":3}`))
-			server.SetRequestHandler("auth.getStatus", reply(`{"isAuthenticated":true}`))
-			server.SetRequestHandler("models.list", reply(`{"models":[]}`))
-			server.Start()
-			mux.Lock()
-			servers = append(servers, server)
-			mux.Unlock()
-		}
-	}()
-	return s
-}
-
-func TestClient_ConnectionQueriesWaitForStart(t *testing.T) {
-	server := newConnectionQueryServer(t, false, true)
-	client := NewClient(&ClientOptions{Connection: URIConnection{URL: server.addr}})
-	t.Cleanup(client.ForceStop)
-	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
-	defer cancel()
-
-	started := make(chan error, 1)
-	go func() { started <- client.Start(ctx) }()
-	select {
-	case <-server.connected:
-	case <-ctx.Done():
-		t.Fatal("Start did not send connect")
-	}
-
-	type queryResult struct {
-		name string
-		err  error
-	}
-	queries := map[string]func() error{
-		"Ping":          func() error { _, err := client.Ping(ctx, "x"); return err },
-		"GetStatus":     func() error { _, err := client.GetStatus(ctx); return err },
-		"GetAuthStatus": func() error { _, err := client.GetAuthStatus(ctx); return err },
-		"ListModels":    func() error { _, err := client.ListModels(ctx); return err },
-	}
-	results := make(chan queryResult, len(queries))
-	for name, query := range queries {
-		go func() { results <- queryResult{name: name, err: query()} }()
-	}
-	// Start has created the transport but not finished the handshake, so a
-	// query must not use it yet.
-	select {
-	case result := <-results:
-		t.Fatalf("%s returned while Start was in progress: %v", result.name, result.err)
-	case <-time.After(200 * time.Millisecond):
-	}
-
-	server.releaseConnect()
-	if err := <-started; err != nil {
-		t.Fatalf("Start failed: %v", err)
-	}
-	for range queries {
-		select {
-		case result := <-results:
-			if result.err != nil {
-				t.Errorf("%s failed after Start: %v", result.name, result.err)
-			}
-		case <-ctx.Done():
-			t.Fatal("a query did not return after Start")
-		}
-	}
-}
-
-func TestClient_ConnectionQueriesDuringStop(t *testing.T) {
-	for _, mode := range []string{"Stop", "ForceStop"} {
-		t.Run(mode, func(t *testing.T) {
-			server := newConnectionQueryServer(t, false, false)
-			client := NewClient(&ClientOptions{Connection: URIConnection{URL: server.addr}})
-			t.Cleanup(client.ForceStop)
-			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
-			defer cancel()
-			if err := client.Start(ctx); err != nil {
-				t.Fatalf("Start failed: %v", err)
-			}
-
-			queries := []func() error{
-				func() error { _, err := client.Ping(ctx, "x"); return err },
-				func() error { _, err := client.GetStatus(ctx); return err },
-				func() error { _, err := client.GetAuthStatus(ctx); return err },
-			}
-			var stopped atomic.Bool
-			answered := make(chan struct{}, len(queries))
-			var wg sync.WaitGroup
-			for _, query := range queries {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					first := true
-					// Keep querying until the client has stopped; the queries that
-					// overlap the stop fail, which is expected.
-					for !stopped.Load() && ctx.Err() == nil {
-						if query() == nil && first {
-							answered <- struct{}{}
-							first = false
-						}
-					}
-				}()
-			}
-			for range queries {
-				select {
-				case <-answered:
-				case <-ctx.Done():
-					t.Fatal("a query was not answered before stopping")
-				}
-			}
-
-			if mode == "Stop" {
-				if err := client.Stop(); err != nil {
-					t.Errorf("Stop failed: %v", err)
-				}
-			} else {
-				client.ForceStop()
-			}
-			// Keep querying the stopped client for a moment: the flag below orders
-			// every later query after the stop, so it must not end the loop at once.
-			time.Sleep(20 * time.Millisecond)
-			stopped.Store(true)
-			wg.Wait()
-			for i, query := range queries {
-				if err := query(); err == nil || err.Error() != "client not connected" {
-					t.Errorf("query %d after %s returned %v, want client not connected", i, mode, err)
-				}
-			}
-		})
-	}
-}
-
-func TestClient_RuntimePortDuringStop(t *testing.T) {
-	for _, mode := range []string{"Stop", "ForceStop"} {
-		t.Run(mode, func(t *testing.T) {
-			rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
-			t.Cleanup(server.Stop)
-			// A client whose own runtime listens on TCP: stopping it clears the port.
-			client := NewClient(&ClientOptions{Connection: URIConnection{URL: "127.0.0.1:4321"}})
-			client.isExternalServer = false
-			client.process = &exec.Cmd{}
-			client.client, client.RPC, client.state = rpcClient, rpc.NewServerRPC(rpcClient), stateConnected
-			client.processDone = make(chan struct{})
-			close(client.processDone)
-
-			var stopped atomic.Bool
-			read := make(chan struct{})
-			done := make(chan struct{})
-			go func() {
-				defer close(done)
-				first := true
-				for !stopped.Load() {
-					if client.RuntimePort() == 4321 && first {
-						close(read)
-						first = false
-					}
-				}
-			}()
-			select {
-			case <-read:
-			case <-time.After(5 * time.Second):
-				t.Fatal("RuntimePort did not report the port before stopping")
-			}
-
-			if mode == "Stop" {
-				if err := client.Stop(); err != nil {
-					t.Errorf("Stop failed: %v", err)
-				}
-			} else {
-				client.ForceStop()
-			}
-			// As above, keep reading for a moment before the flag orders later reads.
-			time.Sleep(20 * time.Millisecond)
-			stopped.Store(true)
-			<-done
-			if port := client.RuntimePort(); port != 0 {
-				t.Errorf("RuntimePort after %s = %d, want 0", mode, port)
-			}
-		})
-	}
-}
-
-func TestClient_StartFallsBackToPingWithoutConnect(t *testing.T) {
-	server := newConnectionQueryServer(t, true, false)
-	client := NewClient(&ClientOptions{Connection: URIConnection{URL: server.addr}})
-	t.Cleanup(client.ForceStop)
-	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
-	defer cancel()
-	if err := client.Start(ctx); err != nil {
-		t.Fatalf("Start against a server without connect failed: %v", err)
-	}
-	if _, err := client.Ping(ctx, "x"); err != nil {
-		t.Fatalf("Ping after Start failed: %v", err)
-	}
-}
-
 func newRuntimeShutdownRpcPair(t *testing.T) (*jsonrpc2.Client, *jsonrpc2.Client, chan struct{}) {
-	t.Helper()
-	client, server, shutdown, _ := newRuntimeShutdownRpcPairWithPeer(t)
-	return client, server, shutdown
-}
-
-func newRuntimeShutdownRpcPairWithPeer(t *testing.T) (*jsonrpc2.Client, *jsonrpc2.Client, chan struct{}, net.Conn) {
 	t.Helper()
 
 	clientConn, serverConn := net.Pipe()
@@ -2282,79 +1061,7 @@ func newRuntimeShutdownRpcPairWithPeer(t *testing.T) (*jsonrpc2.Client, *jsonrpc
 	})
 	rpcClient.Start()
 	server.Start()
-	return rpcClient, server, shutdownCalled, serverConn
-}
-
-func TestClient_ForwardsToolOwnershipToSessionRequests(t *testing.T) {
-	tests := []struct {
-		name  string
-		tools []Tool
-	}{
-		{name: "omitted"},
-		{name: "explicit empty", tools: []Tool{}},
-		{name: "handler and declaration", tools: []Tool{
-			{Name: "lookup", Handler: func(ToolInvocation) (ToolResult, error) { return ToolResult{}, nil }},
-			{Name: "approval"},
-		}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
-			t.Cleanup(server.Stop)
-			client := &Client{
-				client:   rpcClient,
-				RPC:      rpc.NewServerRPC(rpcClient),
-				sessions: make(map[string]*Session),
-			}
-			t.Cleanup(func() { client.ForceStop() })
-
-			requests := make(chan json.RawMessage, 1)
-			for _, method := range []string{"session.create", "session.resume"} {
-				server.SetRequestHandler(method, func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-					requests <- append(json.RawMessage(nil), params...)
-					return []byte(`{"sessionId":"` + sessionIDFromParams(t, params) + `","workspacePath":"/workspace"}`), nil
-				})
-			}
-			for _, method := range []string{"session.create", "session.resume"} {
-				var err error
-				if method == "session.create" {
-					_, err = client.CreateSession(t.Context(), &SessionConfig{Tools: tt.tools})
-				} else {
-					_, err = client.ResumeSessionWithOptions(t.Context(), "resumed-tools", &ResumeSessionConfig{Tools: tt.tools})
-				}
-				if err != nil {
-					t.Fatalf("%s failed: %v", method, err)
-				}
-				var wire map[string]json.RawMessage
-				if err := json.Unmarshal(<-requests, &wire); err != nil {
-					t.Fatal(err)
-				}
-				rawTools, present := wire["tools"]
-				if present != (tt.tools != nil) {
-					t.Fatalf("%s tools presence = %v, want %v", method, present, tt.tools != nil)
-				}
-				if !present {
-					continue
-				}
-				var tools []map[string]any
-				if err := json.Unmarshal(rawTools, &tools); err != nil {
-					t.Fatal(err)
-				}
-				if tools == nil || len(tools) != len(tt.tools) {
-					t.Fatalf("%s tools = %s, want %d definitions", method, rawTools, len(tt.tools))
-				}
-				for i, tool := range tools {
-					if tool["name"] != tt.tools[i].Name || tool["hasHandler"] != (tt.tools[i].Handler != nil) {
-						t.Errorf("%s tool %d = %#v, want name %q and hasHandler %v",
-							method, i, tool, tt.tools[i].Name, tt.tools[i].Handler != nil)
-					}
-					if _, present := tool["handler"]; present {
-						t.Errorf("%s tool %d serialized its handler", method, i)
-					}
-				}
-			}
-		})
-	}
+	return rpcClient, server, shutdownCalled
 }
 
 func TestClient_ForwardsCapiOptionsToSessionRequests(t *testing.T) {
@@ -2464,98 +1171,6 @@ func TestClient_ForwardsInteractiveUserToSessionRequests(t *testing.T) {
 			}
 			assertOptionalBoolJSONField(t, <-resumeParams, "interactiveUser", tt.value)
 		})
-	}
-}
-
-func TestClient_ForwardsPermissionModeToSessionRequests(t *testing.T) {
-	for _, mode := range []rpc.PermissionMode{
-		rpc.PermissionModeManual,
-		rpc.PermissionModeAssisted,
-		rpc.PermissionModeAllowAll,
-		"",
-	} {
-		name := string(mode)
-		if name == "" {
-			name = "omitted"
-		}
-		t.Run(name, func(t *testing.T) {
-			rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
-			t.Cleanup(server.Stop)
-			client := &Client{
-				client:   rpcClient,
-				RPC:      rpc.NewServerRPC(rpcClient),
-				sessions: make(map[string]*Session),
-			}
-
-			createParams := make(chan json.RawMessage, 1)
-			server.SetRequestHandler("session.create", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-				createParams <- append(json.RawMessage(nil), params...)
-				sessionID := sessionIDFromParams(t, params)
-				return []byte(`{"sessionId":"` + sessionID + `","workspacePath":"/workspace"` + permissionModeResultJSON(mode) + `}`), nil
-			})
-
-			created, err := client.CreateSession(t.Context(), &SessionConfig{PermissionMode: mode})
-			if err != nil {
-				t.Fatalf("CreateSession failed: %v", err)
-			}
-			assertOptionalStringJSONField(t, <-createParams, "permissionMode", string(mode))
-			assertPermissionModeResult(t, created.PermissionModeResult(), mode)
-
-			resumeParams := make(chan json.RawMessage, 1)
-			server.SetRequestHandler("session.resume", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-				resumeParams <- append(json.RawMessage(nil), params...)
-				return []byte(`{"sessionId":"permission-mode-resume","workspacePath":"/workspace"` + permissionModeResultJSON(mode) + `}`), nil
-			})
-
-			resumed, err := client.ResumeSessionWithOptions(t.Context(), "permission-mode-resume", &ResumeSessionConfig{PermissionMode: mode})
-			if err != nil {
-				t.Fatalf("ResumeSessionWithOptions failed: %v", err)
-			}
-			assertOptionalStringJSONField(t, <-resumeParams, "permissionMode", string(mode))
-			assertPermissionModeResult(t, resumed.PermissionModeResult(), mode)
-		})
-	}
-}
-
-// permissionModeResultJSON echoes a requested mode as a refused result, so the
-// test proves the SDK surfaces the runtime's outcome rather than the request.
-func permissionModeResultJSON(mode rpc.PermissionMode) string {
-	if mode == "" {
-		return ""
-	}
-	return `,"permissionModeResult":{"success":false,"mode":"manual"}`
-}
-
-func assertPermissionModeResult(t *testing.T, got *rpc.PermissionsSetModeResult, requested rpc.PermissionMode) {
-	t.Helper()
-	if requested == "" {
-		if got != nil {
-			t.Fatalf("PermissionModeResult() = %+v, want nil", *got)
-		}
-		return
-	}
-	if got == nil || got.Success || got.Mode != rpc.PermissionModeManual {
-		t.Fatalf("PermissionModeResult() = %+v, want refused manual", got)
-	}
-}
-
-// assertOptionalStringJSONField treats an empty want as "field omitted".
-func assertOptionalStringJSONField(t *testing.T, raw json.RawMessage, field string, want string) {
-	t.Helper()
-
-	var params map[string]any
-	if err := json.Unmarshal(raw, &params); err != nil {
-		t.Fatal(err)
-	}
-	got, present := params[field]
-	if want == "" {
-		if present {
-			t.Fatalf("%s = %v, want omitted", field, got)
-		}
-		return
-	}
-	if got != want {
-		t.Fatalf("%s = %v, want %v", field, got, want)
 	}
 }
 
@@ -3036,7 +1651,6 @@ func TestClient_ForwardsNewSessionOptionsToSessionRequests(t *testing.T) {
 
 	_, err := client.CreateSession(t.Context(), &SessionConfig{
 		ExcludedBuiltInAgents:    []string{"explore"},
-		AllowMultipleToolCalls:   Bool(false),
 		EnableCitations:          Bool(true),
 		EnableFileChangeTracking: Bool(true),
 		SessionLimits:            &rpc.SessionLimitsConfig{MaxAiCredits: float64Ptr(30)},
@@ -3050,7 +1664,7 @@ func TestClient_ForwardsNewSessionOptionsToSessionRequests(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateSession failed: %v", err)
 	}
-	assertNewSessionOptions(t, <-createParams, false, true, true, "explore", 30, true,
+	assertNewSessionOptions(t, <-createParams, true, true, "explore", 30, true,
 		map[string]any{"continuationEnabled": false, "maxContinues": float64(0)})
 
 	resumeParams := make(chan json.RawMessage, 1)
@@ -3061,7 +1675,6 @@ func TestClient_ForwardsNewSessionOptionsToSessionRequests(t *testing.T) {
 
 	_, err = client.ResumeSessionWithOptions(t.Context(), "resumed-options", &ResumeSessionConfig{
 		ExcludedBuiltInAgents:    []string{"task"},
-		AllowMultipleToolCalls:   Bool(true),
 		EnableCitations:          Bool(false),
 		EnableFileChangeTracking: Bool(false),
 		SessionLimits:            &rpc.SessionLimitsConfig{MaxAiCredits: float64Ptr(15)},
@@ -3075,64 +1688,8 @@ func TestClient_ForwardsNewSessionOptionsToSessionRequests(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResumeSessionWithOptions failed: %v", err)
 	}
-	assertNewSessionOptions(t, <-resumeParams, true, false, false, "task", 15, false,
+	assertNewSessionOptions(t, <-resumeParams, false, false, "task", 15, false,
 		map[string]any{"maxContinues": float64(2)})
-}
-
-func TestClient_PreservesIncludedBuiltInAgentsOnCreateAndResume(t *testing.T) {
-	for _, tc := range []struct {
-		name   string
-		agents []string
-	}{
-		{"omitted", nil},
-		{"empty", []string{}},
-		{"subset", []string{"explore"}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
-			t.Cleanup(server.Stop)
-			client := &Client{
-				client: rpcClient, RPC: rpc.NewServerRPC(rpcClient),
-				sessions: make(map[string]*Session),
-			}
-			params := make(chan json.RawMessage, 2)
-			for _, method := range []string{"session.create", "session.resume"} {
-				server.SetRequestHandler(method, func(request json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-					params <- append(json.RawMessage(nil), request...)
-					sessionID := sessionIDFromParams(t, request)
-					return []byte(`{"sessionId":"` + sessionID + `"}`), nil
-				})
-			}
-			session, err := client.CreateSession(t.Context(), &SessionConfig{IncludedBuiltInAgents: tc.agents})
-			if err != nil {
-				t.Fatal(err)
-			}
-			_, err = client.ResumeSessionWithOptions(t.Context(), session.SessionID, &ResumeSessionConfig{IncludedBuiltInAgents: tc.agents})
-			if err != nil {
-				t.Fatal(err)
-			}
-			for range 2 {
-				var payload map[string]json.RawMessage
-				if err := json.Unmarshal(<-params, &payload); err != nil {
-					t.Fatal(err)
-				}
-				value, present := payload["includedBuiltinAgents"]
-				if tc.agents == nil {
-					if present {
-						t.Fatalf("expected omitted allowlist, got %s", value)
-					}
-				} else {
-					want, err := json.Marshal(tc.agents)
-					if err != nil {
-						t.Fatal(err)
-					}
-					if string(value) != string(want) {
-						t.Fatalf("expected allowlist %s, got %s", want, value)
-					}
-				}
-			}
-		})
-	}
 }
 
 func assertCapiOptions(t *testing.T, params json.RawMessage, want map[string]any) {
@@ -3161,7 +1718,6 @@ func assertCapiOptions(t *testing.T, params json.RawMessage, want map[string]any
 func assertNewSessionOptions(
 	t *testing.T,
 	params json.RawMessage,
-	expectedMultipleToolCalls bool,
 	expectedCitations bool,
 	expectedFileChangeTracking bool,
 	expectedAgent string,
@@ -3174,9 +1730,6 @@ func assertNewSessionOptions(
 	var decoded map[string]any
 	if err := json.Unmarshal(params, &decoded); err != nil {
 		t.Fatalf("failed to unmarshal request params: %v", err)
-	}
-	if decoded["allowMultipleToolCalls"] != expectedMultipleToolCalls {
-		t.Fatalf("expected allowMultipleToolCalls=%v, got %v", expectedMultipleToolCalls, decoded["allowMultipleToolCalls"])
 	}
 	if decoded["enableCitations"] != expectedCitations {
 		t.Fatalf("expected enableCitations=%v, got %v", expectedCitations, decoded["enableCitations"])
@@ -3895,37 +2448,6 @@ func TestClient_ProcessFileLoggingEnvironment(t *testing.T) {
 	}
 }
 
-func TestClient_StartFailureNamesAWorkingDirectoryThatIsAFile(t *testing.T) {
-	file := filepath.Join(t.TempDir(), "file")
-	if err := os.WriteFile(file, nil, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	missingParent := t.TempDir()
-	for _, tc := range []struct {
-		name string
-		dir  string
-		want string
-	}{
-		{name: "file", dir: file, want: "working directory " + file + " does not exist or is not a directory"},
-		{name: "below a file", dir: filepath.Join(file, "child"), want: "working directory " + filepath.Join(file, "child") + " does not exist or is not a directory"},
-		{name: "missing", dir: filepath.Join(missingParent, "missing"), want: "working directory " + filepath.Join(missingParent, "missing") + " does not exist or is not a directory"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			for _, connection := range []RuntimeConnection{StdioConnection{Path: os.Args[0]}, TCPConnection{Path: os.Args[0]}} {
-				client := NewClient(&ClientOptions{
-					Connection:       connection,
-					BaseDirectory:    t.TempDir(),
-					WorkingDirectory: tc.dir,
-				})
-				err := client.startCLIServer(context.Background())
-				if err == nil || !strings.Contains(err.Error(), "failed to start CLI server") || !strings.Contains(err.Error(), tc.want) {
-					t.Fatalf("%T: expected an error containing %q, got %v", connection, tc.want, err)
-				}
-			}
-		})
-	}
-}
-
 func TestClient_TelemetryCaptureOverridesEnvironment(t *testing.T) {
 	for _, capture := range []bool{false, true} {
 		t.Run(strconv.FormatBool(capture), func(t *testing.T) {
@@ -3954,74 +2476,7 @@ func TestClient_TelemetryCaptureOverridesEnvironment(t *testing.T) {
 	}
 }
 
-func TestClient_InternalTestOptions(t *testing.T) {
-	api, github, proxy, noProxy, ca := "http://replay", "http://github-replay", "http://interception", "", "/test/ca.pem"
-	inherited := []string{"HTTP_PROXY=inherited", "UNRELATED=preserved"}
-	opts := &InternalTestOptions{
-		CopilotAPIURL: &api, GitHubAPIURL: &github, ProxyURL: &proxy, NoProxy: &noProxy, CACertificatePath: &ca,
-	}
-	for _, transport := range []string{"stdio", "inprocess"} {
-		t.Run(transport, func(t *testing.T) {
-			client := NewClient(&ClientOptions{
-				Connection:       StdioConnection{Path: os.Args[0]},
-				WorkingDirectory: filepath.Join(t.TempDir(), "missing"),
-				Env:              inherited, InternalTestOptions: opts,
-			})
-			var environment map[string]string
-			if transport == "stdio" {
-				if err := client.startCLIServer(context.Background()); err == nil {
-					t.Fatal("expected process start to fail in missing working directory")
-				}
-				environment = make(map[string]string)
-				for _, entry := range client.process.Env {
-					key, value, _ := strings.Cut(entry, "=")
-					environment[key] = value
-				}
-			} else {
-				environment = client.inProcessHostConfig("").Environment
-			}
-			for key, value := range map[string]string{
-				"COPILOT_API_URL": api, "COPILOT_DEBUG_GITHUB_API_URL": github,
-				"HTTP_PROXY": proxy, "HTTPS_PROXY": proxy,
-				"NO_PROXY":            noProxy,
-				"NODE_EXTRA_CA_CERTS": ca, "SSL_CERT_FILE": ca, "REQUESTS_CA_BUNDLE": ca,
-				"CURL_CA_BUNDLE": ca, "GIT_SSL_CAINFO": ca,
-			} {
-				if runtime.GOOS == "windows" {
-					key = strings.ToUpper(key)
-				}
-				if environment[key] != value {
-					t.Errorf("%s = %q, want %q", key, environment[key], value)
-				}
-			}
-			if environment["UNRELATED"] != "preserved" || inherited[0] != "HTTP_PROXY=inherited" {
-				t.Fatal("test options changed inherited configuration")
-			}
-		})
-	}
-	t.Run("external runtime rejected", func(t *testing.T) {
-		defer func() {
-			if got := recover(); got != "InternalTestOptions requires a runtime owned by this client" {
-				t.Fatalf("unexpected panic: %v", got)
-			}
-		}()
-		NewClient(&ClientOptions{Connection: URIConnection{URL: "8080"}, InternalTestOptions: opts})
-	})
-}
-
 func TestClient_InProcessConnection(t *testing.T) {
-	for _, env := range [][]string{{}, {"FOO=bar"}} {
-		t.Run(fmt.Sprintf("rejects Env %v", env), func(t *testing.T) {
-			defer func() {
-				got := recover()
-				if got == nil || !strings.Contains(fmt.Sprint(got), "Env is not supported with InProcessConnection") {
-					t.Fatalf("Expected in-process Env rejection, got %v", got)
-				}
-			}()
-			NewClient(&ClientOptions{Connection: InProcessConnection{}, Env: env})
-		})
-	}
-
 	t.Run("requires build tag", func(t *testing.T) {
 		if inProcessAvailable {
 			t.Skip("in-process transport is enabled")
@@ -4058,21 +2513,16 @@ func TestClient_InProcessConnection(t *testing.T) {
 		}
 	})
 
-	t.Run("snapshots inherited environment without changing the process", func(t *testing.T) {
-		t.Setenv("SDK_ENV_SNAPSHOT", "first")
-		first := NewClient(&ClientOptions{Connection: InProcessConnection{}})
-		t.Setenv("SDK_ENV_SNAPSHOT", "second")
-		second := NewClient(&ClientOptions{Connection: InProcessConnection{}})
-		before := os.Environ()
-		if got := first.inProcessHostConfig("").Environment["SDK_ENV_SNAPSHOT"]; got != "first" {
-			t.Fatalf("First host inherited value = %q; want first", got)
-		}
-		if got := second.inProcessHostConfig("").Environment["SDK_ENV_SNAPSHOT"]; got != "second" {
-			t.Fatalf("Second host inherited value = %q; want second", got)
-		}
-		if !reflect.DeepEqual(os.Environ(), before) {
-			t.Fatal("Creating native host configurations changed the process environment")
-		}
+	t.Run("panics when Env is set", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("Expected panic when Env is set with InProcessConnection")
+			}
+		}()
+		NewClient(&ClientOptions{
+			Connection: InProcessConnection{},
+			Env:        []string{"FOO=bar"},
+		})
 	})
 
 	t.Run("panics when WorkingDirectory is set", func(t *testing.T) {
@@ -4087,88 +2537,19 @@ func TestClient_InProcessConnection(t *testing.T) {
 		})
 	})
 
-	t.Run("rejects non-UTF-8 telemetry file paths", func(t *testing.T) {
+	t.Run("panics when Telemetry is set", func(t *testing.T) {
 		defer func() {
-			if got := recover(); got != "Telemetry.FilePath must be valid UTF-8 with InProcessConnection" {
-				t.Fatalf("Expected non-UTF-8 telemetry path rejection, got %v", got)
+			if r := recover(); r == nil {
+				t.Error("Expected panic when Telemetry is set with InProcessConnection")
 			}
 		}()
 		NewClient(&ClientOptions{
 			Connection: InProcessConnection{},
-			Telemetry:  &TelemetryConfig{FilePath: filepath.Join(t.TempDir(), "telemetry-\xff.jsonl")},
+			Telemetry:  &TelemetryConfig{ExporterType: "file"},
 		})
-	})
-
-	t.Run("preserves non-UTF-8 telemetry file paths for subprocesses", func(t *testing.T) {
-		path := filepath.Join(t.TempDir(), "telemetry-\xff.jsonl")
-		client := NewClient(&ClientOptions{
-			Connection:       StdioConnection{Path: os.Args[0]},
-			WorkingDirectory: filepath.Join(t.TempDir(), "missing"),
-			Telemetry:        &TelemetryConfig{FilePath: path},
-		})
-		if err := client.startCLIServer(context.Background()); err == nil {
-			t.Fatal("expected process start to fail in missing working directory")
-		}
-		if got := getEnvValue(client.process.Env, "COPILOT_OTEL_FILE_EXPORTER_PATH"); got != path {
-			t.Fatalf("Telemetry file path = %q; want %q", got, path)
-		}
-	})
-
-	t.Run("snapshots telemetry configuration", func(t *testing.T) {
-		path := filepath.Join(t.TempDir(), "telemetry.jsonl")
-		captureContent := false
-		telemetry := &TelemetryConfig{FilePath: path, CaptureContent: &captureContent}
-		client := NewClient(&ClientOptions{
-			Connection: InProcessConnection{},
-			Telemetry:  telemetry,
-		})
-		telemetry.FilePath = filepath.Join(t.TempDir(), "telemetry-\xff.jsonl")
-		captureContent = true
-		environment := client.inProcessHostConfig("").Environment
-		if got := environment["COPILOT_OTEL_FILE_EXPORTER_PATH"]; got != path {
-			t.Fatalf("Telemetry file path = %q; want validated path %q", got, path)
-		}
-		if got := environment["OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT"]; got != "NO_CONTENT" {
-			t.Fatalf("Telemetry content capture = %q; want NO_CONTENT", got)
-		}
-	})
-
-	t.Run("configures per-runtime telemetry without changing the process", func(t *testing.T) {
-		before := os.Environ()
-		client := NewClient(&ClientOptions{
-			Connection: InProcessConnection{},
-			Telemetry: &TelemetryConfig{
-				OTLPEndpoint:   "http://collector:4318",
-				OTLPProtocol:   "http/protobuf",
-				FilePath:       "/telemetry-\u00e9.jsonl",
-				ExporterType:   "file",
-				SourceName:     "inprocess-sdk",
-				CaptureContent: Bool(false),
-			},
-		})
-		expected := map[string]string{
-			"COPILOT_OTEL_ENABLED":                               "true",
-			"OTEL_EXPORTER_OTLP_ENDPOINT":                        "http://collector:4318",
-			"OTEL_EXPORTER_OTLP_PROTOCOL":                        "http/protobuf",
-			"COPILOT_OTEL_FILE_EXPORTER_PATH":                    "/telemetry-\u00e9.jsonl",
-			"COPILOT_OTEL_EXPORTER_TYPE":                         "file",
-			"COPILOT_OTEL_SOURCE_NAME":                           "inprocess-sdk",
-			"OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT":         "NO_CONTENT",
-			"OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT": "false",
-		}
-		environment := client.inProcessHostConfig("").Environment
-		for key, want := range expected {
-			if got := environment[key]; got != want {
-				t.Fatalf("Telemetry environment %s = %q; want %q", key, got, want)
-			}
-		}
-		if !reflect.DeepEqual(os.Environ(), before) {
-			t.Fatal("Telemetry configuration changed the process environment")
-		}
 	})
 
 	t.Run("forwards typed runtime options", func(t *testing.T) {
-		apiURL, proxyURL := "http://127.0.0.1:1234", "http://typed-proxy"
 		client := NewClient(&ClientOptions{
 			Connection:                InProcessConnection{},
 			GitHubToken:               "test-token",
@@ -4177,10 +2558,6 @@ func TestClient_InProcessConnection(t *testing.T) {
 			LogLevel:                  "debug",
 			SessionIdleTimeoutSeconds: 30,
 			Mode:                      ModeEmpty,
-			InternalTestOptions: &InternalTestOptions{
-				CopilotAPIURL: &apiURL,
-				ProxyURL:      &proxyURL,
-			},
 		})
 
 		config := client.inProcessHostConfig("")
@@ -4196,20 +2573,10 @@ func TestClient_InProcessConnection(t *testing.T) {
 		expectedEnvironment := map[string]string{
 			"COPILOT_SDK_AUTH_TOKEN": "test-token",
 			"COPILOT_HOME":           "/copilot-home",
-			"COPILOT_CACHE_HOME":     filepath.Join("/copilot-home", "cache"),
 			"COPILOT_DISABLE_KEYTAR": "1",
-			"COPILOT_API_URL":        "http://127.0.0.1:1234",
-			"HTTP_PROXY":             proxyURL,
-			"HTTPS_PROXY":            proxyURL,
 		}
-		if runtime.GOOS != "windows" {
-			expectedEnvironment["http_proxy"] = proxyURL
-			expectedEnvironment["https_proxy"] = proxyURL
-		}
-		for key, want := range expectedEnvironment {
-			if got := config.Environment[key]; got != want {
-				t.Fatalf("Managed environment %s = %q; want %q", key, got, want)
-			}
+		if !reflect.DeepEqual(config.Environment, expectedEnvironment) {
+			t.Fatalf("Expected managed environment %v, got %v", expectedEnvironment, config.Environment)
 		}
 	})
 
@@ -4239,58 +2606,6 @@ func TestClient_InProcessConnection(t *testing.T) {
 			t.Fatalf("Expected CLI login sync arguments %v, got %v", expectedArgs, config.Args)
 		}
 	})
-}
-
-func TestClient_InProcessEnvironmentEncoding(t *testing.T) {
-	t.Parallel()
-
-	inherited := []string{
-		"HOME=/home/\xff",
-		"INVALID_\xff_KEY=ignored",
-		"SDK_UNCHANGED=/home/\u00e9",
-		"EMPTY=",
-	}
-	expected := map[string]string{
-		"SDK_UNCHANGED": "/home/\u00e9",
-		"EMPTY":         "",
-	}
-	for _, key := range []string{
-		"http_proxy", "HTTP_PROXY", "https_proxy", "HTTPS_PROXY",
-		"COPILOT_PROXY_KERBEROS_SPN", "TMPDIR",
-	} {
-		inherited = append(inherited, key+"=before\xffafter\xfe")
-		if runtime.GOOS == "windows" {
-			key = strings.ToUpper(key)
-		}
-		expected[key] = "\uFFFD"
-	}
-	client := &Client{options: ClientOptions{Env: inherited}}
-	encoded, err := json.Marshal(client.inProcessHostConfig("").Environment)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var environment map[string]string
-	if err := json.Unmarshal(encoded, &environment); err != nil {
-		t.Fatal(err)
-	}
-	if !reflect.DeepEqual(environment, expected) {
-		t.Fatalf("serialized inherited environment = %q; want %q", environment, expected)
-	}
-
-	proxyURL := "http://typed-proxy"
-	client.options.BaseDirectory = "typed-home"
-	client.options.InternalTestOptions = &InternalTestOptions{ProxyURL: &proxyURL}
-	expected["COPILOT_HOME"] = "typed-home"
-	expected["COPILOT_CACHE_HOME"] = filepath.Join("typed-home", "cache")
-	for _, key := range []string{"http_proxy", "HTTP_PROXY", "https_proxy", "HTTPS_PROXY"} {
-		if runtime.GOOS == "windows" {
-			key = strings.ToUpper(key)
-		}
-		expected[key] = proxyURL
-	}
-	if got := client.inProcessHostConfig("").Environment; !reflect.DeepEqual(got, expected) {
-		t.Fatalf("typed startup environment = %q; want %q", got, expected)
-	}
 }
 
 func TestClient_DefaultConnection(t *testing.T) {
@@ -4963,7 +3278,7 @@ func TestClient_ForwardsToolsPresenceToSessionRequests(t *testing.T) {
 		// session's external tools with none, which omitting the key cannot express.
 		{"empty", []Tool{}, []any{}},
 		{"one tool", []Tool{{Name: "probe_echo", Description: "echo"}}, []any{
-			map[string]any{"name": "probe_echo", "description": "echo", "hasHandler": false},
+			map[string]any{"name": "probe_echo", "description": "echo"},
 		}},
 	}
 
@@ -5017,76 +3332,6 @@ func TestClient_ForwardsToolsPresenceToSessionRequests(t *testing.T) {
 				t.Fatalf("ResumeSessionWithOptions failed: %v", err)
 			}
 			assertTools(t, <-resumeParams, tt.want)
-		})
-	}
-}
-
-func TestClient_ForwardsCommandsPresenceToSessionRequests(t *testing.T) {
-	noop := func(CommandContext) error { return nil }
-	tests := []struct {
-		name     string
-		commands []CommandDefinition
-		want     []any
-	}{
-		{"omitted", nil, nil},
-		// An explicitly empty slice must reach the runtime: on resume it replaces the
-		// session's slash commands with none, which omitting the key cannot express.
-		{"empty", []CommandDefinition{}, []any{}},
-		{"one command", []CommandDefinition{{Name: "deploy", Description: "Deploy", Handler: noop}}, []any{
-			map[string]any{"name": "deploy", "description": "Deploy"},
-		}},
-	}
-
-	assertCommands := func(t *testing.T, params json.RawMessage, want []any) {
-		t.Helper()
-		var m map[string]any
-		if err := json.Unmarshal(params, &m); err != nil {
-			t.Fatalf("Failed to unmarshal: %v", err)
-		}
-		got, ok := m["commands"]
-		if want == nil {
-			if ok {
-				t.Errorf("Expected commands to be omitted, got %v", got)
-			}
-			return
-		}
-		if !ok || !reflect.DeepEqual(got, want) {
-			t.Errorf("Expected commands %v, got %v (present=%v)", want, got, ok)
-		}
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			rpcClient, server, _ := newRuntimeShutdownRpcPair(t)
-			t.Cleanup(server.Stop)
-			client := &Client{
-				client:   rpcClient,
-				RPC:      rpc.NewServerRPC(rpcClient),
-				sessions: make(map[string]*Session),
-			}
-
-			createParams := make(chan json.RawMessage, 1)
-			server.SetRequestHandler("session.create", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-				createParams <- append(json.RawMessage(nil), params...)
-				sessionID := sessionIDFromParams(t, params)
-				return []byte(`{"sessionId":"` + sessionID + `","workspacePath":"/workspace"}`), nil
-			})
-
-			if _, err := client.CreateSession(t.Context(), &SessionConfig{Model: "auto", Commands: tt.commands}); err != nil {
-				t.Fatalf("CreateSession failed: %v", err)
-			}
-			assertCommands(t, <-createParams, tt.want)
-
-			resumeParams := make(chan json.RawMessage, 1)
-			server.SetRequestHandler("session.resume", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-				resumeParams <- append(json.RawMessage(nil), params...)
-				return []byte(`{"sessionId":"resumed-commands","workspacePath":"/workspace"}`), nil
-			})
-
-			if _, err := client.ResumeSessionWithOptions(t.Context(), "resumed-commands", &ResumeSessionConfig{Model: "auto", Commands: tt.commands}); err != nil {
-				t.Fatalf("ResumeSessionWithOptions failed: %v", err)
-			}
-			assertCommands(t, <-resumeParams, tt.want)
 		})
 	}
 }
@@ -6023,7 +4268,7 @@ func TestClient_MCPAuthRuntimeRefreshRegistration(t *testing.T) {
 					ServerURL:               "https://example.com/mcp",
 					Reason:                  rpc.MCPOauthRequestReasonRefresh,
 					RuntimeRefreshSupported: capability,
-				}}, nil)
+				}})
 				if calls != i+1 || legacyCalls != 0 || observedCapability != (capability != nil && *capability) {
 					t.Fatalf("opt-in dispatch calls=%d legacy=%d capability=%v", calls, legacyCalls, observedCapability)
 				}
@@ -6066,7 +4311,7 @@ func TestClient_MCPAuthRuntimeRefreshRegistration(t *testing.T) {
 			assertRequestMethod(t, requests.snapshot(), "session.eventLog.registerInterest")
 			session.handleBroadcastEvent(SessionEvent{Data: &MCPOauthRequiredData{
 				RequestID: "legacy-request", Reason: rpc.MCPOauthRequestReasonRefresh, RuntimeRefreshSupported: Bool(true),
-			}}, nil)
+			}})
 			result, ok := findRequest(requests.snapshot(), "session.mcp.oauth.handlePendingRequest")
 			if !ok || calls != 1 || result.Params["result"].(map[string]any)["kind"] != "cancelled" {
 				t.Fatalf("legacy handler changed: calls=%d requests=%+v", calls, requests.snapshot())
@@ -6450,13 +4695,13 @@ func TestCreateSessionRequest_Commands(t *testing.T) {
 		}
 	})
 
-	t.Run("omits commands from JSON when nil", func(t *testing.T) {
+	t.Run("omits commands from JSON when empty", func(t *testing.T) {
 		req := createSessionRequest{}
 		data, _ := json.Marshal(req)
 		var m map[string]any
 		json.Unmarshal(data, &m)
 		if _, ok := m["commands"]; ok {
-			t.Error("Expected commands to be omitted when nil")
+			t.Error("Expected commands to be omitted when empty")
 		}
 	})
 }
@@ -6624,13 +4869,13 @@ func TestResumeSessionRequest_Commands(t *testing.T) {
 		}
 	})
 
-	t.Run("omits commands from JSON when nil", func(t *testing.T) {
+	t.Run("omits commands from JSON when empty", func(t *testing.T) {
 		req := resumeSessionRequest{SessionID: "s1"}
 		data, _ := json.Marshal(req)
 		var m map[string]any
 		json.Unmarshal(data, &m)
 		if _, ok := m["commands"]; ok {
-			t.Error("Expected commands to be omitted when nil")
+			t.Error("Expected commands to be omitted when empty")
 		}
 	})
 }

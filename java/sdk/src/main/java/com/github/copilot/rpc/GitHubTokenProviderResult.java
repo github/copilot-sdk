@@ -33,9 +33,7 @@ public final class GitHubTokenProviderResult {
      * @param accessToken
      *            GitHub access token
      * @param expiresIn
-     *            remaining lifetime in seconds when the callback completes; more
-     *            than one hour must still remain after the runtime validates the
-     *            token
+     *            positive remaining lifetime in seconds when the callback completes
      * @return the token result
      */
     public static GitHubTokenProviderResult token(String accessToken, long expiresIn) {
@@ -48,9 +46,7 @@ public final class GitHubTokenProviderResult {
      * @param accessToken
      *            GitHub access token
      * @param expiresIn
-     *            remaining lifetime in seconds when the callback completes; more
-     *            than one hour must still remain after the runtime validates the
-     *            token
+     *            positive remaining lifetime in seconds when the callback completes
      * @param tokenType
      *            OAuth token type, or {@code null} to use the runtime's bearer
      *            default

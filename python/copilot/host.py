@@ -13,7 +13,6 @@ import types
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from enum import Enum
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -258,8 +257,6 @@ def _config_value(value: Any, annotation: Any) -> Any:
         for variant in variants:
             if value is not None and variant is not type(None):
                 return _config_value(value, variant)
-    if isinstance(annotation, type) and issubclass(annotation, Enum):
-        return annotation(value)
     if isinstance(value, dict):
         if is_typeddict(annotation):
             hints = get_type_hints(annotation)
@@ -316,22 +313,10 @@ class _AhpHostManager:
         self._tasks: set[asyncio.Task[Any]] = set()
         self._authentications: dict[str, _Authentication] = {}
 
-    def capture(
-        self,
-        session: CopilotSession,
-        config: dict[str, Any],
-        options_patch: dict[str, Any] | None,
-    ) -> None:
-        # These settings are sent by the post-create options patch, never in
-        # the create or resume payload, so record the values that patch applied.
-        applied = {
-            key: options_patch[key]
-            for key in ("skipCustomInstructions", "coauthorEnabled", "manageScheduleEnabled")
-            if options_patch is not None and key in options_patch
-        }
+    def capture(self, session: CopilotSession, config: dict[str, Any]) -> None:
         for entry in self._handoffs.values():
             if entry.session_id == session.session_id:
-                entry.configs[session] = copy.deepcopy({**config, **applied})
+                entry.configs[session] = copy.deepcopy(config)
 
     async def start(self, rpc: JsonRpcClient, options: AhpHostOptions) -> AhpHost:
         _validate_options(options)

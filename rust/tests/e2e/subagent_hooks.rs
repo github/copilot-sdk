@@ -45,19 +45,21 @@ async fn should_apply_subagent_lifecycle_hook_outputs() {
                 let (parent_reply, parent_reply_observed) = watch::channel(false);
 
                 let client = ctx
-                    .start_llm_client(Arc::clone(&request_log))
+                    .start_llm_client(
+                        Arc::clone(&request_log),
+                        &[("COPILOT_EXP_COPILOT_CLI_SESSION_BASED_SUBAGENTS", "true")],
+                    )
                     .await;
 
-                let config = ctx.approve_all_session_config().with_hooks(Arc::new(
-                    RecordingHooks {
-                        log: Arc::clone(&hook_log),
-                        parent_reply_observed,
-                        subagent_starts: Arc::clone(&subagent_starts),
-                        subagent_stops: Arc::clone(&subagent_stops),
-                    },
-                ));
                 let session = client
-                    .create_session(config)
+                    .create_session(ctx.approve_all_session_config().with_hooks(Arc::new(
+                        RecordingHooks {
+                            log: Arc::clone(&hook_log),
+                            parent_reply_observed,
+                            subagent_starts: Arc::clone(&subagent_starts),
+                            subagent_stops: Arc::clone(&subagent_stops),
+                        },
+                    )))
                     .await
                     .expect("create session");
 
@@ -224,6 +226,31 @@ fn has_child_context(body: &serde_json::Value) -> bool {
         })
 }
 
+#[test]
+fn recognizes_user_context_across_request_formats() {
+    use serde_json::json;
+
+    let text = format!("{CHILD_CONTEXT}\n\nRead the file \"subagent-test.txt\"");
+    let user = json!({"role": "user", "content": text});
+    assert!(has_child_context(&json!({"messages": [user]})));
+    assert!(has_child_context(&json!({"input": text})));
+    assert!(has_child_context(&json!({"input": [user]})));
+    for kind in ["text", "input_text"] {
+        assert!(has_child_context(&json!({"input": [{
+            "role": "user", "content": [{"type": kind, "text": text}]
+        }]})));
+    }
+    assert!(!has_child_context(&json!({"input": [
+        {"role": "assistant", "content": text},
+        {"type": "function_call_output", "output": text},
+        {"role": "user", "content": [
+            null, "ignored", {"type": "input_text", "text": 42},
+            {"type": "input_image", "text": text}
+        ]}
+    ]})));
+    assert!(!has_child_context(&json!({})));
+}
+
 #[derive(Clone, Debug)]
 struct HookEntry {
     kind: String,
@@ -336,6 +363,19 @@ fn is_subagent_view(tool_name: &str, session_id: &str, log: &[HookEntry]) -> boo
             .iter()
             .find(|entry| entry.kind == "pre" && entry.tool_name == "task")
             .is_some_and(|entry| entry.session_id != session_id)
+}
+
+#[test]
+fn only_child_view_waits_for_parent_reply() {
+    let parent_task = [HookEntry {
+        kind: "pre".to_string(),
+        tool_name: "task".to_string(),
+        session_id: "parent".to_string(),
+    }];
+    assert!(!is_subagent_view("view", "parent", &[]));
+    assert!(!is_subagent_view("view", "parent", &parent_task));
+    assert!(!is_subagent_view("task", "child", &parent_task));
+    assert!(is_subagent_view("view", "child", &parent_task));
 }
 
 #[async_trait]

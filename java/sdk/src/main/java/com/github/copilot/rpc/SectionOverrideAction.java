@@ -8,7 +8,7 @@ import com.fasterxml.jackson.annotation.JsonValue;
 
 /**
  * Specifies the operation to perform on a system prompt section in
- * {@link com.github.copilot.SystemMessageMode#CUSTOMIZE} mode.
+ * {@link SystemMessageMode#CUSTOMIZE} mode.
  *
  * @see SectionOverride
  * @see SystemMessageConfig

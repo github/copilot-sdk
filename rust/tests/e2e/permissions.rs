@@ -3,10 +3,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use github_copilot_sdk::handler::{PermissionHandler, PermissionResult};
-use github_copilot_sdk::rpc::{
-    PermissionsSetApproveAllRequest, PermissionsSetModeRequest,
-    SessionPermissionsManagedReviewRequiredParams,
-};
+use github_copilot_sdk::rpc::{PermissionsSetApproveAllRequest, PermissionsSetModeRequest};
 use github_copilot_sdk::session_events::{
     AssistedApprovalAssessment, AssistedApprovalCompletedRecommendation, PermissionMode,
     SessionEventType, ToolExecutionCompleteData,
@@ -20,6 +17,36 @@ use tokio::sync::{mpsc, oneshot};
 use super::support::{
     DEFAULT_TEST_TOKEN, assistant_message_content, recv_with_timeout, wait_for_event,
 };
+
+#[tokio::test]
+async fn should_work_with_approve_all_permission_handler() {
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "permissions",
+        "should_work_with_approve_all_permission_handler",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(ctx.approve_all_session_config())
+                    .await
+                    .expect("create session");
+
+                let answer = session
+                    .send_and_wait("What is 2+2?")
+                    .await
+                    .expect("send")
+                    .expect("assistant message");
+                assert!(assistant_message_content(&answer).contains('4'));
+
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
+    .await;
+}
 
 #[tokio::test]
 async fn should_deny_permission_when_handler_returns_denied() {
@@ -141,31 +168,7 @@ async fn should_handle_async_permission_handler() {
                     .await
                     .expect("send");
 
-                let request = recv_with_timeout(&mut request_rx, "async permission request").await;
-                let before = serde_json::to_value(&request).expect("serialize handler data");
-                let raw = request.extra["permissionRequest"].clone();
-                assert!(raw.is_object(), "expected the original permission request");
-                let borrowed = serde_json::Value::from(&request);
-                assert_eq!(borrowed, raw);
-                assert_eq!(
-                    serde_json::to_value(&request).expect("serialize borrowed handler data"),
-                    before,
-                );
-                let owned = serde_json::Value::from(request);
-                assert_eq!(owned, raw);
-                for request in [borrowed, owned, raw] {
-                    assert!(
-                        !session
-                            .rpc()
-                            .permissions()
-                            .managed_review_required(
-                                SessionPermissionsManagedReviewRequiredParams { request }
-                            )
-                            .await
-                            .expect("review the original permission request"),
-                        "the session has no managed approval policy",
-                    );
-                }
+                recv_with_timeout(&mut request_rx, "async permission request").await;
 
                 session.disconnect().await.expect("disconnect session");
                 client.stop().await.expect("stop client");
@@ -859,4 +862,4 @@ impl PermissionHandler for SlowPermissionHandler {
     }
 }
 static E2E: super::support::SharedE2eGroup =
-    super::support::SharedE2eGroup::standard("permissions", 8);
+    super::support::SharedE2eGroup::standard("permissions", 9);

@@ -12,14 +12,14 @@ pub(crate) use lifecycle_diagnostics::LifecycleDiagnosticEvent;
 use serde::{Deserialize, Serialize};
 pub use session_events::{
     AbortReason, AgentModelPolicy, AssistedApprovalAssessment, AutoTier, BlockedPermissionAction,
-    ContextTier, IdeConnectedInfo, IdeSelection, IndexedSearchState, ManagedPermissionsContext,
-    ManagedSettingsResolvedSource, McpOauthHttpResponse, McpOauthWWWAuthenticateParams,
-    McpServerMetadata, McpServerSource, McpServerStatus, McpSkillOrigin, ModelChangeSource,
-    ModelProviderKind, ModelProviderRef, OmittedBinaryOmittedReason, PermissionDecisionSource,
-    PermissionMode, PermissionPromptRequest, PermissionRule, PolicyHelperCapabilities,
-    PolicyHelperFailure, ProviderQuotaState, ReasoningSummary, RemediationAction,
-    SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskBlocker,
-    TaskCompletionOutcome, UsageGetMetricsResult, UserToolSessionApproval, Verbosity,
+    ContextTier, IndexedSearchState, ManagedPermissionsContext, ManagedSettingsResolvedSource,
+    McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource,
+    McpServerStatus, McpSkillOrigin, ModelChangeSource, ModelProviderKind, ModelProviderRef,
+    OmittedBinaryOmittedReason, PermissionDecisionSource, PermissionMode, PermissionPromptRequest,
+    PermissionRule, PolicyHelperCapabilities, PolicyHelperFailure, ProviderQuotaState,
+    ReasoningSummary, RemediationAction, SessionLimitsConfig, SessionMode, ShutdownType,
+    SkillSource, TaskBlocker, TaskCompletionOutcome, UsageGetMetricsResult,
+    UserToolSessionApproval, Verbosity,
 };
 
 use super::sdk_api_shared::*;
@@ -67,7 +67,7 @@ pub struct SandboxCredentialSuggestionsResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SandboxDisableForSessionRequest {
-    /// Optional attribution for the permission decision. A claim that a person decided (`source` `human_response`) counts only from the session's authenticated owning connection or the in-process host.
+    /// Optional attribution for the permission decision.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub decision_context: Option<PermissionDecisionContext>,
     /// Identifier of the exact pending sandbox-bypass permission request that authorized the session opt-out.
@@ -229,44 +229,6 @@ pub(crate) struct SandboxFilterPickerCandidatesResult {
     pub allowed: Vec<bool>,
 }
 
-/// Remote MCP endpoint and the host's existing proxy secret directory.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SandboxGetRemoteMcpEgressRequest {
-    /// Existing proxy secret directory on the runtime host.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub secret_config_dir: Option<String>,
-    /// Target endpoint for the session network policy decision.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub url: Option<String>,
-}
-
-/// Session-owned remote MCP egress decision. A denial forbids connection.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SandboxGetRemoteMcpEgressResult {
-    /// Reason a connection is forbidden; absent when allowed.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub denied_reason: Option<String>,
-    /// Authorized proxy URL; absent for a direct connection or a denial.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub proxy_url: Option<String>,
-}
-
 /// Request to accept the sandbox path grant offered on an active sandbox escalation permission prompt.
 ///
 /// <div class="warning">
@@ -278,7 +240,7 @@ pub struct SandboxGetRemoteMcpEgressResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SandboxGrantPathForRequestRequest {
-    /// Optional attribution for the permission decision. A claim that a person decided (`source` `human_response`) counts only from the session's authenticated owning connection or the in-process host.
+    /// Optional attribution for the permission decision.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub decision_context: Option<PermissionDecisionContext>,
     /// Identifier of the exact pending sandbox escalation permission request whose sandboxPathGrant to accept.
@@ -311,7 +273,7 @@ pub struct SandboxGrantPathForRequestResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SandboxHostCapability {
-    /// The policy feature, as an extensible string: ignore names you do not recognize. Known values: `network` (sandboxed commands can reach the network; on Linux this needs the tooling for Bubblewrap's private network namespace, such as slirp4netns), `network_filtering` (host rules and the sandbox proxy; on Linux this needs the same tooling as `network`; on Windows it needs Process Security Environment 1.1 host-loopback support or MXC's PSEC 1.0-only proxy-loopback compatibility capability, and a policy that uses it must also set `network.allowLocalNetwork`; compatibility applies only to an explicit identity-less runtime proxy, not general host-loopback access, and other policy restrictions still apply), `denied_paths` (native enforcement of `filesystem.deniedPaths`), `shell` (shell commands inside the sandbox), and `filesystem_enumeration` (enumerate-only filesystem grants: PowerShell's drive roots and `filesystem.enumeratePaths`; on Windows this needs Process Security Environment 1.1 filesystem enumeration support, and without it sandboxed PowerShell still runs but cannot resolve its current location, and `filesystem.enumeratePaths` entries are ignored; other platforms always report it).
+    /// The policy feature, as an extensible string: ignore names you do not recognize. Known values: `network` (sandboxed commands can reach the network; on Linux this needs the tooling for Bubblewrap's private network namespace, such as slirp4netns), `network_filtering` (host rules and the sandbox proxy; on Linux this needs the same tooling as `network`; on Windows it needs Process Security Environment 1.1 host-loopback support or MXC's PSEC 1.0-only proxy-loopback compatibility capability, and a policy that uses it must also set `network.allowLocalNetwork`; compatibility applies only to an explicit identity-less runtime proxy, not general host-loopback access, and other policy restrictions still apply), `denied_paths` (native enforcement of `filesystem.deniedPaths`), `shell` (shell commands inside the sandbox), and `filesystem_enumeration` (enumerate-only filesystem grants; on Windows this needs Process Security Environment 1.1 filesystem enumeration support, and without it sandboxed PowerShell still runs but cannot resolve its current location; other platforms always report it).
     pub name: String,
     /// Human-readable reason and remedy when the feature is unsupported, such as a package to install or an OS update. Present only when `supported` is false.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -770,7 +732,7 @@ pub struct SandboxGetHostSupportResult {
     pub supported: bool,
 }
 
-/// Extensible identifier of a sandbox policy feature whose availability varies between hosts. A plain string, so an older client decodes a name added by a newer runtime; ignore names you do not recognize. Known values: `network` — sandboxed commands can reach the network (`network.allowOutbound`, on by default); on Linux this needs the tooling for Bubblewrap's private network namespace, such as slirp4netns. `network_filtering` — host rules and the sandbox proxy (`network.allowedHosts`, `network.blockedHosts`, `network.proxy`); on Linux this needs the same tooling as `network`; on Windows it needs Process Security Environment 1.1 host-loopback support or MXC's PSEC 1.0-only proxy-loopback compatibility capability, and a policy that uses it must also set `network.allowLocalNetwork`, because Windows reaches the local proxy only together with private-network access. Compatibility applies only to an explicit identity-less runtime proxy, not general host-loopback access, and other policy restrictions still apply. `denied_paths` — native enforcement of `filesystem.deniedPaths`; on Windows this needs a version whose sandbox contract reports denied-path support. `shell` — shell commands inside the sandbox: bash on macOS and Linux, PowerShell on Windows. `filesystem_enumeration` — enumerate-only filesystem grants, which PowerShell's drive roots and `filesystem.enumeratePaths` use on Windows; this needs a version with Process Security Environment 1.1 filesystem enumeration support. Without it, sandboxed PowerShell still runs, but `Get-Location` may report the drive root, `Set-Location` may fail, and relative paths may resolve against the drive root; the session also receives a `session.warning` with `warningType` `sandbox`. `filesystem.enumeratePaths` entries are ignored. Other platforms always report it.
+/// Extensible identifier of a sandbox policy feature whose availability varies between hosts. A plain string, so an older client decodes a name added by a newer runtime; ignore names you do not recognize. Known values: `network` — sandboxed commands can reach the network (`network.allowOutbound`, on by default); on Linux this needs the tooling for Bubblewrap's private network namespace, such as slirp4netns. `network_filtering` — host rules and the sandbox proxy (`network.allowedHosts`, `network.blockedHosts`, `network.proxy`); on Linux this needs the same tooling as `network`; on Windows it needs Process Security Environment 1.1 host-loopback support or MXC's PSEC 1.0-only proxy-loopback compatibility capability, and a policy that uses it must also set `network.allowLocalNetwork`, because Windows reaches the local proxy only together with private-network access. Compatibility applies only to an explicit identity-less runtime proxy, not general host-loopback access, and other policy restrictions still apply. `denied_paths` — native enforcement of `filesystem.deniedPaths`; on Windows this needs a version whose sandbox contract reports denied-path support. `shell` — shell commands inside the sandbox: bash on macOS and Linux, PowerShell on Windows. `filesystem_enumeration` — enumerate-only filesystem grants, which PowerShell's drive roots use on Windows; this needs a version with Process Security Environment 1.1 filesystem enumeration support. Without it, sandboxed PowerShell still runs, but `Get-Location` may report the drive root, `Set-Location` may fail, and relative paths may resolve against the drive root; the session also receives a `session.warning` with `warningType` `sandbox`. Other platforms always report it.
 ///
 /// <div class="warning">
 ///

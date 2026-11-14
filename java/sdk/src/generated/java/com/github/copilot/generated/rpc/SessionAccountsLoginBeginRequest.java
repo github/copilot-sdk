@@ -30,10 +30,6 @@ public final class SessionAccountsLoginBeginRequest {
     @JsonProperty("kind")
     private final LoginProviderKind kind;
 
-    /** How to authorize: `web` (default) or `device-code`. Device code is offered for `githubDotCom` and `proxima`; `proxima` still asks for its host through `input-required` first. */
-    @JsonProperty("method")
-    private AuthLoginMethod method;
-
     /** Neutral identity-selection intent. Omitted is equivalent to default. */
     @JsonProperty("mode")
     private AuthLoginMode mode;
@@ -61,15 +57,6 @@ public final class SessionAccountsLoginBeginRequest {
     }
 
     /**
-     * Returns the {@code method} property.
-     *
-     * @return How to authorize: `web` (default) or `device-code`. Device code is offered for `githubDotCom` and `proxima`; `proxima` still asks for its host through `input-required` first.
-     */
-    public AuthLoginMethod getMethod() {
-        return method;
-    }
-
-    /**
      * Returns the {@code mode} property.
      *
      * @return Neutral identity-selection intent. Omitted is equivalent to default.
@@ -85,17 +72,6 @@ public final class SessionAccountsLoginBeginRequest {
      */
     public String getAccountId() {
         return accountId;
-    }
-
-    /**
-     * Sets the {@code method} property.
-     *
-     * @param value How to authorize: `web` (default) or `device-code`. Device code is offered for `githubDotCom` and `proxima`; `proxima` still asks for its host through `input-required` first.
-     * @return this request
-     */
-    public SessionAccountsLoginBeginRequest setMethod(AuthLoginMethod value) {
-        this.method = value;
-        return this;
     }
 
     /**

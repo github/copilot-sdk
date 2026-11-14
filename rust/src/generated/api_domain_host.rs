@@ -12,14 +12,14 @@ pub(crate) use lifecycle_diagnostics::LifecycleDiagnosticEvent;
 use serde::{Deserialize, Serialize};
 pub use session_events::{
     AbortReason, AgentModelPolicy, AssistedApprovalAssessment, AutoTier, BlockedPermissionAction,
-    ContextTier, IdeConnectedInfo, IdeSelection, IndexedSearchState, ManagedPermissionsContext,
-    ManagedSettingsResolvedSource, McpOauthHttpResponse, McpOauthWWWAuthenticateParams,
-    McpServerMetadata, McpServerSource, McpServerStatus, McpSkillOrigin, ModelChangeSource,
-    ModelProviderKind, ModelProviderRef, OmittedBinaryOmittedReason, PermissionDecisionSource,
-    PermissionMode, PermissionPromptRequest, PermissionRule, PolicyHelperCapabilities,
-    PolicyHelperFailure, ProviderQuotaState, ReasoningSummary, RemediationAction,
-    SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskBlocker,
-    TaskCompletionOutcome, UsageGetMetricsResult, UserToolSessionApproval, Verbosity,
+    ContextTier, IndexedSearchState, ManagedPermissionsContext, ManagedSettingsResolvedSource,
+    McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource,
+    McpServerStatus, McpSkillOrigin, ModelChangeSource, ModelProviderKind, ModelProviderRef,
+    OmittedBinaryOmittedReason, PermissionDecisionSource, PermissionMode, PermissionPromptRequest,
+    PermissionRule, PolicyHelperCapabilities, PolicyHelperFailure, ProviderQuotaState,
+    ReasoningSummary, RemediationAction, SessionLimitsConfig, SessionMode, ShutdownType,
+    SkillSource, TaskBlocker, TaskCompletionOutcome, UsageGetMetricsResult,
+    UserToolSessionApproval, Verbosity,
 };
 
 use super::sdk_api_shared::*;
@@ -664,8 +664,6 @@ pub struct AuthLoginBeginOptions {
     #[serde(flatten)]
     legacy: AuthLoginBeginRequest,
     #[serde(skip_serializing_if = "Option::is_none")]
-    method: Option<AuthLoginMethod>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     mode: Option<AuthLoginMode>,
     #[serde(skip_serializing_if = "Option::is_none")]
     account_id: Option<String>,
@@ -676,16 +674,9 @@ impl AuthLoginBeginOptions {
     pub fn new(kind: LoginProviderKind) -> Self {
         Self {
             legacy: AuthLoginBeginRequest { kind },
-            method: None,
             mode: None,
             account_id: None,
         }
-    }
-
-    /// How to authorize: `web` (default) or `device-code`. Device code is offered for `githubDotCom` and `proxima`; `proxima` still asks for its host through `input-required` first.
-    pub fn method(mut self, value: AuthLoginMethod) -> Self {
-        self.method = Some(value);
-        self
     }
 
     /// Neutral identity-selection intent. Omitted is equivalent to default.
@@ -2101,7 +2092,7 @@ pub struct GitHubTokenAcquireRequest {
 pub struct GitHubTokenAcquireResultToken {
     /// GitHub access token acquired by the SDK host.
     pub access_token: String,
-    /// Remaining token lifetime in seconds when callback execution completes. It must exceed the one-hour preflight refresh threshold, and still exceed it after the runtime validates the token: validation time counts against this lifetime, so a value just above 3600 can be rejected.
+    /// Remaining token lifetime in seconds when callback execution completes. It must exceed the one-hour preflight refresh threshold.
     pub expires_in: i64,
     /// GitHub credential response variant discriminator.
     pub kind: GitHubTokenAcquireResultTokenKind,
@@ -3393,28 +3384,6 @@ pub enum AuthEnumerateValue {
     Accounts(AuthEnumerateValueAccounts),
     Providers(AuthEnumerateValueProviders),
     LoginAccounts(AuthEnumerateValueLoginAccounts),
-}
-
-/// How an interactive GitHub login is authorized.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum AuthLoginMethod {
-    /// Browser authorization with a loopback callback; the flow surfaces an `open-url` step.
-    #[serde(rename = "web")]
-    Web,
-    /// OAuth device authorization; the flow surfaces a `device-code` step with a one-time code, for terminals whose browser cannot reach a loopback callback.
-    #[serde(rename = "device-code")]
-    DeviceCode,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
 }
 
 /// How an interactive provider login should choose its base identity.

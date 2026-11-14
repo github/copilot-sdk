@@ -26,14 +26,10 @@ flowchart LR
 | [`onUserPromptSubmitted`](../hooks/user-prompt-submitted.md)        | User sends a message                | Rewrite prompts, add context, filter input |
 | [`onUserPromptTransformed`](../hooks/user-prompt-transformed.md)    | Runtime builds the model prompt     | Inspect or replace model-facing content    |
 | [`onPreToolUse`](../hooks/pre-tool-use.md)                          | Before a tool executes              | Allow / deny / modify the call             |
-| [`onPreMcpToolCall`](../hooks/pre-mcp-tool-call.md)                 | Before an MCP tool call is sent     | Attach or remove MCP request metadata      |
 | [`onPostToolUse`](../hooks/post-tool-use.md)                        | After a tool returns (success only) | Transform results, redact secrets, audit   |
 | [`onPostToolUseFailure`](../hooks/post-tool-use.md#failure-variant) | After a tool returns a failure      | Inject retry guidance, log failures        |
 | [`onSessionEnd`](../hooks/session-lifecycle.md#session-end-hook)         | Session ends                        | Clean up, record metrics                   |
 | [`onErrorOccurred`](../hooks/error-handling.md)                     | An error is raised                  | Custom logging, retry logic, alerts        |
-| [`onAgentStop`](../hooks/session-lifecycle.md#agent-stop-hook)      | Top-level agent naturally stops     | Validate completion or request another turn |
-| [`onSubagentStart`](./fleet-mode.md#lifecycle-hooks)                | Before a sub-agent's first turn     | Prepend context to its prompt              |
-| [`onSubagentStop`](./fleet-mode.md#lifecycle-hooks)                 | After a sub-agent completes a turn  | Request another turn or replace its response |
 
 All hooks are **optional**—register only the ones you need. Returning `null` (or the language equivalent) from any hook tells the SDK to continue with default behavior.
 
@@ -401,6 +397,7 @@ import (
 	"context"
 	"fmt"
 	copilot "github.com/github/copilot-sdk/go"
+	"github.com/github/copilot-sdk/go/rpc"
 )
 
 func main() {
@@ -420,6 +417,9 @@ func main() {
 				}
 				return &copilot.PreToolUseHookOutput{PermissionDecision: "allow"}, nil
 			},
+		},
+		OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
+			return &rpc.PermissionDecisionApproveOnce{}, nil
 		},
 	})
 	_ = session
@@ -450,6 +450,47 @@ session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
 
 <details>
 <summary><strong>.NET</strong></summary>
+
+<!-- docs-validate: hidden -->
+
+```csharp
+using GitHub.Copilot;
+using GitHub.Copilot.Rpc;
+
+public static class PermissionControlExample
+{
+    public static async Task Main()
+    {
+        await using var client = new CopilotClient();
+
+        var readOnlyTools = new HashSet<string> { "read_file", "glob", "grep", "view" };
+
+        var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            Hooks = new SessionHooks
+            {
+                OnPreToolUse = (input, invocation) =>
+                {
+                    if (!readOnlyTools.Contains(input.ToolName))
+                    {
+                        return Task.FromResult<PreToolUseHookOutput?>(new PreToolUseHookOutput
+                        {
+                            PermissionDecision = "deny",
+                            PermissionDecisionReason = $"Only read-only tools are allowed. \"{input.ToolName}\" was blocked.",
+                        });
+                    }
+                    return Task.FromResult<PreToolUseHookOutput?>(
+                        new PreToolUseHookOutput { PermissionDecision = "allow" });
+                },
+            },
+            OnPermissionRequest = (req, inv) =>
+                Task.FromResult(PermissionDecision.ApproveOnce()),
+        });
+    }
+}
+```
+
+<!-- /docs-validate: hidden -->
 
 ```csharp
 var readOnlyTools = new HashSet<string> { "read_file", "glob", "grep", "view" };
@@ -718,20 +759,17 @@ const SECRET_PATTERNS = [
   /(?:api[_-]?key|token|secret|password)\s*[:=]\s*["']?[\w\-\.]+["']?/gi,
 ];
 
-const redact = (text: string) =>
-  SECRET_PATTERNS.reduce((result, pattern) => result.replace(pattern, "[REDACTED]"), text);
-
 const session = await client.createSession({
   hooks: {
     onPostToolUse: async (input) => {
-      const { textResultForLlm, sessionLog } = input.toolResult;
-      const redacted = {
-        ...input.toolResult,
-        textResultForLlm: redact(textResultForLlm),
-        sessionLog: sessionLog && redact(sessionLog),
-      };
+      if (typeof input.toolResult !== "string") return null;
 
-      return redacted.textResultForLlm !== textResultForLlm || redacted.sessionLog !== sessionLog
+      let redacted = input.toolResult;
+      for (const pattern of SECRET_PATTERNS) {
+        redacted = redacted.replace(pattern, "[REDACTED]");
+      }
+
+      return redacted !== input.toolResult
         ? { modifiedResult: redacted }
         : null;
     },
@@ -1113,7 +1151,6 @@ For full type definitions, input/output field tables, and additional examples fo
 
 * [Hooks Overview](../hooks/hooks-overview.md)
 * [Pre-Tool Use](../hooks/pre-tool-use.md)
-* [Pre-MCP Tool Call](../hooks/pre-mcp-tool-call.md)
 * [Post-Tool Use](../hooks/post-tool-use.md)
 * [User Prompt Submitted](../hooks/user-prompt-submitted.md)
 * [User Prompt Transformed](../hooks/user-prompt-transformed.md)

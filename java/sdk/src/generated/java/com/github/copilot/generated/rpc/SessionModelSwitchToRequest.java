@@ -25,14 +25,12 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public final class SessionModelSwitchToRequest {
-    @com.fasterxml.jackson.annotation.JsonIgnore
-    private final java.util.Set<String> $explicitNulls = new java.util.LinkedHashSet<>();
 
     /** Model id to switch to, as returned by `list`. Include providerId to select an exact catalog entry when providers share the id. Without providerId, a bare id retains incumbent selection behavior; a registry-qualified id (`provider/id`, e.g. `acme/claude-sonnet`) targets a BYOK model. */
     @JsonProperty("modelId")
     private final String modelId;
 
-    /** Optional Auto routing preference to stage atomically with selecting `auto`. Pass null to return to provider-default Auto routing. This field is rejected when `modelId` is not `auto`. For Copilot Fusion, prefer `fusionTier`: the `balance`, `hydrafusion` and `hydrafusion-max` identifiers it replaces remain accepted but are deprecated. */
+    /** Optional Auto routing preference to stage atomically with selecting `auto`. Pass null to return to provider-default Auto routing. This field is rejected when `modelId` is not `auto`. */
     @JsonProperty("autoTier")
     private AutoTier autoTier;
 
@@ -92,10 +90,6 @@ public final class SessionModelSwitchToRequest {
     @JsonProperty("providerId")
     private String providerId;
 
-    /** Optional Copilot Fusion tier to stage atomically with selecting `fusion` or `auto`, matching the CLI's `--fusion-tier`. The runtime resolves it to the Auto routing preference it stands for and stages that preference exactly like `autoTier`. Cannot be combined with `autoTier`, and is rejected when `modelId` is not `fusion` or `auto`. */
-    @JsonProperty("fusionTier")
-    private FusionTier fusionTier;
-
     /**
      * Creates a request with its required inputs.
      *
@@ -117,7 +111,7 @@ public final class SessionModelSwitchToRequest {
     /**
      * Returns the {@code autoTier} property.
      *
-     * @return Optional Auto routing preference to stage atomically with selecting `auto`. Pass null to return to provider-default Auto routing. This field is rejected when `modelId` is not `auto`. For Copilot Fusion, prefer `fusionTier`: the `balance`, `hydrafusion` and `hydrafusion-max` identifiers it replaces remain accepted but are deprecated.
+     * @return Optional Auto routing preference to stage atomically with selecting `auto`. Pass null to return to provider-default Auto routing. This field is rejected when `modelId` is not `auto`.
      */
     public AutoTier getAutoTier() {
         return autoTier;
@@ -250,24 +244,13 @@ public final class SessionModelSwitchToRequest {
     }
 
     /**
-     * Returns the {@code fusionTier} property.
-     *
-     * @return Optional Copilot Fusion tier to stage atomically with selecting `fusion` or `auto`, matching the CLI's `--fusion-tier`. The runtime resolves it to the Auto routing preference it stands for and stages that preference exactly like `autoTier`. Cannot be combined with `autoTier`, and is rejected when `modelId` is not `fusion` or `auto`.
-     */
-    public FusionTier getFusionTier() {
-        return fusionTier;
-    }
-
-    /**
      * Sets the {@code autoTier} property.
      *
-     * @param value Optional Auto routing preference to stage atomically with selecting `auto`. Pass null to return to provider-default Auto routing. This field is rejected when `modelId` is not `auto`. For Copilot Fusion, prefer `fusionTier`: the `balance`, `hydrafusion` and `hydrafusion-max` identifiers it replaces remain accepted but are deprecated.
+     * @param value Optional Auto routing preference to stage atomically with selecting `auto`. Pass null to return to provider-default Auto routing. This field is rejected when `modelId` is not `auto`.
      * @return this request
      */
     public SessionModelSwitchToRequest setAutoTier(AutoTier value) {
         this.autoTier = value;
-        if (value == null) $explicitNulls.add("autoTier");
-        else $explicitNulls.remove("autoTier");
         return this;
     }
 
@@ -279,8 +262,6 @@ public final class SessionModelSwitchToRequest {
      */
     public SessionModelSwitchToRequest setReasoningEffort(String value) {
         this.reasoningEffort = value;
-        if (value == null) $explicitNulls.add("reasoningEffort");
-        else $explicitNulls.remove("reasoningEffort");
         return this;
     }
 
@@ -425,25 +406,5 @@ public final class SessionModelSwitchToRequest {
     public SessionModelSwitchToRequest setProviderId(String value) {
         this.providerId = value;
         return this;
-    }
-
-    /**
-     * Sets the {@code fusionTier} property.
-     *
-     * @param value Optional Copilot Fusion tier to stage atomically with selecting `fusion` or `auto`, matching the CLI's `--fusion-tier`. The runtime resolves it to the Auto routing preference it stands for and stages that preference exactly like `autoTier`. Cannot be combined with `autoTier`, and is rejected when `modelId` is not `fusion` or `auto`.
-     * @return this request
-     */
-    public SessionModelSwitchToRequest setFusionTier(FusionTier value) {
-        this.fusionTier = value;
-        return this;
-    }
-
-    @com.fasterxml.jackson.annotation.JsonAnyGetter
-    @JsonInclude(value = JsonInclude.Include.ALWAYS, content = JsonInclude.Include.ALWAYS)
-    public java.util.Map<String, Object> $nullableProperties() {
-        java.util.Map<String, Object> values = new java.util.LinkedHashMap<>();
-        if ($explicitNulls.contains("autoTier") && autoTier == null) values.put("autoTier", null);
-        if ($explicitNulls.contains("reasoningEffort") && reasoningEffort == null) values.put("reasoningEffort", null);
-        return values;
     }
 }

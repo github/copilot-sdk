@@ -1,6 +1,6 @@
 # Backend services setup
 
-Run the SDK in backends, APIs, microservices and workers. Connect to an independent headless CLI over plaintext TCP JSON-RPC. Node.js, Python, Go, .NET and Java reject `https://`; `http://` is only an address alias.
+Run the Copilot SDK in server-side applications—APIs, web backends, microservices, and background workers. The CLI runs as a headless server that your backend code connects to over the network.
 
 **Best for:** Web app backends, API services, internal tools, CI/CD integrations, any server-side workload.
 
@@ -64,20 +64,16 @@ Run the CLI as a background server:
 # Start with a specific port
 copilot --headless --port 4321
 
-# Or let it pick a random port (prints the port)
+# Or let it pick a random port (prints the URL)
 copilot --headless
-# Output: CLI server listening on port 52431
+# Output: Listening on http://localhost:52431
 ```
 
-By default the headless server only accepts connections from loopback (`127.0.0.1`), where it needs no authentication. To accept connections from other hosts—for example from another machine on your network—bind to a non-loopback address with `--host`. A non-loopback bind exposes the full runtime (sessions, shell and file tools, the configured GitHub token) to anything that can reach the port, so the server **requires** a connection token in that case and refuses to start without one. Set `COPILOT_CONNECTION_TOKEN` to a non-empty shared secret on the server, and pass the same value as `connectionToken` from the SDK client:
+By default the headless server only accepts connections from loopback (`127.0.0.1`). To accept connections from other hosts—for example from another machine on your network—bind to a non-loopback address with `--host`:
 
 ```bash
-# Generate a secret once and keep it (for example in your secret store)
-export COPILOT_CONNECTION_TOKEN="$(openssl rand -hex 32)"
 copilot --headless --host 0.0.0.0 --port 4321
 ```
-
-Without `COPILOT_CONNECTION_TOKEN`, a non-loopback bind fails with `refusing to bind the runtime server to non-loopback host ... without a connection token`. Keep the token out of shell history and process arguments, and prefer loopback with an authenticating reverse proxy where you can.
 
 For production, run it as a system service or in a container.
 
@@ -109,13 +105,10 @@ docker push your-registry/copilot-cli:latest
 ```
 
 ```bash
-# Docker — must bind to 0.0.0.0 so the container's published port is reachable;
-# a non-loopback bind requires COPILOT_CONNECTION_TOKEN, forwarded below from the
-# value exported above (`-e NAME` with no value keeps it out of the command line).
+# Docker — must bind to 0.0.0.0 so the container's published port is reachable
 docker run -d --name copilot-cli \
     -p 4321:4321 \
     -e COPILOT_GITHUB_TOKEN="$TOKEN" \
-    -e COPILOT_CONNECTION_TOKEN \
     copilot-cli:latest \
     --headless --host 0.0.0.0 --port 4321
 
@@ -128,38 +121,9 @@ Restart=always
 
 ## Step 2: connect the SDK
 
-> [!IMPORTANT]
-> If you started the server with a non-loopback `--host` (for example the Docker setup above), it requires a connection token. Pass the same `COPILOT_CONNECTION_TOKEN` value to the client as the second argument to `RuntimeConnection.forUri`, for example `RuntimeConnection.forUri("your-host:4321", { connectionToken: process.env.COPILOT_CONNECTION_TOKEN })` (Node), `RuntimeConnection.for_uri("your-host:4321", connection_token=...)` (Python), or the equivalent option in your language. A loopback server (the default `copilot --headless`) needs no token.
-
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
 
-<!-- docs-validate: hidden -->
-```typescript
-import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
-
-// Provided by your web framework and auth layer
-declare const userId: string;
-declare const user: { githubToken: string };
-declare const req: { body: { message: string } };
-declare const res: { json(body: unknown): void };
-
-const client = new CopilotClient({
-    connection: RuntimeConnection.forUri("localhost:4321"),
-    mode: "empty",
-});
-
-const session = await client.createSession({
-    sessionId: `user-${userId}-${Date.now()}`,
-    model: "auto",
-    availableTools: ["custom:*"],
-    gitHubToken: user.githubToken,
-});
-
-const response = await session.sendAndWait({ prompt: req.body.message });
-res.json({ content: response?.data.content });
-```
-<!-- /docs-validate: hidden -->
 ```typescript
 import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
 
@@ -170,7 +134,7 @@ const client = new CopilotClient({
 
 const session = await client.createSession({
     sessionId: `user-${userId}-${Date.now()}`,
-    model: "auto",
+    model: "gpt-5.4",
     availableTools: ["custom:*"],
     gitHubToken: user.githubToken,
 });
@@ -197,7 +161,7 @@ client = CopilotClient(
 )
 await client.start()
 
-session = await client.create_session(on_permission_request=PermissionHandler.approve_all, model="auto", session_id=f"user-{user_id}-{int(time.time())}")
+session = await client.create_session(on_permission_request=PermissionHandler.approve_all, model="gpt-5.4", session_id=f"user-{user_id}-{int(time.time())}")
 
 response = await session.send_and_wait(message)
 ```
@@ -231,7 +195,7 @@ func main() {
 
 	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
 		SessionID: fmt.Sprintf("user-%s-%d", userID, time.Now().Unix()),
-		Model:     "auto",
+		Model:     "gpt-5.4",
 	})
 
 	response, _ := session.SendAndWait(ctx, copilot.MessageOptions{Prompt: message})
@@ -249,7 +213,7 @@ defer client.Stop()
 
 session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
     SessionID: fmt.Sprintf("user-%s-%d", userID, time.Now().Unix()),
-    Model:     "auto",
+    Model:     "gpt-5.4",
 })
 
 response, _ := session.SendAndWait(ctx, copilot.MessageOptions{Prompt: message})
@@ -275,7 +239,7 @@ var client = new CopilotClient(new CopilotClientOptions
 await using var session = await client.CreateSessionAsync(new SessionConfig
 {
     SessionId = $"user-{userId}-{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}",
-    Model = "auto",
+    Model = "gpt-5.4",
 });
 
 var response = await session.SendAndWaitAsync(
@@ -292,7 +256,7 @@ var client = new CopilotClient(new CopilotClientOptions
 await using var session = await client.CreateSessionAsync(new SessionConfig
 {
     SessionId = $"user-{userId}-{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}",
-    Model = "auto",
+    Model = "gpt-5.4",
 });
 
 var response = await session.SendAndWaitAsync(
@@ -320,7 +284,7 @@ try {
 
     var session = client.createSession(new SessionConfig()
         .setSessionId(String.format("user-%s-%d", userId, System.currentTimeMillis() / 1000))
-        .setModel("auto")
+        .setModel("gpt-5.4")
         .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
     ).get();
 
@@ -362,46 +326,6 @@ copilot --headless --port 4321
 
 Pass individual user tokens when creating sessions. See [GitHub OAuth](./github-oauth.md) for the full flow.
 
-<!-- docs-validate: hidden -->
-```typescript
-import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
-
-// Provided by your web framework and auth layer
-interface AuthenticatedRequest {
-    user: { id: string; githubToken: string };
-    body: { message: string };
-}
-declare const app: {
-    post(
-        path: string,
-        middleware: unknown,
-        handler: (req: AuthenticatedRequest, res: { json(body: unknown): void }) => Promise<void>,
-    ): void;
-};
-declare const authMiddleware: unknown;
-
-const client = new CopilotClient({
-    connection: RuntimeConnection.forUri("localhost:4321"),
-    mode: "empty",
-});
-
-// Your API receives user tokens from your auth layer
-app.post("/chat", authMiddleware, async (req, res) => {
-    const session = await client.createSession({
-        sessionId: `user-${req.user.id}-chat`,
-        model: "auto",
-        availableTools: ["custom:*"],
-        gitHubToken: req.user.githubToken,
-    });
-
-    const response = await session.sendAndWait({
-        prompt: req.body.message,
-    });
-
-    res.json({ content: response?.data.content });
-});
-```
-<!-- /docs-validate: hidden -->
 ```typescript
 const client = new CopilotClient({
     connection: RuntimeConnection.forUri("localhost:4321"),
@@ -412,7 +336,7 @@ const client = new CopilotClient({
 app.post("/chat", authMiddleware, async (req, res) => {
     const session = await client.createSession({
         sessionId: `user-${req.user.id}-chat`,
-        model: "auto",
+        model: "gpt-5.4",
         availableTools: ["custom:*"],
         gitHubToken: req.user.githubToken,
     });
@@ -498,7 +422,7 @@ app.post("/api/chat", authMiddleware, async (req, res) => {
         } catch {
             session = await client.createSession({
                 sessionId,
-                model: "auto",
+                model: "gpt-5.4",
                 availableTools: ["custom:*"],
                 gitHubToken: req.user.githubToken,
             });
@@ -532,13 +456,6 @@ app.listen(3000);
 ```typescript
 import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
 
-// Provided by your application's job queue and result store
-interface Job {
-    id: string;
-    prompt: string;
-}
-declare function saveResult(jobId: string, content: string | undefined): Promise<void>;
-
 const client = new CopilotClient({
     connection: RuntimeConnection.forUri(process.env.CLI_URL || "localhost:4321"),
 });
@@ -547,7 +464,7 @@ const client = new CopilotClient({
 async function processJob(job: Job) {
     const session = await client.createSession({
         sessionId: `job-${job.id}`,
-        model: "auto",
+        model: "gpt-5.4",
     });
 
     const response = await session.sendAndWait({
@@ -570,8 +487,6 @@ services:
     command: ["--headless", "--host", "0.0.0.0", "--port", "4321"]
     environment:
       - COPILOT_GITHUB_TOKEN=${COPILOT_GITHUB_TOKEN}
-      # Required for a non-loopback bind; the server refuses to start without it.
-      - COPILOT_CONNECTION_TOKEN=${COPILOT_CONNECTION_TOKEN}
     ports:
       - "4321:4321"
     restart: always
@@ -582,8 +497,6 @@ services:
     build: .
     environment:
       - CLI_URL=copilot-cli:4321
-      # Pass this as `connectionToken` to RuntimeConnection.forUri.
-      - COPILOT_CONNECTION_TOKEN=${COPILOT_CONNECTION_TOKEN}
     depends_on:
       - copilot-cli
     ports:

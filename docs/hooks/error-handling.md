@@ -36,16 +36,12 @@ type ErrorOccurredHandler = (
 <!-- docs-validate: hidden -->
 ```python
 from copilot.session import ErrorOccurredHookInput, ErrorOccurredHookOutput
-from copilot.session import ErrorOccurredHandler as SdkErrorOccurredHandler
 from typing import Callable, Awaitable
 
 ErrorOccurredHandler = Callable[
     [ErrorOccurredHookInput, dict[str, str]],
     Awaitable[ErrorOccurredHookOutput | None]
 ]
-
-def check(handler: ErrorOccurredHandler) -> SdkErrorOccurredHandler:
-    return handler
 ```
 <!-- /docs-validate: hidden -->
 ```python
@@ -66,19 +62,10 @@ package main
 
 import copilot "github.com/github/copilot-sdk/go"
 
-// Aliases let the signature below use the package's own type names.
-type (
-    ErrorOccurredHookInput  = copilot.ErrorOccurredHookInput
-    HookInvocation          = copilot.HookInvocation
-    ErrorOccurredHookOutput = copilot.ErrorOccurredHookOutput
-)
-
 type ErrorOccurredHandler func(
-    input ErrorOccurredHookInput,
-    invocation HookInvocation,
-) (*ErrorOccurredHookOutput, error)
-
-var _ = copilot.ErrorOccurredHandler(ErrorOccurredHandler(nil))
+    input copilot.ErrorOccurredHookInput,
+    invocation copilot.HookInvocation,
+) (*copilot.ErrorOccurredHookOutput, error)
 
 func main() {}
 ```
@@ -102,12 +89,6 @@ using GitHub.Copilot;
 public delegate Task<ErrorOccurredHookOutput?> ErrorOccurredHandler(
     ErrorOccurredHookInput input,
     HookInvocation invocation);
-
-static class ErrorOccurredHandlerCheck
-{
-    static SessionHooks Check(ErrorOccurredHandler handler) =>
-        new() { OnErrorOccurred = handler.Invoke };
-}
 ```
 <!-- /docs-validate: hidden -->
 ```csharp
@@ -214,6 +195,7 @@ import (
 func main() {
 	client := copilot.NewClient(nil)
 	session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
+		OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 		Hooks: &copilot.SessionHooks{
 			OnErrorOccurred: func(input copilot.ErrorOccurredHookInput, inv copilot.HookInvocation) (*copilot.ErrorOccurredHookOutput, error) {
 				fmt.Printf("[%s] Error: %s\n", inv.SessionID, input.Error)
@@ -245,6 +227,32 @@ session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
 <details>
 <summary><strong>.NET</strong></summary>
 
+<!-- docs-validate: hidden -->
+```csharp
+using GitHub.Copilot;
+
+public static class ErrorHandlingExample
+{
+    public static async Task Main()
+    {
+        await using var client = new CopilotClient();
+        var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            Hooks = new SessionHooks
+            {
+                OnErrorOccurred = (input, invocation) =>
+                {
+                    Console.Error.WriteLine($"[{invocation.SessionId}] Error: {input.Error}");
+                    Console.Error.WriteLine($"  Context: {input.ErrorContext}");
+                    Console.Error.WriteLine($"  Recoverable: {input.Recoverable}");
+                    return Task.FromResult<ErrorOccurredHookOutput?>(null);
+                },
+            },
+        });
+    }
+}
+```
+<!-- /docs-validate: hidden -->
 ```csharp
 var session = await client.CreateSessionAsync(new SessionConfig
 {

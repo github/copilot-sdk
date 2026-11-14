@@ -51,14 +51,6 @@ public @interface CopilotTool {
     /** Whether a successful call to this tool ends the agent turn. */
     boolean isTerminal() default false;
 
-    /**
-     * Whether repeating a call with the same arguments has no additional effect
-     * beyond the first call, as is true of any tool without side effects. The
-     * runtime may use this to decide that a call whose outcome was lost can be
-     * safely repeated. It does not affect permission checks.
-     */
-    boolean idempotent() default false;
-
     /** Defer configuration for this tool. */
     ToolDefer defer() default ToolDefer.NONE;
 

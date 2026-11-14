@@ -153,10 +153,7 @@ import (
 )
 
 func main() {
-	_ = run(context.Background())
-}
-
-func run(ctx context.Context) error {
+	ctx := context.Background()
 	client := copilot.NewClient(&copilot.ClientOptions{
 		Connection: copilot.StdioConnection{
 			Args: []string{
@@ -166,9 +163,8 @@ func run(ctx context.Context) error {
 		},
 	})
 	if err := client.Start(ctx); err != nil {
-		return err
+		return
 	}
-	return nil
 }
 ```
 <!-- /docs-validate: hidden -->
@@ -247,6 +243,24 @@ client.start().get();
 
 <details>
 <summary><strong>Rust</strong></summary>
+
+<!-- docs-validate: hidden -->
+```rust
+use github_copilot_sdk::{Client, ClientOptions};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let _client = Client::start(
+        ClientOptions::new().with_extra_args([
+            "--plugin-dir", "./plugins/code-reviewer",
+            "--plugin-dir", "./plugins/lint-fix",
+        ]),
+    )
+    .await?;
+    Ok(())
+}
+```
+<!-- /docs-validate: hidden -->
 
 ```rust
 use github_copilot_sdk::{Client, ClientOptions};
@@ -378,7 +392,7 @@ For SDK-driven applications, use `--plugin-dir` for shared process-level plugins
 
 The server and session `plugins.marketplaces.list` APIs include marketplaces assigned to the signed-in user's teams. These sources can be browsed, refreshed, and used for plugin installation and updates through the existing plugin APIs without adding them to the user's settings.
 
-Team marketplaces are fallback defaults, not mandatory managed settings. A same-named marketplace from user settings, repository settings, legacy registrations, Claude-compatible configuration, or runtime defaults takes precedence. A server-level `plugins.install` or `plugins.update` reads only the user's settings, as it does for other marketplaces, so an untrusted working directory cannot redirect a Team source. Managed `strictKnownMarketplaces` restrictions still apply. Team sources are fetched through the runtime's account-scoped assignment cache and are not persisted as user marketplace registrations. If an uncached lookup does not finish promptly, the operation continues without Team sources while the lookup completes in the background.
+Team marketplaces are fallback defaults, not mandatory managed settings. A same-named marketplace from user settings, repository settings, legacy registrations, Claude-compatible configuration, or runtime defaults takes precedence. A server-level install or update without `configOverride` reads only the user's settings, as it does for other marketplaces, so an untrusted working directory cannot redirect a Team source. Managed `strictKnownMarketplaces` restrictions still apply. Team sources are fetched through the runtime's account-scoped assignment cache and are not persisted as user marketplace registrations. If an uncached lookup does not finish promptly, the operation continues without Team sources while the lookup completes in the background.
 
 A listed marketplace that only the Team supplies has `team: true`. Because it is not registered in the user's settings, it cannot be removed: `plugins.marketplaces.remove` rejects it with an error. Hide removal for these entries the same way as for `isDefault` ones.
 
@@ -467,7 +481,8 @@ Plugins loaded via `--plugin-dir` appear in this list alongside marketplace inst
 | `marketplace` | The marketplace the plugin came from. Empty for a plugin loaded from a plugin directory. |
 | `version` | The plugin version, when the plugin declares one. |
 | `enabled` | Whether the plugin is enabled. |
-| `rootPath` | The absolute directory holding the plugin's content, when the runtime resolved one. For a plugin loaded from a plugin directory, this is that directory. |
+
+An entry for a plugin loaded from a plugin directory doesn't report that directory.
 
 ## Retrying plugins required by managed settings
 

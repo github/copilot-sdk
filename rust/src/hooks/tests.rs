@@ -300,6 +300,24 @@ impl SessionHooks for TestHooks {
 }
 
 #[tokio::test]
+async fn dispatch_pre_tool_use_deny() {
+    let hooks = TestHooks;
+    let input = serde_json::json!({
+        "sessionId": "sess-1",
+        "timestamp": 1234567890,
+        "cwd": "/tmp",
+        "toolName": "dangerous_tool",
+        "toolArgs": {}
+    });
+    let result = dispatch_hook(&hooks, &SessionId::new("sess-1"), "preToolUse", input)
+        .await
+        .unwrap();
+    let output = &result["output"];
+    assert_eq!(output["permissionDecision"], "deny");
+    assert_eq!(output["permissionDecisionReason"], "blocked by policy");
+}
+
+#[tokio::test]
 async fn dispatch_user_prompt_submitted_block() {
     struct BlockHook;
     #[async_trait]
@@ -360,6 +378,40 @@ async fn dispatch_user_prompt_submitted_omits_unset_block_fields() {
         result,
         serde_json::json!({ "output": { "modifiedPrompt": "[prefixed] hello world" } })
     );
+}
+
+#[tokio::test]
+async fn dispatch_user_prompt_transformed() {
+    let hooks = TestHooks;
+    let input = serde_json::json!({
+        "sessionId": "sess-1",
+        "timestamp": 1234567890,
+        "cwd": "/tmp",
+        "prompt": "hello world",
+        "transformedPrompt": "<current_datetime>now</current_datetime>\nhello world"
+    });
+    let result = dispatch_hook(
+        &hooks,
+        &SessionId::new("sess-1"),
+        "userPromptTransformed",
+        input,
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        result["output"]["modifiedTransformedPrompt"],
+        "[transformed] <current_datetime>now</current_datetime>\nhello world"
+    );
+}
+
+#[tokio::test]
+async fn dispatch_unknown_hook_type() {
+    let hooks = TestHooks;
+    let input = serde_json::json!({});
+    let result = dispatch_hook(&hooks, &SessionId::new("sess-1"), "unknownHook", input)
+        .await
+        .unwrap();
+    assert_eq!(result["output"], serde_json::json!({}));
 }
 
 #[tokio::test]
@@ -594,6 +646,102 @@ async fn dispatch_post_tool_use_failure_invalid_input_errors() {
         msg.contains("error") || msg.contains("missing field"),
         "unexpected error: {msg}"
     );
+}
+
+#[tokio::test]
+async fn dispatch_session_start() {
+    struct StartHooks;
+    #[async_trait]
+    impl SessionHooks for StartHooks {
+        async fn on_hook(&self, event: HookEvent) -> HookOutput {
+            match event {
+                HookEvent::SessionStart { .. } => HookOutput::SessionStart(SessionStartOutput {
+                    additional_context: Some("extra context".to_string()),
+                    ..Default::default()
+                }),
+                _ => HookOutput::None,
+            }
+        }
+    }
+
+    let hooks = StartHooks;
+    let input = serde_json::json!({
+        "sessionId": "sess-1",
+        "timestamp": 1234567890,
+        "cwd": "/tmp",
+        "source": "new"
+    });
+    let result = dispatch_hook(&hooks, &SessionId::new("sess-1"), "sessionStart", input)
+        .await
+        .unwrap();
+    assert_eq!(result["output"]["additionalContext"], "extra context");
+}
+
+#[tokio::test]
+async fn dispatch_error_occurred() {
+    struct ErrorHooks;
+    #[async_trait]
+    impl SessionHooks for ErrorHooks {
+        async fn on_hook(&self, event: HookEvent) -> HookOutput {
+            match event {
+                HookEvent::ErrorOccurred { .. } => HookOutput::ErrorOccurred(ErrorOccurredOutput {
+                    error_handling: Some("retry".to_string()),
+                    retry_count: Some(3),
+                    ..Default::default()
+                }),
+                _ => HookOutput::None,
+            }
+        }
+    }
+
+    let hooks = ErrorHooks;
+    let input = serde_json::json!({
+        "sessionId": "sess-1",
+        "timestamp": 1234567890,
+        "cwd": "/tmp",
+        "error": "model timeout",
+        "errorContext": "model_call",
+        "recoverable": true
+    });
+    let result = dispatch_hook(&hooks, &SessionId::new("sess-1"), "errorOccurred", input)
+        .await
+        .unwrap();
+    assert_eq!(result["output"]["errorHandling"], "retry");
+    assert_eq!(result["output"]["retryCount"], 3);
+}
+
+/// The object-shaped `error` the CLI sends reaches the hook as its `message`.
+#[tokio::test]
+async fn dispatch_error_occurred_with_the_clis_error_object() {
+    struct Recorder(std::sync::Mutex<Option<ErrorOccurredInput>>);
+    #[async_trait]
+    impl SessionHooks for Recorder {
+        async fn on_error_occurred(
+            &self,
+            input: ErrorOccurredInput,
+            _ctx: HookContext,
+        ) -> Option<ErrorOccurredOutput> {
+            *self.0.lock().unwrap() = Some(input);
+            None
+        }
+    }
+
+    let hooks = Recorder(std::sync::Mutex::new(None));
+    let input = serde_json::json!({
+        "sessionId": "sess-1",
+        "error": {"name": "Error", "message": "model timeout", "stack": "Error: model timeout"},
+        "errorContext": "model_call",
+        "recoverable": true,
+        "timestamp": 1790464212617_u64,
+        "cwd": "/tmp"
+    });
+    let result = dispatch_hook(&hooks, &SessionId::new("sess-1"), "errorOccurred", input)
+        .await
+        .unwrap();
+    assert_eq!(result["output"], serde_json::json!({}));
+    let seen = hooks.0.lock().unwrap().take().expect("hook delivered");
+    assert_eq!(seen.error, "model timeout");
+    assert_eq!(seen.error_context, "model_call");
 }
 
 #[test]

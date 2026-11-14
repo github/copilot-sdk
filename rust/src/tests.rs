@@ -7,78 +7,6 @@
 use super::*;
 use crate::entra::{EntraTokenProviderArgs, EntraTokenProviderContext, EntraTokenProviderResult};
 
-#[cfg(feature = "runtime")]
-#[tokio::test]
-async fn stderr_stream_logs_unterminated_output_before_eof_in_bounded_chunks() {
-    use tokio::io::AsyncWriteExt;
-
-    let (mut writer, reader) = tokio::io::duplex(16 * 1024);
-    let (sent, mut received) = mpsc::unbounded_channel();
-    let drain = tokio::spawn(async move {
-        Client::drain_stderr_stream(reader, |line| sent.send(line.to_owned()).unwrap()).await
-    });
-    let output = "x".repeat(12 * 1024);
-    writer.write_all(output.as_bytes()).await.unwrap();
-    let observed = tokio::time::timeout(Duration::from_secs(5), async {
-        let mut logged = String::new();
-        while logged.len() < output.len() {
-            let chunk = received.recv().await.expect("stderr reader stopped");
-            assert!(
-                chunk.len() <= 4096,
-                "oversized stderr chunk: {}",
-                chunk.len()
-            );
-            logged.push_str(&chunk);
-        }
-        logged
-    })
-    .await;
-    drop(writer);
-    drain.await.unwrap().unwrap();
-    assert_eq!(
-        observed.expect("stderr must be logged before EOF without a newline"),
-        output
-    );
-}
-
-#[cfg(feature = "runtime")]
-#[tokio::test]
-async fn stderr_stream_preserves_lines_and_split_utf8() {
-    let output = format!("first\r\n\n{}\u{1f600}tail", "x".repeat(4095));
-    let mut logged = Vec::new();
-    Client::drain_stderr_stream(output.as_bytes(), |line| logged.push(line.to_owned()))
-        .await
-        .unwrap();
-    assert_eq!(&logged[..2], &["first", ""]);
-    assert_eq!(
-        logged[2..].concat(),
-        format!("{}\u{1f600}tail", "x".repeat(4095))
-    );
-}
-
-#[cfg(all(unix, feature = "runtime"))]
-#[tokio::test]
-async fn tcp_startup_drains_stderr_before_port_announcement() {
-    let temp = tempfile::tempdir().unwrap();
-    let options = ClientOptions::new().with_prefix_args([
-        "-c",
-        r#"i=0
-while [ "$i" -lt 1024 ]; do
-    printf '%01024d\n' 0 >&2
-    i=$((i + 1))
-done
-printf 'listening on port 12345\n'
-exec sleep 60"#,
-        "--",
-    ]);
-    let (mut child, _tree, port, _, _) =
-        Client::spawn_tcp(Path::new("/bin/sh"), &options, temp.path(), 0)
-            .await
-            .expect("startup must drain stderr before waiting for the port");
-    child.kill().await.unwrap();
-    assert_eq!(port, 12345);
-}
-
 fn entra_transport(
     options: types::EntraAuthOptions,
 ) -> (tempfile::TempDir, Client, Arc<jsonrpc::JsonRpcClient>) {
@@ -93,7 +21,7 @@ fn entra_transport(
         Some(options),
     )
     .unwrap();
-    let (notifications, _) = mpsc::unbounded_channel();
+    let (notifications, _) = tokio::sync::broadcast::channel(1);
     let (requests, _) = tokio::sync::mpsc::unbounded_channel();
     let server = Arc::new(jsonrpc::JsonRpcClient::new(
         server_write,
@@ -287,7 +215,7 @@ async fn connect_forwards_optional_entra_configuration() {
             false,
         )
         .unwrap();
-        let (notifications, _) = mpsc::unbounded_channel();
+        let (notifications, _) = tokio::sync::broadcast::channel(1);
         let (requests, _) = tokio::sync::mpsc::unbounded_channel();
         let server =
             jsonrpc::JsonRpcClient::new(server_write, server_read, notifications, requests);
@@ -342,7 +270,7 @@ async fn settings_apply_top_key_preserves_value_presence_on_wire() {
         let (server_read, server_write) = tokio::io::split(server_stream);
         let client =
             Client::from_streams(client_read, client_write, temp.path().to_owned()).unwrap();
-        let (notifications, _) = mpsc::unbounded_channel();
+        let (notifications, _) = tokio::sync::broadcast::channel(1);
         let (requests, _) = tokio::sync::mpsc::unbounded_channel();
         let server =
             jsonrpc::JsonRpcClient::new(server_write, server_read, notifications, requests);
@@ -382,8 +310,26 @@ async fn settings_apply_top_key_preserves_value_presence_on_wire() {
 }
 
 #[test]
+fn is_transport_failure_matches_request_cancelled() {
+    let err = Error::from(ErrorKind::Protocol(ProtocolErrorKind::RequestCancelled));
+    assert!(err.is_transport_failure());
+}
+
+#[test]
+fn is_transport_failure_matches_io_error() {
+    let err = Error::from(std::io::Error::new(std::io::ErrorKind::BrokenPipe, "gone"));
+    assert!(err.is_transport_failure());
+}
+
+#[test]
 fn is_transport_failure_rejects_rpc_error() {
     let err = Error::with_message(ErrorKind::Rpc { code: -1 }, "bad");
+    assert!(!err.is_transport_failure());
+}
+
+#[test]
+fn is_transport_failure_rejects_session_error() {
+    let err = Error::from(ErrorKind::Session(SessionErrorKind::NotFound("s1".into())));
     assert!(!err.is_transport_failure());
 }
 
@@ -420,6 +366,10 @@ fn inprocess_rejects_process_scoped_options() {
         ("working_directory", ClientOptions::new().with_cwd(".")),
         ("env", ClientOptions::new().with_env([("KEY", "value")])),
         ("env_remove", ClientOptions::new().with_env_remove(["KEY"])),
+        (
+            "telemetry",
+            ClientOptions::new().with_telemetry(TelemetryConfig::default()),
+        ),
         (
             "prefix_args",
             ClientOptions::new().with_prefix_args(["index.js"]),
@@ -473,16 +423,7 @@ fn inprocess_sends_only_typed_overrides() {
     let environment = inprocess_environment(&options).unwrap();
     assert_eq!(
         environment,
-        vec![
-            ("COPILOT_HOME".to_owned(), "isolated-state".to_owned()),
-            (
-                "COPILOT_CACHE_HOME".to_owned(),
-                Path::new("isolated-state")
-                    .join("cache")
-                    .to_string_lossy()
-                    .into_owned(),
-            ),
-        ]
+        vec![("COPILOT_HOME".to_owned(), "isolated-state".to_owned())]
     );
     assert!(
         inprocess_environment(&ClientOptions::new())
@@ -503,103 +444,6 @@ fn build_command_honors_the_client_telemetry_option_over_an_environment_override
     );
 }
 
-/// The original `io::Error` of a failed spawn, found by walking the source chain.
-fn spawn_os_error(error: &Error) -> Option<&std::io::Error> {
-    let mut source = std::error::Error::source(error);
-    while let Some(current) = source {
-        if let Some(os_error) = current.downcast_ref::<std::io::Error>() {
-            return Some(os_error);
-        }
-        source = std::error::Error::source(current);
-    }
-    None
-}
-
-async fn spawn_error(program: PathBuf, working_directory: &Path, tcp: bool) -> Error {
-    let transport = if tcp {
-        Transport::Tcp {
-            port: 0,
-            connection_token: None,
-        }
-    } else {
-        Transport::Stdio
-    };
-    let options = ClientOptions::new()
-        .with_program(CliProgram::Path(program))
-        .with_cwd(working_directory)
-        .with_transport(transport);
-    match Client::start(options).await {
-        Ok(_) => panic!("start unexpectedly spawned the CLI"),
-        Err(error) => error,
-    }
-}
-
-#[tokio::test]
-async fn spawn_failure_names_a_working_directory_that_is_missing_or_not_a_directory() {
-    let temp = tempfile::tempdir().unwrap();
-    let file = temp.path().join("file");
-    std::fs::write(&file, "").unwrap();
-    let program = std::env::current_exe().unwrap();
-    for tcp in [false, true] {
-        for working_directory in [temp.path().join("missing"), file.clone()] {
-            let error = spawn_error(program.clone(), &working_directory, tcp).await;
-            assert_eq!(error.kind(), &ErrorKind::Io);
-            let expected = format!(
-                "working directory {} does not exist or is not a directory: ",
-                working_directory.display()
-            );
-            assert!(error.to_string().starts_with(&expected), "{error}");
-            let os_error = spawn_os_error(&error).expect("the io::Error stays in the source chain");
-            assert!(os_error.raw_os_error().is_some(), "{os_error:?}");
-        }
-    }
-}
-
-#[cfg(unix)]
-#[tokio::test]
-async fn spawn_failure_does_not_blame_a_working_directory_it_cannot_inspect() {
-    use std::os::unix::fs::PermissionsExt;
-
-    let temp = tempfile::tempdir().unwrap();
-    let parent = temp.path().join("locked");
-    let working_directory = parent.join("cwd");
-    std::fs::create_dir_all(&working_directory).unwrap();
-    std::fs::set_permissions(&parent, std::fs::Permissions::from_mode(0o000)).unwrap();
-    // Root, or a filesystem that ignores modes, can still inspect the directory.
-    let inspectable = std::fs::metadata(&working_directory).is_ok();
-    let program = temp.path().join("missing-copilot");
-    let error = spawn_error(program.clone(), &working_directory, false).await;
-    std::fs::set_permissions(&parent, std::fs::Permissions::from_mode(0o755)).unwrap();
-    if inspectable {
-        return;
-    }
-    assert_eq!(error.kind(), &ErrorKind::Io);
-    let expected = format!(
-        "failed to start {} in {}: ",
-        program.display(),
-        working_directory.display()
-    );
-    assert!(error.to_string().starts_with(&expected), "{error}");
-}
-
-#[tokio::test]
-async fn spawn_failure_names_a_missing_program_and_its_working_directory() {
-    let temp = tempfile::tempdir().unwrap();
-    let program = temp.path().join("missing-copilot");
-    for tcp in [false, true] {
-        let error = spawn_error(program.clone(), temp.path(), tcp).await;
-        assert_eq!(error.kind(), &ErrorKind::Io);
-        let expected = format!(
-            "failed to start {} in {}: ",
-            program.display(),
-            temp.path().display()
-        );
-        assert!(error.to_string().starts_with(&expected), "{error}");
-        let os_error = spawn_os_error(&error).expect("the io::Error stays in the source chain");
-        assert!(os_error.raw_os_error().is_some(), "{os_error:?}");
-    }
-}
-
 #[cfg(not(feature = "in-process"))]
 #[tokio::test]
 async fn inprocess_requires_cargo_feature() {
@@ -608,6 +452,12 @@ async fn inprocess_requires_cargo_feature() {
         .unwrap_err();
 
     assert!(error.to_string().contains("in-process"));
+}
+
+#[test]
+fn is_transport_failure_rejects_other_protocol_errors() {
+    let err = Error::from(ErrorKind::Protocol(ProtocolErrorKind::CliStartupTimeout));
+    assert!(!err.is_transport_failure());
 }
 
 #[test]
@@ -665,52 +515,6 @@ fn build_command_injects_github_token_by_default() {
     assert_eq!(value, Some(std::ffi::OsStr::new("just-the-token")));
 }
 
-#[test]
-fn internal_test_options_override_owned_runtime_configuration() {
-    let options = ClientOptions::new()
-        .with_env([("HTTP_PROXY", "inherited"), ("UNRELATED", "preserved")])
-        .with_internal_test_options(InternalTestOptions {
-            copilot_api_url: Some("http://replay".into()),
-            github_api_url: Some("http://github-replay".into()),
-            proxy_url: Some("http://interception".into()),
-            no_proxy: Some(String::new()),
-            ca_certificate_path: Some("/test/ca.pem".into()),
-        });
-    let command = Client::build_command(Path::new("/bin/echo"), &options, Path::new("/tmp"));
-    let environment = inprocess_environment(&options).unwrap();
-    for (key, expected) in [
-        ("COPILOT_API_URL", "http://replay"),
-        ("COPILOT_DEBUG_GITHUB_API_URL", "http://github-replay"),
-        ("HTTP_PROXY", "http://interception"),
-        ("HTTPS_PROXY", "http://interception"),
-        ("NO_PROXY", ""),
-        ("NODE_EXTRA_CA_CERTS", "/test/ca.pem"),
-        ("SSL_CERT_FILE", "/test/ca.pem"),
-        ("REQUESTS_CA_BUNDLE", "/test/ca.pem"),
-        ("CURL_CA_BUNDLE", "/test/ca.pem"),
-        ("GIT_SSL_CAINFO", "/test/ca.pem"),
-    ] {
-        assert_eq!(
-            env_value(&command, key),
-            Some(std::ffi::OsStr::new(expected)),
-            "{key}"
-        );
-        assert_eq!(
-            environment
-                .iter()
-                .find(|(name, _)| name == key)
-                .map(|(_, value)| value.as_str()),
-            Some(expected),
-            "{key}"
-        );
-    }
-    assert_eq!(
-        env_value(&command, "UNRELATED"),
-        Some(std::ffi::OsStr::new("preserved"))
-    );
-    assert_eq!(options.env[0].1, std::ffi::OsStr::new("inherited"));
-}
-
 fn env_value<'a>(cmd: &'a tokio::process::Command, key: &str) -> Option<&'a std::ffi::OsStr> {
     cmd.as_std()
         .get_envs()
@@ -760,20 +564,6 @@ fn build_command_sets_otel_env_when_telemetry_enabled() {
         env_value(&cmd, "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"),
         Some(std::ffi::OsStr::new("true")),
     );
-    validate_inprocess_options(&opts).unwrap();
-    let environment = inprocess_environment(&opts).unwrap();
-    for (key, value) in cmd.as_std().get_envs().filter(|(key, _)| {
-        key.to_string_lossy().starts_with("OTEL_")
-            || key.to_string_lossy().starts_with("COPILOT_OTEL_")
-    }) {
-        assert!(
-            environment.contains(&(
-                key.to_str().unwrap().to_owned(),
-                value.unwrap().to_str().unwrap().to_owned()
-            )),
-            "missing in-process telemetry setting {key:?}={value:?}"
-        );
-    }
 }
 
 #[test]
@@ -798,25 +588,6 @@ fn build_command_omits_otel_env_when_telemetry_none() {
 }
 
 #[test]
-fn inprocess_telemetry_requires_an_owned_runtime() {
-    let mut opts = ClientOptions::new().with_telemetry(TelemetryConfig::default());
-    validate_inprocess_options(&opts).unwrap();
-    assert_eq!(
-        inprocess_environment(&opts).unwrap(),
-        vec![("COPILOT_OTEL_ENABLED".to_owned(), "true".to_owned())]
-    );
-    opts.in_process_server_id = Some(42);
-    let error = validate_inprocess_options(&opts).unwrap_err();
-    assert_eq!(*error.kind(), ErrorKind::InvalidConfig);
-    assert!(
-        error
-            .message()
-            .unwrap()
-            .contains("requires an owned runtime")
-    );
-}
-
-#[test]
 fn build_command_sets_standard_and_legacy_capture_modes() {
     for (capture, mode) in [(true, "SPAN_ONLY"), (false, "NO_CONTENT")] {
         let opts = ClientOptions {
@@ -832,15 +603,6 @@ fn build_command_sets_standard_and_legacy_capture_modes() {
             env_value(&cmd, "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"),
             Some(std::ffi::OsStr::new(if capture { "true" } else { "false" })),
         );
-        let environment = inprocess_environment(&opts).unwrap();
-        assert!(environment.contains(&(
-            "OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT".to_owned(),
-            mode.to_owned()
-        )));
-        assert!(environment.contains(&(
-            "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT".to_owned(),
-            capture.to_string()
-        )));
     }
 }
 
@@ -1200,7 +962,42 @@ fn client_options_debug_redacts_handler() {
     assert!(!debug.contains("secret-token"));
 }
 
-#[tokio::test(start_paused = true)]
+#[tokio::test]
+async fn list_models_uses_on_list_models_handler_when_set() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    struct CountingHandler {
+        calls: Arc<AtomicUsize>,
+        models: Vec<Model>,
+    }
+    #[async_trait]
+    impl ListModelsHandler for CountingHandler {
+        async fn list_models(&self) -> Result<Vec<Model>> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            Ok(self.models.clone())
+        }
+    }
+
+    let calls = Arc::new(AtomicUsize::new(0));
+    let model = Model {
+        id: "byok-gpt-4".into(),
+        name: "BYOK GPT-4".into(),
+        ..Default::default()
+    };
+    let handler: Arc<dyn ListModelsHandler> = Arc::new(CountingHandler {
+        calls: Arc::clone(&calls),
+        models: vec![model.clone()],
+    });
+
+    let client = client_with_list_models_handler(handler);
+
+    let result = client.list_models().await.unwrap();
+    assert_eq!(result.len(), 1);
+    assert_eq!(result[0].id, "byok-gpt-4");
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
 async fn list_models_serializes_concurrent_cache_misses() {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -1256,7 +1053,7 @@ async fn connection_state_tracks_construction_stop_and_force_stop() {
     }
 }
 
-#[tokio::test(start_paused = true)]
+#[tokio::test]
 async fn cancelled_resume_session_unregisters_pending_session() {
     let (client_write, _server_read) = tokio::io::duplex(8192);
     let (_server_write, client_read) = tokio::io::duplex(8192);
@@ -1403,13 +1200,14 @@ fn client_with_list_models_handler(handler: Arc<dyn ListModelsHandler>) -> Clien
             ffi_host: parking_lot::Mutex::new(None),
             rpc: {
                 let (req_tx, _req_rx) = mpsc::unbounded_channel();
-                let (notif_tx, _notif_rx) = mpsc::unbounded_channel();
+                let (notif_tx, _notif_rx) = broadcast::channel(16);
                 let (read_pipe, _write_pipe) = tokio::io::duplex(64);
                 let (_unused_read, write_pipe) = tokio::io::duplex(64);
                 JsonRpcClient::new(write_pipe, read_pipe, notif_tx, req_tx)
             },
             cwd: PathBuf::from("."),
             request_rx: parking_lot::Mutex::new(None),
+            notification_tx: broadcast::channel(16).0,
             router: router::SessionRouter::new(),
             github_token_registry: Arc::new(github_token::GitHubTokenRegistry::new()),
             negotiated_protocol_version: OnceLock::new(),
@@ -1428,8 +1226,6 @@ fn client_with_list_models_handler(handler: Arc<dyn ListModelsHandler>) -> Clien
             installation_confirmation: Arc::new(
                 installation_confirmation::InstallationConfirmationDispatcher::new(),
             ),
-            shell_authentication_requests:
-                shell_authentication::PendingShellAuthenticationRequests::default(),
             entra_token: Arc::new(entra::EntraTokenDispatcher::new(None)),
             on_github_telemetry: None,
             on_get_trace_context: None,

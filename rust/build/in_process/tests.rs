@@ -611,9 +611,7 @@ fn consumer_sdk_packages(
     target: Option<&str>,
 ) -> Vec<String> {
     let root = fixture_dir();
-    let sdk = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .canonicalize()
-        .unwrap();
+    let sdk = Path::new(env!("CARGO_MANIFEST_DIR"));
     let manifest = format!(
         "[package]\nname = \"sdk-consumer-fixture\"\nversion = \"0.0.0\"\nedition = \"2024\"\n\
          [workspace]\n[dependencies]\ngithub-copilot-sdk = {{ path = {}, default-features = false, features = {} }}\n",
@@ -935,6 +933,21 @@ fn skip_modes_need_no_snapshots_and_local_runtime_preserves_bundled_precedence()
     let mut command = fixture.command(true, true);
     command.env("CARGO_FEATURE_LOCAL_RUNTIME", "1");
     assert!(succeeded(command.output().unwrap()).contains("cargo:rustc-cfg=has_bundled_cli"));
+}
+
+#[test]
+fn openssl_version_guard_preserves_the_major_3_build_host_and_target_contract() {
+    for boundary in ["Linux SDK build host", "Linux SDK target"] {
+        for version in [0x3000_0000, 0x3000_0120, 0x3050_0090] {
+            require_openssl_3(boundary, version);
+        }
+        for version in [0, 0x1000_20bf, 0x1010_107f, 0x2000_0000, 0x4000_0000] {
+            assert!(
+                std::panic::catch_unwind(|| require_openssl_3(boundary, version)).is_err(),
+                "{boundary} accepted unsupported version {version:#x}"
+            );
+        }
+    }
 }
 
 #[test]

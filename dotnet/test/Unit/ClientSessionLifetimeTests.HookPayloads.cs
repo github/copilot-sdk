@@ -12,12 +12,11 @@ public sealed partial class ClientSessionLifetimeTests
 {
     private sealed record HookArgsPayload(string Path, int Count);
 
-    private static object? CreateHookPayload(string shape) => shape switch
+    private static object CreateHookPayload(string shape) => shape switch
     {
         "anonymous" => new { path = "/tmp/x", count = 3 },
         "poco" => new HookArgsPayload("/tmp/x", 3),
-        "dictionary" => new Dictionary<string, object?> { ["path"] = "/tmp/x", ["count"] = 3, ["optional"] = null },
-        "unset" => null,
+        "dictionary" => new Dictionary<string, object> { ["path"] = "/tmp/x", ["count"] = 3 },
         _ => throw new ArgumentOutOfRangeException(nameof(shape)),
     };
 
@@ -88,24 +87,10 @@ public sealed partial class ClientSessionLifetimeTests
         var payload = output.Value.GetProperty(field);
         Assert.Equal("/tmp/x", payload.GetProperty("path").GetString());
         Assert.Equal(3, payload.GetProperty("count").GetInt32());
-        if (shape == "dictionary")
-        {
-            Assert.Equal(JsonValueKind.Null, payload.GetProperty("optional").ValueKind);
-        }
         if (hookType == "preToolUse")
         {
             Assert.Equal("allow", output.Value.GetProperty("permissionDecision").GetString());
         }
-    }
-
-    [Theory]
-    [InlineData("preToolUse", "{\"permissionDecision\":\"allow\"}")]
-    [InlineData("postToolUse", "{}")]
-    public async Task HookPayload_Omits_Unset_Output_Fields(string hookType, string expected)
-    {
-        var output = await InvokeHookWithPayloadAsync(hookType, "unset");
-        Assert.NotNull(output);
-        Assert.Equal(expected, output.Value.GetRawText());
     }
 }
 #endif

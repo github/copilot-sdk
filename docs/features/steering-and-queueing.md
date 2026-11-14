@@ -48,17 +48,6 @@ Set the optional source when forwarding a message from another agent. An identif
 
 The typed APIs also support `user` and `system`. Use `system` for internal application context, not as a substitute for an identified agent. Agent provenance lets the runtime distinguish agent input from human authorization while retaining its agent-message steering behavior. Derive the sender ID from trusted application metadata, never from message text.
 
-Use an automation source for a turn your application sends on behalf of an automation the user configured, such as a recurring check-in. It serializes as `automation-<id>`. An automation turn defines the session's task like a user message but carries no human authority. With Assisted Permissions in Autopilot, it starts a new permission-recovery epoch for automatic denials and gives the completion reviewer its task. The auto-approval judge never treats it as a person's instruction. Use a stable, non-empty automation name as the ID, because the runtime records the source as provenance and does not treat `automation-` alone as an automation turn.
-
-| SDK | Automation source |
-|-----|-------------------|
-| Node.js / TypeScript | `source: "automation-merge-check"` |
-| Python | `source=AutomationMessageSource("merge-check")` |
-| Go | `Source: copilot.MessageSourceAutomation("merge-check")` |
-| .NET | `Source = MessageSource.Automation("merge-check")` |
-| Java | `.setSource(MessageSource.automation("merge-check"))` |
-| Rust | `.with_source(MessageSource::Automation("merge-check".into()))` |
-
 Source identifies origin. Delivery mode requests urgency. Neither requires the recipient to produce a visible reply, and source does not set billing flags. The runtime applies its existing scheduling rules. Rust callers using the typed RPC API can also pass `MessageSource` to `rpc::SendRequest::with_source(...)`.
 
 A successful high-level `send` acknowledgement returns a message ID and confirms acceptance, not that the recipient has consumed the message. Do not automatically resend an accepted message merely because no reply appears. Send-and-wait can complete on an idle event without an assistant message.
@@ -81,7 +70,7 @@ const client = new CopilotClient();
 await client.start();
 
 const session = await client.createSession({
-    model: "auto",
+    model: "gpt-5.4",
     onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 
@@ -112,7 +101,7 @@ async def main():
 
     session = await client.create_session(
         on_permission_request=lambda req, inv: PermissionDecisionApproveOnce(),
-        model="auto",
+        model="gpt-5.4",
     )
 
     # Start a long-running task
@@ -153,7 +142,7 @@ func main() {
     defer client.Stop()
 
     session, err := client.CreateSession(ctx, &copilot.SessionConfig{
-        Model: "auto",
+        Model: "gpt-5.4",
         OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
             return &rpc.PermissionDecisionApproveOnce{}, nil
         },
@@ -193,7 +182,7 @@ using GitHub.Copilot.Rpc;
 await using var client = new CopilotClient();
 await using var session = await client.CreateSessionAsync(new SessionConfig
 {
-    Model = "auto",
+    Model = "gpt-5.4",
     OnPermissionRequest = (req, inv) =>
         Task.FromResult(PermissionDecision.ApproveOnce()),
 });
@@ -226,7 +215,7 @@ try (var client = new CopilotClient()) {
 
     var session = client.createSession(
         new SessionConfig()
-            .setModel("auto")
+            .setModel("gpt-5.4")
             .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
     ).get();
 
@@ -257,7 +246,7 @@ try (var client = new CopilotClient()) {
 
 ## Queueing (enqueue mode)
 
-Queueing buffers messages to be processed sequentially after the current turn finishes. Each queued message starts its own full turn. This is the default mode: a message sent without `mode` is queued the same way while a turn is running. The two differ after a turn ends while a background agent is still running: a single message sent without `mode` starts a new turn right away, but a message sent with `mode: "enqueue"` waits until the background agents finish.
+Queueing buffers messages to be processed sequentially after the current turn finishes. Each queued message starts its own full turn. This is the default mode—if you omit `mode`, the SDK uses `"enqueue"`.
 
 <details open>
 <summary><strong>Node.js / TypeScript</strong></summary>
@@ -270,7 +259,7 @@ const client = new CopilotClient();
 await client.start();
 
 const session = await client.createSession({
-    model: "auto",
+    model: "gpt-5.4",
     onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 
@@ -306,7 +295,7 @@ async def main():
 
     session = await client.create_session(
         on_permission_request=lambda req, inv: PermissionDecisionApproveOnce(),
-        model="auto",
+        model="gpt-5.4",
     )
 
     # Send an initial task
@@ -348,7 +337,7 @@ func main() {
 	client.Start(ctx)
 
 	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
-		Model: "auto",
+		Model: "gpt-5.4",
 		OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
 			return &rpc.PermissionDecisionApproveOnce{}, nil
 		},
@@ -396,6 +385,44 @@ session.Send(ctx, copilot.MessageOptions{
 <details>
 <summary><strong>.NET</strong></summary>
 
+<!-- docs-validate: hidden -->
+```csharp
+using GitHub.Copilot;
+using GitHub.Copilot.Rpc;
+
+public static class QueueingExample
+{
+    public static async Task Main()
+    {
+        await using var client = new CopilotClient();
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            Model = "gpt-5.4",
+            OnPermissionRequest = (req, inv) =>
+                Task.FromResult(PermissionDecision.ApproveOnce()),
+        });
+
+        await session.SendAsync(new MessageOptions
+        {
+            Prompt = "Set up the project structure"
+        });
+
+        await session.SendAsync(new MessageOptions
+        {
+            Prompt = "Add unit tests for the auth module",
+            Mode = "enqueue"
+        });
+
+        await session.SendAsync(new MessageOptions
+        {
+            Prompt = "Update the README with setup instructions",
+            Mode = "enqueue"
+        });
+    }
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```csharp
 // Send an initial task
 await session.SendAsync(new MessageOptions
@@ -433,7 +460,7 @@ try (var client = new CopilotClient()) {
 
     var session = client.createSession(
         new SessionConfig()
-            .setModel("auto")
+            .setModel("gpt-5.4")
             .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
     ).get();
 
@@ -475,7 +502,7 @@ You can use both patterns together in a single session. Steering affects the cur
 <!-- docs-validate: strict -->
 ```typescript
 const session = await client.createSession({
-    model: "auto",
+    model: "gpt-5.4",
     onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 
@@ -508,7 +535,7 @@ client = CopilotClient()
 
 session = await client.create_session(
     on_permission_request=lambda req, inv: PermissionDecisionApproveOnce(),
-    model="auto",
+    model="gpt-5.4",
 )
 
 # Start a task
@@ -631,7 +658,7 @@ class InteractiveChat {
 | `"immediate"` | Inject into current turn | Injected before next LLM call | Starts a new turn immediately |
 
 > [!NOTE]
-> When the session is idle (not processing), both modes behave identically—the message starts a new turn immediately. If a turn has ended but a background agent is still running, `"immediate"` (and a single message sent without `mode`) starts a new turn immediately, while `"enqueue"` waits until the background agents finish.
+> When the session is idle (not processing), both modes behave identically—the message starts a new turn immediately.
 
 ## Best practices
 

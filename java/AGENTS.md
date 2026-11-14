@@ -39,22 +39,6 @@ duplicating them in these contributor instructions.
   Spotless/Eclipse formatting. Checkstyle defines the Javadoc checks and
   exclusions in `sdk/config/checkstyle/checkstyle.xml`.
 
-## Cross-SDK behavioral parity
-
-When implementing or syncing SDK behavior, compare Java's serialized requests
-and defaults with the corresponding reference SDK implementation, not just its
-API fields. Distinguish shared SDK policy from mode-specific defaults; require
-an explicit reason for each intentional difference.
-
-For session-request changes, cover create and resume, `COPILOT_CLI` and `EMPTY`,
-and applicable null/omitted-config paths. Set mode-independent defaults before
-early returns. Keep public Javadoc consistent with the resulting behavior.
-
-Test the claimed invariant directly: assert serialized request fields or
-observable runtime state. A prompt asking the model not to use a tool, followed
-by no invocation, does not prove that the tool was excluded. Regression tests
-must fail when the behavior change is reverted.
-
 ## Build, format, and test
 
 Prefer the checked-in Maven wrapper (`./mvnw`, or `.\mvnw.cmd` on Windows).
@@ -65,7 +49,7 @@ their dependencies from the SDK tree. In the runtime repository, prefer
 `npm --prefix <SDK_ROOT> run test:java`; it refreshes the selected schemas and
 Java projection and requests a current host CLI before running the tests.
 Direct Maven commands bypass those prerequisites and are appropriate after
-preparing the checkout.
+preparing the checkout, or in the standalone SDK repository.
 
 ```bash
 ./mvnw clean verify
@@ -91,7 +75,8 @@ JDK 17 without recompiling it, following
 
 Do not edit `sdk/src/generated/java/` by hand. Update the generator in
 `scripts/codegen/java.ts` when needed. From `<SDK_ROOT>`, regenerate with the
-SDK facade to select checked-out runtime schemas:
+SDK facade so the runtime layout selects checked-out schemas and the standalone
+layout selects its pinned release schemas:
 
 ```bash
 npm run generate:java

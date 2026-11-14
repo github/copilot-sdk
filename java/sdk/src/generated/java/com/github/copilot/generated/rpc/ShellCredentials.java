@@ -42,7 +42,7 @@ spelling and is additive with this one.
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ShellCredentials(
     /** Whether to authenticate the agent's `git` commands as the session's GitHub credential, by
-injecting an `http.&lt;host>.extraheader` (plus `insteadOf` rewrites so SSH-spelled remotes for
+injecting an `http.<host>.extraheader` (plus `insteadOf` rewrites so SSH-spelled remotes for
 that host use the authenticated HTTPS transport). Applied only to a spawn that runs a
 remote-contacting `git` subcommand. Default: false (opt-in). */
     @JsonProperty("git") Boolean git,
@@ -54,68 +54,8 @@ Applies to a github.com credential only. `gh` picks its credential variable from
 command targets rather than the one the credential belongs to, and the command can choose that
 target, so `GH_ENTERPRISE_TOKEN` would offer a single-tenant enterprise credential to every
 other enterprise host. A session whose credential is enterprise-scoped therefore runs `gh`
-unauthenticated; its `git` commands are unaffected, because `http.&lt;host>.extraheader` is scoped
+unauthenticated; its `git` commands are unaffected, because `http.<host>.extraheader` is scoped
 to one host by construction. Default: false (opt-in). */
     @JsonProperty("gh") Boolean gh
 ) {
-
-    /**
-     * Creates a record positionally.
-     * @deprecated Use {@link #builder()} for named construction.
-     */
-    @Deprecated(since = "2.0.0", forRemoval = false)
-    public ShellCredentials {}
-
-    /**
-     * Returns a named builder.
-     * @return a new builder
-     * @since 2.0.0
-     */
-    @com.github.copilot.CopilotExperimental
-    public static Builder builder() { return new Builder(); }
-
-    /**
-     * Named construction for this record.
-     * @since 2.0.0
-     */
-    @com.github.copilot.CopilotExperimental
-    public static final class Builder {
-        private Builder() {}
-        private Boolean git;
-        private Boolean gh;
-
-        /**
-         * Sets the {@code git} property.
-         * @param value the property value
-         * @return this builder
-         * @since 2.0.0
-         */
-        @com.github.copilot.CopilotExperimental
-        public Builder git(Boolean value) {
-            this.git = value;
-            return this;
-        }
-
-        /**
-         * Sets the {@code gh} property.
-         * @param value the property value
-         * @return this builder
-         * @since 2.0.0
-         */
-        @com.github.copilot.CopilotExperimental
-        public Builder gh(Boolean value) {
-            this.gh = value;
-            return this;
-        }
-
-        /**
-         * Builds a record after checking required property presence.
-         * @return a new record
-         * @throws IllegalStateException if a required property is missing
-         * @since 2.0.0
-         */
-        public ShellCredentials build() {
-            return new ShellCredentials(git, gh);
-        }
-    }
 }

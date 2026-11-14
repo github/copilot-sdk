@@ -33,6 +33,15 @@ fn archive_digest_matches_independent_multiblock_digest() {
     assert_eq!(digest_hex(sha256(&data)), MULTIBLOCK_DIGEST);
 }
 
+#[test]
+fn archive_digest_preserves_every_binary_byte() {
+    let bytes: Vec<u8> = (0..=255).collect();
+    assert_eq!(
+        digest_hex(sha256(&bytes)),
+        "40aff2e9d2d8922e47afd4648e6967497158785fbd1da870e7110266bf944880"
+    );
+}
+
 #[cfg(windows)]
 #[test]
 fn cng_streaming_matches_independent_digest_across_chunk_boundaries() {

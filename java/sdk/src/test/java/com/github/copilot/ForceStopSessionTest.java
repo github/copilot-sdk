@@ -12,29 +12,17 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
-import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.reflect.Field;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -51,431 +39,17 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.copilot.generated.SessionEvent;
 import com.github.copilot.generated.SessionIdleEvent;
-import com.github.copilot.rpc.AutoModeSwitchResponse;
 import com.github.copilot.rpc.CopilotClientOptions;
-import com.github.copilot.rpc.GitHubTokenProviderResult;
 import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.ResumeSessionConfig;
-import com.github.copilot.rpc.RuntimeConnection;
 import com.github.copilot.rpc.SessionConfig;
 import com.github.copilot.rpc.SessionHooks;
-import com.github.copilot.rpc.ToolDefinition;
 
 class ForceStopSessionTest {
 
     @CopilotResponse
     public record Answer(int value) {
-    }
-
-    @ParameterizedTest
-    @ValueSource(booleans = {false, true})
-    void shutdownReturnsItsFutureWhileInlineStartupWaitsForConnect(boolean force) throws Exception {
-        var callers = Executors.newFixedThreadPool(2);
-        try (var server = new Server(); var client = server.createClient(Runnable::run)) {
-            server.holdConnect = true;
-            var starting = callers.submit(client::start);
-            var connect = server.heldConnects.poll(5, TimeUnit.SECONDS);
-            assertNotNull(connect, "Inline startup must be waiting for the connect response");
-            boolean connectReleased = false;
-            try {
-                var shutdown = callers.submit(() -> force ? client.forceStop() : client.stop());
-                var stopping = shutdown.get(2, TimeUnit.SECONDS);
-                if (!force) {
-                    server.completeConnect(connect);
-                    connectReleased = true;
-                    starting.get(5, TimeUnit.SECONDS).get(5, TimeUnit.SECONDS);
-                } else {
-                    assertThrows(ExecutionException.class,
-                            () -> starting.get(5, TimeUnit.SECONDS).get(5, TimeUnit.SECONDS));
-                }
-                stopping.get(5, TimeUnit.SECONDS);
-            } finally {
-                if (!connectReleased && !starting.isDone()) {
-                    try {
-                        server.completeConnect(connect);
-                    } catch (IOException error) {
-                        if (!server.peerClosed.await(5, TimeUnit.SECONDS)) {
-                            throw error;
-                        }
-                    }
-                }
-            }
-        } finally {
-            callers.shutdownNow();
-            assertTrue(callers.awaitTermination(5, TimeUnit.SECONDS), "The owned startup callers must stop");
-        }
-    }
-
-    @Test
-    void implicitInlineStartupReturnsItsFailureWhenForceStopped() throws Exception {
-        var caller = Executors.newSingleThreadExecutor();
-        try (var server = new Server(); var client = server.createClient(Runnable::run)) {
-            server.holdConnect = true;
-            var creating = caller.submit(() -> client
-                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)));
-            assertNotNull(server.heldConnects.poll(5, TimeUnit.SECONDS),
-                    "Implicit startup must be waiting for the connect response");
-
-            client.forceStop().get(5, TimeUnit.SECONDS);
-
-            var result = creating.get(5, TimeUnit.SECONDS);
-            assertThrows(ExecutionException.class, () -> result.get(5, TimeUnit.SECONDS));
-        } finally {
-            caller.shutdownNow();
-            assertTrue(caller.awaitTermination(5, TimeUnit.SECONDS), "The owned startup caller must stop");
-        }
-    }
-
-    @Test
-    void startAfterTransportLossConnectsAgain() throws Exception {
-        var listener = new ServerSocket(0, 1, InetAddress.getByName("127.0.0.1"));
-        try (var lostServer = new Server(listener); var client = lostServer.createClient()) {
-            var lostSession = createSession(client);
-            // The runtime closes the connection after a successful start.
-            lostServer.socket.shutdownOutput();
-            assertThrows(ExecutionException.class, () -> lostSession.getMessages().get(5, TimeUnit.SECONDS));
-            assertEquals(ConnectionState.DISCONNECTED, client.getState());
-
-            try (var server = new Server(listener)) {
-                client.start().get(5, TimeUnit.SECONDS);
-
-                assertEquals(ConnectionState.CONNECTED, client.getState());
-                client.ping("replacement").get(5, TimeUnit.SECONDS);
-                // The lost connection's session no longer claims its ID.
-                client.resumeSession(lostSession.getSessionId(),
-                        new ResumeSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
-                        .get(5, TimeUnit.SECONDS);
-                client.forceStop().get(5, TimeUnit.SECONDS);
-            }
-        }
-    }
-
-    @ParameterizedTest
-    @ValueSource(booleans = {false, true})
-    void startAfterProcessExitWithOpenTransportConnectsAgain(boolean recoverFromPendingPing) throws Exception {
-        try (var lostServer = new Server();
-                var server = new Server();
-                var lostPipe = new Socket("127.0.0.1", lostServer.listener.getLocalPort());
-                var pipe = new Socket("127.0.0.1", server.listener.getLocalPort());
-                var client = new CopilotClient(
-                        new CopilotClientOptions().setConnection(RuntimeConnection.forStdio()))) {
-            var alive = new AtomicBoolean(true);
-            var lostProcess = mock(Process.class);
-            when(lostProcess.isAlive()).thenAnswer(invocation -> alive.get());
-            when(lostProcess.getInputStream()).thenReturn(lostPipe.getInputStream());
-            when(lostProcess.getOutputStream()).thenReturn(lostPipe.getOutputStream());
-            when(lostProcess.descendants()).thenAnswer(invocation -> java.util.stream.Stream.empty());
-            var process = mock(Process.class);
-            var replacementAlive = new AtomicBoolean(true);
-            when(process.isAlive()).thenAnswer(invocation -> replacementAlive.get());
-            doAnswer(invocation -> {
-                replacementAlive.set(false);
-                return null;
-            }).when(process).destroy();
-            when(process.getInputStream()).thenReturn(pipe.getInputStream());
-            when(process.getOutputStream()).thenReturn(pipe.getOutputStream());
-            when(process.descendants()).thenAnswer(invocation -> java.util.stream.Stream.empty());
-            var manager = spy(new CliServerManager(new CopilotClientOptions().setUseStdio(true)));
-            doReturn(new CliServerManager.ProcessInfo(lostProcess, null),
-                    new CliServerManager.ProcessInfo(process, null)).when(manager).startCliServer();
-            Field managerField = CopilotClient.class.getDeclaredField("serverManager");
-            managerField.setAccessible(true);
-            managerField.set(client, manager);
-            var lostSession = createSession(client);
-            var replacementStarted = new CountDownLatch(1);
-
-            try {
-                client.start().get(5, TimeUnit.SECONDS);
-                verify(manager, times(1)).startCliServer();
-                var recovering = CompletableFuture.completedFuture((Void) null);
-                if (recoverFromPendingPing) {
-                    lostServer.holdPing = true;
-                    var ping = client.ping("pending at process exit");
-                    assertNotNull(lostServer.heldPings.poll(5, TimeUnit.SECONDS),
-                            "The ping must be pending before the process exits");
-                    recovering = ping.handle((result, error) -> {
-                        assertNotNull(error, "Process retirement must fail the pending ping");
-                        awaitRelease(replacementStarted);
-                        client.start().orTimeout(5, TimeUnit.SECONDS).join();
-                        return null;
-                    });
-                }
-                // Model a descendant retaining the pipe after its runtime process exits.
-                alive.set(false);
-                client.start().get(5, TimeUnit.SECONDS);
-                replacementStarted.countDown();
-                recovering.get(5, TimeUnit.SECONDS);
-
-                assertThrows(IllegalStateException.class, () -> lostSession.send("retired"));
-                verify(manager, times(2)).startCliServer();
-                client.ping("replacement").get(5, TimeUnit.SECONDS);
-                client.resumeSession(lostSession.getSessionId(),
-                        new ResumeSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
-                        .get(5, TimeUnit.SECONDS);
-            } finally {
-                replacementStarted.countDown();
-                client.forceStop().get(5, TimeUnit.SECONDS);
-            }
-        }
-    }
-
-    @Test
-    void startInsideTransportFailureContinuationConnectsAgain() throws Exception {
-        try (var lostServer = new Server(); var client = lostServer.createClient()) {
-            client.start().get(5, TimeUnit.SECONDS);
-            lostServer.holdPing = true;
-            var ping = client.ping("pending at transport loss");
-            assertNotNull(lostServer.heldPings.poll(5, TimeUnit.SECONDS), "The ping must be pending before EOF");
-            var recovering = ping.handle((result, error) -> {
-                assertNotNull(error, "Transport loss must fail the pending ping");
-                // Bound an uninterruptible join so a deadlock fails without leaking the reader.
-                client.start().orTimeout(5, TimeUnit.SECONDS).join();
-                return null;
-            });
-
-            try (var server = new Server(lostServer.listener)) {
-                lostServer.socket.shutdownOutput();
-                recovering.get(10, TimeUnit.SECONDS);
-
-                assertEquals(ConnectionState.CONNECTED, client.getState());
-                client.ping("replacement").get(5, TimeUnit.SECONDS);
-                client.forceStop().get(5, TimeUnit.SECONDS);
-            }
-        }
-    }
-
-    @Test
-    void localCloseFailsPendingRequestsWithBusyCommonPool(@org.junit.jupiter.api.io.TempDir java.nio.file.Path temp)
-            throws Exception {
-        var output = temp.resolve("close-probe.log");
-        var javaBin = java.nio.file.Path.of(System.getProperty("java.home"), "bin", "java").toString();
-        var classpath = System.getProperty("surefire.test.class.path", System.getProperty("java.class.path"))
-                + java.io.File.pathSeparator + System.getProperty("jdk.module.path", "");
-        var probe = new ProcessBuilder(javaBin, "-Djava.util.concurrent.ForkJoinPool.common.parallelism=2", "-cp",
-                classpath, BusyCommonPoolCloseProbe.class.getName()).redirectErrorStream(true)
-                .redirectOutput(output.toFile()).start();
-        try {
-            assertTrue(probe.waitFor(20, TimeUnit.SECONDS), () -> "Close probe did not exit; output: " + output);
-            assertEquals(0, probe.exitValue(), java.nio.file.Files.readString(output));
-        } finally {
-            probe.destroyForcibly();
-            assertTrue(probe.waitFor(5, TimeUnit.SECONDS), "The owned close probe must stop");
-        }
-    }
-
-    public static final class BusyCommonPoolCloseProbe {
-        public static void main(String[] args) throws Exception {
-            var entered = new CountDownLatch(2);
-            var release = new CountDownLatch(1);
-            var workers = new CompletableFuture<?>[2];
-            for (int i = 0; i < workers.length; i++) {
-                workers[i] = CompletableFuture.runAsync(() -> {
-                    entered.countDown();
-                    awaitRelease(release);
-                });
-            }
-            var readerRelease = new CountDownLatch(1);
-            try (var rpc = JsonRpcClient.fromStreams(new InputStream() {
-                @Override
-                public int read() {
-                    awaitRelease(readerRelease);
-                    return -1;
-                }
-
-                @Override
-                public void close() {
-                    readerRelease.countDown();
-                }
-            }, java.io.OutputStream.nullOutputStream())) {
-                assertTrue(entered.await(5, TimeUnit.SECONDS), "Both common-pool workers must be occupied");
-                var pending = rpc.invoke("ping", Map.of(), Object.class);
-                rpc.close();
-                assertThrows(ExecutionException.class, () -> pending.get(5, TimeUnit.SECONDS));
-            } finally {
-                readerRelease.countDown();
-                release.countDown();
-                CompletableFuture.allOf(workers).get(5, TimeUnit.SECONDS);
-            }
-        }
-    }
-
-    @Test
-    void createCapturedBeforeRestartCannotReplaceNewSessionRouting() throws Exception {
-        var caller = Executors.newSingleThreadExecutor();
-        var captured = new CountDownLatch(1);
-        var release = new CountDownLatch(1);
-        var events = new AtomicInteger();
-        try (var lostServer = new Server(); var client = lostServer.createClient()) {
-            client.start().get(5, TimeUnit.SECONDS);
-            var config = new SessionConfig() {
-                @Override
-                public String getSessionId() {
-                    captured.countDown();
-                    awaitRelease(release);
-                    return "replacement-session";
-                }
-            }.setOnPermissionRequest(PermissionHandler.APPROVE_ALL);
-            var creating = caller.submit(() -> client.createSession(config));
-            try {
-                assertTrue(captured.await(5, TimeUnit.SECONDS),
-                        "The create must capture its connection before registration");
-                lostServer.socket.shutdownOutput();
-                assertThrows(ExecutionException.class, () -> client.ping("lost connection").get(5, TimeUnit.SECONDS));
-                try (var server = new Server(lostServer.listener)) {
-                    client.start().get(5, TimeUnit.SECONDS);
-                    var replacement = client
-                            .createSession(new SessionConfig().setSessionId("replacement-session")
-                                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
-                                    .setHooks(new SessionHooks().setOnSessionEnd(
-                                            (input, invocation) -> CompletableFuture.completedFuture(null))))
-                            .get(5, TimeUnit.SECONDS);
-                    try (var subscription = replacement.on(event -> events.incrementAndGet())) {
-                        release.countDown();
-                        assertThrows(ExecutionException.class,
-                                () -> creating.get(5, TimeUnit.SECONDS).get(5, TimeUnit.SECONDS));
-                        server.emitIdle(replacement.getSessionId());
-                        client.ping("replacement routing barrier").get(5, TimeUnit.SECONDS);
-                        assertEquals(1, events.get(), "A stale create must preserve replacement events");
-                        server.invokeSessionEnd(replacement.getSessionId());
-                    }
-                    client.forceStop().get(5, TimeUnit.SECONDS);
-                }
-            } finally {
-                release.countDown();
-            }
-        } finally {
-            release.countDown();
-            caller.shutdownNow();
-            assertTrue(caller.awaitTermination(5, TimeUnit.SECONDS), "The owned create caller must stop");
-        }
-    }
-
-    @Test
-    void delayedOptionsFailureCannotRemoveReplacementSessionRouting() throws Exception {
-        var caller = Executors.newSingleThreadExecutor();
-        var patchEntered = new CountDownLatch(1);
-        var release = new CountDownLatch(1);
-        var events = new AtomicInteger();
-        try (var lostServer = new Server(); var client = lostServer.createClient(Runnable::run)) {
-            var config = new SessionConfig() {
-                @Override
-                public java.util.Optional<Boolean> getCoauthorEnabled() {
-                    patchEntered.countDown();
-                    awaitRelease(release);
-                    return java.util.Optional.of(true);
-                }
-            }.setSessionId("replacement-session").setOnPermissionRequest(PermissionHandler.APPROVE_ALL);
-            var creating = caller.submit(() -> client.createSession(config));
-            try {
-                assertTrue(patchEntered.await(5, TimeUnit.SECONDS),
-                        "The old create must reach its post-create options patch");
-                client.forceStop().get(5, TimeUnit.SECONDS);
-                try (var server = new Server(lostServer.listener)) {
-                    client.start().get(5, TimeUnit.SECONDS);
-                    var replacement = client
-                            .createSession(new SessionConfig().setSessionId("replacement-session")
-                                    .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setCoauthorEnabled(false)
-                                    .setHooks(new SessionHooks().setOnSessionEnd(
-                                            (input, invocation) -> CompletableFuture.completedFuture(null))))
-                            .get(5, TimeUnit.SECONDS);
-                    try (var subscription = replacement.on(event -> events.incrementAndGet())) {
-                        release.countDown();
-                        assertThrows(ExecutionException.class,
-                                () -> creating.get(5, TimeUnit.SECONDS).get(5, TimeUnit.SECONDS));
-                        server.emitIdle(replacement.getSessionId());
-                        client.ping("replacement options rollback barrier").get(5, TimeUnit.SECONDS);
-                        assertEquals(1, events.get(), "An old options failure must preserve replacement events");
-                        server.invokeSessionEnd(replacement.getSessionId());
-                    }
-                    client.forceStop().get(5, TimeUnit.SECONDS);
-                }
-            } finally {
-                release.countDown();
-            }
-        } finally {
-            release.countDown();
-            caller.shutdownNow();
-            assertTrue(caller.awaitTermination(5, TimeUnit.SECONDS), "The owned create caller must stop");
-        }
-    }
-
-    @Test
-    void concurrentFailedResumesDuringGracefulStopRetireDisplacedWaits() throws Exception {
-        try (var server = new Server(); var client = server.createClient()) {
-            var resident = createSession(client);
-            var waiting = resident.sendAndWait(new MessageOptions().setPrompt("pending response"), 0);
-            assertNotNull(server.sends.poll(5, TimeUnit.SECONDS), "The legacy wait must be admitted");
-            client.ping("send acknowledgement barrier").get(5, TimeUnit.SECONDS);
-            server.holdResume = true;
-            var config = new ResumeSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL);
-            var first = client.resumeSession(resident.getSessionId(), config);
-            var firstRequest = server.heldResumes.poll(5, TimeUnit.SECONDS);
-            assertNotNull(firstRequest, "The first resume must be admitted");
-            var second = client.resumeSession(resident.getSessionId(), config);
-            var secondRequest = server.heldResumes.poll(5, TimeUnit.SECONDS);
-            assertNotNull(secondRequest, "The second resume must be admitted");
-            server.holdDetachResponse = true;
-            var stopping = client.stop();
-            var detach = server.heldDetaches.poll(5, TimeUnit.SECONDS);
-            assertNotNull(detach, "Graceful stop must be draining the second provisional session");
-            try {
-                for (var request : List.of(firstRequest, secondRequest)) {
-                    server.writeMessage(Map.of("jsonrpc", "2.0", "id", request.get("id"), "error",
-                            Map.of("code", -32603, "message", "controlled resume rejection")));
-                    var resuming = request == firstRequest ? first : second;
-                    assertThrows(ExecutionException.class, () -> resuming.get(5, TimeUnit.SECONDS));
-                }
-            } finally {
-                server.completeDetach(detach, "success");
-                stopping.get(CopilotSession.DETACH_TIMEOUT_SECONDS + 3, TimeUnit.SECONDS);
-            }
-
-            var error = assertThrows(ExecutionException.class, () -> waiting.get(5, TimeUnit.SECONDS));
-            assertEquals("Session closed before response completed", error.getCause().getMessage());
-            assertThrows(IllegalStateException.class, () -> resident.on(event -> {
-            }));
-        }
-    }
-
-    @Test
-    void failedResumeDuringGracefulStopPreservesResidentCallbacksUntilDetachCompletes() throws Exception {
-        var events = new AtomicInteger();
-        var hooks = new AtomicInteger();
-        try (var server = new Server(); var client = server.createClient()) {
-            var resident = client
-                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
-                            .setHooks(new SessionHooks().setOnSessionEnd((input, invocation) -> {
-                                hooks.incrementAndGet();
-                                return CompletableFuture.completedFuture(null);
-                            })))
-                    .get(5, TimeUnit.SECONDS);
-            try (var subscription = resident.on(event -> events.incrementAndGet())) {
-                server.holdResume = true;
-                var resuming = client.resumeSession(resident.getSessionId(),
-                        new ResumeSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL));
-                var resume = server.heldResumes.poll(5, TimeUnit.SECONDS);
-                assertNotNull(resume, "Warm resume must be pending before stop");
-                server.holdDetachResponse = true;
-                var stopping = client.stop();
-                var detach = server.heldDetaches.poll(5, TimeUnit.SECONDS);
-                assertNotNull(detach, "Graceful stop must be draining the provisional session");
-                try {
-                    server.writeMessage(Map.of("jsonrpc", "2.0", "id", resume.get("id"), "error",
-                            Map.of("code", -32603, "message", "controlled resume rejection")));
-                    assertThrows(ExecutionException.class, () -> resuming.get(5, TimeUnit.SECONDS));
-                    server.emitIdle(resident.getSessionId());
-                    client.ping("failed resume callback barrier").get(5, TimeUnit.SECONDS);
-                    assertEquals(1, events.get(), "The resident must receive terminal events while detach drains");
-                    server.invokeSessionEnd(resident.getSessionId());
-                    assertEquals(1, hooks.get(), "The resident's session-end hook must remain routed");
-                } finally {
-                    server.completeDetach(detach, "success");
-                    stopping.get(CopilotSession.DETACH_TIMEOUT_SECONDS + 3, TimeUnit.SECONDS);
-                }
-                assertThrows(IllegalStateException.class, () -> resident.send("after stop"));
-            }
-        }
     }
 
     @Test
@@ -501,81 +75,6 @@ class ForceStopSessionTest {
                 assertThrows(IllegalStateException.class, () -> session.on(event -> fail("Retired handler")));
                 session.close();
                 assertEquals(1, server.detaches.get(), "Repeated close must not detach again");
-            }
-        }
-    }
-
-    @ParameterizedTest
-    @ValueSource(booleans = {false, true})
-    void resumeSettlementPreservesTheRuntimeCallbackOwnerWhileResidentCloses(boolean unsupportedRecovery)
-            throws Exception {
-        var events = new AtomicInteger();
-        var hooks = new AtomicInteger();
-        var resumedEvents = new AtomicInteger();
-        var resumedHooks = new AtomicInteger();
-        try (var server = new Server(); var client = server.createClient()) {
-            var resident = client
-                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
-                            .setHooks(new SessionHooks().setOnSessionEnd((input, invocation) -> {
-                                assertEquals("user_exit", input.reason());
-                                hooks.incrementAndGet();
-                                return CompletableFuture.completedFuture(null);
-                            })))
-                    .get(5, TimeUnit.SECONDS);
-            String sessionId = resident.getSessionId();
-            try (var subscription = resident.on(event -> events.incrementAndGet())) {
-                server.holdResumeResponse = true;
-                server.holdDetachResponse = true;
-                var resuming = client.resumeSession(sessionId,
-                        new ResumeSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
-                                .setAutoModeRecovery(unsupportedRecovery)
-                                .setOnEvent(event -> resumedEvents.incrementAndGet())
-                                .setHooks(new SessionHooks().setOnSessionEnd((input, invocation) -> {
-                                    resumedHooks.incrementAndGet();
-                                    return CompletableFuture.completedFuture(null);
-                                })).setOnAutoModeSwitch((request, invocation) -> CompletableFuture
-                                        .completedFuture(AutoModeSwitchResponse.NO)));
-                var resumeRequest = server.resumes.poll(5, TimeUnit.SECONDS);
-                assertNotNull(resumeRequest, "Resume must be pending before the resident closes");
-                var closing = CompletableFuture.runAsync(resident::close);
-                try (var finishDetach = (AutoCloseable) () -> {
-                    var detachRequest = server.heldDetaches.poll(5, TimeUnit.SECONDS);
-                    assertNotNull(detachRequest, "Graceful close must send detach");
-                    server.completeDetach(detachRequest, "success");
-                    closing.get(5, TimeUnit.SECONDS);
-                }) {
-                    assertTrue(server.detachEntered.await(5, TimeUnit.SECONDS), "Graceful close must await detach");
-                    assertFalse(closing.isDone());
-                    if (unsupportedRecovery) {
-                        server.writeMessage(Map.of("jsonrpc", "2.0", "id", resumeRequest.get("id"), "result",
-                                Map.of("sessionId", sessionId)));
-                    } else {
-                        server.writeMessage(Map.of("jsonrpc", "2.0", "id", resumeRequest.get("id"), "error",
-                                Map.of("code", -32000, "message", "resume failed")));
-                    }
-                    var error = assertThrows(ExecutionException.class, () -> resuming.get(5, TimeUnit.SECONDS));
-                    if (unsupportedRecovery) {
-                        assertInstanceOf(UnsupportedOperationException.class, error.getCause());
-                    } else {
-                        assertTrue(error.getCause().getMessage().contains("resume failed"));
-                    }
-
-                    server.emitIdle(sessionId);
-                    server.invokeSessionEnd(sessionId);
-                    assertEquals(unsupportedRecovery ? 0 : 1, hooks.get());
-                    assertEquals(unsupportedRecovery ? 0 : 1, events.get());
-                    assertEquals(unsupportedRecovery ? 1 : 0, resumedHooks.get());
-                    assertEquals(unsupportedRecovery ? 1 : 0, resumedEvents.get(),
-                            "An accepted resume must keep its callbacks even without recovery support");
-                    assertFalse(closing.isDone(), "Callbacks must complete before detach is acknowledged");
-                }
-                server.emitIdle(sessionId);
-                client.ping("restored resident callback retirement barrier").get(5, TimeUnit.SECONDS);
-                assertEquals(unsupportedRecovery ? 0 : 1, events.get(),
-                        "Detach acknowledgement must still retire the resident callbacks");
-                assertEquals(unsupportedRecovery ? 2 : 0, resumedEvents.get(),
-                        "The retired resident must not remove an accepted resume's callback owner");
-                assertEquals(1, server.detaches.get(), "Rejected resume must not detach the resident a second time");
             }
         }
     }
@@ -1013,358 +512,6 @@ class ForceStopSessionTest {
         }
     }
 
-    @Test
-    void stopRetiresSessionsEvenWhenTheCallersExecutorNeverStartsDetach() throws Exception {
-        var executor = Executors.newSingleThreadExecutor();
-        var entered = new CountDownLatch(1);
-        var release = new CountDownLatch(1);
-        try (var server = new Server(); var client = server.createClient(executor)) {
-            var session = createSession(client);
-            var waiting = session.sendAndWait(new MessageOptions().setPrompt("pending legacy response"), 0);
-            client.ping("legacy send acknowledged").get(5, TimeUnit.SECONDS);
-            assertFalse(waiting.isDone());
-            executor.execute(() -> {
-                entered.countDown();
-                awaitRelease(release);
-            });
-            assertTrue(entered.await(5, TimeUnit.SECONDS), "The caller's executor must be occupied");
-
-            client.stop().get(8, TimeUnit.SECONDS);
-            executor.shutdownNow();
-            assertThrows(IllegalStateException.class, () -> session.send("after stop"));
-            var error = assertThrows(ExecutionException.class, () -> waiting.get(5, TimeUnit.SECONDS));
-            assertEquals("Session closed before response completed", error.getCause().getMessage());
-            assertEquals(0, server.detaches.get(), "The blocked executor must not have sent detach");
-        } finally {
-            release.countDown();
-            executor.shutdownNow();
-            assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS), "The owned executor must stop");
-        }
-    }
-
-    @Test
-    void stopDoesNotJoinToolCancellationContinuations() throws Exception {
-        var entered = new CountDownLatch(1);
-        var release = new CountDownLatch(1);
-        var tool = new CompletableFuture<Object>();
-        var continuation = tool.whenComplete((value, error) -> {
-            entered.countDown();
-            awaitRelease(release);
-        });
-        try (var server = new Server(); var client = server.createClient(Runnable::run)) {
-            var session = client
-                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setTools(
-                            List.of(ToolDefinition.create("blocked_tool", "Blocks", Map.of(), invocation -> tool))))
-                    .get(5, TimeUnit.SECONDS);
-            var otherSession = createSession(client);
-            server.emitEvent(session.getSessionId(), "external_tool.requested",
-                    Map.of("requestId", "pending-tool", "sessionId", session.getSessionId(), "toolCallId", "tool-call",
-                            "toolName", "blocked_tool", "arguments", Map.of()));
-            client.ping("tool attached barrier").get(5, TimeUnit.SECONDS);
-
-            var stopCall = CompletableFuture.supplyAsync(client::stop);
-            try {
-                var stopping = stopCall.get(2, TimeUnit.SECONDS);
-                assertTrue(entered.await(5, TimeUnit.SECONDS), "Retirement must cancel the application-owned future");
-                // Sessions retire on separate cleanup threads; stop completing is the barrier.
-                stopping.get(8, TimeUnit.SECONDS);
-                assertEquals(1, release.getCount(), "Shutdown must not join an application cancellation continuation");
-                assertThrows(IllegalStateException.class, () -> session.send("after stop"));
-                assertThrows(IllegalStateException.class, () -> otherSession.send("after stop"));
-            } finally {
-                release.countDown();
-                stopCall.get(5, TimeUnit.SECONDS).get(8, TimeUnit.SECONDS);
-                assertThrows(ExecutionException.class, () -> continuation.get(5, TimeUnit.SECONDS));
-            }
-        }
-    }
-
-    @ParameterizedTest
-    @ValueSource(booleans = {false, true})
-    @AllowCopilotExperimental
-    void stopReturnsBeforeAnInlineDetachWriteUnblocks(boolean rejected) throws Exception {
-        var reject = new AtomicBoolean();
-        Executor executor = task -> {
-            if (reject.get()) {
-                throw new java.util.concurrent.RejectedExecutionException("Controlled executor rejection");
-            }
-            task.run();
-        };
-        var block = new AtomicBoolean();
-        var entered = new CountDownLatch(1);
-        var release = new CountDownLatch(1);
-        try (var server = new Server();
-                var client = new CopilotClient(new CopilotClientOptions()
-                        .setConnection(RuntimeConnection.forInProcess()).setExecutor(executor))) {
-            client.setInProcessTransportFactory(options -> {
-                var socket = new Socket("127.0.0.1", server.listener.getLocalPort());
-                var output = new FilterOutputStream(socket.getOutputStream()) {
-                    @Override
-                    public void write(byte[] bytes, int offset, int length) throws IOException {
-                        if (block.get()) {
-                            entered.countDown();
-                            awaitRelease(release);
-                        }
-                        out.write(bytes, offset, length);
-                    }
-                };
-                return new CopilotClient.InProcessTransport(socket.getInputStream(), output, null);
-            });
-            var session = createSession(client);
-            reject.set(rejected);
-            block.set(true);
-            var stopCall = CompletableFuture.supplyAsync(client::stop);
-            try {
-                assertTrue(entered.await(5, TimeUnit.SECONDS), "The detach send must reach the blocked transport");
-                var stopping = stopCall.get(2, TimeUnit.SECONDS);
-                stopping.get(8, TimeUnit.SECONDS);
-                assertEquals(1, release.getCount(), "The detach deadline must not require unblocking the write");
-                assertThrows(IllegalStateException.class, () -> session.send("after stop"));
-            } finally {
-                release.countDown();
-                stopCall.get(5, TimeUnit.SECONDS).get(8, TimeUnit.SECONDS);
-            }
-        }
-    }
-
-    @Test
-    void oldStopDoesNotClearSessionsOrTokenProvidersFromANewConnection() throws Exception {
-        var entered = new CountDownLatch(1);
-        var release = new CountDownLatch(1);
-        var events = new AtomicInteger();
-        var toolEntered = new CountDownLatch(1);
-        try (var server = new Server(); var client = server.createClient()) {
-            var oldSession = createSession(client);
-            server.holdPing = true;
-            var ping = client.ping("hold old cleanup");
-            assertNotNull(server.heldPings.poll(5, TimeUnit.SECONDS), "The old request must remain pending at cleanup");
-            var continuation = ping.whenComplete((value, error) -> {
-                entered.countDown();
-                awaitRelease(release);
-            });
-            var stopping = client.stop();
-            try (var nextServer = new Server(server.listener)) {
-                try {
-                    assertTrue(entered.await(5, TimeUnit.SECONDS), "The old transport cleanup must be paused");
-                    var replacement = client.createSession(new SessionConfig().setSessionId(oldSession.getSessionId())
-                            .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setTools(List
-                                    .of(ToolDefinition.create("replacement_tool", "Blocks", Map.of(), invocation -> {
-                                        toolEntered.countDown();
-                                        return new CompletableFuture<>();
-                                    })))
-                            .setGitHubTokenProvider(args -> CompletableFuture
-                                    .completedFuture(GitHubTokenProviderResult.token("replacement-token", 3600))))
-                            .get(5, TimeUnit.SECONDS);
-                    var request = nextServer.creates.poll(5, TimeUnit.SECONDS);
-                    assertNotNull(request);
-                    try (var subscription = replacement.on(event -> events.incrementAndGet())) {
-                        release.countDown();
-                        stopping.get(5, TimeUnit.SECONDS);
-                        assertThrows(ExecutionException.class, () -> continuation.get(5, TimeUnit.SECONDS));
-                        nextServer.emitIdle(replacement.getSessionId());
-                        client.ping("replacement routing barrier").get(5, TimeUnit.SECONDS);
-                        assertEquals(1, events.get(), "An old stop must preserve the new session's routing");
-                        var tokenReply = nextServer.invokeToken(
-                                request.path("params").path("gitHubTokenProviderRegistrationId").asText(),
-                                replacement.getSessionId());
-                        assertFalse(tokenReply.has("error"),
-                                "An old stop must preserve new token providers: " + tokenReply);
-                        assertEquals("replacement-token", tokenReply.path("result").path("accessToken").asText());
-                        nextServer.emitEvent(replacement.getSessionId(), "external_tool.requested",
-                                Map.of("requestId", "replacement-request", "sessionId", replacement.getSessionId(),
-                                        "toolCallId", "replacement-call", "toolName", "replacement_tool", "arguments",
-                                        Map.of()));
-                        assertTrue(toolEntered.await(5, TimeUnit.SECONDS),
-                                "An old transport close must not retire the replacement's tools");
-                    }
-                    client.stop().get(5, TimeUnit.SECONDS);
-                } finally {
-                    release.countDown();
-                    stopping.get(5, TimeUnit.SECONDS);
-                }
-            }
-        }
-    }
-
-    @ParameterizedTest
-    @ValueSource(booleans = {false, true})
-    void callerCompletionOfStopCannotSuppressRegistryCleanup(boolean timeout) throws Exception {
-        var queueTasks = new AtomicBoolean();
-        var queued = new CountDownLatch(1);
-        var tasks = new java.util.concurrent.ConcurrentLinkedQueue<Runnable>();
-        Executor executor = task -> {
-            if (queueTasks.get()) {
-                tasks.add(task);
-                queued.countDown();
-            } else {
-                task.run();
-            }
-        };
-        try (var server = new Server(); var client = server.createClient(executor)) {
-            var session = createSession(client);
-            try (var nextServer = new Server(server.listener)) {
-                queueTasks.set(true);
-                var stopping = client.stop();
-                assertTrue(queued.await(5, TimeUnit.SECONDS), "The caller-owned executor must accept queued detach");
-                if (timeout) {
-                    var error = assertThrows(ExecutionException.class,
-                            () -> stopping.orTimeout(1, TimeUnit.MILLISECONDS).get(5, TimeUnit.SECONDS));
-                    assertInstanceOf(TimeoutException.class, error.getCause());
-                } else {
-                    assertTrue(stopping.cancel(false));
-                }
-                assertTrue(server.peerClosed.await(8, TimeUnit.SECONDS), "Private shutdown must still close transport");
-                tasks.clear();
-                queueTasks.set(false);
-                client.start().get(5, TimeUnit.SECONDS);
-                long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
-                JsonNode reply = null;
-                do {
-                    var observed = nextServer.sessionEndReply(session.getSessionId(), deadline - System.nanoTime());
-                    if (observed == null) {
-                        break;
-                    }
-                    reply = observed;
-                    if (reply.has("error")) {
-                        break;
-                    }
-                    TimeUnit.MILLISECONDS.sleep(10);
-                } while (System.nanoTime() < deadline);
-                assertNotNull(reply, "The new peer must receive a response about the retired session");
-                assertEquals("Unknown session " + session.getSessionId(), reply.path("error").path("message").asText(),
-                        "Caller completion must not retain old session registrations: " + reply);
-                client.stop().get(5, TimeUnit.SECONDS);
-            } finally {
-                queueTasks.set(false);
-            }
-        }
-    }
-
-    @ParameterizedTest
-    @ValueSource(booleans = {false, true})
-    void stopRoutesCallbacksUntilDetachSettlesWithInlineExecutors(boolean rejected) throws Exception {
-        var reject = new AtomicBoolean();
-        Executor executor = task -> {
-            if (reject.get()) {
-                throw new java.util.concurrent.RejectedExecutionException("Controlled executor rejection");
-            }
-            task.run();
-        };
-        var events = new AtomicInteger();
-        var hooks = new AtomicInteger();
-        try (var server = new Server(); var client = server.createClient(executor)) {
-            server.holdDetachResponse = true;
-            var session = client.createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
-                    .setHooks(new SessionHooks().setOnSessionEnd((input, invocation) -> {
-                        hooks.incrementAndGet();
-                        return CompletableFuture.completedFuture(null);
-                    }))).get(5, TimeUnit.SECONDS);
-            try (var subscription = session.on(event -> events.incrementAndGet())) {
-                reject.set(rejected);
-                var stopping = client.stop();
-                var detach = server.heldDetaches.poll(5, TimeUnit.SECONDS);
-                assertNotNull(detach, "The peer must receive detach before emitting its final callbacks");
-                server.emitIdle(session.getSessionId());
-                client.ping("stop callback routing barrier").get(5, TimeUnit.SECONDS);
-                assertEquals(1, events.get(), "Stop must retain event routing until detach settles");
-                server.invokeSessionEnd(session.getSessionId());
-                assertEquals(1, hooks.get(), "Stop must retain hook routing until detach settles");
-                server.completeDetach(detach, "success");
-                stopping.get(5, TimeUnit.SECONDS);
-                assertThrows(IllegalStateException.class, () -> session.on(event -> fail("Retired handler")));
-            }
-        }
-    }
-
-    @Test
-    void stopSharesOneDetachDeadlineWithoutHoldingTheCallersExecutor() throws Exception {
-        var executor = Executors.newSingleThreadExecutor();
-        try (var server = new Server(); var client = server.createClient(executor)) {
-            server.holdDetachResponse = true;
-            for (int i = 0; i < 3; i++) {
-                createSession(client);
-            }
-            long started = System.nanoTime();
-            var stopping = client.stop();
-            for (int i = 0; i < 3; i++) {
-                assertNotNull(server.heldDetaches.poll(2, TimeUnit.SECONDS),
-                        "Every detach must be sent without waiting for an earlier one");
-            }
-            CompletableFuture.runAsync(() -> {
-            }, executor).get(2, TimeUnit.SECONDS);
-            stopping.get(CopilotSession.DETACH_TIMEOUT_SECONDS + 3, TimeUnit.SECONDS);
-            assertTrue(
-                    System.nanoTime() - started < TimeUnit.SECONDS.toNanos(2 * CopilotSession.DETACH_TIMEOUT_SECONDS),
-                    "Unanswered detaches must share one deadline");
-            assertEquals(3, server.detaches.get());
-        } finally {
-            executor.shutdownNow();
-        }
-    }
-
-    @Test
-    void stopReturnsWhileASendHoldsTheSessionMonitor() throws Exception {
-        var held = new CountDownLatch(1);
-        var release = new CountDownLatch(1);
-        try (var server = new Server(); var client = server.createClient()) {
-            var session = createSession(client);
-            // A legacy sendAndWait fallback holds this monitor while it writes
-            // session.send.
-            var holder = new Thread(() -> {
-                synchronized (session) {
-                    held.countDown();
-                    awaitRelease(release);
-                }
-            }, "session-monitor-holder");
-            holder.setDaemon(true);
-            holder.start();
-            try {
-                assertTrue(held.await(5, TimeUnit.SECONDS), "The session monitor must be held");
-                var stopping = CompletableFuture.supplyAsync(client::stop).get(2, TimeUnit.SECONDS);
-                assertFalse(stopping.isDone(), "Retirement must still be waiting for the monitor");
-                release.countDown();
-                stopping.get(CopilotSession.DETACH_TIMEOUT_SECONDS + 3, TimeUnit.SECONDS);
-                assertThrows(IllegalStateException.class, () -> session.send("after stop"));
-                assertEquals(1, server.detaches.get());
-            } finally {
-                release.countDown();
-                holder.join(5000);
-            }
-        }
-    }
-
-    @Test
-    void stopRetiresTheSessionAnInterruptedResumeRestores() throws Exception {
-        try (var server = new Server(); var client = server.createClient()) {
-            var original = client
-                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
-                            .setGitHubTokenProvider(args -> CompletableFuture
-                                    .completedFuture(GitHubTokenProviderResult.token("original-token", 3600))))
-                    .get(5, TimeUnit.SECONDS);
-            var create = server.creates.poll(5, TimeUnit.SECONDS);
-            assertNotNull(create);
-            String registrationId = create.path("params").path("gitHubTokenProviderRegistrationId").asText();
-            assertFalse(registrationId.isEmpty(), "The original session must register its token provider");
-
-            server.holdResume = true;
-            var resuming = client.resumeSession(original.getSessionId(),
-                    new ResumeSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL));
-            assertNotNull(server.heldResumes.poll(5, TimeUnit.SECONDS), "The resume must be pending at stop");
-
-            client.stop().get(CopilotSession.DETACH_TIMEOUT_SECONDS + 3, TimeUnit.SECONDS);
-            assertThrows(ExecutionException.class, () -> resuming.get(5, TimeUnit.SECONDS));
-            assertThrows(IllegalStateException.class, () -> original.send("after stop"),
-                    "The session the failed resume restored must be retired");
-
-            try (var nextServer = new Server(server.listener)) {
-                createSession(client);
-                var reply = nextServer.invokeToken(registrationId, original.getSessionId());
-                assertTrue(reply.has("error"), "A stopped session's token provider must not survive: " + reply);
-                client.stop().get(CopilotSession.DETACH_TIMEOUT_SECONDS + 3, TimeUnit.SECONDS);
-            }
-        }
-    }
-
     private static CopilotSession createSession(CopilotClient client) throws Exception {
         return client.createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get(5,
                 TimeUnit.SECONDS);
@@ -1444,59 +591,6 @@ class ForceStopSessionTest {
         }
     }
 
-    @Test
-    void toolResultFailureIsAnsweredWhileAnotherSessionToolOccupiesExecutor() throws Exception {
-        var executor = Executors.newSingleThreadExecutor();
-        var toolEntered = new CountDownLatch(1);
-        var releaseTool = new CountDownLatch(1);
-        try (var server = new Server(); var client = server.createClient(executor)) {
-            server.holdToolReplies = true;
-            var first = client
-                    .createSession(
-                            new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
-                                    .setTools(List.of(ToolDefinition.create("delivers", "Returns a result", Map.of(),
-                                            invocation -> CompletableFuture.completedFuture("ok")))))
-                    .get(5, TimeUnit.SECONDS);
-            var second = client.createSession(
-                    new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setTools(List
-                            .of(ToolDefinition.create("blocks", "Waits for the first session", Map.of(), invocation -> {
-                                toolEntered.countDown();
-                                awaitRelease(releaseTool);
-                                return new CompletableFuture<>();
-                            }))))
-                    .get(5, TimeUnit.SECONDS);
-            try {
-                server.emitEvent(first.getSessionId(), "external_tool.requested",
-                        Map.of("requestId", "request-delivers", "sessionId", first.getSessionId(), "toolCallId",
-                                "call-delivers", "toolName", "delivers", "arguments", Map.of()));
-                var delivery = server.toolReplies.poll(5, TimeUnit.SECONDS);
-                assertNotNull(delivery, "The first tool result must reach the transport");
-                assertEquals("ok", delivery.path("params").path("result").path("textResultForLlm").asText());
-
-                server.emitEvent(second.getSessionId(), "external_tool.requested",
-                        Map.of("requestId", "request-blocks", "sessionId", second.getSessionId(), "toolCallId",
-                                "call-blocks", "toolName", "blocks", "arguments", Map.of()));
-                assertTrue(toolEntered.await(5, TimeUnit.SECONDS), "The second tool must occupy the sole worker");
-                server.writeMessage(Map.of("jsonrpc", "2.0", "id", delivery.get("id"), "error",
-                        Map.of("code", -32603, "message", "tool result rejected")));
-
-                var answer = server.toolReplies.poll(5, TimeUnit.SECONDS);
-                assertNotNull(answer, "The failed result must be answered without waiting for the blocked handler");
-                var params = answer.path("params");
-                assertEquals(first.getSessionId(), params.path("sessionId").asText());
-                assertEquals("request-delivers", params.path("requestId").asText());
-                assertEquals("tool result rejected", params.path("error").asText());
-                assertTrue(params.path("result").isMissingNode() || params.path("result").isNull(), params.toString());
-                server.writeMessage(Map.of("jsonrpc", "2.0", "id", answer.get("id"), "result", Map.of()));
-            } finally {
-                releaseTool.countDown();
-            }
-        } finally {
-            executor.shutdownNow();
-            assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS), "The owned handler executor must stop");
-        }
-    }
-
     private static final class Server implements AutoCloseable {
 
         private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -1504,57 +598,31 @@ class ForceStopSessionTest {
         private final Thread thread;
         private final AtomicInteger detaches = new AtomicInteger();
         private final CountDownLatch detachEntered = new CountDownLatch(1);
-        private final CountDownLatch peerClosed = new CountDownLatch(1);
         private final java.util.concurrent.BlockingQueue<JsonNode> heldDetaches = new java.util.concurrent.LinkedBlockingQueue<>();
         private final java.util.concurrent.BlockingQueue<JsonNode> hookReplies = new java.util.concurrent.LinkedBlockingQueue<>();
-        private final java.util.concurrent.BlockingQueue<JsonNode> creates = new java.util.concurrent.LinkedBlockingQueue<>();
-        private final java.util.concurrent.BlockingQueue<JsonNode> heldPings = new java.util.concurrent.LinkedBlockingQueue<>();
-        private final java.util.concurrent.BlockingQueue<JsonNode> heldResumes = new java.util.concurrent.LinkedBlockingQueue<>();
-        private final java.util.concurrent.BlockingQueue<JsonNode> heldConnects = new java.util.concurrent.LinkedBlockingQueue<>();
-        private final java.util.concurrent.BlockingQueue<JsonNode> toolReplies = new java.util.concurrent.LinkedBlockingQueue<>();
         private volatile Socket socket;
         private volatile boolean closed;
         private volatile boolean emitDetachCallbacks;
         private volatile boolean holdDetachResponse;
-        private volatile boolean holdResumeResponse;
         private volatile boolean completionSupported;
-        private volatile boolean holdPing;
-        private volatile boolean holdResume;
-        private volatile boolean holdConnect;
-        private volatile boolean holdToolReplies;
         private final java.util.concurrent.BlockingQueue<JsonNode> completions = new java.util.concurrent.LinkedBlockingQueue<>();
         private final java.util.concurrent.BlockingQueue<JsonNode> cancellations = new java.util.concurrent.LinkedBlockingQueue<>();
-        private final java.util.concurrent.BlockingQueue<JsonNode> resumes = new java.util.concurrent.LinkedBlockingQueue<>();
         private final java.util.concurrent.BlockingQueue<String> sends = new java.util.concurrent.LinkedBlockingQueue<>();
         private volatile Exception failure;
 
         Server() throws IOException {
-            this(new ServerSocket(0, 1, InetAddress.getByName("127.0.0.1")));
-        }
-
-        Server(ServerSocket listener) {
-            this.listener = listener;
+            listener = new ServerSocket(0, 1, InetAddress.getByName("127.0.0.1"));
             thread = new Thread(this::serve, "force-stop-session-server");
             thread.setDaemon(true);
             thread.start();
         }
 
         CopilotClient createClient() {
-            return createClient(null);
-        }
-
-        CopilotClient createClient(Executor executor) {
-            return new CopilotClient(
-                    new CopilotClientOptions().setCliUrl("127.0.0.1:" + listener.getLocalPort()).setExecutor(executor));
+            return new CopilotClient(new CopilotClientOptions().setCliUrl("127.0.0.1:" + listener.getLocalPort()));
         }
 
         void emitIdle(String sessionId) throws IOException {
             emitEvent(sessionId, "session.idle", Map.of());
-        }
-
-        void completeConnect(JsonNode request) throws IOException {
-            writeMessage(Map.of("jsonrpc", "2.0", "id", request.get("id"), "result",
-                    Map.of("protocolVersion", SdkProtocolVersion.get())));
         }
 
         void completeDetach(JsonNode request, String outcome) throws IOException {
@@ -1572,26 +640,12 @@ class ForceStopSessionTest {
         }
 
         void invokeSessionEnd(String sessionId) throws Exception {
-            var reply = sessionEndReply(sessionId, TimeUnit.SECONDS.toNanos(5));
-            assertNotNull(reply, "The SDK must acknowledge the session-end hook");
-            assertFalse(reply.has("error"), "Session-end hook failed: " + reply);
-        }
-
-        JsonNode sessionEndReply(String sessionId, long timeoutNanos) throws Exception {
             writeMessage(Map.of("jsonrpc", "2.0", "id", 9_000_001L, "method", "hooks.invoke", "params",
                     Map.of("sessionId", sessionId, "hookType", "sessionEnd", "input",
                             Map.of("sessionId", sessionId, "timestamp", 0, "cwd", ".", "reason", "user_exit"))));
-            var reply = hookReplies.poll(Math.max(0, timeoutNanos), TimeUnit.NANOSECONDS);
-            return reply;
-        }
-
-        JsonNode invokeToken(String registrationId, String sessionId) throws Exception {
-            writeMessage(Map.of("jsonrpc", "2.0", "id", 9_000_001L, "method", "gitHubToken.getToken", "params",
-                    Map.of("registrationId", registrationId, "sessionId", sessionId, "host", "github.com", "reason",
-                            "refresh")));
             var reply = hookReplies.poll(5, TimeUnit.SECONDS);
-            assertNotNull(reply, "The SDK must respond to the token request");
-            return reply;
+            assertNotNull(reply, "The SDK must acknowledge the session-end hook");
+            assertFalse(reply.has("error"), "Session-end hook failed: " + reply);
         }
 
         Map<String, Object> emitEvent(String sessionId, String type, Map<String, Object> data) throws IOException {
@@ -1633,27 +687,6 @@ class ForceStopSessionTest {
                         cancellations.add(params.get("id"));
                         continue;
                     }
-                    if (holdConnect && request.path("method").asText().equals("connect")) {
-                        heldConnects.add(request);
-                        continue;
-                    }
-                    if (holdResumeResponse && request.path("method").asText().equals("session.resume")) {
-                        resumes.add(request);
-                        continue;
-                    }
-                    if (holdResume && request.path("method").asText().equals("session.resume")) {
-                        heldResumes.add(request);
-                        continue;
-                    }
-                    if (holdPing && request.path("method").asText().equals("ping")) {
-                        heldPings.add(request);
-                        continue;
-                    }
-                    if (holdToolReplies
-                            && request.path("method").asText().equals("session.tools.handlePendingToolCall")) {
-                        toolReplies.add(request);
-                        continue;
-                    }
                     if (holdDetachResponse && request.path("method").asText().equals("session.detach")) {
                         detaches.incrementAndGet();
                         heldDetaches.add(request);
@@ -1684,10 +717,8 @@ class ForceStopSessionTest {
                     }
                     Object result = switch (request.path("method").asText()) {
                         case "connect" -> Map.of("protocolVersion", SdkProtocolVersion.get());
-                        case "session.create", "session.resume" -> {
-                            creates.add(request);
-                            yield Map.of("sessionId", params.path("sessionId").asText());
-                        }
+                        case "session.create", "session.resume" ->
+                            Map.of("sessionId", params.path("sessionId").asText());
                         case "session.send" -> {
                             sends.add(params.path("prompt").asText());
                             yield Map.of("messageId", params.path("prompt").asText());
@@ -1696,7 +727,6 @@ class ForceStopSessionTest {
                             detaches.incrementAndGet();
                             yield Map.of("success", true);
                         }
-                        case "session.options.update" -> Map.of();
                         case "ping" -> Map.of("message", params.path("message").asText(), "protocolVersion",
                                 SdkProtocolVersion.get());
                         default -> throw new IOException("Unexpected RPC: " + request.path("method"));
@@ -1710,8 +740,6 @@ class ForceStopSessionTest {
                 if (!closed) {
                     failure = error;
                 }
-            } finally {
-                peerClosed.countDown();
             }
         }
 

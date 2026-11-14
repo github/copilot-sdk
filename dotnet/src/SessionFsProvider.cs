@@ -638,9 +638,8 @@ public abstract class SessionFsProvider : ISessionFsReadFileRangeHandler
         return new SessionFsError { Code = code, Message = ex.Message };
     }
 
-    // ADO.NET readers (including Microsoft.Data.Sqlite) return SQL NULL as DBNull.Value.
     private static JsonElement ToJsonElement(object? value) =>
-        CopilotClient.ToJsonElementForWire(value is DBNull ? null : value) ?? JsonElement.Parse("null");
+        CopilotClient.ToJsonElementForWire(value) ?? JsonElement.Parse("null");
 
     private static object? JsonElementToValue(JsonElement element) => element.ValueKind switch
     {

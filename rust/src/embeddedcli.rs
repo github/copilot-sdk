@@ -17,8 +17,7 @@
 //! handed back as "good", fails to launch (e.g. Windows `ERROR_BAD_EXE_FORMAT`).
 //! Full CLI installation therefore: extracts to a unique temp file in the target dir,
 //! fsyncs and marks it executable, verifies the staged bytes against the
-//! trusted in-memory image, atomically publishes it in place without replacing
-//! an identical binary another process already published, re-verifies the
+//! trusted in-memory image, atomically renames it into place, re-verifies the
 //! published file, and records an integrity marker. Subsequent runs trust an
 //! existing install only after a cheap re-check (size marker + executable-image
 //! header); anything that looks truncated or quarantined is re-extracted, and
@@ -36,8 +35,6 @@
 // whenever the binary is bundled *or* we're building the test harness —
 // the standard `cargo test --no-default-features` job has `has_bundled_cli`
 // off but still needs to exercise them.
-#[cfg(any(has_bundled_cli, test))]
-use std::collections::BTreeMap;
 #[cfg(has_bundled_cli)]
 use std::collections::HashSet;
 #[cfg(any(has_bundled_cli, test))]
@@ -47,12 +44,9 @@ use std::io::Read;
 #[cfg(any(has_bundled_cli, test))]
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 #[cfg(any(has_bundled_cli, test))]
 use std::sync::atomic::{AtomicU64, Ordering};
-#[cfg(any(has_bundled_cli, test))]
-use std::sync::{Arc, Mutex};
-#[cfg(any(has_bundled_cli, test))]
-use std::time::{Duration, Instant};
 
 #[cfg(has_bundled_cli)]
 use tracing::{info, warn};
@@ -89,155 +83,13 @@ const RUNTIME_BINARY_NAME: &str = "copilot-runtime.exe";
 const RUNTIME_BINARY_NAME: &str = "copilot-runtime";
 #[cfg(has_bundled_cli)]
 const RUNTIME_NODE_NAME: &str = "runtime.node";
-#[cfg(any(has_bundled_cli, test))]
+#[cfg(has_bundled_cli)]
 const RUNTIME_VERSION_MARKER: &str = ".copilot-runtime-version";
-/// How long an installer waits for another installer to finish writing the
-/// version marker it has just created.
-#[cfg(any(has_bundled_cli, test))]
-const RUNTIME_VERSION_MARKER_WAIT: Duration = Duration::from_secs(1);
 
-#[cfg(has_bundled_cli)]
-static INSTALLED_PATH: Mutex<Option<PathBuf>> = Mutex::new(None);
-#[cfg(has_bundled_cli)]
-static INSTALLED_RUNTIME_PATH: Mutex<Option<PathBuf>> = Mutex::new(None);
-#[cfg(has_bundled_cli)]
-static CLI_INSTALLS_AT: DirInstalls = Mutex::new(BTreeMap::new());
-#[cfg(has_bundled_cli)]
-static RUNTIME_INSTALLS_AT: DirInstalls = Mutex::new(BTreeMap::new());
-
-/// Installs into caller-chosen directories, keyed by directory.
-#[cfg(any(has_bundled_cli, test))]
-type DirInstalls = Mutex<BTreeMap<PathBuf, Arc<DirInstall>>>;
-
-/// Installs into one caller-chosen directory within this process.
-#[cfg(any(has_bundled_cli, test))]
-#[derive(Default)]
-struct DirInstall {
-    /// Number of installs into the directory that have finished.
-    finished: AtomicU64,
-    /// Held while an install runs; the path the last one returned, if it
-    /// succeeded.
-    published: Mutex<Option<PathBuf>>,
-}
-
-#[cfg(any(has_bundled_cli, test))]
-struct DirInstallGuard<'a> {
-    installs: &'a DirInstalls,
-    key: PathBuf,
-    entry: Arc<DirInstall>,
-}
-
-#[cfg(any(has_bundled_cli, test))]
-impl Drop for DirInstallGuard<'_> {
-    fn drop(&mut self) {
-        let mut installs = self
-            .installs
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        if installs
-            .get(&self.key)
-            .is_some_and(|entry| Arc::ptr_eq(entry, &self.entry))
-            && Arc::strong_count(&self.entry) == 2
-        {
-            // Only the registry and this last caller still own the entry.
-            installs.remove(&self.key);
-        }
-    }
-}
-
-#[cfg(any(has_bundled_cli, test))]
-impl DirInstall {
-    fn for_dir<'a>(installs: &'a DirInstalls, dir: &Path) -> DirInstallGuard<'a> {
-        // The install creates the directory anyway; creating it first lets
-        // every spelling of the same directory resolve to one key.
-        let _ = fs::create_dir_all(dir);
-        let key = fs::canonicalize(dir).unwrap_or_else(|_| dir.to_path_buf());
-        let entry = installs
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .entry(key.clone())
-            .or_default()
-            .clone();
-        DirInstallGuard {
-            installs,
-            key,
-            entry,
-        }
-    }
-
-    /// Runs `install`, one at a time per directory. A caller that read
-    /// `finished` as `arrived` and then waited for an install that succeeded
-    /// takes that install's path instead of staging another copy; a caller
-    /// that arrives after it runs `install` itself, so the installed files
-    /// are still re-checked on every later call.
-    fn run(
-        &self,
-        arrived: u64,
-        install: impl FnOnce() -> Result<PathBuf, crate::Error>,
-    ) -> Result<PathBuf, crate::Error> {
-        let mut published = self
-            .published
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        if self.finished.load(Ordering::Acquire) != arrived
-            && let Some(path) = published.as_ref()
-        {
-            return Ok(path.clone());
-        }
-        let result = install().and_then(|path| std::path::absolute(path).map_err(Into::into));
-        *published = result.as_ref().ok().cloned();
-        self.finished.fetch_add(1, Ordering::Release);
-        result
-    }
-}
-
-/// Runs `install` for `dir`, letting callers that start together on one
-/// directory share a single install. See [`DirInstall::run`].
-#[cfg(any(has_bundled_cli, test))]
-fn install_once_at(
-    installs: &DirInstalls,
-    dir: &Path,
-    install: impl FnOnce() -> Result<PathBuf, crate::Error>,
-) -> Result<PathBuf, crate::Error> {
-    let entry = DirInstall::for_dir(installs, dir);
-    let arrived = entry.entry.finished.load(Ordering::Acquire);
-    entry.entry.run(arrived, install)
-}
-
-/// Installs at most once per process at a time and remembers only a
-/// successful install, so a failure reaches the caller and a later call
-/// retries once the environment has been corrected.
-#[cfg(any(has_bundled_cli, test))]
-fn cached_install(
-    cache: &Mutex<Option<PathBuf>>,
-    select_dir: impl FnOnce() -> Result<PathBuf, crate::ErrorKind>,
-    install: impl FnOnce(&Path) -> Result<PathBuf, crate::Error>,
-) -> Result<PathBuf, crate::Error> {
-    let mut installed = cache
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    if let Some(path) = installed.as_ref() {
-        return Ok(path.clone());
-    }
-    let dir = select_dir()?;
-    let path = install(&dir)?;
-    *installed = Some(path.clone());
-    Ok(path)
-}
-
-/// Reports an embedded artifact that could not be written to `dir`, keeping
-/// the directory and the underlying I/O error for the caller.
-#[cfg(any(has_bundled_cli, test))]
-fn install_failed(binary_name: &str, dir: &Path, error: &EmbeddedCliError) -> crate::Error {
-    crate::ErrorKind::BinaryNotFound {
-        name: binary_name.into(),
-        hint: Some(format!(
-            "the bundled Copilot CLI could not be installed in '{}': {error}",
-            dir.display()
-        )),
-    }
-    .into()
-}
+#[cfg(feature = "bundled-cli")]
+static INSTALLED_PATH: OnceLock<Option<PathBuf>> = OnceLock::new();
+#[cfg(feature = "bundled-cli")]
+static INSTALLED_RUNTIME_PATH: OnceLock<Option<PathBuf>> = OnceLock::new();
 
 /// Returns the path to the installed CLI binary, lazily extracting the
 /// embedded archive on first call.
@@ -247,38 +99,37 @@ fn install_failed(binary_name: &str, dir: &Path, error: &EmbeddedCliError) -> cr
 /// and returns the resulting path. The cache dir comes from
 /// the OS's LocalAppData known folder on Windows,
 /// `~/Library/Caches/` on macOS, `$XDG_CACHE_HOME` (or `~/.cache/`) on
-/// Linux. If unavailable, Unix uses an owner-only cache under the trusted
-/// temporary base; other platforms use their existing temporary directory.
-/// Subsequent calls return the cached path. Extraction
+/// Linux. Subsequent calls return the cached result. Extraction
 /// is skipped when a previously-published binary is still present and
 /// passes a cheap integrity re-check (size marker + executable-image
 /// header); a truncated, empty, or quarantined binary is re-extracted
-/// rather than returned. A failed installation is returned as an error and
-/// is not cached, so a later call retries it.
+/// rather than returned.
 ///
 /// Returns `None` if no CLI was embedded at build time.
 #[cfg(feature = "bundled-cli")]
-pub(crate) fn path() -> Result<Option<PathBuf>, crate::Error> {
-    #[cfg(has_bundled_cli)]
-    {
-        cached_install(
-            &INSTALLED_PATH,
-            || {
-                default_install_dir(CLI_CACHE_ID).map_err(|error| {
-                    crate::ErrorKind::BinaryNotFound {
-                        name: CLI_BINARY_NAME.into(),
-                        hint: Some(error.to_string()),
+pub(crate) fn path() -> Option<PathBuf> {
+    INSTALLED_PATH
+        .get_or_init(|| {
+            #[cfg(has_bundled_cli)]
+            {
+                let dir = default_install_dir(CLI_CACHE_ID);
+                match install_cli(
+                    &dir,
+                    build_time::CLI_ARCHIVE,
+                    build_time::CLI_BINARY_SIZE,
+                ) {
+                    Ok(path) => {
+                        info!(path = %path.display(), version = CLI_VERSION, "embedded CLI installed");
+                        return Some(path);
                     }
-                })
-            },
-            try_install_cli,
-        )
-        .map(Some)
-    }
-    #[cfg(not(has_bundled_cli))]
-    {
-        Ok(None)
-    }
+                    Err(e) => {
+                        warn!(error = %e, "embedded CLI installation failed");
+                    }
+                }
+            }
+            None
+        })
+        .clone()
 }
 
 /// Install the embedded CLI binary into the given directory instead of the
@@ -287,131 +138,92 @@ pub(crate) fn path() -> Result<Option<PathBuf>, crate::Error> {
 ///
 /// Idempotent: skips extraction when an already-published binary passes the
 /// integrity re-check (size marker + executable-image header), and
-/// re-extracts a corrupt or quarantined one. Callers in this process that
-/// start together on the same directory share one installation.
-/// Returns `None` when the SDK was built without a bundled CLI, and an error
-/// naming the directory when installation fails.
+/// re-extracts a corrupt or quarantined one.
+/// Returns `None` when the SDK was built without a bundled CLI.
 #[cfg(feature = "bundled-cli")]
 #[allow(dead_code)] // Used by resolve.rs when ClientOptions::bundled_cli_extract_dir is set.
-pub(crate) fn install_at(extract_dir: &Path) -> Result<Option<PathBuf>, crate::Error> {
+pub(crate) fn install_at(extract_dir: &Path) -> Option<PathBuf> {
     #[cfg(has_bundled_cli)]
     {
-        install_once_at(&CLI_INSTALLS_AT, extract_dir, || {
-            try_install_cli(extract_dir)
-        })
-        .map(Some)
+        match install_cli(
+            extract_dir,
+            build_time::CLI_ARCHIVE,
+            build_time::CLI_BINARY_SIZE,
+        ) {
+            Ok(path) => {
+                info!(path = %path.display(), version = CLI_VERSION, "embedded CLI installed");
+                return Some(path);
+            }
+            Err(e) => {
+                warn!(error = %e, "embedded CLI installation failed");
+            }
+        }
     }
     #[cfg(not(has_bundled_cli))]
     {
         let _ = extract_dir;
-        Ok(None)
     }
-}
-
-#[cfg(has_bundled_cli)]
-fn try_install_cli(dir: &Path) -> Result<PathBuf, crate::Error> {
-    let path = install_cli(dir, build_time::CLI_ARCHIVE, build_time::CLI_BINARY_SIZE)
-        .map_err(|error| install_failed(CLI_BINARY_NAME, dir, &error))?;
-    info!(path = %path.display(), version = CLI_VERSION, "embedded CLI installed");
-    Ok(path)
+    None
 }
 
 /// Returns the path to the bundled runtime wrapper, extracting the wrapper and
-/// adjacent `runtime.node` on first call. A failed installation is returned
-/// as an error and is not cached, so a later call retries it.
+/// adjacent `runtime.node` on first call.
 #[cfg(feature = "bundled-cli")]
-pub(crate) fn runtime_path() -> Result<Option<PathBuf>, crate::Error> {
-    #[cfg(has_bundled_cli)]
-    {
-        cached_install(
-            &INSTALLED_RUNTIME_PATH,
-            || {
-                default_install_dir(CLI_CACHE_ID).map_err(|error| {
-                    crate::ErrorKind::BinaryNotFound {
-                        name: RUNTIME_BINARY_NAME.into(),
-                        hint: Some(error.to_string()),
+pub(crate) fn runtime_path() -> Option<PathBuf> {
+    INSTALLED_RUNTIME_PATH
+        .get_or_init(|| {
+            #[cfg(has_bundled_cli)]
+            {
+                let dir = default_install_dir(CLI_CACHE_ID);
+                match install_runtime(&dir, build_time::RUNTIME_ARCHIVE) {
+                    Ok(path) => {
+                        info!(path = %path.display(), version = CLI_VERSION, "embedded runtime installed");
+                        return Some(path);
                     }
-                })
-            },
-            try_install_runtime,
-        )
-        .map(Some)
-    }
-    #[cfg(not(has_bundled_cli))]
-    {
-        Ok(None)
-    }
+                    Err(e) => {
+                        warn!(error = %e, "embedded runtime installation failed");
+                    }
+                }
+            }
+            None
+        })
+        .clone()
 }
 
 /// Installs the bundled runtime wrapper and adjacent `runtime.node` into a
-/// caller-specified directory. Callers in this process that start together
-/// on the same directory share one installation. Returns `None` when the SDK
-/// was built without a bundled CLI, and an error naming the directory when
-/// installation fails.
+/// caller-specified directory.
 #[cfg(feature = "bundled-cli")]
-pub(crate) fn install_runtime_at(extract_dir: &Path) -> Result<Option<PathBuf>, crate::Error> {
+pub(crate) fn install_runtime_at(extract_dir: &Path) -> Option<PathBuf> {
     #[cfg(has_bundled_cli)]
     {
-        install_once_at(&RUNTIME_INSTALLS_AT, extract_dir, || {
-            let install_dir = runtime_install_dir(extract_dir, CLI_CACHE_ID)
-                .map_err(|error| install_failed(RUNTIME_BINARY_NAME, extract_dir, &error))?;
-            try_install_runtime(&install_dir)
-        })
-        .map(Some)
+        let install_dir = match runtime_install_dir(extract_dir, CLI_CACHE_ID) {
+            Ok(dir) => dir,
+            Err(e) => {
+                warn!(error = %e, "embedded runtime install directory selection failed");
+                return None;
+            }
+        };
+        match install_runtime(&install_dir, build_time::RUNTIME_ARCHIVE) {
+            Ok(path) => {
+                info!(path = %path.display(), version = CLI_VERSION, "embedded runtime installed");
+                return Some(path);
+            }
+            Err(e) => {
+                warn!(error = %e, "embedded runtime installation failed");
+            }
+        }
     }
     #[cfg(not(has_bundled_cli))]
     {
         let _ = extract_dir;
-        Ok(None)
     }
+    None
 }
 
 #[cfg(has_bundled_cli)]
-fn try_install_runtime(dir: &Path) -> Result<PathBuf, crate::Error> {
-    let path = install_runtime(dir, build_time::RUNTIME_ARCHIVE)
-        .map_err(|error| install_failed(RUNTIME_BINARY_NAME, dir, &error))?;
-    info!(path = %path.display(), version = CLI_VERSION, "embedded runtime installed");
-    Ok(path)
-}
-
-/// Selects the directory the runtime for `version` is installed in: `base_dir`
-/// when it is unclaimed or already holds `version`, and `base_dir/<version>`
-/// when another version claimed it first.
-#[cfg(any(has_bundled_cli, test))]
 fn runtime_install_dir(base_dir: &Path, version: &str) -> Result<PathBuf, EmbeddedCliError> {
-    runtime_install_dir_within(base_dir, version, RUNTIME_VERSION_MARKER_WAIT)
-}
-
-/// [`runtime_install_dir`] with an explicit wait budget, so a test can make the
-/// wait independent of how the machine schedules its threads.
-#[cfg(any(has_bundled_cli, test))]
-fn runtime_install_dir_within(
-    base_dir: &Path,
-    version: &str,
-    wait: Duration,
-) -> Result<PathBuf, EmbeddedCliError> {
     fs::create_dir_all(base_dir)
         .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::CreateDir, e))?;
-    let deadline = Instant::now() + wait;
-    loop {
-        if let Some(dir) = try_runtime_install_dir(base_dir, version)? {
-            return Ok(dir);
-        }
-        if runtime_marker_is_stale(&base_dir.join(RUNTIME_VERSION_MARKER), wait)
-            || Instant::now() >= deadline
-        {
-            return Ok(base_dir.join(version));
-        }
-        std::thread::sleep(Duration::from_millis(5));
-    }
-}
-
-/// One claim attempt. An empty or withdrawn marker needs another observation.
-#[cfg(any(has_bundled_cli, test))]
-fn try_runtime_install_dir(
-    base_dir: &Path,
-    version: &str,
-) -> Result<Option<PathBuf>, EmbeddedCliError> {
     let marker = base_dir.join(RUNTIME_VERSION_MARKER);
     match fs::OpenOptions::new()
         .write(true)
@@ -427,48 +239,29 @@ fn try_runtime_install_dir(
                 let _ = fs::remove_file(&marker);
                 return Err(EmbeddedCliError::new(EmbeddedCliErrorKind::Io, error));
             }
-            Ok(Some(base_dir.to_path_buf()))
+            Ok(base_dir.to_path_buf())
         }
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-            match fs::read_to_string(&marker) {
-                Ok(installed) if !installed.is_empty() || version.is_empty() => {
-                    Ok(Some(if installed == version {
-                        base_dir.to_path_buf()
-                    } else {
-                        base_dir.join(version)
-                    }))
-                }
-                Ok(_) => Ok(None),
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
-                Err(_) => Ok(Some(base_dir.join(version))),
+            let installed_version = fs::read_to_string(marker).unwrap_or_default();
+            if installed_version == version {
+                Ok(base_dir.to_path_buf())
+            } else {
+                Ok(base_dir.join(version))
             }
         }
         Err(error) => Err(EmbeddedCliError::new(EmbeddedCliErrorKind::Io, error)),
     }
 }
 
-#[cfg(any(has_bundled_cli, test))]
-fn runtime_marker_is_stale(marker: &Path, wait: Duration) -> bool {
-    // Reuse the same wait budget across calls for markers left by a crashed
-    // writer. Unknown timestamps retain the bounded wait for live writers.
-    fs::metadata(marker)
-        .and_then(|metadata| metadata.modified())
-        .ok()
-        .and_then(|modified| modified.elapsed().ok())
-        .is_some_and(|age| age >= wait)
-}
-
 #[cfg(has_bundled_cli)]
-fn default_install_dir(version: &str) -> std::io::Result<PathBuf> {
-    Ok(crate::cache_paths::cache_install_dir(
-        &crate::cache_paths::platform_cache_root()?,
-        "cli",
-        if version.is_empty() {
-            "unversioned"
-        } else {
-            version
-        },
-    ))
+fn default_install_dir(version: &str) -> PathBuf {
+    let cache = crate::platform_dirs::cache_dir().unwrap_or_else(std::env::temp_dir);
+    let root = cache.join("github-copilot-sdk").join("cli");
+    if version.is_empty() {
+        root.join("unversioned")
+    } else {
+        root.join(sanitize_version(version))
+    }
 }
 
 /// Number of times we re-extract + re-publish the binary before giving up.
@@ -591,11 +384,7 @@ fn install_runtime(install_dir: &Path, archive: &[u8]) -> Result<PathBuf, Embedd
             .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Archive, e))?;
     }
     for staged in pending {
-        publish_staged(
-            &staged.temporary,
-            &staged.target,
-            staged.target == root.join(RUNTIME_BINARY_NAME),
-        )?;
+        publish(&staged.temporary, &staged.target)?;
     }
     #[cfg(unix)]
     check_runtime_wrapper_execute_access(&root.join(RUNTIME_BINARY_NAME))
@@ -603,7 +392,7 @@ fn install_runtime(install_dir: &Path, archive: &[u8]) -> Result<PathBuf, Embedd
     Ok(install_dir.join(RUNTIME_BINARY_NAME))
 }
 
-#[cfg(all(any(has_bundled_cli, test), unix))]
+#[cfg(all(has_bundled_cli, unix))]
 fn check_runtime_wrapper_execute_access(path: &Path) -> std::io::Result<()> {
     use std::ffi::{CString, c_char, c_int};
     use std::os::unix::ffi::OsStrExt;
@@ -976,10 +765,10 @@ fn existing_install_is_valid(
 }
 
 /// Extract → stage in a unique temp file in the *same* directory → verify the
-/// staged bytes → atomically publish into place (see [`publish_staged`]) →
-/// re-verify the published file → write the integrity marker. Every step that
-/// can leave a partial file cleans up after itself, so a failure never leaves a
-/// half-written binary at the final path.
+/// staged bytes → atomically rename into place → re-verify the published file
+/// → write the integrity marker. Every step that can leave a partial file
+/// cleans up after itself, so a failure never leaves a half-written binary at
+/// the final path.
 #[cfg(any(has_bundled_cli, test))]
 fn publish_verified(
     install_dir: &Path,
@@ -996,12 +785,12 @@ fn publish_verified(
         return Err(e);
     }
 
-    if let Err(e) = publish_staged(&tmp, final_path, true) {
+    if let Err(e) = publish(&tmp, final_path) {
         let _ = fs::remove_file(&tmp);
         return Err(e);
     }
 
-    // Re-verify after publishing: catches the window where antivirus
+    // Re-verify after the rename: catches the window where antivirus
     // quarantines or rewrites the file between staging and publishing.
     verify_on_disk_matches(final_path, bytes)?;
 
@@ -1069,88 +858,6 @@ fn create_temp_file(dir: &Path) -> Result<(PathBuf, fs::File), EmbeddedCliError>
 #[cfg(any(has_bundled_cli, test))]
 fn publish(tmp: &Path, final_path: &Path) -> Result<(), EmbeddedCliError> {
     fs::rename(tmp, final_path).map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Publish, e))
-}
-
-/// Publish the staged file at `staged` as `target`, keeping a file already
-/// there when it holds the same bytes and permissions, including effective
-/// execute access when `executable` is required.
-///
-/// Installers that start on a cold cache at the same time all miss the fast
-/// path and stage their own copy. Renaming each copy into place replaces the
-/// file an earlier installer already published, and a process that earlier
-/// installer started from it keeps running an unlinked executable (on Linux,
-/// `/proc/<pid>/exe` ends in ` (deleted)`). On unix the staged file is
-/// therefore hard-linked into place, which never replaces an existing file; an
-/// identical file found there is kept and the staged copy discarded. A
-/// different file is replaced by [`publish`] as before, as is any target when
-/// the filesystem cannot hard-link.
-#[cfg(any(has_bundled_cli, test))]
-fn publish_staged(staged: &Path, target: &Path, executable: bool) -> Result<(), EmbeddedCliError> {
-    #[cfg(not(unix))]
-    let _ = executable;
-    #[cfg(unix)]
-    {
-        let in_place = match fs::hard_link(staged, target) {
-            Ok(()) => true,
-            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
-                same_contents_and_mode(staged, target)
-                    && (!executable || check_runtime_wrapper_execute_access(target).is_ok())
-            }
-            Err(e) => {
-                tracing::debug!(path = %target.display(), error = %e,
-                    "cannot hard-link the staged file; replacing the target");
-                false
-            }
-        };
-        if in_place {
-            if let Err(e) = fs::remove_file(staged)
-                && e.kind() != std::io::ErrorKind::NotFound
-            {
-                tracing::debug!(path = %staged.display(), error = %e,
-                    "failed to remove the staged file");
-            }
-            return Ok(());
-        }
-    }
-    publish(staged, target)
-}
-
-/// True when `target` is a regular file with the same bytes and permission
-/// bits as `staged`. Any I/O error counts as a difference, so the caller
-/// replaces the target.
-#[cfg(all(any(has_bundled_cli, test), unix))]
-fn same_contents_and_mode(staged: &Path, target: &Path) -> bool {
-    use std::io::Read as _;
-    use std::os::unix::fs::PermissionsExt;
-
-    let (Ok(staged_meta), Ok(target_meta)) = (fs::metadata(staged), fs::symlink_metadata(target))
-    else {
-        return false;
-    };
-    if !target_meta.is_file()
-        || staged_meta.len() != target_meta.len()
-        || staged_meta.permissions().mode() & 0o777 != target_meta.permissions().mode() & 0o777
-    {
-        return false;
-    }
-    let (Ok(mut staged), Ok(mut target)) = (fs::File::open(staged), fs::File::open(target)) else {
-        return false;
-    };
-    let mut staged_buf = [0u8; 64 * 1024];
-    let mut target_buf = [0u8; 64 * 1024];
-    loop {
-        let Ok(read) = staged.read(&mut staged_buf) else {
-            return false;
-        };
-        if read == 0 {
-            return matches!(target.read(&mut target_buf[..1]), Ok(0));
-        }
-        if target.read_exact(&mut target_buf[..read]).is_err()
-            || staged_buf[..read] != target_buf[..read]
-        {
-            return false;
-        }
-    }
 }
 
 /// Read the file at `path` and confirm it byte-for-byte matches the trusted
@@ -1251,11 +958,7 @@ fn extract_cli_binary(archive: &[u8]) -> Result<Vec<u8>, EmbeddedCliError> {
         let name = entry
             .name()
             .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Archive, e))?;
-        if name == CLI_BINARY_NAME
-            || name
-                .strip_suffix(CLI_BINARY_NAME)
-                .is_some_and(|prefix| prefix.ends_with('/'))
-        {
+        if name == CLI_BINARY_NAME || name.ends_with(&format!("/{CLI_BINARY_NAME}")) {
             let mut bytes = Vec::with_capacity(entry.size() as usize);
             entry
                 .read_to_end(&mut bytes)
@@ -1280,11 +983,7 @@ fn extract_binary(archive: &[u8], binary_name: &str) -> Result<Vec<u8>, Embedded
             .path()
             .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Archive, e))?;
         let name = path.to_string_lossy();
-        if name == binary_name
-            || name
-                .strip_suffix(binary_name)
-                .is_some_and(|prefix| prefix.ends_with('/'))
-        {
+        if name == binary_name || name.ends_with(&format!("/{binary_name}")) {
             let mut bytes = Vec::with_capacity(entry.size() as usize);
             entry
                 .read_to_end(&mut bytes)
@@ -1293,6 +992,17 @@ fn extract_binary(archive: &[u8], binary_name: &str) -> Result<Vec<u8>, Embedded
         }
     }
     Err(EmbeddedCliErrorKind::BinaryNotFoundInArchive.into())
+}
+
+#[cfg(has_bundled_cli)]
+fn sanitize_version(version: &str) -> String {
+    version
+        .chars()
+        .map(|c| match c {
+            'a'..='z' | 'A'..='Z' | '0'..='9' | '.' | '-' | '_' => c,
+            _ => '_',
+        })
+        .collect()
 }
 
 #[cfg(any(has_bundled_cli, test))]

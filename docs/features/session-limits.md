@@ -274,54 +274,25 @@ let resumed = client
 
 ## Observe budget events
 
-Applications can subscribe to session events to update UI when the soft cap changes or the session is about to run out of budget.
+Applications can subscribe to session events to update UI when the soft cap changes or the session reaches the exhausted-budget flow.
 
 | Event type | When it is emitted | Important fields |
 |---|---|---|
 | `session.session_limits_changed` | Active session limits changed. A `null` `sessionLimits` value means no limits are active. | `sessionLimits.maxAiCredits?` |
 | `session.usage_checkpoint` | The runtime records durable aggregate usage for resume and accounting. | `totalNanoAiu`, `totalPremiumRequests?` |
-| `session_limits_exhausted.requested` | The budget is used up, or the next model call would be the session's final call without tools, and the runtime needs a user decision before continuing. | `requestId`, `maxAiCredits`, `usedAiCredits` |
+| `session_limits_exhausted.requested` | The session reached the exhausted-budget flow and needs a user decision before continuing. | `requestId`, `maxAiCredits`, `usedAiCredits` |
 | `session_limits_exhausted.completed` | The exhausted-limit prompt was resolved. | `requestId`, `response.action`, `response.additionalAiCredits?`, `response.maxAiCredits?` |
 
-`session_limits_exhausted.requested` is not like the first two events. The runtime emits it only when a consumer has registered interest in it, and subscribing with `session.on` does not count. Once it is emitted, the turn waits until the application answers with the `session.ui.handlePendingSessionLimitsExhausted` RPC, using the `requestId` from the event. The `response.action` is `"add"` (with `additionalAiCredits`), `"set"` (with `maxAiCredits`), `"unset"` or `"cancel"`.
-
-The runtime asks at two points. The first comes before the budget is used up: when 10% or less of it remains, the next model call is the session's final call, made without tools. The runtime asks before that call, at most once per request. If the answer raises the limit out of that final 10% or removes it, the turn continues with tools; otherwise the final call runs without tools. The second comes once the budget is used up: an accepted `"add"`, `"set"` or `"unset"` lets the turn continue, and `"cancel"` stops it.
-
-Use the generated event types for the SDK language you are using. For example, TypeScript registers interest with `session.rpc.eventLog.registerInterest`, narrows by event type, and answers the request:
-
-<!-- docs-validate: strict -->
-<!-- docs-validate: hidden -->
-```typescript
-import { approveAll } from "@github/copilot-sdk";
-
-const session = await client.createSession({ onPermissionRequest: approveAll });
-
-await session.rpc.eventLog.registerInterest({
-    eventType: "session_limits_exhausted.requested",
-});
-
-session.on("session_limits_exhausted.requested", async (event) => {
-    // Ask the user here, then resolve the pending request.
-    await session.rpc.ui.handlePendingSessionLimitsExhausted({
-        requestId: event.data.requestId,
-        response: { action: "add", additionalAiCredits: 10 },
-    });
-});
-```
-<!-- /docs-validate: hidden -->
+Use the generated event types for the SDK language you are using. For example, TypeScript narrows by `event.type`:
 
 ```typescript
-await session.rpc.eventLog.registerInterest({
-    eventType: "session_limits_exhausted.requested",
-});
-
-session.on("session_limits_exhausted.requested", async (event) => {
-    // Ask the user here, then resolve the pending request.
-    await session.rpc.ui.handlePendingSessionLimitsExhausted({
-        requestId: event.data.requestId,
-        response: { action: "add", additionalAiCredits: 10 },
-    });
+session.on((event) => {
+    if (event.type === "session_limits_exhausted.requested") {
+        showBudgetDialog({
+            requestId: event.data.requestId,
+            maxAiCredits: event.data.maxAiCredits,
+            usedAiCredits: event.data.usedAiCredits,
+        });
+    }
 });
 ```
-
-`registerInterest` returns a `handle`. Pass it to `session.rpc.eventLog.releaseInterest` to stop the runtime from treating your application as a consumer of the event.

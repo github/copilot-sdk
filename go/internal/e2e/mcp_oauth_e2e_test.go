@@ -24,7 +24,6 @@ const upscopeMCPOAuthToken = expectedMCPOAuthToken + "-upscope"
 const reauthMCPOAuthToken = expectedMCPOAuthToken + "-reauth"
 
 func TestMCPOAuthE2E(t *testing.T) {
-	t.Parallel()
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })
@@ -156,7 +155,6 @@ func TestMCPOAuthE2E(t *testing.T) {
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 			EnableMCPApps:       true,
-			FeatureFlags:        map[string]bool{"MCP_APPS": true},
 			OnMCPAuthRequest: func(request copilot.MCPAuthRequest, _ copilot.MCPAuthInvocation) (*copilot.MCPAuthResult, error) {
 				mu.Lock()
 				observedReasons = append(observedReasons, request.Reason)

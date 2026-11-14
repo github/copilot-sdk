@@ -13,6 +13,34 @@ use tokio::sync::mpsc;
 use super::support::{assistant_message_content, collect_until_idle};
 
 #[tokio::test]
+async fn should_handle_structured_toolresultobject_from_custom_tool() {
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "tool_results",
+        "should_handle_structured_toolresultobject_from_custom_tool",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let client = ctx.start_client().await;
+                let session = create_tool_session(ctx, &client, weather_tool()).await;
+
+                let answer = session
+                    .send_and_wait("What's the weather in Paris?")
+                    .await
+                    .expect("send")
+                    .expect("assistant message");
+                let content = assistant_message_content(&answer).to_lowercase();
+                assert!(content.contains("sunny") || content.contains("72"));
+
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
+    .await;
+}
+
+#[tokio::test]
 async fn should_handle_tool_result_with_failure_resulttype() {
     super::support::with_shared_e2e_context(&E2E,
         "tool_results",
@@ -190,6 +218,33 @@ fn expanded(text: impl Into<String>, result_type: impl Into<String>) -> ToolResu
     ToolResult::Expanded(ToolResultExpanded::new(text, result_type))
 }
 
+fn weather_tool() -> Tool {
+    string_tool(
+        "get_weather",
+        "Gets weather for a city",
+        "city",
+        "City name",
+    )
+    .with_handler(Arc::new(WeatherTool))
+}
+
+struct WeatherTool;
+
+#[async_trait::async_trait]
+impl ToolHandler for WeatherTool {
+    async fn call(&self, invocation: ToolInvocation) -> Result<ToolResult, Error> {
+        let city = invocation
+            .arguments
+            .get("city")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("Paris");
+        Ok(expanded(
+            format!("The weather in {city} is sunny and 72\u{b0}F"),
+            "success",
+        ))
+    }
+}
+
 fn check_status_tool() -> Tool {
     Tool::new("check_status")
         .with_description("Checks the status of a service")
@@ -304,4 +359,4 @@ fn string_tool(
         }))
 }
 static E2E: super::support::SharedE2eGroup =
-    super::support::SharedE2eGroup::standard("tool_results", 4);
+    super::support::SharedE2eGroup::standard("tool_results", 5);

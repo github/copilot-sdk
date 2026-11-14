@@ -4,13 +4,11 @@
 
 package com.github.copilot.rpc;
 
-import java.util.Map;
 import java.util.OptionalInt;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.JsonNode;
 
 import com.github.copilot.CopilotExperimental;
 
@@ -37,55 +35,6 @@ import com.github.copilot.CopilotExperimental;
 @CopilotExperimental
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class ProviderModelConfig {
-
-    @JsonProperty("autoLocal")
-    private JsonNode autoLocal;
-
-    /**
-     * Gets the persisted on-device Auto annotation.
-     *
-     * @return the annotation, or {@code null} if unset
-     */
-    public JsonNode getAutoLocal() {
-        return autoLocal;
-    }
-
-    /**
-     * Sets the persisted on-device Auto annotation.
-     *
-     * @param autoLocal
-     *            the annotation
-     * @return this config for method chaining
-     */
-    public ProviderModelConfig setAutoLocal(JsonNode autoLocal) {
-        this.autoLocal = autoLocal;
-        return this;
-    }
-
-    @JsonProperty("metadata")
-    private Map<String, JsonNode> metadata;
-
-    /**
-     * Gets provider-published model metadata, including live Auto routing
-     * annotations.
-     *
-     * @return the metadata, or {@code null} if unset
-     */
-    public Map<String, JsonNode> getMetadata() {
-        return metadata;
-    }
-
-    /**
-     * Sets provider-published model metadata.
-     *
-     * @param metadata
-     *            the metadata
-     * @return this config for method chaining
-     */
-    public ProviderModelConfig setMetadata(Map<String, JsonNode> metadata) {
-        this.metadata = metadata;
-        return this;
-    }
 
     @JsonProperty("id")
     private String id;

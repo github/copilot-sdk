@@ -18,7 +18,6 @@ const (
 )
 
 func TestSetToolsE2E(t *testing.T) {
-	t.Parallel()
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()
 	t.Cleanup(client.ForceStop)

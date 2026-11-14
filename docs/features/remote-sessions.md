@@ -7,6 +7,7 @@ For running sessions on GitHub-hosted compute, see [Cloud Sessions](./cloud-sess
 ## Prerequisites
 
 * The user must be authenticated (GitHub token or logged-in user)
+* The session's working directory must be a GitHub repository
 
 ## Enabling remote sessions
 
@@ -124,6 +125,23 @@ _, err = session.RPC.Remote.Disable(ctx)
 
 #### C#
 
+<!-- docs-validate: hidden -->
+```csharp
+await using var client = new CopilotClient();
+await using var session = await client.CreateSessionAsync(new SessionConfig
+{
+    OnPermissionRequest = PermissionHandler.ApproveAll,
+});
+
+#pragma warning disable GHCP001 // The remote RPC API is experimental.
+var result = await session.Rpc.Remote.EnableAsync(mode: RemoteSessionMode.Export);
+Console.WriteLine($"Remote URL: {result.Url}");
+
+// Later: stop sharing
+await session.Rpc.Remote.DisableAsync();
+```
+<!-- /docs-validate: hidden -->
+
 ```csharp
 #pragma warning disable GHCP001 // The remote RPC API is experimental.
 var result = await session.Rpc.Remote.EnableAsync(mode: RemoteSessionMode.Export);
@@ -167,5 +185,5 @@ The remote URL can be rendered as a QR code for easy mobile access. The SDK prov
 
 ## Notes
 
-* If the working directory is not a GitHub repository, on-demand export still starts and returns its URL, but the exported session is not linked to a repository.
+* If the working directory is not a GitHub repository, on-demand export returns an error.
 * Remote sessions require authentication. Ensure `gitHubToken` or `useLoggedInUser` is configured.

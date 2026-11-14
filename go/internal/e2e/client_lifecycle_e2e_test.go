@@ -11,7 +11,6 @@ import (
 
 // Mirrors dotnet/test/ClientLifecycleTests.cs.
 func TestClientLifecycleE2E(t *testing.T) {
-	t.Parallel()
 	ctx := testharness.NewTestContext(t)
 
 	t.Run("should receive session created lifecycle event", func(t *testing.T) {

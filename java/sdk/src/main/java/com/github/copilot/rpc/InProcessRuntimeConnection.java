@@ -14,10 +14,10 @@ import java.util.function.Function;
  * transport. Construct with {@link RuntimeConnection#forInProcess()}.
  * <p>
  * The in-process runtime is self-contained: it carries everything it needs and
- * requires no external installation. Typed options are scoped to each runtime
- * host. Client-level {@code environment}, {@code cwd}, and {@code telemetry}
- * are unsupported; use session {@code workingDirectory} and the host process
- * environment, or a child-process connection.
+ * requires no external installation. Because it runs inside the host process,
+ * per-client process settings ({@code environment}, {@code telemetry},
+ * {@code cwd}, and {@code cliArgs}) are rejected; configure those on the host
+ * process instead, or use a child-process connection.
  *
  * @since 1.0.0
  */

@@ -468,6 +468,39 @@ async fn should_send_complete_message_wire_shape() {
 }
 
 #[tokio::test]
+async fn dropping_unpolled_send_never_dispatches_for_any_delivery_mode() {
+    let fake = FakeCli::new();
+    let client = Client::start(fake.client_options("cancelled-send-client-token"))
+        .await
+        .expect("start fake CLI client");
+    let session = client
+        .create_session(SessionConfig::default())
+        .await
+        .expect("create session");
+
+    for mode in [
+        None,
+        Some(DeliveryMode::Enqueue),
+        Some(DeliveryMode::Immediate),
+    ] {
+        let mut message = MessageOptions::new("This message must never be invoked.")
+            .with_display_prompt("Cancelled scenario message")
+            .with_source(MessageSource::Agent("scenario-client".to_string()));
+        message.mode = mode;
+        drop(session.send(message));
+    }
+
+    session.disconnect().await.expect("disconnect session");
+    client.stop().await.expect("stop client");
+    assert!(
+        fake.capture()
+            .requests
+            .iter()
+            .all(|request| request.method != "session.send")
+    );
+}
+
+#[tokio::test]
 async fn transport_loss_never_replays_send_for_any_delivery_mode() {
     for (mode, expected_mode) in [
         (None, None),
@@ -586,6 +619,37 @@ async fn remote_connect_runtime_id_is_used_for_resume() {
     assert_eq!(
         fake.captured_request("session.resume").params["sessionId"],
         json!("runtime-session-id")
+    );
+}
+
+#[tokio::test]
+async fn remote_resource_mismatch_is_observable_before_resume() {
+    let fake = FakeCli::new();
+    let client = Client::start(
+        fake.client_options_with_behavior("cloud-mismatch-client-token", "resource-mismatch"),
+    )
+    .await
+    .expect("start fake CLI client");
+
+    let connection = client
+        .rpc()
+        .sessions()
+        .connect(ConnectRemoteSessionParams {
+            session_id: SessionId::from("cloud-control-session"),
+        })
+        .await
+        .expect("connect remote session");
+    assert_ne!(
+        connection.metadata.resource_id.as_deref(),
+        Some("github/copilot-sdk#123")
+    );
+
+    client.stop().await.expect("stop client");
+    assert!(
+        fake.capture()
+            .requests
+            .iter()
+            .all(|request| request.method != "session.resume")
     );
 }
 
@@ -790,9 +854,7 @@ impl ShutdownCli {
 
     fn options(&self) -> ClientOptions {
         let script = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../test/harness/stdio-shutdown-runtime.cjs")
-            .canonicalize()
-            .unwrap();
+            .join("../test/harness/stdio-shutdown-runtime.cjs");
         ClientOptions::new()
             .with_program(CliProgram::Path("node".into()))
             .with_prefix_args([

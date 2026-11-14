@@ -4,9 +4,7 @@
 
 package com.github.copilot.rpc;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.github.copilot.generated.rpc.PermissionDecisionContext;
 
 /**
  * Response to an exit-plan-mode request.
@@ -23,10 +21,6 @@ public class ExitPlanModeResult {
 
     @JsonProperty("feedback")
     private String feedback;
-
-    @JsonProperty("decisionContext")
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private PermissionDecisionContext decisionContext;
 
     /**
      * Returns whether the user approved exiting plan mode.
@@ -88,40 +82,6 @@ public class ExitPlanModeResult {
      */
     public ExitPlanModeResult setFeedback(String feedback) {
         this.feedback = feedback;
-        return this;
-    }
-
-    /**
-     * Gets the label describing who answered and how.
-     *
-     * @return the decision context, or {@code null} if the review is unlabeled
-     * @since 2.0.0
-     */
-    public PermissionDecisionContext getDecisionContext() {
-        return decisionContext;
-    }
-
-    /**
-     * Labels this plan review with who answered and how.
-     * <p>
-     * When a person reviewed the plan interactively, set a context with
-     * {@link com.github.copilot.generated.rpc.PermissionDecisionSource#HUMAN_RESPONSE}
-     * and
-     * {@link com.github.copilot.generated.rpc.PermissionResponseCapability#INTERACTIVE}
-     * so the runtime can count the review as the person's own for Assisted
-     * Permissions. The runtime decides which answers carry authority and accepts
-     * the label only from the session's owning connection; other answers still
-     * settle, without it. Leave automated answers unlabeled. The SDK sends the
-     * context as {@code decisionContext} beside {@code approved} and omits it when
-     * {@code null}.
-     *
-     * @param decisionContext
-     *            the decision context, or {@code null} to send none
-     * @return this instance for method chaining
-     * @since 2.0.0
-     */
-    public ExitPlanModeResult setDecisionContext(PermissionDecisionContext decisionContext) {
-        this.decisionContext = decisionContext;
         return this;
     }
 }

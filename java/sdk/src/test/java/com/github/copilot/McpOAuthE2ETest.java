@@ -4,8 +4,6 @@
 
 package com.github.copilot;
 
-import org.junit.jupiter.api.Tag;
-
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.BufferedReader;
@@ -41,12 +39,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.copilot.generated.McpOauthRequestReason;
 import com.github.copilot.generated.SessionEvent;
 import com.github.copilot.generated.SessionMcpServerStatusChangedEvent;
-import com.github.copilot.generated.rpc.DiagnosticLogLevel;
-import com.github.copilot.generated.rpc.DiagnosticSource;
-import com.github.copilot.generated.rpc.DiagnosticSourcesConfiguration;
-import com.github.copilot.generated.rpc.DiagnosticsConfiguration;
-import com.github.copilot.generated.rpc.McpDiagnosticSourceConfiguration;
-import com.github.copilot.generated.rpc.SessionDiagnosticsReadParams;
 import com.github.copilot.generated.rpc.SessionMcpAppsCallToolParams;
 import com.github.copilot.generated.rpc.McpServerStatus;
 import com.github.copilot.generated.rpc.SessionMcpListToolsParams;
@@ -61,8 +53,8 @@ import com.github.copilot.rpc.McpAuthResult;
 import com.github.copilot.rpc.McpAuthToken;
 import com.github.copilot.rpc.McpHttpServerConfig;
 import com.github.copilot.rpc.PermissionHandler;
+import com.github.copilot.rpc.SessionConfig;
 
-@Tag("e2e")
 public class McpOAuthE2ETest {
     private static final String EXPECTED_TOKEN = "sdk-host-token";
     private static final String REFRESH_TOKEN = EXPECTED_TOKEN + "-refresh";
@@ -91,17 +83,16 @@ public class McpOAuthE2ETest {
         var statusObserver = new McpStatusObserver("oauth-cimd-mcp");
         try (var oauthServer = OAuthMcpServer.start(ctx.getRepoRoot(), false, true);
                 var client = ctx.createClient();
-                var session = client.createSession(ctx.newSessionConfig().setOnEvent(statusObserver::onEvent)
+                var session = client.createSession(new SessionConfig().setOnEvent(statusObserver::onEvent)
                         .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setAuthClientIdMetadataUrl(CIMD_URL)
                         .setMcpServers(Map.of("oauth-cimd-mcp",
                                 new McpHttpServerConfig().setUrl(oauthServer.url() + "/mcp").setTools(List.of("*")))))
                         .get()) {
             waitForMcpServerStatus(session, "oauth-cimd-mcp", McpServerStatus.NEEDS_AUTH, new AtomicReference<>(),
                     statusObserver);
-            var result = E2ETestContext.awaitReply(
-                    session.getRpc().mcp.oauth.login(SessionMcpOauthLoginParams.builder()
-                            .sessionId(session.getSessionId()).serverName("oauth-cimd-mcp").build()),
-                    30, TimeUnit.SECONDS);
+            var result = E2ETestContext
+                    .awaitReply(session.getRpc().mcp.oauth.login(new SessionMcpOauthLoginParams(session.getSessionId(),
+                            "oauth-cimd-mcp", null, null, null, null, null, null, null)), 30, TimeUnit.SECONDS);
             assertNotNull(result.authorizationUrl());
             var clientId = List.of(URI.create(result.authorizationUrl()).getQuery().split("&")).stream()
                     .filter(part -> part.startsWith("client_id=")).findFirst()
@@ -117,61 +108,47 @@ public class McpOAuthE2ETest {
     void testShouldSatisfyMcpOauthUsingHostProvidedToken() throws Exception {
         try (var oauthServer = OAuthMcpServer.start(ctx.getRepoRoot())) {
             var serverName = "oauth-protected-mcp";
-            var authHandler = new InitialMcpAuthHandler();
-            McpAuthObservation initialAuth;
+            var observedRequest = new java.util.concurrent.atomic.AtomicReference<com.github.copilot.rpc.McpAuthRequest>();
+            var observedInvocation = new java.util.concurrent.atomic.AtomicReference<McpAuthInvocation>();
+            var observedCapability = new AtomicReference<Boolean>();
             var statusObserver = new McpStatusObserver(serverName);
 
             try (var client = ctx.createClient();
-                    var session = client.createSession(ctx.newSessionConfig()
-                            .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setOnEvent(statusObserver::onEvent)
-                            .setDiagnostics(DiagnosticsConfiguration.builder()
-                                    .sources(DiagnosticSourcesConfiguration.builder()
-                                            .mcp(McpDiagnosticSourceConfiguration.builder()
-                                                    .level(DiagnosticLogLevel.DEBUG).build())
-                                            .build())
-                                    .build())
-                            .setOnMcpAuthRequest(authHandler).setMcpServers(Map.of(serverName, new McpHttpServerConfig()
-                                    .setUrl(oauthServer.url() + "/mcp").setTools(List.of("*")))))
+                    var session = client
+                            .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                                    .setOnEvent(statusObserver::onEvent).setOnMcpAuthRequest(new McpAuthHandler() {
+                                        @Override
+                                        public java.util.concurrent.CompletableFuture<McpAuthResult> handle(
+                                                McpAuthRequest request, McpAuthInvocation invocation) {
+                                            observedRequest.set(request);
+                                            observedInvocation.set(invocation);
+                                            return java.util.concurrent.CompletableFuture.completedFuture(McpAuthResult
+                                                    .token(new McpAuthToken(EXPECTED_TOKEN, "Bearer", 3600L)));
+                                        }
+
+                                        @Override
+                                        public java.util.concurrent.CompletableFuture<McpAuthResponse> handleWithRuntimeRefresh(
+                                                McpAuthRequest request, McpAuthInvocation invocation,
+                                                boolean supported) {
+                                            observedCapability.set(supported);
+                                            return McpAuthHandler.super.handleWithRuntimeRefresh(request, invocation,
+                                                    supported);
+                                        }
+                                    }).setMcpServers(Map.of(serverName, new McpHttpServerConfig()
+                                            .setUrl(oauthServer.url() + "/mcp").setTools(List.of("*")))))
                             .get()) {
-                try {
-                    waitForMcpServerStatus(session, serverName, McpServerStatus.CONNECTED, authHandler.observedRequest,
-                            statusObserver);
-                } catch (AssertionError failure) {
-                    try {
-                        var requests = oauthServer.requests().stream().map(record -> "path=" + record.path()
-                                + "; hostToken=" + ("Bearer " + EXPECTED_TOKEN).equals(record.authorization()))
-                                .toList();
-                        System.err.println("[SDK initial OAuth connection failure] " + requests);
-                        var diagnostics = session.getRpc().diagnostics.read(SessionDiagnosticsReadParams.builder()
-                                .sources(List.of(DiagnosticSource.MCP)).max(500L).waitMs(0L).build())
-                                .get(30, TimeUnit.SECONDS);
-                        System.err.println("[SDK initial OAuth MCP connections] "
-                                + diagnostics.entries().stream()
-                                        .map(entry -> "timestamp=" + entry.timestamp() + "; connection="
-                                                + entry.details().connectionId() + "; server="
-                                                + entry.details().serverName() + "; kind=" + entry.details().kind()
-                                                + "; direction=" + entry.details().direction())
-                                        .toList()
-                                + "; cursorStatus=" + diagnostics.cursorStatus() + "; hasMore=" + diagnostics.hasMore()
-                                + "; droppedCount=" + diagnostics.droppedCount());
-                    } catch (Exception | AssertionError diagnosticError) {
-                        failure.addSuppressed(diagnosticError);
-                    }
-                    throw failure;
-                }
-                initialAuth = authHandler.initialAuth.get();
-                assertNotNull(initialAuth, "MCP auth handler should be invoked for INITIAL");
-                assertNotNull(initialAuth.invocation(), "MCP auth invocation should be provided");
-                assertEquals(session.getSessionId(), initialAuth.invocation().getSessionId());
-                assertFalse(initialAuth.runtimeRefreshSupported(), "Initial authentication cannot advertise refresh");
+                waitForMcpServerStatus(session, serverName, McpServerStatus.CONNECTED, observedRequest, statusObserver);
+                assertNotNull(observedInvocation.get(), "MCP auth invocation should be provided");
+                assertEquals(session.getSessionId(), observedInvocation.get().getSessionId());
+                assertEquals(Boolean.FALSE, observedCapability.get(),
+                        "Initial authentication cannot advertise refresh");
                 var tools = E2ETestContext.awaitReply(
-                        session.getRpc().mcp
-                                .listTools(SessionMcpListToolsParams.builder().serverName(serverName).build()),
-                        30, TimeUnit.SECONDS);
+                        session.getRpc().mcp.listTools(new SessionMcpListToolsParams(null, serverName)), 30,
+                        TimeUnit.SECONDS);
                 assertTrue(tools.tools().stream().anyMatch(tool -> "whoami".equals(tool.name())));
             }
 
-            var request = initialAuth.request();
+            var request = observedRequest.get();
             assertNotNull(request, "MCP auth handler should be invoked");
             assertEquals(serverName, request.serverName());
             assertEquals(oauthServer.url() + "/mcp", request.serverUrl());
@@ -191,30 +168,6 @@ public class McpOAuthE2ETest {
         }
     }
 
-    record McpAuthObservation(McpAuthRequest request, McpAuthInvocation invocation, boolean runtimeRefreshSupported) {
-    }
-
-    static final class InitialMcpAuthHandler implements McpAuthHandler {
-        final AtomicReference<McpAuthRequest> observedRequest = new AtomicReference<>();
-        final AtomicReference<McpAuthObservation> initialAuth = new AtomicReference<>();
-
-        @Override
-        public CompletableFuture<McpAuthResult> handle(McpAuthRequest request, McpAuthInvocation invocation) {
-            observedRequest.set(request);
-            return CompletableFuture
-                    .completedFuture(McpAuthResult.token(new McpAuthToken(EXPECTED_TOKEN, "Bearer", 3600L)));
-        }
-
-        @Override
-        public CompletableFuture<McpAuthResponse> handleWithRuntimeRefresh(McpAuthRequest request,
-                McpAuthInvocation invocation, boolean supported) {
-            if (request.reason() == McpOauthRequestReason.INITIAL) {
-                initialAuth.compareAndSet(null, new McpAuthObservation(request, invocation, supported));
-            }
-            return McpAuthHandler.super.handleWithRuntimeRefresh(request, invocation, supported);
-        }
-    }
-
     @Test
     @Timeout(value = 900, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SAME_THREAD)
     void testShouldRequestReplacementTokensAcrossMcpOauthLifecycle() throws Exception {
@@ -226,7 +179,7 @@ public class McpOAuthE2ETest {
             var statusObserver = new McpStatusObserver(serverName);
 
             try (var client = ctx.createClient();
-                    var session = client.createSession(ctx.newSessionConfig().setEnableMcpApps(true)
+                    var session = client.createSession(new SessionConfig().setEnableMcpApps(true)
                             .setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
                             .setOnMcpAuthRequest((request, invocation) -> {
                                 assertNotNull(invocation);
@@ -291,7 +244,7 @@ public class McpOAuthE2ETest {
 
             try (var client = ctx.createClient();
                     var session = client
-                            .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
+                            .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
                                     .setOnEvent(statusObserver::onEvent).setOnMcpAuthRequest((request, invocation) -> {
                                         assertNotNull(invocation);
                                         observedRequest.set(request);
@@ -330,7 +283,7 @@ public class McpOAuthE2ETest {
             var statusObserver = new McpStatusObserver(serverName);
 
             try (var client = ctx.createClient();
-                    var session = client.createSession(ctx.newSessionConfig().setEnableMcpApps(true)
+                    var session = client.createSession(new SessionConfig().setEnableMcpApps(true)
                             .setOnEvent(statusObserver::onEvent).setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
                             .setOnMcpAuthRequest((request, invocation) -> {
                                 assertNotNull(invocation);
@@ -358,11 +311,11 @@ public class McpOAuthE2ETest {
                     var handled = E2ETestContext
                             .awaitReply(
                                     session.getRpc().mcp.oauth
-                                            .handlePendingRequest(SessionMcpOauthHandlePendingRequestParams.builder()
-                                                    .requestId(request.requestId())
-                                                    .result(Map.of("kind", "token", "accessToken", EXPECTED_TOKEN,
-                                                            "tokenType", "Bearer", "expiresIn", 3600L))
-                                                    .build()),
+                                            .handlePendingRequest(
+                                                    new SessionMcpOauthHandlePendingRequestParams(null,
+                                                            request.requestId(),
+                                                            Map.of("kind", "token", "accessToken", EXPECTED_TOKEN,
+                                                                    "tokenType", "Bearer", "expiresIn", 3600L))),
                                     30, TimeUnit.SECONDS);
                     assertTrue(handled.success());
 
@@ -370,9 +323,8 @@ public class McpOAuthE2ETest {
                     waitForMcpServerStatus(session, serverName, McpServerStatus.CONNECTED, observedRequest,
                             statusObserver, current);
                     var tools = E2ETestContext.awaitReply(
-                            session.getRpc().mcp
-                                    .listTools(SessionMcpListToolsParams.builder().serverName(serverName).build()),
-                            30, TimeUnit.SECONDS);
+                            session.getRpc().mcp.listTools(new SessionMcpListToolsParams(null, serverName)), 30,
+                            TimeUnit.SECONDS);
                     assertTrue(tools.tools().stream().anyMatch(tool -> "whoami".equals(tool.name())));
                 } catch (Exception | AssertionError failure) {
                     addReplyFailure(failure, current);
@@ -397,10 +349,8 @@ public class McpOAuthE2ETest {
     }
 
     private static void callWhoami(CopilotSession session, String serverName, String scenario) throws Exception {
-        var result = E2ETestContext.awaitReply(
-                session.getRpc().mcp.apps
-                        .callTool(SessionMcpAppsCallToolParams.builder().serverName(serverName).toolName("whoami")
-                                .arguments(Map.of("scenario", scenario)).originServerName(serverName).build()),
+        var result = E2ETestContext.awaitReply(session.getRpc().mcp.apps.callTool(
+                new SessionMcpAppsCallToolParams(null, serverName, "whoami", Map.of("scenario", scenario), serverName)),
                 30, TimeUnit.SECONDS);
         var content = result.path("content");
         assertEquals(1, content.size());
@@ -612,30 +562,29 @@ public class McpOAuthE2ETest {
         observer.onEvent(event);
         assertNull(observer.latestStatus.get());
 
-        var connected = SessionMcpServerStatusChangedEvent.SessionMcpServerStatusChangedEventData.builder()
-                .serverName(serverName).status(com.github.copilot.generated.McpServerStatus.CONNECTED).build();
+        var connected = new SessionMcpServerStatusChangedEvent.SessionMcpServerStatusChangedEventData(serverName,
+                com.github.copilot.generated.McpServerStatus.CONNECTED, null, null, null);
         event.setData(connected);
         event.setAgentId("child-agent");
         observer.onEvent(event);
         assertNull(observer.latestStatus.get());
 
         event.setAgentId(null);
-        event.setData(SessionMcpServerStatusChangedEvent.SessionMcpServerStatusChangedEventData.builder()
-                .serverName("other-server").status(com.github.copilot.generated.McpServerStatus.CONNECTED).build());
+        event.setData(new SessionMcpServerStatusChangedEvent.SessionMcpServerStatusChangedEventData("other-server",
+                com.github.copilot.generated.McpServerStatus.CONNECTED, null, null, null));
         observer.onEvent(event);
         assertNull(observer.latestStatus.get());
 
         event.setData(connected);
         observer.onEvent(event);
         assertEquals(com.github.copilot.generated.McpServerStatus.CONNECTED, observer.latestStatus.get());
-        event.setData(SessionMcpServerStatusChangedEvent.SessionMcpServerStatusChangedEventData.builder()
-                .serverName(serverName).status(com.github.copilot.generated.McpServerStatus.FAILED)
-                .error("later failure").build());
+        event.setData(new SessionMcpServerStatusChangedEvent.SessionMcpServerStatusChangedEventData(serverName,
+                com.github.copilot.generated.McpServerStatus.FAILED, "later failure", null, null));
         observer.onEvent(event);
         assertEquals(com.github.copilot.generated.McpServerStatus.FAILED, observer.latestStatus.get());
 
-        event.setData(JsonRpcClient.getObjectMapper().convertValue(Map.of("serverName", serverName),
-                SessionMcpServerStatusChangedEvent.SessionMcpServerStatusChangedEventData.class));
+        event.setData(new SessionMcpServerStatusChangedEvent.SessionMcpServerStatusChangedEventData(serverName, null,
+                null, null, null));
         observer.onEvent(event);
         assertNull(observer.latestStatus.get());
     }

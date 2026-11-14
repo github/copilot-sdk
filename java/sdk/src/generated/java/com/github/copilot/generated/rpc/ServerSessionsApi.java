@@ -9,7 +9,6 @@ package com.github.copilot.generated.rpc;
 
 import com.github.copilot.CopilotExperimental;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.processing.Generated;
 
@@ -152,19 +151,6 @@ public final class ServerSessionsApi {
     }
 
     /**
-     * Resolves a UUID prefix to a unique session ID, if exactly one session matches.
-     * <p>
-     * Accepts the extensible request, including inputs added after the params record.
-     *
-     * @apiNote This method is experimental and may change in a future version.
-     * @since 1.0.0
-     */
-    @CopilotExperimental
-    public CompletableFuture<SessionsFindByPrefixResult> findByPrefixWithOptions(SessionsFindByPrefixRequest request) {
-        return caller.invoke("sessions.findByPrefix", Objects.requireNonNull(request, "request"), SessionsFindByPrefixResult.class);
-    }
-
-    /**
      * Returns the most-relevant prior session for a given working-directory context.
      *
      * @apiNote This method is experimental and may change in a future version.
@@ -173,17 +159,6 @@ public final class ServerSessionsApi {
     @CopilotExperimental
     public CompletableFuture<SessionsGetLastForContextResult> getLastForContext(SessionsGetLastForContextParams params) {
         return caller.invoke("sessions.getLastForContext", params, SessionsGetLastForContextResult.class);
-    }
-
-    /**
-     * Checks whether a local session's persisted event-log path exists, including an empty log, without opening the session or scanning the session catalog. Hosts use this to prefer an exact local session over a remote task or a UUID-prefix lookup. Metadata-only sessions without a log return false.
-     *
-     * @apiNote This method is experimental and may change in a future version.
-     * @since 1.0.0
-     */
-    @CopilotExperimental
-    public CompletableFuture<SessionsHasEventsResult> hasEvents(SessionsHasEventsParams params) {
-        return caller.invoke("sessions.hasEvents", params, SessionsHasEventsResult.class);
     }
 
     /**

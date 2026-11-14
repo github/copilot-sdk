@@ -13,8 +13,6 @@ import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.copilot.generated.SessionCanvasClosedEvent;
@@ -57,22 +55,6 @@ public class SessionCanvasSnapshotTest {
         var canvases = session.getOpenCanvases();
         assertEquals(2, canvases.size());
         assertEquals(List.of("inst-1", "inst-2"), canvases.stream().map(OpenCanvasInstance::instanceId).toList());
-    }
-
-    @ParameterizedTest
-    @ValueSource(strings = {"{\"instanceId\":\"inst-1\",\"extensionId\":\"ext\",\"canvasId\":\"canvas-a\"}",
-            "{\"instanceId\":\"inst-1\",\"extensionId\":\"ext\",\"canvasId\":\"canvas-a\",\"input\":null}",
-            "{\"instanceId\":\"inst-1\",\"extensionId\":\"ext\",\"canvasId\":\"canvas-a\",\"input\":{\"message\":\"hello\"}}"})
-    void openedSnapshotPreservesInputPresence(String payload) throws Exception {
-        var mapper = JsonRpcClient.getObjectMapper();
-        var expected = mapper.readValue(payload, OpenCanvasInstance.class);
-        var event = new SessionCanvasOpenedEvent();
-        event.setData(mapper.readValue(payload, SessionCanvasOpenedEventData.class));
-
-        session.dispatchEvent(event);
-
-        assertEquals(List.of(expected), session.getOpenCanvases());
-        assertEquals(mapper.readTree(payload), mapper.valueToTree(session.getOpenCanvases().get(0)));
     }
 
     @Test
@@ -136,8 +118,7 @@ public class SessionCanvasSnapshotTest {
 
         var canvases = session.getOpenCanvases();
         assertThrows(UnsupportedOperationException.class,
-                () -> canvases.add(OpenCanvasInstance.builder().instanceId("x").extensionId("ext").extensionName(null)
-                        .canvasId("c").icon(null).title(null).status(null).url(null).input(null).build()));
+                () -> canvases.add(new OpenCanvasInstance("x", "ext", null, "c", null, null, null, null, null)));
 
         // The returned list is a point-in-time snapshot, not a live view: a
         // subsequent event must not change the previously-returned list.
@@ -152,11 +133,9 @@ public class SessionCanvasSnapshotTest {
     @Test
     void setOpenCanvasesSeedsAndFiltersNulls() {
         var seed = new java.util.ArrayList<OpenCanvasInstance>();
-        seed.add(OpenCanvasInstance.builder().instanceId("inst-1").extensionId("ext").extensionName(null)
-                .canvasId("canvas-a").icon(null).title(null).status(null).url(null).input(null).build());
+        seed.add(new OpenCanvasInstance("inst-1", "ext", null, "canvas-a", null, null, null, null, null));
         seed.add(null);
-        seed.add(OpenCanvasInstance.builder().instanceId("inst-2").extensionId("ext").extensionName(null)
-                .canvasId("canvas-b").icon(null).title(null).status(null).url(null).input(null).build());
+        seed.add(new OpenCanvasInstance("inst-2", "ext", null, "canvas-b", null, null, null, null, null));
 
         session.setOpenCanvases(seed);
 
@@ -216,24 +195,14 @@ public class SessionCanvasSnapshotTest {
 
     private static SessionCanvasOpenedEvent openedEvent(String instanceId, String canvasId) {
         var event = new SessionCanvasOpenedEvent();
-        event.setData(SessionCanvasOpenedEventData.builder().instanceId(instanceId).extensionId("ext-id")
-                .extensionName("Ext Name").canvasId(canvasId).icon(null).title("Title").status("ok").url(null)
-                .input(null).build());
+        event.setData(new SessionCanvasOpenedEventData(instanceId, "ext-id", "Ext Name", canvasId, null, "Title", "ok",
+                null, null));
         return event;
     }
 
     private static SessionCanvasClosedEvent closedEvent(String instanceId) {
         var event = new SessionCanvasClosedEvent();
-        if (instanceId == null) {
-            var data = new java.util.HashMap<String, Object>();
-            data.put("instanceId", null);
-            data.put("extensionId", "ext-id");
-            data.put("canvasId", "canvas-a");
-            event.setData(JsonRpcClient.getObjectMapper().convertValue(data, SessionCanvasClosedEventData.class));
-        } else {
-            event.setData(SessionCanvasClosedEventData.builder().instanceId(instanceId).extensionId("ext-id")
-                    .canvasId("canvas-a").build());
-        }
+        event.setData(new SessionCanvasClosedEventData(instanceId, "ext-id", "canvas-a"));
         return event;
     }
 }

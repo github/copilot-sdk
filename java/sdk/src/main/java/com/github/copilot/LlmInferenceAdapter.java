@@ -8,9 +8,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -22,7 +20,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.github.copilot.generated.rpc.RpcCaller;
 import com.github.copilot.generated.rpc.ServerLlmInferenceApi;
 
 /**
@@ -36,31 +33,15 @@ final class LlmInferenceAdapter {
 
     private static final Logger LOG = Logger.getLogger(LlmInferenceAdapter.class.getName());
 
-    /**
-     * How many finished request IDs the adapter remembers. A frame the runtime sent
-     * before it saw a request finish arrives within about one round trip, so a
-     * small window covers it while a long-lived client stays at a fixed size.
-     */
-    private static final int MAX_FINISHED_REQUEST_IDS = 256;
-
     private final CopilotRequestHandler handler;
     private final Supplier<ServerLlmInferenceApi> rpcSupplier;
-    private final RpcCaller rpcCaller;
     private final Executor executor;
 
     private final Map<String, LlmInferenceExchange> pending = new ConcurrentHashMap<>();
 
-    // The most recently finished request IDs, oldest first. finishedLock also
-    // covers creating and removing pending entries, so a frame cannot recreate an
-    // entry for a request that is being removed.
-    private final LinkedHashSet<String> finished = new LinkedHashSet<>();
-    private final Object finishedLock = new Object();
-
-    LlmInferenceAdapter(CopilotRequestHandler handler, Supplier<ServerLlmInferenceApi> rpcSupplier, RpcCaller rpcCaller,
-            Executor executor) {
+    LlmInferenceAdapter(CopilotRequestHandler handler, Supplier<ServerLlmInferenceApi> rpcSupplier, Executor executor) {
         this.handler = handler;
         this.rpcSupplier = rpcSupplier;
-        this.rpcCaller = rpcCaller;
         this.executor = executor;
     }
 
@@ -76,13 +57,6 @@ final class LlmInferenceAdapter {
         pending.clear();
     }
 
-    /**
-     * Returns the request's exchange, or {@code null} when the request already
-     * finished. A frame can still arrive then, because the runtime may send one
-     * before it sees the finish: it cancels a response it rejects, such as one over
-     * its size limit, while the handler's end is in flight. An exchange created for
-     * that frame would never be removed.
-     */
     private LlmInferenceExchange getOrCreateExchange(String requestId) {
         // The runtime dispatches httpRequestStart and httpRequestChunk frames
         // independently. Even though the current reader dispatches them in
@@ -90,27 +64,7 @@ final class LlmInferenceAdapter {
         // chunk (including the terminal end frame) that races ahead of its
         // start frame is buffered into the same exchange rather than dropped,
         // which would otherwise hang the body drain forever.
-        synchronized (finishedLock) {
-            LlmInferenceExchange exchange = pending.get(requestId);
-            if (exchange != null) {
-                return exchange;
-            }
-            if (finished.contains(requestId)) {
-                return null;
-            }
-            return pending.computeIfAbsent(requestId, id -> new LlmInferenceExchange(id, rpcSupplier, rpcCaller));
-        }
-    }
-
-    private void removeFinished(String requestId) {
-        synchronized (finishedLock) {
-            pending.remove(requestId);
-            if (finished.add(requestId) && finished.size() > MAX_FINISHED_REQUEST_IDS) {
-                Iterator<String> oldest = finished.iterator();
-                oldest.next();
-                oldest.remove();
-            }
-        }
+        return pending.computeIfAbsent(requestId, id -> new LlmInferenceExchange(id, rpcSupplier));
     }
 
     private void handleRequestStart(JsonRpcClient rpc, String rpcId, JsonNode params) {
@@ -128,10 +82,6 @@ final class LlmInferenceAdapter {
         // Adopt any exchange a racing chunk already created — with its buffered
         // body — rather than dropping those frames.
         LlmInferenceExchange exchange = getOrCreateExchange(requestId);
-        if (exchange == null) {
-            fail(rpc, rpcId, "llmInference.httpRequestStart for request \"" + requestId + "\", which already finished");
-            return;
-        }
         exchange.setMethod(method);
         exchange.setContext(new CopilotRequestContext(requestId, sessionId, agentId, agentInvocationId, parentAgentId,
                 interactionType, transport, url, headers, exchange.cancellation()));
@@ -149,10 +99,7 @@ final class LlmInferenceAdapter {
         // May arrive before the matching start frame; get-or-create so the body
         // is buffered, never lost.
         LlmInferenceExchange exchange = getOrCreateExchange(requestId);
-        // A frame for a finished request has nothing left to deliver to.
-        if (exchange != null) {
-            routeChunk(exchange, params);
-        }
+        routeChunk(exchange, params);
         ack(rpc, rpcId);
     }
 
@@ -190,7 +137,7 @@ final class LlmInferenceAdapter {
                 finalizeError(exchange, 502, message, null);
             }
         } finally {
-            removeFinished(exchange.requestId());
+            pending.remove(exchange.requestId());
         }
     }
 
@@ -219,20 +166,6 @@ final class LlmInferenceAdapter {
             rpc.sendResponse(id, Map.of());
         } catch (IOException e) {
             LOG.log(Level.FINE, "Failed to acknowledge LLM inference frame", e);
-        }
-    }
-
-    private void fail(JsonRpcClient rpc, String rpcId, String message) {
-        long id;
-        try {
-            id = Long.parseLong(rpcId);
-        } catch (NumberFormatException e) {
-            return;
-        }
-        try {
-            rpc.sendErrorResponse(id, -32603, message);
-        } catch (IOException e) {
-            LOG.log(Level.FINE, "Failed to reject LLM inference frame", e);
         }
     }
 

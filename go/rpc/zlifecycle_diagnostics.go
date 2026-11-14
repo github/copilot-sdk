@@ -36,36 +36,6 @@ func (*RuntimeLifecycleSystemStateData) lifecycleDiagnosticEventData() {}
 
 func (*RuntimeLifecycleProgressStateData) lifecycleDiagnosticEventData() {}
 
-// Timing of one real dependency wait.
-// Experimental: RuntimeLifecycleBlockerTiming is part of an experimental API and may change or be removed.
-type RuntimeLifecycleBlockerTiming struct {
-	// ISO 8601 timestamp when this dependency began blocking its owner.
-	BlockingSince time.Time `json:"blockingSince"`
-}
-
-// Exact lifecycle operation awaited by a real dependency wait.
-// Experimental: RuntimeLifecycleBlocker is part of an experimental API and may change or be removed.
-type RuntimeLifecycleBlocker struct {
-	// Opaque blocker identifier, stable for one guard lifetime and scoped to its owner.
-	BlockerID string `json:"blockerId"`
-	// Current phase of the awaited operation.
-	CurrentPhase string `json:"currentPhase"`
-	// Current production boundary of the awaited operation.
-	CurrentStep string `json:"currentStep"`
-	// How the awaited operation ended when the real wait remains active.
-	OperationDisposition *RuntimeLifecycleDisposition `json:"operationDisposition,omitempty"`
-	// Opaque awaited operation identifier.
-	OperationID string `json:"operationId"`
-	// Awaited operation revision observed by this blocker.
-	OperationRevision int64 `json:"operationRevision"`
-	// System-owned capability required by the blocker owner.
-	Requirement string `json:"requirement"`
-	// System that owns the awaited operation.
-	System string `json:"system"`
-	// Timing of this dependency wait.
-	Timing RuntimeLifecycleBlockerTiming `json:"timing"`
-}
-
 // Fixed timestamps for one observed operation revision.
 // Experimental: RuntimeLifecycleOperationTiming is part of an experimental API and may change or be removed.
 type RuntimeLifecycleOperationTiming struct {
@@ -80,8 +50,6 @@ type RuntimeLifecycleOperationTiming struct {
 // Observed state of one readiness or convergence operation.
 // Experimental: RuntimeLifecycleOperation is part of an experimental API and may change or be removed.
 type RuntimeLifecycleOperation struct {
-	// Complete dependency blocker set after this operation change.
-	Blockers []RuntimeLifecycleBlocker `json:"blockers"`
 	// How the operation ended. Absent while the operation remains active.
 	Disposition *RuntimeLifecycleDisposition `json:"disposition,omitempty"`
 	// Opaque operation identifier, unique within the lifecycle incarnation and system.
@@ -117,6 +85,34 @@ type RuntimeLifecycleSystemStateData struct {
 	SystemRevision int64 `json:"systemRevision"`
 }
 
+// Timing of one real dependency wait.
+// Experimental: RuntimeLifecycleBlockerTiming is part of an experimental API and may change or be removed.
+type RuntimeLifecycleBlockerTiming struct {
+	// ISO 8601 timestamp when this dependency began blocking progress.
+	BlockingSince time.Time `json:"blockingSince"`
+}
+
+// Exact lifecycle operation awaited by a real dependency wait.
+// Experimental: RuntimeLifecycleBlocker is part of an experimental API and may change or be removed.
+type RuntimeLifecycleBlocker struct {
+	// Current phase of the awaited operation.
+	CurrentPhase string `json:"currentPhase"`
+	// Current production boundary of the awaited operation.
+	CurrentStep string `json:"currentStep"`
+	// How the awaited operation ended when the real wait remains active.
+	OperationDisposition *RuntimeLifecycleDisposition `json:"operationDisposition,omitempty"`
+	// Opaque awaited operation identifier.
+	OperationID string `json:"operationId"`
+	// Awaited operation revision observed by this blocker.
+	OperationRevision int64 `json:"operationRevision"`
+	// System-owned capability required by the progress owner.
+	Requirement string `json:"requirement"`
+	// System that owns the awaited operation.
+	System string `json:"system"`
+	// Timing of this dependency wait.
+	Timing RuntimeLifecycleBlockerTiming `json:"timing"`
+}
+
 // Immutable causal origin of a progress record with independent identity and settlement.
 // Experimental: RuntimeLifecycleProgressOrigin is part of an experimental API and may change or be removed.
 type RuntimeLifecycleProgressOrigin struct {
@@ -140,8 +136,6 @@ type RuntimeLifecycleProgressTiming struct {
 // Experimental, observational-only state of runtime progress and the lifecycle operations that block it. Observation and delivery never control runtime or model behavior. Process death, diagnostic projection loss, transport loss, or serialization failure can prevent external delivery.
 // Experimental: RuntimeLifecycleProgressStateData is part of an experimental API and may change or be removed.
 type RuntimeLifecycleProgressStateData struct {
-	// Agent that owns this progress. Absent for the primary agent and progress without an agent owner.
-	AgentID *string `json:"agentId,omitempty"`
 	// Complete dependency blocker set after this progress change.
 	Blockers []RuntimeLifecycleBlocker `json:"blockers"`
 	// How the progress record ended. Absent while it remains active.

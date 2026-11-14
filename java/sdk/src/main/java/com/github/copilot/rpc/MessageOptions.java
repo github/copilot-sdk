@@ -49,7 +49,6 @@ public class MessageOptions {
     private AgentMode agentMode;
     private Map<String, String> requestHeaders;
     private String displayPrompt;
-    private String clientTurnId;
     private Map<String, Object> responseSchema;
 
     /**
@@ -256,36 +255,6 @@ public class MessageOptions {
     }
 
     /**
-     * Gets the caller-chosen ID for the turn this message starts.
-     *
-     * @return the client turn ID, or {@code null} if not set
-     */
-    public String getClientTurnId() {
-        return clientTurnId;
-    }
-
-    /**
-     * Sets an opaque caller-chosen ID for the turn this message starts.
-     * <p>
-     * The runtime copies it unchanged into
-     * {@code _meta["com.github.copilot/turnId"]} on every MCP {@code tools/call}
-     * made while serving that turn, including calls from sub-agents and Autopilot
-     * continuations. When a running turn consumes the message as visible user
-     * steering, the value (or its absence) replaces the turn's ID from the next
-     * model call onward. The {@code user.message} event for the message echoes it
-     * as {@code clientTurnId} and is persisted like other events; the value stamped
-     * on MCP calls is held in memory only and is not restored on resume.
-     *
-     * @param clientTurnId
-     *            the client turn ID, or {@code null} to omit it
-     * @return this options instance for method chaining
-     */
-    public MessageOptions setClientTurnId(String clientTurnId) {
-        this.clientTurnId = clientTurnId;
-        return this;
-    }
-
-    /**
      * Creates a shallow clone of this {@code MessageOptions} instance.
      * <p>
      * Mutable collection properties are copied into new collection instances so
@@ -305,7 +274,6 @@ public class MessageOptions {
         copy.agentMode = this.agentMode;
         copy.requestHeaders = this.requestHeaders != null ? new HashMap<>(this.requestHeaders) : null;
         copy.displayPrompt = this.displayPrompt;
-        copy.clientTurnId = this.clientTurnId;
         copy.responseSchema = this.responseSchema == null ? null : new HashMap<>(this.responseSchema);
         return copy;
     }

@@ -18,7 +18,6 @@ import (
 )
 
 func TestScenarioTestingSendsE2E(t *testing.T) {
-	t.Parallel()
 	t.Run("should send complete scenario message wire shape", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 		defer cancel()

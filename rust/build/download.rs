@@ -5,15 +5,6 @@ pub(super) const BODY_TIMEOUT: std::time::Duration = std::time::Duration::from_s
 
 pub(super) fn agent() -> ureq::Agent {
     let tls = ureq::tls::TlsConfig::builder().root_certs(ureq::tls::RootCerts::PlatformVerifier);
-    // macOS native-tls uses Secure Transport (TLS <= 1.2); keep TLS 1.3 for
-    // archive acquisition instead of silently lowering the supported protocol.
-    // ureq's built-in TLS choices are native-tls and Rustls, not Apple's
-    // Network.framework. Removing this branch needs a native TLS-1.3 download
-    // adapter preserving platform trust, redirects, proxy and timeout behavior.
-    // AWS-LC is still software crypto: an OS-backed Rustls provider could be a
-    // partial migration, but the standalone SDK does not package one. See
-    // src/network_tls.rs for provider limits. Archive hashing is independently
-    // OS-backed in archive_hash.rs and does not require this TLS provider.
     #[cfg(target_os = "macos")]
     let tls = tls
         .provider(ureq::tls::TlsProvider::Rustls)

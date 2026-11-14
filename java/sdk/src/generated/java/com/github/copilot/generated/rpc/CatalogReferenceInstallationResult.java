@@ -17,7 +17,7 @@ import javax.annotation.processing.Generated;
  *
  * @since 1.0.0
  */
-@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.EXISTING_PROPERTY, property = "kind", visible = true)
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "kind", visible = true)
 @JsonSubTypes({
     @JsonSubTypes.Type(value = CatalogReferenceInstallationResultOutcome.class, name = "outcome"),
     @JsonSubTypes.Type(value = CatalogReferenceInstallationResultCatalogNegotiationRefusedError.class, name = "negotiation-refused"),

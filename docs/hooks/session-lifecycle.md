@@ -40,16 +40,12 @@ type SessionStartHandler = (
 <!-- docs-validate: hidden -->
 ```python
 from copilot.session import SessionStartHookInput, SessionStartHookOutput
-from copilot.session import SessionStartHandler as SdkSessionStartHandler
 from typing import Callable, Awaitable
 
 SessionStartHandler = Callable[
     [SessionStartHookInput, dict[str, str]],
     Awaitable[SessionStartHookOutput | None]
 ]
-
-def check(handler: SessionStartHandler) -> SdkSessionStartHandler:
-    return handler
 ```
 <!-- /docs-validate: hidden -->
 ```python
@@ -70,19 +66,10 @@ package main
 
 import copilot "github.com/github/copilot-sdk/go"
 
-// Aliases let the signature below use the package's own type names.
-type (
-    SessionStartHookInput  = copilot.SessionStartHookInput
-    HookInvocation         = copilot.HookInvocation
-    SessionStartHookOutput = copilot.SessionStartHookOutput
-)
-
 type SessionStartHandler func(
-    input SessionStartHookInput,
-    invocation HookInvocation,
-) (*SessionStartHookOutput, error)
-
-var _ = copilot.SessionStartHandler(SessionStartHandler(nil))
+    input copilot.SessionStartHookInput,
+    invocation copilot.HookInvocation,
+) (*copilot.SessionStartHookOutput, error)
 
 func main() {}
 ```
@@ -106,12 +93,6 @@ using GitHub.Copilot;
 public delegate Task<SessionStartHookOutput?> SessionStartHandler(
     SessionStartHookInput input,
     HookInvocation invocation);
-
-static class SessionStartHandlerCheck
-{
-    static SessionHooks Check(SessionStartHandler handler) =>
-        new() { OnSessionStart = handler.Invoke };
-}
 ```
 <!-- /docs-validate: hidden -->
 ```csharp
@@ -131,24 +112,8 @@ import com.github.copilot.rpc.*;
 import java.util.concurrent.CompletableFuture;
 
 public class SessionStartSignature {
-    static class Documented {
-        @FunctionalInterface
-        public interface SessionStartHandler {
-            CompletableFuture<SessionStartHookOutput> handle(
-                SessionStartHookInput input,
-                HookInvocation invocation);
-        }
-    }
-
-    // The documented interface and the SDK's accept each other's implementations.
-    static SessionStartHandler toSdk(Documented.SessionStartHandler documented) {
-        return documented::handle;
-    }
-
-    static Documented.SessionStartHandler fromSdk(SessionStartHandler sdk) {
-        return sdk::handle;
-    }
-
+    SessionStartHandler handler = (SessionStartHookInput input, HookInvocation invocation) ->
+        CompletableFuture.completedFuture(null);
     public static void main(String[] args) {}
 }
 ```
@@ -312,17 +277,13 @@ type SessionEndHandler = (
 
 <!-- docs-validate: hidden -->
 ```python
-from copilot.session import SessionEndHookInput, SessionEndHookOutput
-from copilot.session import SessionEndHandler as SdkSessionEndHandler
+from copilot.session import SessionEndHookInput
 from typing import Callable, Awaitable
 
 SessionEndHandler = Callable[
     [SessionEndHookInput, dict[str, str]],
-    Awaitable[SessionEndHookOutput | None]
+    Awaitable[None]
 ]
-
-def check(handler: SessionEndHandler) -> SdkSessionEndHandler:
-    return handler
 ```
 <!-- /docs-validate: hidden -->
 ```python
@@ -343,19 +304,10 @@ package main
 
 import copilot "github.com/github/copilot-sdk/go"
 
-// Aliases let the signature below use the package's own type names.
-type (
-    SessionEndHookInput  = copilot.SessionEndHookInput
-    HookInvocation       = copilot.HookInvocation
-    SessionEndHookOutput = copilot.SessionEndHookOutput
-)
-
 type SessionEndHandler func(
-    input SessionEndHookInput,
-    invocation HookInvocation,
-) (*SessionEndHookOutput, error)
-
-var _ = copilot.SessionEndHandler(SessionEndHandler(nil))
+    input copilot.SessionEndHookInput,
+    invocation copilot.HookInvocation,
+) error
 
 func main() {}
 ```
@@ -372,21 +324,6 @@ type SessionEndHandler func(
 <details>
 <summary><strong>.NET</strong></summary>
 
-<!-- docs-validate: hidden -->
-```csharp
-using GitHub.Copilot;
-
-public delegate Task<SessionEndHookOutput?> SessionEndHandler(
-    SessionEndHookInput input,
-    HookInvocation invocation);
-
-static class SessionEndHandlerCheck
-{
-    static SessionHooks Check(SessionEndHandler handler) =>
-        new() { OnSessionEnd = handler.Invoke };
-}
-```
-<!-- /docs-validate: hidden -->
 ```csharp
 public delegate Task<SessionEndHookOutput?> SessionEndHandler(
     SessionEndHookInput input,
@@ -404,24 +341,8 @@ import com.github.copilot.rpc.*;
 import java.util.concurrent.CompletableFuture;
 
 public class SessionEndSignature {
-    static class Documented {
-        @FunctionalInterface
-        public interface SessionEndHandler {
-            CompletableFuture<SessionEndHookOutput> handle(
-                SessionEndHookInput input,
-                HookInvocation invocation);
-        }
-    }
-
-    // The documented interface and the SDK's accept each other's implementations.
-    static SessionEndHandler toSdk(Documented.SessionEndHandler documented) {
-        return documented::handle;
-    }
-
-    static Documented.SessionEndHandler fromSdk(SessionEndHandler sdk) {
-        return sdk::handle;
-    }
-
+    SessionEndHandler handler = (SessionEndHookInput input, HookInvocation invocation) ->
+        CompletableFuture.completedFuture(null);
     public static void main(String[] args) {}
 }
 ```
@@ -658,8 +579,6 @@ Return no output to let the agent stop. Return a block decision to enqueue anoth
   "reason": "Run the final validation and fix any failures."
 }
 ```
-
-The `reason` is the message that is enqueued: the agent receives it as its next prompt, so write it as an instruction to the agent. It must be non-empty. A block decision without a `reason`, or with an empty one, lets the agent stop.
 
 Use the active-stop member listed above to avoid repeatedly blocking an agent that has already continued because of this hook. The runtime also caps consecutive block decisions.
 

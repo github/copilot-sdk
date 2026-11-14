@@ -66,17 +66,6 @@ export type JoinSessionConfig = Omit<
 };
 
 export type { ExtensionInfo } from "./types.js";
-
-/** A joined session with HTTP transport owned by the extension's connection. */
-export interface JoinedSession extends CopilotSession {
-    /**
-     * Create, send, read, and cancel HTTP requests through the shared runtime transport.
-     *
-     * @experimental These methods may change or be removed in future SDK or CLI releases.
-     */
-    readonly fetch: CopilotClient["rpc"]["fetch"];
-}
-
 export {
     defineWorkflow,
     WorkflowResumeError,
@@ -90,7 +79,6 @@ export {
     type WorkflowContext,
     type WorkflowDefinition,
     type WorkflowHandle,
-    type WorkflowAgentReference,
     type JsonValue,
     type WorkflowJsonSchema,
     type WorkflowLimits,
@@ -126,7 +114,7 @@ export {
  * const session = await joinSession({ tools: [myTool] });
  * ```
  */
-export async function joinSession(config: JoinSessionConfig = {}): Promise<JoinedSession> {
+export async function joinSession(config: JoinSessionConfig = {}): Promise<CopilotSession> {
     const sessionId = process.env.SESSION_ID;
     if (!sessionId) {
         throw new Error(
@@ -159,7 +147,7 @@ export async function joinSession(config: JoinSessionConfig = {}): Promise<Joine
     // Image generation consent belongs to the session owner, not joining extensions.
     void _strippedImageGeneration;
 
-    const session = await client.resumeSessionForExtension(
+    return client.resumeSessionForExtension(
         sessionId,
         {
             ...rest,
@@ -169,7 +157,4 @@ export async function joinSession(config: JoinSessionConfig = {}): Promise<Joine
         { workflows },
         requestedEnvironmentVariables?.length ? { requestedEnvironmentVariables } : undefined
     );
-    return Object.defineProperty(session, "fetch", {
-        get: () => client.rpc.fetch,
-    }) as JoinedSession;
 }

@@ -33,7 +33,6 @@ func messageSourceTestCases() []struct {
 		{name: "empty agent id", value: MessageSourceAgent(""), wire: "agent-"},
 		{name: "opaque agent id", value: MessageSourceAgent(" Agent/É "), wire: "agent- Agent/É "},
 		{name: "prefixed agent id", value: MessageSourceAgent("agent-reviewer"), wire: "agent-agent-reviewer"},
-		{name: "automation", value: MessageSourceAutomation("merge-check"), wire: "automation-merge-check"},
 	}
 }
 
@@ -64,7 +63,6 @@ func TestSession_SendMessageSource(t *testing.T) {
 						options.Mode = mode
 						options.AgentMode = AgentModePlan
 						options.DisplayPrompt = "display text"
-						options.ClientTurnID = String("host-turn-1")
 						options.Attachments = []Attachment{
 							&AttachmentFile{Path: "/workspace/main.go", DisplayName: "main.go"},
 						}
@@ -73,7 +71,6 @@ func TestSession_SendMessageSource(t *testing.T) {
 						want["mode"] = mode
 						want["agentMode"] = "plan"
 						want["displayPrompt"] = "display text"
-						want["clientTurnId"] = "host-turn-1"
 						want["attachments"] = []any{
 							map[string]any{"type": "file", "path": "/workspace/main.go", "displayName": "main.go"},
 						}
@@ -147,7 +144,6 @@ func TestSession_SendAndWaitMessageSource(t *testing.T) {
 							Mode:          mode,
 							AgentMode:     AgentModePlan,
 							DisplayPrompt: "Background update",
-							ClientTurnID:  String("host-turn-1"),
 							Attachments: []Attachment{
 								&AttachmentFile{Path: "/workspace/main.go", DisplayName: "main.go"},
 							},
@@ -185,7 +181,6 @@ func TestSession_SendAndWaitMessageSource(t *testing.T) {
 						"prompt":        "background update",
 						"agentMode":     "plan",
 						"displayPrompt": "Background update",
-						"clientTurnId":  "host-turn-1",
 						"attachments": []any{
 							map[string]any{"type": "file", "path": "/workspace/main.go", "displayName": "main.go"},
 						},
@@ -203,34 +198,6 @@ func TestSession_SendAndWaitMessageSource(t *testing.T) {
 				})
 			}
 		}
-	}
-}
-
-func TestSession_SendClientTurnIDKeepsEmptyDistinctFromUnset(t *testing.T) {
-	for _, tc := range []struct {
-		name    string
-		id      *string
-		wantKey bool
-	}{
-		{name: "unset", id: nil, wantKey: false},
-		{name: "empty", id: String(""), wantKey: true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
-			defer cancel()
-			params := captureMessageSourceRequest(t, nil, nil, func(session *Session) {
-				if _, err := session.Send(ctx, MessageOptions{Prompt: "hello", Mode: "immediate", ClientTurnID: tc.id}); err != nil {
-					t.Fatalf("Send failed: %v", err)
-				}
-			})
-			got, present := params["clientTurnId"]
-			if present != tc.wantKey {
-				t.Fatalf("clientTurnId present = %v, want %v (params %#v)", present, tc.wantKey, params)
-			}
-			if tc.wantKey && got != "" {
-				t.Fatalf("clientTurnId = %#v, want empty string", got)
-			}
-		})
 	}
 }
 

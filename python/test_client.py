@@ -9,7 +9,6 @@ import inspect
 import json
 import os
 import subprocess
-import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import fields
@@ -29,7 +28,6 @@ from copilot import (
     ModelBillingTokenPrices,
     ModelBillingTokenPricesLongContext,
     ModelSwitchAutoTierStatus,
-    PermissionMode,
     RuntimeConnection,
     StdioRuntimeConnection,
     define_tool,
@@ -47,7 +45,6 @@ from copilot.client import (
     ModelInfo,
     ModelLimits,
     ModelSupports,
-    _InternalTestOptions,
 )
 from copilot.generated.rpc import AutoTier as AutoTierEnum
 from copilot.generated.rpc import (
@@ -60,7 +57,6 @@ from copilot.generated.rpc import (
     SessionFSSetProviderCapabilities,
     SessionFSWriteFileBytesRequest,
 )
-from copilot.generated.rpc import FusionTier as FusionTierEnum
 from copilot.session import CopilotSession, PermissionHandler
 from copilot.session_events import (
     McpOauthRequestReason,
@@ -73,165 +69,6 @@ from copilot.session_events import (
 from copilot.session_fs_provider import SessionFsProvider, create_session_fs_adapter
 from copilot.tools import Tool
 from e2e.testharness import CLI_PATH
-
-
-@pytest.mark.parametrize("env", [{}, {"FOO": "bar"}])
-def test_inprocess_rejects_env(env, monkeypatch):
-    monkeypatch.setattr("copilot._cli_download.ensure_runtime_wrapper", lambda: CLI_PATH)
-    with pytest.raises(
-        ValueError, match="env is not supported with RuntimeConnection.for_inprocess"
-    ):
-        CopilotClient(connection=RuntimeConnection.for_inprocess(), env=env)
-
-
-def test_inprocess_working_directory_rejection_recommends_session_config(monkeypatch):
-    monkeypatch.setattr("copilot._cli_download.ensure_runtime_wrapper", lambda: CLI_PATH)
-    with pytest.raises(
-        ValueError,
-        match="working_directory is not supported.*Set working_directory on individual sessions",
-    ):
-        CopilotClient(connection=RuntimeConnection.for_inprocess(), working_directory="/tmp")
-
-
-@pytest.mark.parametrize("transport", ["stdio", "inprocess"])
-async def test_internal_test_options_override_only_owned_runtime(monkeypatch, tmp_path, transport):
-    (tmp_path / "copilot-runtime").touch()
-    original = os.environ.copy()
-    inherited = {"HTTP_PROXY": "inherited", "UNRELATED": "preserved"}
-    options = _InternalTestOptions(
-        copilot_api_url="http://replay",
-        github_api_url="http://github-replay",
-        proxy_url="http://interception",
-        no_proxy="",
-        ca_certificate_path="/test/ca.pem",
-    )
-    monkeypatch.setattr(
-        "copilot._cli_download.ensure_runtime_wrapper",
-        lambda: str(tmp_path / "copilot-runtime"),
-    )
-    if transport == "inprocess":
-        captured = Mock(return_value=Mock())
-        monkeypatch.setattr(client_module.FfiRuntimeHost, "create", captured)
-        client = CopilotClient(connection=RuntimeConnection.for_inprocess(), _test_options=options)
-        await client._start_inprocess_ffi()
-        environment = captured.call_args.kwargs["environment"]
-    else:
-        captured = Mock(return_value=Mock())
-        monkeypatch.setattr(client_module.subprocess, "Popen", captured)
-        client = CopilotClient(
-            connection=RuntimeConnection.for_stdio(path=str(tmp_path / "copilot-runtime")),
-            env=inherited,
-            _test_options=options,
-        )
-        await client._start_cli_server()
-        environment = captured.call_args.kwargs["env"]
-    assert (
-        environment.items()
-        >= {
-            "COPILOT_API_URL": "http://replay",
-            "COPILOT_DEBUG_GITHUB_API_URL": "http://github-replay",
-            "HTTP_PROXY": "http://interception",
-            "HTTPS_PROXY": "http://interception",
-            "NO_PROXY": "",
-            "NODE_EXTRA_CA_CERTS": "/test/ca.pem",
-            "SSL_CERT_FILE": "/test/ca.pem",
-            "REQUESTS_CA_BUNDLE": "/test/ca.pem",
-            "CURL_CA_BUNDLE": "/test/ca.pem",
-            "GIT_SSL_CAINFO": "/test/ca.pem",
-        }.items()
-    )
-    if transport != "inprocess":
-        assert environment["UNRELATED"] == "preserved"
-    assert inherited == {"HTTP_PROXY": "inherited", "UNRELATED": "preserved"}
-    assert os.environ == original
-    assert _InternalTestOptions()._to_environment() == {}
-
-
-@pytest.mark.parametrize("transport", ["stdio", "inprocess"])
-@pytest.mark.parametrize("capture_content", [True, False])
-async def test_telemetry_configures_only_owned_runtime(
-    monkeypatch, tmp_path, transport, capture_content
-):
-    runtime = tmp_path / "copilot-runtime"
-    runtime.touch()
-    monkeypatch.setattr("copilot._cli_download.ensure_runtime_wrapper", lambda: str(runtime))
-    original = os.environ.copy()
-    telemetry: client_module.TelemetryConfig = {
-        "otlp_endpoint": "http://collector:4318",
-        "otlp_protocol": "http/protobuf",
-        "file_path": "/telemetry.jsonl",
-        "exporter_type": "file",
-        "source_name": "inprocess-sdk",
-        "capture_content": capture_content,
-    }
-    captured = Mock(return_value=Mock())
-    if transport == "inprocess":
-        monkeypatch.setattr(client_module.FfiRuntimeHost, "create", captured)
-        client = CopilotClient(connection=RuntimeConnection.for_inprocess(), telemetry=telemetry)
-        await client._start_inprocess_ffi()
-        environment = captured.call_args.kwargs["environment"]
-    else:
-        monkeypatch.setattr(client_module.subprocess, "Popen", captured)
-        client = CopilotClient(
-            connection=RuntimeConnection.for_stdio(path=str(runtime)), telemetry=telemetry
-        )
-        await client._start_cli_server()
-        environment = captured.call_args.kwargs["env"]
-    assert (
-        environment.items()
-        >= {
-            "COPILOT_OTEL_ENABLED": "true",
-            "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4318",
-            "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
-            "COPILOT_OTEL_FILE_EXPORTER_PATH": "/telemetry.jsonl",
-            "COPILOT_OTEL_EXPORTER_TYPE": "file",
-            "COPILOT_OTEL_SOURCE_NAME": "inprocess-sdk",
-            "OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT": "SPAN_ONLY"
-            if capture_content
-            else "NO_CONTENT",
-            "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT": str(capture_content).lower(),
-        }.items()
-    )
-    assert os.environ == original
-
-
-@pytest.mark.parametrize("transport", ["stdio", "tcp"])
-@pytest.mark.parametrize("source", ["downloaded", "explicit", "environment"])
-async def test_only_the_downloaded_runtime_is_started_as_the_executable(
-    monkeypatch, tmp_path, transport, source
-):
-    # Windows will not start a program named only on the command line once its path
-    # reaches MAX_PATH; Popen's executable becomes CreateProcess's application name.
-    runtime = tmp_path / "copilot-runtime"
-    runtime.touch()
-    monkeypatch.delenv("COPILOT_CLI_PATH", raising=False)
-    monkeypatch.setattr("copilot._cli_download.ensure_runtime_wrapper", lambda: str(runtime))
-    if source == "environment":
-        monkeypatch.setenv("COPILOT_CLI_PATH", str(runtime))
-    path = str(runtime) if source == "explicit" else None
-    connection = (
-        RuntimeConnection.for_stdio(path=path)
-        if transport == "stdio"
-        else RuntimeConnection.for_tcp(path=path)
-    )
-    popen = Mock(side_effect=OSError("spawn stopped"))
-    monkeypatch.setattr(client_module.subprocess, "Popen", popen)
-    client = CopilotClient(connection=connection)
-
-    with pytest.raises(OSError, match="spawn stopped"):
-        await client._start_cli_server()
-
-    assert popen.call_args.args[0][0] == str(runtime)
-    expected = str(runtime) if source == "downloaded" else None
-    assert popen.call_args.kwargs.get("executable") == expected
-
-
-def test_internal_test_options_reject_external_runtime():
-    with pytest.raises(ValueError, match="requires a runtime owned by this client"):
-        CopilotClient(
-            connection=RuntimeConnection.for_uri("localhost:8080"),
-            _test_options=_InternalTestOptions(),
-        )
 
 
 def test_high_level_configs_omit_legacy_remote_control():
@@ -361,55 +198,6 @@ async def test_inprocess_forwards_integration_id_to_native_host(
     assert (
         "--cli-login-sync-integration-id=microsoft/vscode" in create_host.call_args.kwargs["args"]
     )
-
-
-@pytest.mark.parametrize("platform", ["linux", "win32"])
-async def test_inprocess_scopes_environment_with_platform_casing(monkeypatch, tmp_path, platform):
-    monkeypatch.setattr(client_module.sys, "platform", platform)
-    monkeypatch.setattr(
-        os,
-        "environ",
-        {
-            **os.environ,
-            "OLDPWD": "bad\udcff",
-            "BAD\udcff": "value",
-            "UTF8_ENV": "caf\u00e9",
-            "TMPDIR": "bad\udcff",
-        },
-    )
-    monkeypatch.setattr(
-        "copilot._cli_download.ensure_runtime_wrapper",
-        lambda: str(tmp_path / "copilot-runtime"),
-    )
-    host = Mock()
-    create_host = Mock(return_value=host)
-    monkeypatch.setattr(client_module.FfiRuntimeHost, "create", create_host)
-    original = os.environ.copy()
-    client = CopilotClient(
-        connection=RuntimeConnection.for_inprocess(),
-        base_directory="typed-home",
-        github_token="typed-token",
-        _test_options=_InternalTestOptions(proxy_url="http://proxy"),
-    )
-
-    await client._start_inprocess_ffi()
-
-    environment = create_host.call_args.kwargs["environment"]
-    assert environment["COPILOT_HOME"] == "typed-home"
-    assert environment["COPILOT_SDK_AUTH_TOKEN"] == "typed-token"
-    assert environment["COPILOT_CACHE_HOME"] == os.path.join("typed-home", "cache")
-    assert environment["HTTP_PROXY"] == "http://proxy"
-    assert "OLDPWD" not in environment
-    assert "BAD\udcff" not in environment
-    assert environment["UTF8_ENV"] == "caf\u00e9"
-    assert environment["TMPDIR"] == "\ufffd"
-    if platform == "win32":
-        assert "copilot_home" not in environment
-        assert "copilot_sdk_auth_token" not in environment
-        assert "http_proxy" not in environment
-    else:
-        assert environment["http_proxy"] == "http://proxy"
-    assert os.environ == original
 
 
 def test_explicit_child_process_path_does_not_require_runtime_bundle(tmp_path):
@@ -586,489 +374,7 @@ class TestClientStartup:
             await client.force_stop()
 
 
-class TestRelativeCliPath:
-    """The process starts in one directory and the runtime in another.
-
-    The child resolves a relative CLI path from its working directory (node for a
-    script everywhere, the OS for a program on POSIX), so that is the file to check.
-    """
-
-    FORMS = ["script"] if sys.platform == "win32" else ["script", "executable"]
-
-    @staticmethod
-    def _layout(tmp_path, monkeypatch):
-        process_dir, working_dir = tmp_path / "process", tmp_path / "working"
-        process_dir.mkdir()
-        working_dir.mkdir()
-        monkeypatch.chdir(process_dir)
-        return process_dir, working_dir, tmp_path / "ran"
-
-    @staticmethod
-    def _write_stand_in(parent, owner, form, ran, name="runtime") -> str:
-        """Write a stand-in that records which copy ran, then exits; return its file name."""
-        parent.mkdir(parents=True, exist_ok=True)
-        if form == "script":
-            (parent / f"{name}.js").write_text(
-                f"require('node:fs').appendFileSync({json.dumps(str(ran))}, {json.dumps(owner)});"
-            )
-            return f"{name}.js"
-        (parent / name).write_text(f"#!/bin/sh\nprintf {owner} >> '{ran}'\n")
-        (parent / name).chmod(0o755)
-        return name
-
-    def _write_runtime(self, directory, owner, form, ran) -> str:
-        return os.path.join("cli", self._write_stand_in(directory / "cli", owner, form, ran))
-
-    @staticmethod
-    def _client(source, cli_path, working_dir) -> CopilotClient:
-        if source == "path":
-            return CopilotClient(
-                connection=RuntimeConnection.for_stdio(path=cli_path),
-                working_directory=str(working_dir),
-            )
-        return CopilotClient(
-            connection=RuntimeConnection.for_stdio(),
-            env={**os.environ, "COPILOT_CLI_PATH": cli_path},
-            working_directory=str(working_dir),
-        )
-
-    @staticmethod
-    async def _start_and_wait(client) -> None:
-        try:
-            await client._start_cli_server()
-            await asyncio.to_thread(client._process.wait, 10)
-        finally:
-            await client.force_stop()
-
-    @pytest.mark.parametrize("form", FORMS)
-    @pytest.mark.parametrize("source", ["path", "env"])
-    async def test_runtime_only_under_working_directory_is_started(
-        self, tmp_path, monkeypatch, source, form
-    ):
-        _, working_dir, ran = self._layout(tmp_path, monkeypatch)
-        relative_path = self._write_runtime(working_dir, "working", form, ran)
-
-        await self._start_and_wait(self._client(source, relative_path, working_dir))
-
-        assert ran.read_text() == "working"
-
-    @pytest.mark.parametrize("form", FORMS)
-    @pytest.mark.parametrize("source", ["path", "env"])
-    async def test_runtime_under_both_directories_starts_working_directory_copy(
-        self, tmp_path, monkeypatch, source, form
-    ):
-        process_dir, working_dir, ran = self._layout(tmp_path, monkeypatch)
-        self._write_runtime(process_dir, "process", form, ran)
-        relative_path = self._write_runtime(working_dir, "working", form, ran)
-
-        await self._start_and_wait(self._client(source, relative_path, working_dir))
-
-        assert ran.read_text() == "working"
-
-    @pytest.mark.parametrize("form", FORMS)
-    @pytest.mark.parametrize("source", ["path", "env"])
-    async def test_runtime_only_under_process_directory_names_working_directory_path(
-        self, tmp_path, monkeypatch, source, form
-    ):
-        process_dir, working_dir, ran = self._layout(tmp_path, monkeypatch)
-        relative_path = self._write_runtime(process_dir, "process", form, ran)
-        client = self._client(source, relative_path, working_dir)
-
-        try:
-            with pytest.raises(RuntimeError) as error:
-                await client._start_cli_server()
-        finally:
-            await client.force_stop()
-
-        assert str(error.value) == (
-            f"Copilot CLI not found at {os.path.join(str(working_dir), relative_path)}"
-        )
-        assert not ran.exists()
-
-    @pytest.mark.parametrize("form", FORMS)
-    @pytest.mark.parametrize("source", ["path", "env"])
-    async def test_absolute_path_is_started_as_given(self, tmp_path, monkeypatch, source, form):
-        process_dir, working_dir, ran = self._layout(tmp_path, monkeypatch)
-        self._write_runtime(working_dir, "working", form, ran)
-        absolute_path = str(process_dir / self._write_runtime(process_dir, "process", form, ran))
-
-        await self._start_and_wait(self._client(source, absolute_path, working_dir))
-
-        assert ran.read_text() == "process"
-
-    @pytest.mark.parametrize("source", ["path", "env"])
-    async def test_script_normalizes_traversal_through_missing_directory(
-        self, tmp_path, monkeypatch, source
-    ):
-        process_dir, working_dir, ran = self._layout(tmp_path, monkeypatch)
-        (process_dir / "cli").mkdir()
-        self._write_stand_in(process_dir, "process", "script", ran)
-        name = self._write_stand_in(working_dir, "working", "script", ran)
-        relative_path = os.path.join("cli", "..", name)
-
-        await self._start_and_wait(self._client(source, relative_path, working_dir))
-
-        assert ran.read_text() == "working"
-
-    @pytest.mark.skipif(sys.platform == "win32", reason="POSIX working directory symlink")
-    @pytest.mark.parametrize("source", ["path", "env"])
-    async def test_script_normalizes_traversal_after_entering_linked_working_directory(
-        self, tmp_path, monkeypatch, source
-    ):
-        self._layout(tmp_path, monkeypatch)
-        target = tmp_path / "target"
-        project = target / "project"
-        project.mkdir(parents=True)
-        link = tmp_path / "link"
-        link.symlink_to(project, target_is_directory=True)
-        name = self._write_stand_in(target, "target", "script", tmp_path / "ran")
-
-        await self._start_and_wait(self._client(source, f"cli/../../{name}", link))
-
-        assert (tmp_path / "ran").read_text() == "target"
-
-    @pytest.mark.skipif(sys.platform == "win32", reason="POSIX executable path resolution")
-    @pytest.mark.parametrize("source", ["path", "env"])
-    async def test_executable_does_not_normalize_traversal_through_missing_directory(
-        self, tmp_path, monkeypatch, source
-    ):
-        _, working_dir, ran = self._layout(tmp_path, monkeypatch)
-        self._write_stand_in(working_dir, "working", "executable", ran)
-        relative_path = os.path.join("cli", "..", "runtime")
-        client = self._client(source, relative_path, working_dir)
-        try:
-            with pytest.raises(RuntimeError, match="Copilot CLI not found at "):
-                await client._start_cli_server()
-        finally:
-            await client.force_stop()
-
-        assert not ran.exists()
-
-    @pytest.mark.skipif(sys.platform == "win32", reason="POSIX shell stand-in")
-    @pytest.mark.parametrize("source", ["path", "env"])
-    async def test_bare_command_name_keeps_its_path_lookup(self, tmp_path, monkeypatch, source):
-        _, working_dir, ran = self._layout(tmp_path, monkeypatch)
-        bin_dir = tmp_path / "bin"
-        name = self._write_stand_in(bin_dir, "path", "executable", ran, "copilot-stand-in")
-        monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
-
-        await self._start_and_wait(self._client(source, name, working_dir))
-
-        assert ran.read_text() == "path"
-
-    @pytest.mark.skipif(sys.platform != "win32", reason="Windows resolution of a relative program")
-    @pytest.mark.parametrize("source", ["path", "env"])
-    async def test_windows_relative_program_is_checked_from_process_directory(
-        self, tmp_path, monkeypatch, source
-    ):
-        # CreateProcess resolves a relative program from this process's directory,
-        # not from cwd, so the check looks there and the path is passed on as given.
-        process_dir, working_dir, _ = self._layout(tmp_path, monkeypatch)
-        relative_path = os.path.join("cli", "runtime.exe")
-        (process_dir / "cli").mkdir()
-        (process_dir / relative_path).write_bytes(b"")
-        launched = []
-
-        def record(args, **kwargs):
-            launched.append((args[0], kwargs["cwd"]))
-            raise OSError("not launched")
-
-        monkeypatch.setattr(client_module.subprocess, "Popen", record)
-        client = self._client(source, relative_path, working_dir)
-        try:
-            with pytest.raises(OSError, match="not launched"):
-                await client._start_cli_server()
-        finally:
-            await client.force_stop()
-
-        assert launched == [(relative_path, str(working_dir))]
-
-
 class TestClientShutdown:
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize("first_failure", ["create", "resume"])
-    async def test_failed_same_id_create_and_resume_preserve_live_resident(self, first_failure):
-        client = CopilotClient(connection=RuntimeConnection.for_uri("localhost:1234"))
-        rpc = Mock(stop=AsyncMock())
-        client._client = rpc
-        client._state = "connected"
-        resume_started = asyncio.Event()
-        create_started = asyncio.Event()
-        send_started = asyncio.Event()
-        resume_response = asyncio.get_running_loop().create_future()
-        create_response = asyncio.get_running_loop().create_future()
-        create_count = 0
-
-        async def mock_request(method, params, **kwargs):
-            nonlocal create_count
-            if method == "session.create":
-                create_count += 1
-                if create_count > 1:
-                    create_started.set()
-                    return await create_response
-                result = {"sessionId": params["sessionId"]}
-                kwargs["on_response_inline"](result)
-                return result
-            if method == "session.sendAndWait":
-                raise JsonRpcError(-32601, "Method not found")
-            if method == "session.send":
-                send_started.set()
-                return {"messageId": "pending-message"}
-            if method == "session.resume":
-                resume_started.set()
-                return await resume_response
-            raise AssertionError(f"unexpected request {method}")
-
-        rpc.request = mock_request
-        resident = await client.create_session()
-        waiting = asyncio.create_task(resident.send_and_wait("pending response"))
-        resuming = creating = None
-        try:
-            await asyncio.wait_for(send_started.wait(), timeout=5)
-            resuming = asyncio.create_task(client.resume_session(resident.session_id))
-            await asyncio.wait_for(resume_started.wait(), timeout=5)
-            creating = asyncio.create_task(client.create_session(session_id=resident.session_id))
-            await asyncio.wait_for(create_started.wait(), timeout=5)
-            attempts = {
-                "create": (create_response, creating),
-                "resume": (resume_response, resuming),
-            }
-            for name in (first_failure, "resume" if first_failure == "create" else "create"):
-                response, task = attempts[name]
-                response.set_exception(RuntimeError(f"{name} rejected"))
-                with pytest.raises(RuntimeError, match=f"{name} rejected"):
-                    await task
-            assert client._get_session(resident.session_id) is resident
-            resident.on(lambda _: None)
-            for index, (event_type, data) in enumerate(
-                [
-                    (
-                        "user.message",
-                        {"messageId": "pending-message", "content": "pending response"},
-                    ),
-                    ("session.idle", {}),
-                ]
-            ):
-                client._handle_notification(
-                    "session.event",
-                    {
-                        "sessionId": resident.session_id,
-                        "event": {
-                            "id": f"00000000-0000-4000-8000-{index:012d}",
-                            "timestamp": "2026-01-01T00:00:00Z",
-                            "type": event_type,
-                            "data": data,
-                            "parentId": None,
-                        },
-                    },
-                )
-            assert await asyncio.wait_for(waiting, timeout=5) is None
-        finally:
-            tasks = [task for task in (resuming, creating, waiting) if task is not None]
-            for task in tasks:
-                if not task.done():
-                    task.cancel()
-            await asyncio.gather(*tasks, return_exceptions=True)
-            await client.force_stop()
-
-    @pytest.mark.asyncio
-    async def test_shutdown_retires_resident_when_recovery_resume_is_unsupported(self):
-        client = CopilotClient(connection=RuntimeConnection.for_uri("localhost:1234"))
-        rpc = Mock(stop=AsyncMock())
-        client._client = rpc
-        client._state = "connected"
-        resume_started = asyncio.Event()
-        send_started = asyncio.Event()
-        detach_started = asyncio.Event()
-        release_detach = asyncio.Event()
-        resume_response = asyncio.get_running_loop().create_future()
-
-        async def mock_request(method, params, **kwargs):
-            if method == "session.create":
-                result = {"sessionId": params["sessionId"]}
-                kwargs["on_response_inline"](result)
-                return result
-            if method == "session.sendAndWait":
-                raise JsonRpcError(-32601, "Method not found")
-            if method == "session.send":
-                send_started.set()
-                return {"messageId": "pending-message"}
-            if method == "session.resume":
-                resume_started.set()
-                return await resume_response
-            if method == "session.detach":
-                detach_started.set()
-                await release_detach.wait()
-                return {"success": True}
-            raise AssertionError(f"unexpected request {method}")
-
-        rpc.request = mock_request
-        resident = await client.create_session()
-        waiting = asyncio.create_task(resident.send_and_wait("pending response"))
-        resuming = stopping = None
-        try:
-            await asyncio.wait_for(send_started.wait(), timeout=5)
-            resuming = asyncio.create_task(
-                client.resume_session(
-                    resident.session_id,
-                    auto_mode_recovery=True,
-                    on_auto_mode_switch_request=lambda _request, _invocation: "no",
-                )
-            )
-            await asyncio.wait_for(resume_started.wait(), timeout=5)
-            stopping = asyncio.create_task(client.stop())
-            await asyncio.wait_for(detach_started.wait(), timeout=5)
-            resume_response.set_result({"sessionId": resident.session_id})
-            with pytest.raises(RuntimeError, match="does not support auto_mode_recovery"):
-                await resuming
-            release_detach.set()
-            await stopping
-            with pytest.raises(RuntimeError, match="disconnected"):
-                resident.on(lambda _: None)
-            with pytest.raises(RuntimeError, match="Session closed"):
-                await asyncio.wait_for(waiting, timeout=5)
-            assert client._get_session(resident.session_id) is None
-        finally:
-            release_detach.set()
-            tasks = [task for task in (resuming, stopping, waiting) if task is not None]
-            for task in tasks:
-                if not task.done():
-                    task.cancel()
-            await asyncio.gather(*tasks, return_exceptions=True)
-            await client.force_stop()
-
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize("first_failure", [0, 1])
-    async def test_overlapping_failed_resumes_restore_live_resident(self, first_failure):
-        client = CopilotClient(connection=RuntimeConnection.for_uri("localhost:1234"))
-        rpc = Mock(stop=AsyncMock())
-        client._client = rpc
-        client._state = "connected"
-        responses = [asyncio.get_running_loop().create_future() for _ in range(2)]
-        started = [asyncio.Event(), asyncio.Event()]
-        send_started = asyncio.Event()
-        resume_count = 0
-
-        async def mock_request(method, params, **kwargs):
-            nonlocal resume_count
-            if method == "session.create":
-                result = {"sessionId": params["sessionId"]}
-                kwargs["on_response_inline"](result)
-                return result
-            if method == "session.sendAndWait":
-                raise JsonRpcError(-32601, "Method not found")
-            if method == "session.send":
-                send_started.set()
-                return {"messageId": "pending-message"}
-            if method == "session.resume":
-                index = resume_count
-                resume_count += 1
-                started[index].set()
-                return await responses[index]
-            raise AssertionError(f"unexpected request {method}")
-
-        rpc.request = mock_request
-        resident = await client.create_session()
-        waiting = asyncio.create_task(resident.send_and_wait("pending response"))
-        resumes = []
-        try:
-            await asyncio.wait_for(send_started.wait(), timeout=5)
-            for index in range(2):
-                resumes.append(asyncio.create_task(client.resume_session(resident.session_id)))
-                await asyncio.wait_for(started[index].wait(), timeout=5)
-            for index in (first_failure, 1 - first_failure):
-                responses[index].set_exception(RuntimeError("resume rejected"))
-                with pytest.raises(RuntimeError, match="resume rejected"):
-                    await resumes[index]
-                resident.on(lambda _: None)
-            assert client._get_session(resident.session_id) is resident
-            for index, (event_type, data) in enumerate(
-                [
-                    (
-                        "user.message",
-                        {"messageId": "pending-message", "content": "pending response"},
-                    ),
-                    ("session.idle", {}),
-                ]
-            ):
-                client._handle_notification(
-                    "session.event",
-                    {
-                        "sessionId": resident.session_id,
-                        "event": {
-                            "id": f"00000000-0000-4000-8000-{index:012d}",
-                            "timestamp": "2026-01-01T00:00:00Z",
-                            "type": event_type,
-                            "data": data,
-                            "parentId": None,
-                        },
-                    },
-                )
-            assert await asyncio.wait_for(waiting, timeout=5) is None
-        finally:
-            for task in (*resumes, waiting):
-                if not task.done():
-                    task.cancel()
-            await asyncio.gather(*resumes, waiting, return_exceptions=True)
-            await client.force_stop()
-
-    @pytest.mark.asyncio
-    async def test_failed_resume_and_queued_delete_retire_resident(self):
-        client = CopilotClient(connection=RuntimeConnection.for_uri("localhost:1234"))
-        rpc = Mock(stop=AsyncMock())
-        client._client = rpc
-        client._state = "connected"
-        resume_started = asyncio.Event()
-        send_started = asyncio.Event()
-        resume_response = asyncio.get_running_loop().create_future()
-
-        async def mock_request(method, params, **kwargs):
-            if method == "session.create":
-                result = {"sessionId": params["sessionId"]}
-                kwargs["on_response_inline"](result)
-                return result
-            if method == "session.sendAndWait":
-                raise JsonRpcError(-32601, "Method not found")
-            if method == "session.send":
-                send_started.set()
-                return {"messageId": "pending-message"}
-            if method == "session.resume":
-                resume_started.set()
-                return await resume_response
-            if method == "session.delete":
-                return {"success": True}
-            raise AssertionError(f"unexpected request {method}")
-
-        rpc.request = mock_request
-        resident = await client.create_session()
-        waiting = asyncio.create_task(resident.send_and_wait("pending response"))
-        resuming = None
-        deleting = None
-        try:
-            await asyncio.wait_for(send_started.wait(), timeout=5)
-            resuming = asyncio.create_task(client.resume_session(resident.session_id))
-            await asyncio.wait_for(resume_started.wait(), timeout=5)
-            deleting = asyncio.create_task(client.delete_session(resident.session_id))
-            resume_response.set_exception(RuntimeError("resume rejected"))
-            with pytest.raises(RuntimeError, match="resume rejected"):
-                await resuming
-            await deleting
-
-            assert client._get_session(resident.session_id) is None
-            with pytest.raises(RuntimeError, match="disconnected"):
-                resident.on(lambda _: None)
-            with pytest.raises(RuntimeError, match="Session closed"):
-                await asyncio.wait_for(waiting, timeout=5)
-        finally:
-            for task in (resuming, deleting, waiting):
-                if task is not None and not task.done():
-                    task.cancel()
-            await asyncio.gather(
-                *(task for task in (resuming, deleting, waiting) if task is not None),
-                return_exceptions=True,
-            )
-            await client.force_stop()
-
     @pytest.mark.asyncio
     @pytest.mark.parametrize("shutdown", ["stop", "force_stop"])
     @pytest.mark.parametrize("restart", [False, True])
@@ -1196,71 +502,6 @@ class TestClientShutdown:
         process.wait.assert_called_once_with(timeout=10)
         process.terminate.assert_not_called()
         process.kill.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_stop_still_shuts_down_runtime_when_session_detach_never_answers(
-        self, monkeypatch
-    ):
-        calls: list[str] = []
-        process = Mock()
-        process.poll.side_effect = [None, 0]
-        process.wait.return_value = 0
-
-        class Runtime:
-            async def shutdown(self, *, timeout=None):
-                calls.append("runtime.shutdown")
-
-        async def detach(method, params):
-            assert method == "session.detach"
-            calls.append(f"session.detach {params['sessionId']}")
-            await asyncio.Event().wait()
-
-        monkeypatch.setattr(client_module, "_RUNTIME_SHUTDOWN_TIMEOUT_SECONDS", 0.2)
-        client = CopilotClient(connection=RuntimeConnection.for_stdio(path="copilot"))
-        client._rpc = Mock(runtime=Runtime())
-        client._process = process
-        client._cli_process = process
-        client._is_external_server = False
-        sessions = [
-            CopilotSession(session_id, Mock(request=AsyncMock(side_effect=detach)))
-            for session_id in ("first", "second")
-        ]
-        client._sessions = {session.session_id: session for session in sessions}
-        tasks = []
-        for session in sessions:
-            started = asyncio.Event()
-
-            async def blocked(started=started):
-                started.set()
-                await asyncio.Future()
-
-            task = asyncio.create_task(blocked())
-            tasks.append(task)
-            session._pending_external_tools["request-1"] = task
-            await asyncio.wait_for(started.wait(), timeout=1)
-
-        try:
-            with pytest.raises(ExceptionGroup) as raised:
-                await asyncio.wait_for(client.stop(), timeout=5)
-
-            assert calls[0] == "session.detach first"
-            assert calls[-1] == "runtime.shutdown"
-            assert [error.message for error in raised.value.exceptions] == [
-                f"Failed to disconnect session {session_id}: session.detach did not complete "
-                "within the 0.2s shutdown timeout"
-                for session_id in ("first", "second")
-            ]
-            assert client._sessions == {}
-            process.stdin.close.assert_called_once()
-            for session in sessions:
-                with pytest.raises(RuntimeError, match="disconnected"):
-                    session.on(lambda _: None)
-            await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=1)
-            assert all(task.cancelled() for task in tasks)
-        finally:
-            for task in tasks:
-                task.cancel()
-            await asyncio.gather(*tasks, return_exceptions=True)
 
     @pytest.mark.asyncio
     async def test_force_stop_and_external_stop_do_not_request_runtime_shutdown(self):
@@ -1746,147 +987,6 @@ class TestCreateSessionConfig:
             )
             assert create_payload["additionalDirectories"] == ["/repo/shared", "/repo/generated"]
             assert resume_payload["additionalDirectories"] == ["/repo/resumed"]
-        finally:
-            await client.force_stop()
-
-    @staticmethod
-    def _mock_session_requests(client, *, detach_success=True):
-        async def mock_request(method, params, **kwargs):
-            if method in ("session.create", "session.resume"):
-                result = {"sessionId": params["sessionId"], "workspacePath": None}
-                callback = kwargs.get("on_response_inline")
-                if callback is not None:
-                    callback(result)
-                return result
-            if method == "session.detach":
-                return {"success": True} if detach_success else {"success": False, "error": "busy"}
-            raise AssertionError(f"unexpected request {method}")
-
-        client._client.request = mock_request
-
-    @pytest.mark.asyncio
-    async def test_disconnect_stops_tracking_session_but_keeps_resumed_replacement(self):
-        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
-        await client.start()
-        try:
-            self._mock_session_requests(client)
-
-            created = await client.create_session()
-            session_id = created.session_id
-            assert client._get_session(session_id) is created
-            await created.disconnect()
-            assert client._get_session(session_id) is None
-
-            replaced = await client.resume_session(session_id)
-            replacement = await client.resume_session(session_id)
-            assert client._get_session(session_id) is replacement
-            await replaced.disconnect()
-            assert client._get_session(session_id) is replacement
-            await replacement.disconnect()
-            assert client._get_session(session_id) is None
-        finally:
-            await client.force_stop()
-
-    @pytest.mark.asyncio
-    async def test_failed_resume_does_not_restore_disconnected_session(self):
-        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
-        client._client = Mock(stop=AsyncMock())
-        client._state = "connected"
-        self._mock_session_requests(client)
-        try:
-            resident = await client.create_session()
-            request = client._client.request
-
-            async def fail_resume(method, params, **kwargs):
-                if method == "session.resume":
-                    await resident.disconnect()
-                    raise RuntimeError("resume rejected")
-                return await request(method, params, **kwargs)
-
-            client._client.request = fail_resume
-            with pytest.raises(RuntimeError, match="resume rejected"):
-                await client.resume_session(resident.session_id)
-            assert client._get_session(resident.session_id) is None
-        finally:
-            await client.force_stop()
-
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize("shutdown", ["stop", "force_stop"])
-    @pytest.mark.parametrize("restart", [False, True])
-    async def test_failed_resume_retires_displaced_resident_after_shutdown(self, shutdown, restart):
-        client = CopilotClient(connection=RuntimeConnection.for_uri("localhost:1234"))
-        rpc = Mock(stop=AsyncMock())
-        client._client = rpc
-        client._state = "connected"
-        self._mock_session_requests(client)
-        resume_started = asyncio.Event()
-        send_started = asyncio.Event()
-        resume_response = asyncio.get_running_loop().create_future()
-        request = rpc.request
-
-        async def mock_request(method, params, **kwargs):
-            if method == "session.sendAndWait":
-                raise JsonRpcError(-32601, "Method not found")
-            if method == "session.resume":
-                resume_started.set()
-                return await resume_response
-            if method == "session.send":
-                send_started.set()
-                return {"messageId": "pending-message"}
-            return await request(method, params, **kwargs)
-
-        rpc.request = mock_request
-        resident = await client.create_session()
-        waiting = asyncio.create_task(resident.send_and_wait("pending response"))
-        resuming = None
-        try:
-            await asyncio.wait_for(send_started.wait(), timeout=5)
-            resuming = asyncio.create_task(client.resume_session(resident.session_id))
-            await asyncio.wait_for(resume_started.wait(), timeout=5)
-            await getattr(client, shutdown)()
-            replacement = None
-            if restart:
-                next_rpc = Mock(stop=AsyncMock())
-
-                async def connect():
-                    client._client = next_rpc
-
-                client._connect_to_server = AsyncMock(side_effect=connect)
-                client._verify_protocol_version = AsyncMock()
-                await client.start()
-                self._mock_session_requests(client)
-                replacement = await client.create_session(session_id=resident.session_id)
-
-            resume_response.set_exception(RuntimeError("resume rejected"))
-            with pytest.raises(RuntimeError, match="resume rejected"):
-                await resuming
-            with pytest.raises(RuntimeError, match="disconnected"):
-                resident.on(lambda _: None)
-            with pytest.raises(RuntimeError, match="Session closed"):
-                await asyncio.wait_for(waiting, timeout=5)
-            assert client._get_session(resident.session_id) is replacement
-            if replacement is not None:
-                replacement.on(lambda _: None)
-        finally:
-            for task in (resuming, waiting):
-                if task is not None and not task.done():
-                    task.cancel()
-            await asyncio.gather(
-                *(task for task in (resuming, waiting) if task is not None), return_exceptions=True
-            )
-            await client.force_stop()
-
-    @pytest.mark.asyncio
-    async def test_failed_disconnect_keeps_session_tracked(self):
-        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
-        await client.start()
-        try:
-            self._mock_session_requests(client, detach_success=False)
-
-            session = await client.create_session()
-            with pytest.raises(RuntimeError, match="busy"):
-                await session.disconnect()
-            assert client._get_session(session.session_id) is session
         finally:
             await client.force_stop()
 
@@ -2407,7 +1507,6 @@ class TestCreateSessionConfig:
                 create_session_fs_handler=create_provider,
             )
         )
-        resumption = None
         try:
             await asyncio.wait_for(provider_started.wait(), timeout=5)
             creation.cancel()
@@ -2420,28 +1519,12 @@ class TestCreateSessionConfig:
                 provider = Mock(spec=SessionFsProvider)
                 provider.read_file_bytes = AsyncMock(return_value=b"image")
                 provider.write_file_bytes = AsyncMock()
-                resumption = asyncio.create_task(
-                    client.resume_session(
-                        "server-assigned-session", create_session_fs_handler=lambda _: provider
-                    )
+                successor = await client.resume_session(
+                    "server-assigned-session", create_session_fs_handler=lambda _: provider
                 )
-                async with asyncio.timeout(5):
-                    while True:
-                        if resumption.done():
-                            pytest.fail(
-                                f"Resume overtook provider validation: {resumption.result()!r}"
-                            )
-                        with client._sessions_lock:
-                            lock = client._session_initializations.get("server-assigned-session")
-                            if lock is not None and lock.users >= 2:
-                                break
-                        await asyncio.sleep(0)
-                assert not any(method == "session.resume" for method, _ in requests)
 
             release_provider.set()
             await asyncio.wait_for(callback_finished.wait(), timeout=5)
-            if resumption is not None:
-                successor = await asyncio.wait_for(resumption, timeout=5)
             if valid_provider:
                 assert not delete_called.is_set()
             else:
@@ -2463,9 +1546,6 @@ class TestCreateSessionConfig:
             if not creation.done():
                 creation.cancel()
                 await asyncio.gather(creation, return_exceptions=True)
-            if resumption is not None and not resumption.done():
-                resumption.cancel()
-                await asyncio.gather(resumption, return_exceptions=True)
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("operation", ["create", "resume"])
@@ -2839,54 +1919,6 @@ class TestCreateSessionConfig:
             await client.force_stop()
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("permission_mode", [None, *PermissionMode])
-    async def test_create_and_resume_session_forward_permission_mode(self, permission_mode):
-        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
-        await client.start()
-        try:
-            captured = {}
-
-            async def mock_request(method, params, **kwargs):
-                captured[method] = params
-                if method in ("session.create", "session.resume"):
-                    result = {"sessionId": params.get("sessionId") or "session-1"}
-                    if "permissionMode" in params:
-                        # A refused result proves the SDK surfaces the outcome,
-                        # not the request.
-                        result["permissionModeResult"] = {"success": False, "mode": "manual"}
-                    callback = kwargs.get("on_response_inline")
-                    if callback is not None:
-                        callback(result)
-                    return result
-                return {}
-
-            client._client.request = mock_request
-            session = await client.create_session(
-                on_permission_request=PermissionHandler.approve_all,
-                permission_mode=permission_mode,
-            )
-            resumed = await client.resume_session(
-                session.session_id,
-                on_permission_request=PermissionHandler.approve_all,
-                permission_mode=permission_mode,
-            )
-
-            for method in ("session.create", "session.resume"):
-                if permission_mode is None:
-                    assert "permissionMode" not in captured[method]
-                else:
-                    assert captured[method]["permissionMode"] == permission_mode.value
-            for opened in (session, resumed):
-                if permission_mode is None:
-                    assert opened.permission_mode_result is None
-                else:
-                    assert opened.permission_mode_result is not None
-                    assert opened.permission_mode_result.success is False
-                    assert opened.permission_mode_result.mode == PermissionMode.MANUAL
-        finally:
-            await client.force_stop()
-
-    @pytest.mark.asyncio
     async def test_create_and_resume_session_default_enable_experimental_mode_by_mode(self):
         with TemporaryDirectory() as base_directory:
             client = CopilotClient(
@@ -3059,7 +2091,7 @@ class TestCreateSessionConfig:
             await client.force_stop()
 
     @pytest.mark.asyncio
-    async def test_create_and_resume_session_forward_tool_is_terminal_and_annotations(self):
+    async def test_create_and_resume_session_forward_tool_is_terminal(self):
         client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
         try:
@@ -3076,12 +2108,7 @@ class TestCreateSessionConfig:
                 return {}
 
             client._client.request = mock_request
-            tool = Tool(
-                name="my_tool",
-                description="a tool",
-                is_terminal=True,
-                idempotent=True,
-            )
+            tool = Tool(name="my_tool", description="a tool", is_terminal=True)
             plain_tool = Tool(name="plain_tool", description="a tool")
 
             session = await client.create_session(
@@ -3099,10 +2126,6 @@ class TestCreateSessionConfig:
             # Omitted when left at its default.
             assert "isTerminal" not in create_tools[1]
             assert captured["session.resume"]["tools"][0]["isTerminal"] is True
-            for key in ("idempotent",):
-                assert create_tools[0][key] is True
-                assert key not in create_tools[1]
-                assert captured["session.resume"]["tools"][0][key] is True
         finally:
             await client.force_stop()
 
@@ -3248,18 +2271,6 @@ class TestCreateSessionConfig:
                 {"auto_tier": "balance", "enable_web_socket_responses": True},
                 {"autoTier": "balance", "enableWebSocketResponses": False},
                 {"autoTier": "balance", "enableWebSocketResponses": True},
-            ),
-            (
-                {"fusion_tier": "high"},
-                {"fusion_tier": "standard"},
-                {"fusionTier": "high"},
-                {"fusionTier": "standard"},
-            ),
-            (
-                {"fusion_tier": FusionTierEnum.MAX},
-                {"fusion_tier": FusionTierEnum.STANDARD},
-                {"fusionTier": "max"},
-                {"fusionTier": "standard"},
             ),
         ],
     )
@@ -3540,52 +2551,6 @@ class TestCreateSessionConfig:
             await client.force_stop()
 
     @pytest.mark.asyncio
-    async def test_create_and_resume_session_forward_explicit_empty_commands(self):
-        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
-        await client.start()
-        try:
-            captured = {}
-
-            async def mock_request(method, params, **kwargs):
-                captured[method] = params
-                if method in ("session.create", "session.resume"):
-                    result = {"sessionId": params.get("sessionId") or "session-1"}
-                    callback = kwargs.get("on_response_inline")
-                    if callback is not None:
-                        callback(result)
-                    return result
-                return {}
-
-            client._client.request = mock_request
-
-            # An explicitly empty list must reach the runtime: on resume it replaces
-            # the session's slash commands with none, which omitting the key cannot
-            # express.
-            session = await client.create_session(
-                on_permission_request=PermissionHandler.approve_all,
-                commands=[],
-            )
-            await client.resume_session(
-                session.session_id,
-                on_permission_request=PermissionHandler.approve_all,
-                commands=[],
-            )
-            assert captured["session.create"]["commands"] == []
-            assert captured["session.resume"]["commands"] == []
-
-            omitted_session = await client.create_session(
-                on_permission_request=PermissionHandler.approve_all,
-            )
-            await client.resume_session(
-                omitted_session.session_id,
-                on_permission_request=PermissionHandler.approve_all,
-            )
-            assert "commands" not in captured["session.create"]
-            assert "commands" not in captured["session.resume"]
-        finally:
-            await client.force_stop()
-
-    @pytest.mark.asyncio
     async def test_create_and_resume_session_forward_memory(self):
         client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
@@ -3768,6 +2733,80 @@ class TestCreateSessionConfig:
             assert captured["session.resume"]["featureFlags"] == feature_flags
         finally:
             await client.force_stop()
+
+
+class TestURLParsing:
+    def test_parse_port_only_url(self):
+        client = CopilotClient(connection=RuntimeConnection.for_uri("8080"))
+        assert client._runtime_port == 8080
+        assert client._actual_host == "localhost"
+        assert client._is_external_server
+
+    def test_parse_host_port_url(self):
+        client = CopilotClient(connection=RuntimeConnection.for_uri("127.0.0.1:9000"))
+        assert client._runtime_port == 9000
+        assert client._actual_host == "127.0.0.1"
+        assert client._is_external_server
+
+    def test_parse_bracketed_ipv6_host_port_url(self):
+        client = CopilotClient(connection=RuntimeConnection.for_uri("[::1]:9000"))
+        assert client._runtime_port == 9000
+        assert client._actual_host == "::1"
+        assert client._is_external_server
+
+    def test_parse_http_url(self):
+        client = CopilotClient(connection=RuntimeConnection.for_uri("http://localhost:7000"))
+        assert client._runtime_port == 7000
+        assert client._actual_host == "localhost"
+        assert client._is_external_server
+
+    def test_parse_http_ipv6_url(self):
+        client = CopilotClient(connection=RuntimeConnection.for_uri("http://[::1]:7000"))
+        assert client._runtime_port == 7000
+        assert client._actual_host == "::1"
+        assert client._is_external_server
+
+    def test_reject_bracketed_non_ipv6_host(self):
+        with pytest.raises(ValueError, match="Invalid cli_url format"):
+            CopilotClient(connection=RuntimeConnection.for_uri("[not-ipv6]:1234"))
+
+    def test_parse_https_url(self):
+        client = CopilotClient(connection=RuntimeConnection.for_uri("https://example.com:443"))
+        assert client._runtime_port == 443
+        assert client._actual_host == "example.com"
+        assert client._is_external_server
+
+    def test_invalid_url_format(self):
+        with pytest.raises(ValueError, match="Invalid cli_url format"):
+            CopilotClient(connection=RuntimeConnection.for_uri("invalid-url"))
+
+    def test_invalid_port_too_high(self):
+        with pytest.raises(ValueError, match="Invalid port in cli_url"):
+            CopilotClient(connection=RuntimeConnection.for_uri("localhost:99999"))
+
+    def test_invalid_port_zero(self):
+        with pytest.raises(ValueError, match="Invalid port in cli_url"):
+            CopilotClient(connection=RuntimeConnection.for_uri("localhost:0"))
+
+    def test_invalid_port_negative(self):
+        with pytest.raises(ValueError, match="Invalid port in cli_url"):
+            CopilotClient(connection=RuntimeConnection.for_uri("localhost:-1"))
+
+    def test_is_external_server_true(self):
+        client = CopilotClient(connection=RuntimeConnection.for_uri("localhost:8080"))
+        assert client._is_external_server
+
+    @pytest.mark.asyncio
+    async def test_connect_via_tcp_uses_family_independent_resolution(self):
+        client = CopilotClient(connection=RuntimeConnection.for_uri("[::1]:9000"))
+        fake_socket = Mock()
+        fake_socket.makefile.return_value = Mock()
+
+        with patch("socket.create_connection", return_value=fake_socket) as create_connection:
+            await client._connect_via_tcp()
+
+        create_connection.assert_called_once_with(("::1", 9000), timeout=10)
+        client._process.terminate()
 
 
 class TestSessionEventRouting:
@@ -3998,7 +3037,6 @@ class TestOverridesBuiltInTool:
             assert len(tool_defs) == 1
             assert tool_defs[0]["name"] == "grep"
             assert tool_defs[0]["overridesBuiltInTool"] is True
-            assert tool_defs[0]["hasHandler"] is True
         finally:
             await client.force_stop()
 
@@ -4034,7 +3072,6 @@ class TestOverridesBuiltInTool:
             tool_defs = captured["session.resume"]["tools"]
             assert len(tool_defs) == 1
             assert tool_defs[0]["overridesBuiltInTool"] is True
-            assert tool_defs[0]["hasHandler"] is True
         finally:
             await client.force_stop()
 

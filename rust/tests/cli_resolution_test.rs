@@ -10,29 +10,23 @@
 
 use std::path::PathBuf;
 
-#[cfg(feature = "runtime")]
+#[cfg(any(
+    all(feature = "bundled-cli", has_bundled_cli),
+    all(not(feature = "bundled-cli"), has_extracted_cli)
+))]
 use github_copilot_sdk::ErrorKind;
-#[cfg(all(feature = "bundled-cli", has_bundled_cli))]
-use github_copilot_sdk::SessionConfig;
 use github_copilot_sdk::{
-    CliProgram, Client, ClientOptions, HAS_BUNDLED_CLI, Transport, install_bundled_cli,
+    CliProgram, Client, ClientOptions, HAS_BUNDLED_CLI, install_bundled_cli,
     install_bundled_runtime,
 };
+#[cfg(all(feature = "bundled-cli", has_bundled_cli))]
+use github_copilot_sdk::{SessionConfig, Transport};
 use serial_test::serial;
-
-#[cfg(feature = "runtime")]
-#[allow(dead_code)]
-#[path = "support/fake_runtime.rs"]
-mod fake_runtime;
 
 #[cfg(all(not(feature = "bundled-cli"), has_extracted_cli))]
 #[allow(dead_code)]
 #[path = "../src/platform_dirs/mod.rs"]
 mod platform_dirs;
-
-#[cfg(all(not(feature = "bundled-cli"), has_extracted_cli))]
-#[path = "../src/cache_paths.rs"]
-mod cache_paths;
 
 fn unset_env(key: &str) {
     // SAFETY: these tests are serialized with #[serial(copilot_cli_path)]
@@ -68,9 +62,7 @@ async fn env_override_resolves_to_pointed_file() {
         "COPILOT_CLI_PATH",
         path.to_str().expect("utf-8 tempfile path"),
     );
-    let opts = ClientOptions::default()
-        .with_program(CliProgram::Resolve)
-        .with_transport(Transport::Stdio);
+    let opts = ClientOptions::default().with_program(CliProgram::Resolve);
 
     // `Client::start` reads the env var via resolve.rs. We don't want to
     // actually launch a subprocess against our empty temp file, so go
@@ -97,175 +89,38 @@ async fn env_override_resolves_to_pointed_file() {
     let _ = path;
 }
 
-/// Owned runtimes honor the effective CLI selection; external servers ignore it.
-#[cfg(feature = "runtime")]
+/// A stale (non-existent) COPILOT_CLI_PATH falls through to the next
+/// resolution source (embed or dev) rather than failing outright.
+#[cfg(any(
+    all(feature = "bundled-cli", has_bundled_cli),
+    all(not(feature = "bundled-cli"), has_extracted_cli)
+))]
 #[tokio::test(flavor = "current_thread")]
-async fn cli_selection_respects_transport_and_environment() {
-    const CHILD_TRANSPORT: &str = "COPILOT_RESOLUTION_TEST_TRANSPORT";
-    if let Ok(transport) = std::env::var(CHILD_TRANSPORT) {
-        let cli_path = std::env::var("COPILOT_CLI_PATH").expect("explicit path");
-        let fallback =
-            std::env::var("COPILOT_CLI_EXTRACT_DIR").expect("owned extraction directory");
-        let mut options = ClientOptions::default()
-            .with_program(CliProgram::Resolve)
-            .with_bundled_cli_extract_dir(&fallback)
-            .with_base_directory(PathBuf::from(&fallback).join("home"))
-            .with_use_logged_in_user(false);
-        if transport == "external" {
-            let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
-                .await
-                .expect("owned external server");
-            let port = listener.local_addr().expect("server address").port();
-            let server = async {
-                let (mut stream, _) = listener.accept().await.expect("external connection");
-                let connect = fake_runtime::read_frame(&mut stream).await;
-                assert_eq!(connect["method"], "connect");
-                fake_runtime::write_frame(
-                    &mut stream,
-                    serde_json::json!({
-                        "jsonrpc": "2.0", "id": connect["id"],
-                        "result": { "ok": true, "protocolVersion": 3, "version": "test" }
-                    }),
-                )
-                .await;
-                stream
-            };
-            let start = async {
-                Client::start(options.with_transport(Transport::External {
-                    host: "127.0.0.1".into(),
-                    port,
-                    connection_token: None,
-                }))
-                .await
-                .expect("external transport ignores local CLI selection")
-            };
-            let (client, _server) =
-                tokio::time::timeout(std::time::Duration::from_secs(10), async {
-                    tokio::join!(start, server)
-                })
-                .await
-                .expect("external handshake must complete");
-            client.stop().await.expect("stop external client");
-            return;
-        }
-        let mut selected_path = cli_path.clone();
-        let relative_child = transport == "child-relative";
-        let valid_child = transport == "child-valid" || relative_child;
-        if transport == "child-override" || valid_child {
-            selected_path = PathBuf::from(&fallback)
-                .join("child-copilot")
-                .to_string_lossy()
-                .into_owned();
-            if valid_child {
-                std::fs::create_dir_all(&fallback).expect("owned CLI directory");
-                std::fs::write(&selected_path, b"not an executable")
-                    .expect("selected but unlaunchable CLI");
-            }
-            if relative_child {
-                options = options
-                    .with_cwd(transport.as_str())
-                    .with_env([("COPILOT_CLI_PATH", "./child-copilot")]);
-            } else {
-                options = options.with_env([("COPILOT_CLI_PATH", &selected_path)]);
-            }
-        } else if transport == "child-remove" {
-            options = options.with_env_remove(["COPILOT_CLI_PATH"]);
-        }
-        let transport = match transport.as_str() {
-            "stdio" | "child-override" | "child-valid" | "child-relative" | "child-remove" => {
-                Transport::Stdio
-            }
-            "tcp" => Transport::Tcp {
-                port: 0,
-                connection_token: None,
-            },
-            #[cfg(feature = "in-process")]
-            "inprocess" => Transport::InProcess,
-            other => panic!("unexpected transport: {other}"),
-        };
-        let removed = !options.env_remove.is_empty();
-        let result = Client::start(options.with_transport(transport)).await;
-        if removed {
-            result
-                .expect("removed host override permits bundled discovery")
-                .stop()
-                .await
-                .expect("stop bundled runtime");
-            return;
-        }
-        let error = match result {
-            Ok(client) => {
-                client.stop().await.expect("stop substituted runtime");
-                panic!("an invalid explicit path started a different runtime");
-            }
-            Err(error) => error,
-        };
-        if valid_child {
-            assert!(matches!(error.kind(), ErrorKind::Io), "{error}");
-        } else {
-            assert!(
-                matches!(error.kind(), ErrorKind::BinaryNotFound { .. }),
-                "{error}"
-            );
-        }
-        let message = error.to_string();
-        if !valid_child {
-            assert!(message.contains("COPILOT_CLI_PATH"), "{message}");
-        }
-        assert!(message.contains(&selected_path), "{message}");
-        return;
-    }
+#[serial(copilot_cli_path)]
+async fn stale_env_override_falls_through() {
+    set_env("COPILOT_CLI_PATH", "/definitely/does/not/exist/copilot");
+    let opts = ClientOptions::default().with_program(CliProgram::Resolve);
+    let result = Client::start(opts).await;
+    unset_env("COPILOT_CLI_PATH");
 
-    let temp = tempfile::tempdir().expect("owned process environment");
-    let transports = [
-        "stdio",
-        "tcp",
-        "external",
-        "child-override",
-        "child-valid",
-        "child-relative",
-        #[cfg(all(feature = "bundled-cli", has_bundled_cli))]
-        "child-remove",
-        #[cfg(feature = "in-process")]
-        "inprocess",
-    ];
-    for transport in transports {
-        let mut command =
-            tokio::process::Command::new(std::env::current_exe().expect("test binary"));
-        command
-            .args([
-                "--exact",
-                "cli_selection_respects_transport_and_environment",
-                "--nocapture",
-            ])
-            .env(CHILD_TRANSPORT, transport)
-            .env("COPILOT_CLI_PATH", temp.path().join("missing-copilot"))
-            .env("COPILOT_CLI_EXTRACT_DIR", temp.path().join(transport))
-            .kill_on_drop(true);
-        if transport == "child-relative" {
-            command.current_dir(temp.path());
-        }
-        let output = tokio::time::timeout(std::time::Duration::from_secs(60), command.output())
-            .await
-            .expect("resolver child must exit")
-            .expect("run resolver child");
+    // In a normally-configured build (either `bundled-cli` on or off)
+    // the resolver should find a binary via the next source. Failing
+    // here would mean fallthrough is broken.
+    if let Err(e) = &result {
         assert!(
-            output.status.success(),
-            "{transport}: stdout:\n{}\nstderr:\n{}",
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr)
+            !matches!(e.kind(), ErrorKind::BinaryNotFound { .. }),
+            "stale COPILOT_CLI_PATH should fall through; got BinaryNotFound: {e}"
         );
     }
 }
 
 /// With `bundled-cli` off, `build.rs` extracts the runtime wrapper into the
-/// protected cache and the runtime resolver recomputes its location from
+/// per-user cache and the runtime resolver recomputes its location from
 /// `COPILOT_SDK_CLI_CACHE_ID` + the OS-derived binary name. This test
 /// mirrors that convention and asserts the file is on disk where the
 /// resolver expects to find it.
 #[cfg(all(not(feature = "bundled-cli"), has_extracted_cli))]
 #[test]
-#[serial(copilot_cli_path)]
 fn extracted_binary_present_at_conventional_path() {
     let cache_identity = env!("COPILOT_SDK_CLI_CACHE_ID");
     let binary = if cfg!(windows) {
@@ -273,14 +128,29 @@ fn extracted_binary_present_at_conventional_path() {
     } else {
         "copilot-runtime"
     };
-    let path = cache_paths::extracted_runtime_install_dir(cache_identity)
-        .expect("protected extraction directory")
+    let sanitized = sanitize_cache_identity_for_test(cache_identity);
+    let path = platform_dirs::cache_dir()
+        .unwrap_or_else(std::env::temp_dir)
+        .join("github-copilot-sdk")
+        .join("runtime")
+        .join(sanitized)
         .join(binary);
     assert!(
         path.is_file(),
         "expected build.rs to extract the CLI to {} (`bundled-cli` off)",
         path.display()
     );
+}
+
+#[cfg(all(not(feature = "bundled-cli"), has_extracted_cli))]
+fn sanitize_cache_identity_for_test(cache_identity: &str) -> String {
+    cache_identity
+        .chars()
+        .map(|c| match c {
+            'a'..='z' | 'A'..='Z' | '0'..='9' | '.' | '-' | '_' => c,
+            _ => '_',
+        })
+        .collect()
 }
 
 /// With `bundled-cli` off, the resolver locates the build-time-extracted
@@ -294,9 +164,7 @@ async fn unbundled_resolver_finds_extracted_binary() {
     unset_env("COPILOT_CLI_PATH");
     unset_env("COPILOT_CLI_EXTRACT_DIR");
 
-    let opts = ClientOptions::default()
-        .with_program(CliProgram::Resolve)
-        .with_transport(Transport::Stdio);
+    let opts = ClientOptions::default().with_program(CliProgram::Resolve);
     let result = Client::start(opts).await;
     if let Err(e) = result {
         assert!(
@@ -329,9 +197,7 @@ async fn extract_dir_runtime_override_is_honored() {
         tmp.path().to_str().expect("utf-8 tempdir path"),
     );
 
-    let opts = ClientOptions::default()
-        .with_program(CliProgram::Resolve)
-        .with_transport(Transport::Stdio);
+    let opts = ClientOptions::default().with_program(CliProgram::Resolve);
     let result = Client::start(opts).await;
 
     unset_env("COPILOT_CLI_EXTRACT_DIR");

@@ -116,6 +116,38 @@ async fn should_invoke_onsessionend_hook_when_session_is_disconnected() {
 }
 
 #[tokio::test]
+async fn should_invoke_onerroroccurred_hook_when_error_occurs() {
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "hooks_extended",
+        "should_invoke_onerroroccurred_hook_when_error_occurs",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let (tx, mut rx) = mpsc::unbounded_channel();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(
+                        ctx.approve_all_session_config()
+                            .with_hooks(Arc::new(RecordingHooks::error(tx, None))),
+                    )
+                    .await
+                    .expect("create session");
+
+                session.send_and_wait("Say hi").await.expect("send");
+                rx.try_recv()
+                    .map(drop)
+                    .expect_err("errorOccurred hook should not run");
+
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
+    .await;
+}
+
+#[tokio::test]
 async fn should_invoke_userpromptsubmitted_hook_and_modify_prompt() {
     super::support::with_shared_e2e_context(
         &E2E,
@@ -203,6 +235,115 @@ async fn should_invoke_userprompttransformed_hook_and_modify_transformed_prompt(
 }
 
 #[tokio::test]
+async fn should_invoke_sessionstart_hook() {
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "hooks_extended",
+        "should_invoke_sessionstart_hook",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let (tx, mut rx) = mpsc::unbounded_channel();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(ctx.approve_all_session_config().with_hooks(Arc::new(
+                        RecordingHooks::session_start(
+                            tx,
+                            Some(SessionStartOutput {
+                                additional_context: Some("Session start hook context.".to_string()),
+                                ..SessionStartOutput::default()
+                            }),
+                        ),
+                    )))
+                    .await
+                    .expect("create session");
+
+                session.send_and_wait("Say hi").await.expect("send");
+                let input = recv_with_timeout(&mut rx, "sessionStart hook").await;
+                assert_eq!(input.source, "new");
+
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn should_invoke_sessionend_hook() {
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "hooks_extended",
+        "should_invoke_sessionend_hook",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let (tx, mut rx) = mpsc::unbounded_channel();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(ctx.approve_all_session_config().with_hooks(Arc::new(
+                        RecordingHooks::session_end(
+                            tx,
+                            Some(SessionEndOutput {
+                                session_summary: Some("session ended".to_string()),
+                                ..SessionEndOutput::default()
+                            }),
+                        ),
+                    )))
+                    .await
+                    .expect("create session");
+
+                session.send_and_wait("Say bye").await.expect("send");
+                session.disconnect().await.expect("disconnect session");
+                let input = recv_with_timeout(&mut rx, "sessionEnd hook").await;
+                assert!(input.timestamp > 0.0);
+
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn should_register_erroroccurred_hook() {
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "hooks_extended",
+        "should_register_erroroccurred_hook",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let (tx, mut rx) = mpsc::unbounded_channel();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(ctx.approve_all_session_config().with_hooks(Arc::new(
+                        RecordingHooks::error(
+                            tx,
+                            Some(ErrorOccurredOutput {
+                                error_handling: Some("skip".to_string()),
+                                ..ErrorOccurredOutput::default()
+                            }),
+                        ),
+                    )))
+                    .await
+                    .expect("create session");
+
+                session.send_and_wait("Say hi").await.expect("send");
+                rx.try_recv()
+                    .map(drop)
+                    .expect_err("errorOccurred hook should not run");
+
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
+    .await;
+}
+
+#[tokio::test]
 async fn should_invoke_agentstop_hook_and_apply_block_response() {
     super::support::with_shared_e2e_context(
         &E2E,
@@ -280,6 +421,109 @@ async fn should_allow_pretooluse_to_return_modifiedargs_and_suppressoutput() {
                 }
                 assert!(saw_echo, "expected preToolUse hook for echo_value");
                 assert!(assistant_message_content(&answer).contains("modified by hook"));
+
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn should_allow_posttooluse_to_return_modifiedresult() {
+    super::support::with_shared_e2e_context(
+        &E2E,
+        "hooks_extended",
+        "should_allow_posttooluse_to_return_modifiedresult",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let (tx, mut rx) = mpsc::unbounded_channel();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(
+                        ctx.approve_all_session_config()
+                            .with_hooks(Arc::new(RecordingHooks::post_tool(tx))),
+                    )
+                    .await
+                    .expect("create session");
+
+                let answer = session
+                    .send_and_wait(
+                        "Call the view tool to read the current directory, then reply done.",
+                    )
+                    .await
+                    .expect("send")
+                    .expect("assistant message");
+                let mut saw_view = false;
+                while let Ok(input) = rx.try_recv() {
+                    saw_view |= input.tool_name == "view";
+                }
+                assert!(saw_view, "expected postToolUse hook for view");
+                assert!(
+                    assistant_message_content(&answer)
+                        .to_lowercase()
+                        .contains("done"),
+                    "expected assistant message to contain 'done'"
+                );
+
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
+    .await;
+}
+
+#[tokio::test]
+#[ignore = "Fails with 1.0.64-0 runtime: built-in tools are not available when hooks restrict availableTools, so the failure path cannot be exercised. Follow up with runtime team."]
+async fn should_invoke_posttoolusefailure_hook_for_failed_tool_result() {
+    super::support::with_shared_e2e_context(&E2E,
+        "hooks_extended",
+        "should_invoke_posttoolusefailure_hook_for_failed_tool_result",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let (failure_tx, mut failure_rx) = mpsc::unbounded_channel();
+                let (post_tx, mut post_rx) = mpsc::unbounded_channel();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(
+                        ctx.approve_all_session_config()
+                            .with_available_tools(["report_intent"])
+                            .with_hooks(Arc::new(RecordingHooks::post_tool_failure(
+                                failure_tx, post_tx,
+                            ))),
+                    )
+                    .await
+                    .expect("create session");
+
+                let answer = session
+                    .send_and_wait(
+                        "Call the view tool with path 'missing.txt'. If it fails, use the hook guidance to answer.",
+                    )
+                    .await
+                    .expect("send")
+                    .expect("assistant message");
+
+                let input = recv_with_timeout(&mut failure_rx, "postToolUseFailure hook").await;
+                post_rx
+                    .try_recv()
+                    .map(drop)
+                    .expect_err("postToolUse hook should not run");
+                assert_eq!(input.tool_name, "view");
+                assert!(input.error.contains("does not exist"));
+                assert!(
+                    input.tool_args["path"]
+                        .as_str()
+                        .is_some_and(|path| path.contains("missing.txt"))
+                );
+                assert!(input.timestamp > 0.0);
+                assert!(!input.working_directory.as_os_str().is_empty());
+                assert!(
+                    assistant_message_content(&answer).contains("HOOK_FAILURE_GUIDANCE_APPLIED")
+                );
 
                 session.disconnect().await.expect("disconnect session");
                 client.stop().await.expect("stop client");
@@ -380,9 +624,38 @@ impl RecordingHooks {
         }
     }
 
+    fn error(
+        tx: mpsc::UnboundedSender<ErrorOccurredInput>,
+        output: Option<ErrorOccurredOutput>,
+    ) -> Self {
+        Self {
+            error: Some(tx),
+            error_output: output,
+            ..Self::default()
+        }
+    }
+
     fn pre_tool(tx: mpsc::UnboundedSender<PreToolUseInput>) -> Self {
         Self {
             pre_tool: Some(tx),
+            ..Self::default()
+        }
+    }
+
+    fn post_tool(tx: mpsc::UnboundedSender<PostToolUseInput>) -> Self {
+        Self {
+            post_tool: Some(tx),
+            ..Self::default()
+        }
+    }
+
+    fn post_tool_failure(
+        failure_tx: mpsc::UnboundedSender<PostToolUseFailureInput>,
+        post_tx: mpsc::UnboundedSender<PostToolUseInput>,
+    ) -> Self {
+        Self {
+            post_tool: Some(post_tx),
+            post_tool_failure: Some(failure_tx),
             ..Self::default()
         }
     }
@@ -532,4 +805,4 @@ impl ToolHandler for EchoValueTool {
     }
 }
 static E2E: super::support::SharedE2eGroup =
-    super::support::SharedE2eGroup::standard("hooks_extended", 7);
+    super::support::SharedE2eGroup::standard("hooks_extended", 12);

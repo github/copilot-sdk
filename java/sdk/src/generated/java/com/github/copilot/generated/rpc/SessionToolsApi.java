@@ -63,17 +63,6 @@ public final class SessionToolsApi {
     }
 
     /**
-     * Returns the session-latched flags for built-in agent availability without filtering disabled agents.
-     *
-     * @apiNote This method is experimental and may change in a future version.
-     * @since 1.0.0
-     */
-    @CopilotExperimental
-    public CompletableFuture<ToolsGetBuiltinAgentFlagOverridesResult> getBuiltinAgentFlagOverrides() {
-        return caller.invoke("session.tools.getBuiltinAgentFlagOverrides", java.util.Map.of("sessionId", this.sessionId), ToolsGetBuiltinAgentFlagOverridesResult.class);
-    }
-
-    /**
      * Projects a completed task_complete tool call into its label-safe session event payload.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden

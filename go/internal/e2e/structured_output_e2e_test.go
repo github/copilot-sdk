@@ -40,7 +40,6 @@ func structuredSessionConfig(proxy string) *copilot.SessionConfig {
 }
 
 func TestStructuredOutputE2E(t *testing.T) {
-	t.Parallel()
 	harness := testharness.NewTestContext(t)
 	client := harness.NewClient()
 	t.Cleanup(func() { client.ForceStop() })

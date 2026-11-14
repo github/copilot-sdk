@@ -4,8 +4,6 @@
 
 package com.github.copilot;
 
-import org.junit.jupiter.api.Tag;
-
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Files;
@@ -25,6 +23,7 @@ import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.PermissionRequest;
 import com.github.copilot.rpc.PermissionRequestResult;
 import com.github.copilot.rpc.PermissionRequestResultKind;
+import com.github.copilot.rpc.SessionConfig;
 import com.github.copilot.rpc.ResumeSessionConfig;
 import com.github.copilot.rpc.MessageOptions;
 
@@ -36,7 +35,6 @@ import com.github.copilot.rpc.MessageOptions;
  * response replay. Snapshots are stored in test/snapshots/permissions/.
  * </p>
  */
-@Tag("e2e")
 public class PermissionsTest {
 
     private static E2ETestContext ctx;
@@ -66,7 +64,7 @@ public class PermissionsTest {
 
         final String[] sessionIdHolder = new String[1];
 
-        var config = ctx.newSessionConfig().setOnPermissionRequest((request, invocation) -> {
+        var config = new SessionConfig().setOnPermissionRequest((request, invocation) -> {
             permissionRequests.add(request);
             assertEquals(sessionIdHolder[0], invocation.getSessionId());
             // Approve the permission
@@ -105,7 +103,7 @@ public class PermissionsTest {
     void testDenyPermission(TestInfo testInfo) throws Exception {
         ctx.configureForTest("permissions", "deny_permission");
 
-        var config = ctx.newSessionConfig().setOnPermissionRequest((request, invocation) -> {
+        var config = new SessionConfig().setOnPermissionRequest((request, invocation) -> {
             // Deny all permissions
             return CompletableFuture
                     .completedFuture(new PermissionRequestResult().setKind(PermissionRequestResultKind.REJECTED));
@@ -141,7 +139,7 @@ public class PermissionsTest {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             AssistantMessageEvent response = session.sendAndWait(new MessageOptions().setPrompt("What is 2+2?")).get(60,
                     TimeUnit.SECONDS);
@@ -165,7 +163,7 @@ public class PermissionsTest {
 
         var permissionRequests = new ArrayList<PermissionRequest>();
 
-        var config = ctx.newSessionConfig().setOnPermissionRequest((request, invocation) -> {
+        var config = new SessionConfig().setOnPermissionRequest((request, invocation) -> {
             permissionRequests.add(request);
 
             // Simulate async permission check with delay
@@ -206,7 +204,7 @@ public class PermissionsTest {
         try (CopilotClient client = ctx.createClient()) {
             // Create session with approve-all handler for initial exchange
             CopilotSession session1 = client
-                    .createSession(ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+                    .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
             String sessionId = session1.getSessionId();
             session1.sendAndWait(new MessageOptions().setPrompt("What is 1+1?")).get(60, TimeUnit.SECONDS);
             session1.close();
@@ -242,7 +240,7 @@ public class PermissionsTest {
 
         final boolean[] receivedToolCallId = {false};
 
-        var config = ctx.newSessionConfig().setOnPermissionRequest((request, invocation) -> {
+        var config = new SessionConfig().setOnPermissionRequest((request, invocation) -> {
             if (request.getToolCallId() != null) {
                 receivedToolCallId[0] = true;
                 assertFalse(request.getToolCallId().isEmpty(), "Tool call ID should not be empty");
@@ -275,7 +273,7 @@ public class PermissionsTest {
     void testShouldHandlePermissionHandlerErrorsGracefully(TestInfo testInfo) throws Exception {
         ctx.configureForTest("permissions", "should_handle_permission_handler_errors_gracefully");
 
-        var config = ctx.newSessionConfig().setOnPermissionRequest((request, invocation) -> {
+        var config = new SessionConfig().setOnPermissionRequest((request, invocation) -> {
             // Throw an error in the handler
             throw new RuntimeException("Handler error");
         });
@@ -308,7 +306,7 @@ public class PermissionsTest {
         ctx.configureForTest("permissions", "should_deny_tool_operations_when_handler_explicitly_denies");
 
         try (CopilotClient client = ctx.createClient()) {
-            CopilotSession session = client.createSession(ctx.newSessionConfig()
+            CopilotSession session = client.createSession(new SessionConfig()
                     .setOnPermissionRequest((request, invocation) -> CompletableFuture.completedFuture(
                             new PermissionRequestResult().setKind(PermissionRequestResultKind.USER_NOT_AVAILABLE))))
                     .get();
@@ -341,7 +339,7 @@ public class PermissionsTest {
         ctx.configureForTest("permissions", "should_deny_tool_operations_when_handler_explicitly_denies_after_resume");
 
         try (CopilotClient client = ctx.createClient()) {
-            var config = ctx.newSessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL);
+            var config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL);
             CopilotSession session1 = client.createSession(config).get();
             String sessionId = session1.getSessionId();
             session1.sendAndWait(new MessageOptions().setPrompt("What is 1+1?")).get(60, TimeUnit.SECONDS);
@@ -382,7 +380,7 @@ public class PermissionsTest {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(ctx.newSessionConfig().setOnPermissionRequest((request, invocation) -> {
+                    .createSession(new SessionConfig().setOnPermissionRequest((request, invocation) -> {
                         permissionCalled.complete(true);
                         return CompletableFuture.completedFuture(
                                 new PermissionRequestResult().setKind(PermissionRequestResultKind.NO_RESULT));
@@ -413,7 +411,7 @@ public class PermissionsTest {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(ctx.newSessionConfig().setOnPermissionRequest((request, invocation) -> {
+                    .createSession(new SessionConfig().setOnPermissionRequest((request, invocation) -> {
                         handlerCallCount[0]++;
                         return CompletableFuture.completedFuture(
                                 new PermissionRequestResult().setKind(PermissionRequestResultKind.APPROVED));
@@ -421,8 +419,8 @@ public class PermissionsTest {
 
             // Set approve-all so the runtime short-circuits
             var setResult = session.getRpc().permissions
-                    .setApproveAll(com.github.copilot.generated.rpc.SessionPermissionsSetApproveAllParams.builder()
-                            .sessionId(session.getSessionId()).enabled(true).source(null).build())
+                    .setApproveAll(new com.github.copilot.generated.rpc.SessionPermissionsSetApproveAllParams(
+                            session.getSessionId(), true, null))
                     .get(10, TimeUnit.SECONDS);
             assertTrue(setResult.success(), "setApproveAll should succeed");
 
@@ -454,7 +452,7 @@ public class PermissionsTest {
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client
-                    .createSession(ctx.newSessionConfig().setOnPermissionRequest((request, invocation) -> {
+                    .createSession(new SessionConfig().setOnPermissionRequest((request, invocation) -> {
                         handlerEntered.complete(null);
                         return releaseHandler.thenApply(
                                 v -> new PermissionRequestResult().setKind(PermissionRequestResultKind.APPROVED));

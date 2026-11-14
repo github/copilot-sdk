@@ -20,25 +20,13 @@ from copilot.session_events import (
     ElicitationCompletedAction,
     ElicitationRequestedMode,
     ElicitationRequestedSchema,
-    ExternalToolRequestedData,
-    HumanResponseAskUserAction,
-    HumanResponseRecordedResponse,
-    HumanResponseRecordedResponseResponseKind,
-    IdeConnectionChangedData,
-    IdeSelection,
-    IdeSelectionChangedData,
     ManagedSettingsResolvedSource,
     PermissionApprovalEvaluationReasonCode,
     PermissionPromptRequestMemory,
-    PermissionRecoveryAttempt,
-    PermissionRecoveryAttemptDisposition,
-    PermissionRecoveryAttemptReason,
-    PermissionRecoveryAttemptRelation,
     PermissionRequestedData,
     PermissionRequestMemory,
     PermissionRequestMemoryAction,
     SessionAutoTierSwitchFailedData,
-    SessionErrorData,
     SessionEvent,
     SessionEventType,
     SessionManagedSettingsResolvedData,
@@ -54,124 +42,6 @@ from copilot.session_events import (
 
 class TestEventForwardCompatibility:
     """Test forward compatibility for unknown event types."""
-
-    def test_human_response_preserves_positional_constructor(self):
-        # Refusal fields were added after this merged dataclass was published.
-        answer = HumanResponseRecordedResponse(
-            HumanResponseRecordedResponseResponseKind.USER_INPUT, None, None, "answer"
-        )
-        assert answer.allow_freeform is None
-        assert answer.to_dict()["answer"] == "answer"
-
-        refusal = HumanResponseRecordedResponse(
-            HumanResponseRecordedResponseResponseKind.ASK_USER,
-            content={},
-            action=HumanResponseAskUserAction.DECLINE,
-        )
-        assert refusal.to_dict()["action"] == "decline"
-
-    @pytest.mark.parametrize(
-        "selection",
-        [
-            {
-                "text": "selected",
-                "filePath": "/workspace/file.rs",
-                "fileUrl": "file:///workspace/file.rs",
-                "selection": {
-                    "start": {"line": 0, "character": 0},
-                    "end": {"line": 0, "character": 8},
-                    "isEmpty": False,
-                },
-            },
-            None,
-        ],
-        ids=["selected", "cleared"],
-    )
-    def test_ide_selection_changed_decodes_selected_and_cleared_state(self, selection):
-        wire = {
-            "id": "11111111-1111-1111-1111-111111111111",
-            "timestamp": "2026-09-18T22:00:00+00:00",
-            "parentId": None,
-            "type": "ide.selection_changed",
-            "data": {"selection": selection},
-        }
-
-        event = session_event_from_dict(wire)
-
-        assert event.type is SessionEventType.IDE_SELECTION_CHANGED
-        assert isinstance(event.data, IdeSelectionChangedData)
-        if selection is None:
-            assert event.data.selection is None
-        else:
-            assert event.data.selection is not None
-            assert event.data.selection.text == selection["text"]
-            state = IdeConnectionChangedData.from_dict({"selection": selection})
-            assert event.data.selection == state.selection
-            assert isinstance(event.data.selection, IdeSelection)
-            state.selection = event.data.selection
-            assert state.to_dict() == {"selection": selection}
-        assert session_event_to_dict(event) == wire
-
-    def test_external_tool_request_preserves_positional_provider(self):
-        data = ExternalToolRequestedData("request", "session", "call", "tool", {}, "provider")
-        assert data.provider_id == "provider"
-        assert data.to_dict()["providerId"] == "provider"
-        owned = ExternalToolRequestedData.from_dict({**data.to_dict(), "hasHandler": True})
-        assert owned.provider_id == "provider"
-        assert owned.to_dict()["hasHandler"] is True
-
-    def test_permission_recovery_attempt_preserves_positional_tool_call_id(self):
-        # reviewIncomplete was added after this dataclass was published.
-        attempt = PermissionRecoveryAttempt(
-            "attempt-1",
-            PermissionRecoveryAttemptDisposition.DEFERRED,
-            1,
-            "shell",
-            PermissionRecoveryAttemptReason.PERMISSION_REQUIRED,
-            PermissionRecoveryAttemptRelation.INITIAL,
-            "fingerprint",
-            "call-1",
-        )
-        assert attempt.tool_call_id == "call-1"
-        assert attempt.review_incomplete is None
-        wire = {**attempt.to_dict(), "reviewIncomplete": True}
-        assert PermissionRecoveryAttempt.from_dict(wire).to_dict() == wire
-
-    def test_error_data_preserves_legacy_positional_constructor(self):
-        data = SessionErrorData(
-            "query",
-            "provider failed",
-            None,
-            None,
-            "message-1",
-            "provider-call-1",
-            "max_tokens",
-            "invalid_request_error",
-            None,
-            "service-request-1",
-            "provider stack",
-            400,
-            "https://provider.example/error",
-        )
-
-        assert data.provider_error_param == "max_tokens"
-        assert data.provider_error_code is None
-        data.provider_error_code = "unsupported_parameter"
-        wire = data.to_dict()
-        assert wire == {
-            "errorType": "query",
-            "message": "provider failed",
-            "originatingMessageId": "message-1",
-            "providerCallId": "provider-call-1",
-            "providerErrorCode": "unsupported_parameter",
-            "providerErrorParam": "max_tokens",
-            "providerErrorType": "invalid_request_error",
-            "serviceRequestId": "service-request-1",
-            "stack": "provider stack",
-            "statusCode": 400,
-            "url": "https://provider.example/error",
-        }
-        assert SessionErrorData.from_dict(wire) == data
 
     @pytest.mark.parametrize("ephemeral", [False, True])
     def test_event_preserves_legacy_positional_constructor(self, ephemeral):
@@ -542,29 +412,19 @@ class TestEventForwardCompatibility:
         event = session_event_from_dict(unknown_event)
         assert event.type == SessionEventType.UNKNOWN, f"Expected UNKNOWN, got {event.type}"
 
-    @pytest.mark.parametrize(
-        "event_type",
-        [
-            "session.memory_changed",
-            "program.execution",
-            "program.tool_execution_start",
-            "program.tool_execution_complete",
-            "program.permission_requested",
-        ],
-    )
-    def test_internal_event_type_maps_to_unknown(self, event_type):
+    def test_internal_event_type_maps_to_unknown(self):
         """Internal events should use the forward-compatible raw event path."""
         internal_event = {
             "id": str(uuid4()),
             "timestamp": datetime.now().isoformat(),
             "parentId": None,
-            "type": event_type,
+            "type": "session.memory_changed",
             "data": {},
         }
 
         event = session_event_from_dict(internal_event)
         assert event.type == SessionEventType.UNKNOWN
-        assert session_event_to_dict(event)["type"] == event_type
+        assert session_event_to_dict(event)["type"] == "session.memory_changed"
 
     def test_known_event_preserves_top_level_agent_id(self):
         """Known events should preserve the top-level sub-agent envelope ID."""

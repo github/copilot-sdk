@@ -605,7 +605,7 @@ async fn undersized_buffer_reports_lag_and_keeps_live_tail() {
 // 5 + 6. Inertness before start, and drop of an unstarted handle
 // ---------------------------------------------------------------------------
 
-#[tokio::test(start_paused = true)]
+#[tokio::test]
 async fn prepare_is_inert_until_start_is_polled() {
     let (client, mut server) = make_client();
     let session_id = SessionId::new("prepared-inert");
@@ -644,7 +644,7 @@ async fn prepare_is_inert_until_start_is_polled() {
     drop(session);
 }
 
-#[tokio::test(start_paused = true)]
+#[tokio::test]
 async fn dropping_unstarted_prepared_session_leaves_no_state() {
     let (client, mut server) = make_client();
     let session_id = SessionId::new("prepared-dropped");
@@ -951,7 +951,7 @@ async fn create_mcp_auth_interest_error_preserves_kind_and_cleans_up() {
 /// The resume counterpart. Interest registration runs before the
 /// best-effort `session.skills.reload`, so a failure must abort the
 /// startup without issuing the reload.
-#[tokio::test(start_paused = true)]
+#[tokio::test]
 async fn resume_mcp_auth_interest_error_preserves_kind_and_cleans_up() {
     let (client, mut server) = make_client();
     let session_id = SessionId::new("prepared-resume-interest-error");
@@ -1015,7 +1015,7 @@ async fn zero_event_buffer_capacity_is_invalid_config() {
 // 9. Early and late subscribers share one event loop
 // ---------------------------------------------------------------------------
 
-#[tokio::test(start_paused = true)]
+#[tokio::test]
 async fn early_and_late_subscribers_share_one_event_loop() {
     let (client, mut server) = make_client();
     let session_id = SessionId::new("prepared-two-subscribers");
@@ -1091,7 +1091,61 @@ async fn early_and_late_subscribers_share_one_event_loop() {
 // 10. Compatibility wrappers
 // ---------------------------------------------------------------------------
 
-#[tokio::test(start_paused = true)]
+#[tokio::test]
+async fn create_session_wrapper_keeps_rpc_sequence() {
+    let (client, mut server) = make_client();
+
+    let start = tokio::spawn({
+        let client = client.clone();
+        async move { client.create_session(SessionConfig::default()).await }
+    });
+
+    let create_req = server.read_request().await;
+    assert_eq!(create_req["method"], "session.create");
+    let session_id = create_req["params"]["sessionId"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    server
+        .respond(&create_req, create_result(&session_id))
+        .await;
+
+    let session = timeout(TIMEOUT, start).await.unwrap().unwrap().unwrap();
+    assert_eq!(session.id().as_str(), session_id);
+    server.expect_quiet().await;
+    drop(session);
+}
+
+#[tokio::test]
+async fn resume_session_wrapper_keeps_rpc_sequence() {
+    let (client, mut server) = make_client();
+    let session_id = SessionId::new("wrapper-resume");
+
+    let start = tokio::spawn({
+        let client = client.clone();
+        let session_id = session_id.clone();
+        async move {
+            client
+                .resume_session(ResumeSessionConfig::new(session_id))
+                .await
+        }
+    });
+
+    let resume_req = server.read_request().await;
+    assert_eq!(resume_req["method"], "session.resume");
+    assert_eq!(resume_req["params"]["sessionId"], session_id.as_str());
+    server
+        .respond(&resume_req, json!({ "sessionId": session_id.as_str() }))
+        .await;
+    server.answer_skills_reload().await;
+
+    let session = timeout(TIMEOUT, start).await.unwrap().unwrap().unwrap();
+    assert_eq!(session.id(), &session_id);
+    server.expect_quiet().await;
+    drop(session);
+}
+
+#[tokio::test]
 async fn resume_bootstrap_retains_all_startup_phases_and_keeps_later_subscribers_live() {
     let (client, mut server) = make_client();
     let session_id = SessionId::new("resume-bootstrap-phases");
@@ -1310,7 +1364,7 @@ async fn populated_resume_bootstrap_cleans_up_after_setup_failure() {
     check_populated_resume_cleanup(false).await;
 }
 
-#[tokio::test(start_paused = true)]
+#[tokio::test]
 async fn populated_resume_bootstrap_cleans_up_after_setup_cancellation() {
     check_populated_resume_cleanup(true).await;
 }
@@ -1557,7 +1611,7 @@ fn prepared_session_is_send_static_and_not_clone() {
 /// which fails loudly on its own timeout if it did not.
 const DRIVE: Duration = Duration::from_millis(50);
 
-#[tokio::test(start_paused = true)]
+#[tokio::test]
 async fn stale_create_guard_does_not_unregister_same_id_retry() {
     let (client, mut server) = make_client();
     let session_id = SessionId::new("stale-create-guard");
@@ -1615,7 +1669,7 @@ async fn stale_create_guard_does_not_unregister_same_id_retry() {
     drop(session);
 }
 
-#[tokio::test(start_paused = true)]
+#[tokio::test]
 async fn stale_resume_guard_does_not_unregister_same_id_retry() {
     let (client, mut server) = make_client();
     let session_id = SessionId::new("stale-resume-guard");
@@ -1629,15 +1683,6 @@ async fn stale_resume_guard_does_not_unregister_same_id_retry() {
     let _ = timeout(DRIVE, &mut first).await;
     let first_req = server.read_request().await;
     assert_eq!(first_req["method"], "session.resume");
-
-    // Keep the first startup guard pending on skills reload so the ordinary
-    // retry can replace it before the first caller is cancelled.
-    server
-        .respond(&first_req, json!({ "sessionId": session_id.as_str() }))
-        .await;
-    let _ = timeout(DRIVE, &mut first).await;
-    let first_reload = server.read_request().await;
-    assert_eq!(first_reload["method"], "session.skills.reload");
 
     let prepared = client
         .prepare_resume_session(
@@ -1677,8 +1722,6 @@ async fn stale_resume_guard_does_not_unregister_same_id_retry() {
     let event = timeout(TIMEOUT, events.recv()).await.unwrap().unwrap();
     assert_eq!(event.id.as_str(), "evt-after-stale");
     drop(session);
-    expect_closed(&mut events).await;
-    await_no_registrations(&client).await;
 }
 
 /// A disconnected session must not unregister a same-ID session that
@@ -1743,7 +1786,7 @@ async fn dropping_superseded_session_does_not_unregister_its_replacement() {
 /// Cancelling a cloud create before the response arrives must leave no
 /// registration behind, even though the session ID is only known to the
 /// inline response callback.
-#[tokio::test(start_paused = true)]
+#[tokio::test]
 async fn cancelled_deferred_create_leaves_no_registration() {
     let (client, mut server) = make_client();
 
@@ -1817,7 +1860,7 @@ async fn await_registered(client: &Client, session_id: &str) {
 /// response and never polled again, so the callback (which runs on the
 /// JSON-RPC read task, independently of the caller) is guaranteed to have
 /// registered before the future is dropped.
-#[tokio::test(start_paused = true)]
+#[tokio::test]
 async fn deferred_create_cancelled_after_callback_registered_is_cleaned_up() {
     let (client, mut server) = make_client();
 

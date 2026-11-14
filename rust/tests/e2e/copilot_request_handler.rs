@@ -534,14 +534,14 @@ async fn services_http_and_websocket_via_handler() {
                 ws_authority,
                 counters: counters.clone(),
             };
-            let client = ctx.start_llm_client(handler).await;
-            let session = client
-                .create_session(
-                    ctx.approve_all_session_config().with_capi(
-                        github_copilot_sdk::CapiSessionOptions::new()
-                            .with_enable_web_socket_responses(true),
-                    ),
+            let client = ctx
+                .start_llm_client(
+                    handler,
+                    &[("COPILOT_EXP_COPILOT_CLI_WEBSOCKET_RESPONSES", "true")],
                 )
+                .await;
+            let session = client
+                .create_session(ctx.approve_all_session_config())
                 .await
                 .expect("create session");
 
@@ -652,7 +652,7 @@ async fn preserves_message_source_through_runtime_delivery() {
     with_e2e_context_no_snapshot(|ctx| {
         Box::pin(async move {
             let handler = Arc::new(RecordingHandler::default());
-            let client = ctx.start_llm_client(handler.clone()).await;
+            let client = ctx.start_llm_client(handler.clone(), &[]).await;
 
             for typed_rpc in [false, true] {
                 for immediate in [false, true] {
@@ -734,7 +734,7 @@ async fn threads_session_id_into_inference() {
         Box::pin(async move {
             ctx.set_default_copilot_user();
             let handler = Arc::new(RecordingHandler::default());
-            let client = ctx.start_llm_client(handler.clone()).await;
+            let client = ctx.start_llm_client(handler.clone(), &[]).await;
 
             // CAPI session.
             let capi_session = client
@@ -846,6 +846,70 @@ fn assert_agent_metadata(record: &InterceptedRequest) {
 }
 
 // ---------------------------------------------------------------------------
+// Scenario 3a: errors — a handler that returns `Err` on an inference request
+// surfaces a transport error rather than hanging the turn.
+// ---------------------------------------------------------------------------
+
+#[derive(Default)]
+struct ThrowingHandler {
+    inference_attempts: AtomicU32,
+}
+
+#[async_trait]
+impl CopilotRequestHandler for ThrowingHandler {
+    async fn send_request(
+        &self,
+        request: CopilotHttpRequest,
+        _ctx: &CopilotRequestContext,
+    ) -> Result<CopilotHttpResponse, CopilotRequestError> {
+        if !is_inference_url(&request.url) {
+            return Ok(synth_non_inference_response(&request.url, None));
+        }
+        self.inference_attempts.fetch_add(1, Ordering::SeqCst);
+        Err(CopilotRequestError::message(
+            "synthetic-callback-transport-failure",
+        ))
+    }
+}
+
+#[tokio::test]
+async fn surfaces_handler_errors() {
+    if super::support::skip_inprocess("LLM inference providers are process-global in-process") {
+        return;
+    }
+    with_e2e_context_no_snapshot(|ctx| {
+        Box::pin(async move {
+            ctx.set_default_copilot_user();
+            let handler = Arc::new(ThrowingHandler::default());
+            let client = ctx.start_llm_client(handler.clone(), &[]).await;
+            let session = client
+                .create_session(ctx.approve_all_session_config())
+                .await
+                .expect("create session");
+
+            // The handler returns Err from the inference seam; the agent layer
+            // surfaces it as an error rather than hanging.
+            let send_result = session.send_and_wait(say_ok()).await;
+            let _ = session.disconnect().await;
+
+            assert!(
+                handler.inference_attempts.load(Ordering::SeqCst) > 0,
+                "expected the inference callback to be reached and raise"
+            );
+            if let Err(err) = send_result {
+                assert!(
+                    !err.to_string().is_empty(),
+                    "expected a non-empty error string when an error surfaces"
+                );
+            }
+
+            client.stop().await.expect("stop client");
+        })
+    })
+    .await;
+}
+
+// ---------------------------------------------------------------------------
 // Scenario 3b: runtime-driven cancel — the handler blocks an inference request
 // until the consumer aborts the turn; the runtime cancels the in-flight request
 // and the handler observes it via `ctx.cancel`.
@@ -890,7 +954,7 @@ async fn observes_runtime_driven_cancel() {
         Box::pin(async move {
             ctx.set_default_copilot_user();
             let handler = Arc::new(CancellingHandler::default());
-            let client = ctx.start_llm_client(handler.clone()).await;
+            let client = ctx.start_llm_client(handler.clone(), &[]).await;
             let session = client
                 .create_session(ctx.approve_all_session_config())
                 .await
@@ -945,7 +1009,7 @@ async fn withdrawn_running_turn_prompt_leaves_persisted_history() {
         Box::pin(async move {
             ctx.set_default_copilot_user();
             let handler = Arc::new(CancellingHandler::default());
-            let client = ctx.start_llm_client(handler.clone()).await;
+            let client = ctx.start_llm_client(handler.clone(), &[]).await;
             let session = client
                 .create_session(ctx.approve_all_session_config())
                 .await

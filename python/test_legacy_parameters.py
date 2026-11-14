@@ -7,13 +7,6 @@ import dataclasses
 import pytest
 
 from copilot.generated import rpc
-from copilot.generated.session_events import (
-    AssistedApprovalRecommendation,
-    PermissionAssistedApproval,
-    SessionInfoData,
-    UserMessageData,
-    UserMessageDelivery,
-)
 
 
 def _contract() -> rpc.CatalogClientContract:
@@ -28,28 +21,6 @@ def _candidate() -> rpc.MCPPlanInstallSourceCandidate:
 
 def _positional(cls: type) -> list[str]:
     return [field.name for field in dataclasses.fields(cls) if not field.kw_only]
-
-
-def test_session_info_preserves_positional_arguments_and_internal_metadata():
-    info = SessionInfoData("notification", "message", "tip", "https://example.com")
-    expected = {
-        "infoType": "notification",
-        "message": "message",
-        "tip": "tip",
-        "url": "https://example.com",
-    }
-
-    assert _positional(SessionInfoData) == ["info_type", "message", "tip", "url"]
-    assert info.to_dict() == expected
-    wire = {
-        **expected,
-        "responsesReasoning": {
-            "model": "model",
-            "initialEffort": "low",
-            "effort": "high",
-        },
-    }
-    assert SessionInfoData.from_dict(wire).to_dict() == wire
 
 
 def test_managed_settings_resolve_preserves_existing_positional_arguments():
@@ -70,54 +41,6 @@ def test_managed_settings_resolve_preserves_existing_positional_arguments():
     ]
     assert request.to_dict() == expected
     assert rpc.ManagedSettingsResolveRequest.from_dict(expected) == request
-
-
-@pytest.mark.parametrize(
-    ("record", "expected"),
-    [
-        (
-            rpc.Plugin(True, "market", "plugin", "direct-source"),
-            {
-                "enabled": True,
-                "marketplace": "market",
-                "name": "plugin",
-                "directSourceId": "direct-source",
-            },
-        ),
-        (
-            rpc.InstalledPluginInfo(True, "market", "plugin", "description"),
-            {
-                "enabled": True,
-                "marketplace": "market",
-                "name": "plugin",
-                "description": "description",
-            },
-        ),
-        (
-            rpc.MarketplacePluginInfo("plugin", "description"),
-            {"name": "plugin", "description": "description"},
-        ),
-    ],
-)
-def test_plugin_records_preserve_existing_positional_arguments(record, expected):
-    assert record.assignment is None
-    assert record.to_dict() == expected
-    assert type(record).from_dict(expected) == record
-
-
-@pytest.mark.parametrize(
-    "record_type", [rpc.Plugin, rpc.InstalledPluginInfo, rpc.MarketplacePluginInfo]
-)
-def test_plugin_assignment_round_trips_by_keyword(record_type):
-    assignment = {"state": "defaultEnabled", "reason": "Company setup"}
-    record = record_type.from_dict(
-        {"name": "plugin", "marketplace": "market", "enabled": True, "assignment": assignment}
-    )
-
-    assert record_type.__dataclass_fields__["assignment"].kw_only
-    assert record.assignment.state == "defaultEnabled"
-    assert record.to_dict()["assignment"] == assignment
-    assert record_type.from_dict(record.to_dict()) == record
 
 
 def test_plan_install_positional_scope_still_binds_scope():
@@ -300,119 +223,3 @@ def test_workspace_diff_contents_round_trip_by_keyword():
         },
         change,
     )
-
-
-def test_user_message_positional_arguments_keep_their_meaning():
-    message = UserMessageData("hi", None, None, None, UserMessageDelivery.STEERING)
-
-    assert message.delivery == UserMessageDelivery.STEERING
-    assert message.client_turn_id is None
-    assert _positional(UserMessageData) == [
-        "content",
-        "agent_mode",
-        "attachments",
-        "causal_dependencies",
-        "delivery",
-        "interaction_id",
-        "is_autopilot_continuation",
-        "message_id",
-        "native_document_path_fallback_paths",
-        "parent_agent_task_id",
-        "responses_reasoning",
-        "source",
-        "supported_native_document_mime_types",
-        "transformed_content",
-        "turn_id",
-        "client_turn_id",
-        "has_submitted_task",
-    ]
-    assert message.to_dict() == {"content": "hi", "delivery": "steering"}
-
-
-def test_user_message_client_turn_id_round_trips_by_keyword():
-    message = UserMessageData("hi", client_turn_id="host-turn-1")
-    encoded = message.to_dict()
-
-    assert encoded == {"content": "hi", "clientTurnId": "host-turn-1"}
-    assert UserMessageData.from_dict(encoded) == message
-
-
-def test_permission_assisted_approval_positional_arguments_keep_their_meaning():
-    approval = PermissionAssistedApproval(
-        AssistedApprovalRecommendation.REQUIRE_APPROVAL, None, "evaluation-1"
-    )
-
-    assert approval.evaluation_id == "evaluation-1"
-    assert approval.approval_required_command_segments is None
-    assert _positional(PermissionAssistedApproval) == [
-        "recommendation",
-        "evaluation",
-        "evaluation_id",
-        "failure_reason",
-        "model",
-        "reason",
-        "approval_required_command_segments",
-    ]
-    attributed = PermissionAssistedApproval(
-        AssistedApprovalRecommendation.REQUIRE_APPROVAL,
-        approval_required_command_segments=[1],
-    )
-    encoded = attributed.to_dict()
-    assert encoded == {
-        "recommendation": "requireApproval",
-        "approvalRequiredCommandSegments": [1],
-    }
-    assert PermissionAssistedApproval.from_dict(encoded) == attributed
-
-
-def test_send_positional_arguments_keep_their_meaning():
-    request = rpc.SendRequest("hi", None, None, True)
-
-    assert request.billable is True
-    assert _positional(rpc.SendRequest) == [
-        "prompt",
-        "agent_mode",
-        "attachments",
-        "billable",
-        "display_prompt",
-        "mode",
-        "prepend",
-        "request_headers",
-        "required_tool",
-        "response_format",
-        "source",
-        "traceparent",
-        "tracestate",
-        "wait",
-    ]
-    assert request.to_dict() == {"prompt": "hi", "billable": True}
-
-
-def test_send_messages_positional_arguments_keep_their_meaning():
-    request = rpc.SendMessagesRequest([], None, None, True)
-
-    assert request.prepend is True
-    assert _positional(rpc.SendMessagesRequest) == [
-        "messages",
-        "agent_mode",
-        "mode",
-        "prepend",
-        "request_headers",
-        "response_format",
-        "traceparent",
-        "tracestate",
-        "wait",
-    ]
-    assert request.to_dict() == {"messages": [], "prepend": True}
-
-
-@pytest.mark.parametrize(
-    ("request_type", "required"),
-    [(rpc.SendRequest, {"prompt": "hi"}), (rpc.SendMessagesRequest, {"messages": []})],
-)
-def test_send_client_turn_id_round_trips_by_keyword(request_type, required):
-    request = request_type.from_dict({**required, "clientTurnId": "host-turn-1"})
-
-    assert request.client_turn_id == "host-turn-1"
-    assert request.to_dict() == {**required, "clientTurnId": "host-turn-1"}
-    assert request_type(*required.values(), client_turn_id="host-turn-1") == request

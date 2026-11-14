@@ -113,26 +113,4 @@ public final class ServerSkillsApi {
         return caller.invoke("skills.getDiscoveryPaths", Objects.requireNonNull(request, "request"), SkillsGetDiscoveryPathsResult.class);
     }
 
-    /**
-     * Installs a user-selected HTTPS or local skill file into personal or project storage, or registers a local discovery directory. This direct-source operation preserves source installation behavior; it does not accept or replace verified catalog plans, request catalog confirmation, or change skill enablement. The caller persists the returned discovery directories.
-     *
-     * @apiNote This method is experimental and may change in a future version.
-     * @since 1.0.0
-     */
-    @CopilotExperimental
-    public CompletableFuture<SkillsInstallSourceResult> installSource(SkillsInstallSourceParams params) {
-        return caller.invoke("skills.installSource", params, SkillsInstallSourceResult.class);
-    }
-
-    /**
-     * Removes a directly installed local skill or unregisters a discovery directory without deleting its contents. Directory removal needs no skill inventory. Other targets return needs-inventory without mutation when inventory is absent. This operation preserves direct-source ownership rules and does not replace receipt-backed verified uninstall plans or their consent. The caller persists returned discovery directories and manages disabled settings.
-     *
-     * @apiNote This method is experimental and may change in a future version.
-     * @since 1.0.0
-     */
-    @CopilotExperimental
-    public CompletableFuture<SkillsRemoveSourceOutcome> removeSource(SkillsRemoveSourceParams params) {
-        return caller.invoke("skills.removeSource", params, SkillsRemoveSourceOutcome.class);
-    }
-
 }

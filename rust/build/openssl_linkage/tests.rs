@@ -62,3 +62,9 @@ fn shared_provider_requires_the_versioned_library_outside_the_executable() {
         );
     }
 }
+
+#[cfg(target_os = "linux")]
+#[test]
+fn linked_host_provider_is_a_shared_os_openssl_3_library() {
+    require_shared_host_provider();
+}

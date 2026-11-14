@@ -9,13 +9,33 @@ import pytest_asyncio
 
 import copilot._cli_download as cli_download
 
-from .testharness import E2ETestContext
+from .testharness import E2ETestContext, is_inprocess_transport
 from .timeout_diagnostics import add_timeout_diagnostics, cancel_timed_out_test
 from .timeout_diagnostics import pytest_timeout_set_timer as pytest_timeout_set_timer
 
+# Host-side auth resolution ranks HMAC above the GitHub token, so an ambient
+# COPILOT_HMAC_KEY (CI sets one as a job-level credential) would be picked over
+# the token the replay snapshots expect, yielding 401s. For the in-process
+# transport the runtime is hosted in this test process and can capture the key as
+# early as client construction, so neutralize it at module load — the analogue of
+# .NET's InProcessEnvIsolation [ModuleInitializer] and Node's module-init guard.
+# Out-of-process children resolve auth in their own process where the token already
+# outranks HMAC. See https://github.com/github/copilot-sdk/issues/1934.
 if not cli_download.CLI_VERSION:
     package_json = json.loads((Path(__file__).parents[2] / "nodejs" / "package.json").read_text())
     cli_download.CLI_VERSION = package_json["copilotCliVersion"]
+
+
+def _neutralize_inprocess_environment() -> None:
+    """Remove host credentials while preserving an explicitly offline runtime."""
+    os.environ.pop("COPILOT_HMAC_KEY", None)
+    os.environ.pop("CAPI_HMAC_KEY", None)
+    if not cli_download._should_skip_download():
+        os.environ.pop("COPILOT_CLI_PATH", None)
+
+
+if is_inprocess_transport():
+    _neutralize_inprocess_environment()
 
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)

@@ -126,17 +126,6 @@ public final class SessionPluginsApi {
     }
 
     /**
-     * Reads Team and managed soft plugin defaults for the live session. Does not install plugins or persist user preferences.
-     *
-     * @apiNote This method is experimental and may change in a future version.
-     * @since 1.0.0
-     */
-    @CopilotExperimental
-    public CompletableFuture<SessionPluginsGetDefaultsResult> getDefaults() {
-        return caller.invoke("session.plugins.getDefaults", java.util.Map.of("sessionId", this.sessionId), SessionPluginsGetDefaultsResult.class);
-    }
-
-    /**
      * Reloads the session's plugin set, refreshing MCP servers, custom agents, hooks, and skills cache so SDK-driven changes via `server.plugins.*` take effect immediately.
      * <p>
      * Invokes the method with no params, applying the runtime defaults.

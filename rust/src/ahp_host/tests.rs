@@ -357,7 +357,7 @@ async fn failed_start_releases_callback_without_synthetic_exit() {
         .await;
 }
 
-#[tokio::test(start_paused = true)]
+#[tokio::test]
 async fn cancelled_start_disposes_after_late_success() {
     let (client, mut peer) = fixture();
     let (options, mut exits) = callback_options();
@@ -379,7 +379,7 @@ async fn cancelled_start_disposes_after_late_success() {
     peer.respond(&disposal, json!({})).await;
 }
 
-#[tokio::test(start_paused = true)]
+#[tokio::test]
 async fn cancelled_start_does_not_dispose_after_late_failure() {
     let (client, mut peer) = fixture();
     let pending = start(&client, local_options());
@@ -580,6 +580,22 @@ async fn queued_real_exit_precedes_disconnect_and_is_not_duplicated() {
 }
 
 #[tokio::test]
+async fn wire_exit_immediately_before_eof_is_not_replaced_by_disconnect() {
+    let (client, mut peer) = fixture();
+    let (options, mut exits) = callback_options();
+    let pending = start(&client, options);
+    let request = peer.request().await;
+    peer.started(&request, None).await;
+    let host = pending.await.unwrap().unwrap();
+    peer.exited(&host.host_id).await;
+    drop(peer);
+    let exit = timeout(TIMEOUT, exits.recv()).await.unwrap().unwrap();
+    assert_eq!(exit.reason, AhpHostExitReason::Exited);
+    assert_eq!(exit.exit_code, Some(17));
+    assert!(timeout(TIMEOUT, exits.recv()).await.unwrap().is_none());
+}
+
+#[tokio::test]
 async fn disconnect_notifies_all_callbacks_even_when_they_panic() {
     let (client, mut peer) = fixture();
     let (tx, mut exits) = mpsc::unbounded_channel();
@@ -683,7 +699,7 @@ async fn handle_and_dispatcher_do_not_keep_client_alive() {
     assert!(host.dispose().await.is_err());
 }
 
-#[tokio::test(start_paused = true)]
+#[tokio::test]
 async fn dropping_handle_does_not_dispose_or_unregister_callback() {
     let (client, mut peer) = fixture();
     let (options, mut exits) = callback_options();

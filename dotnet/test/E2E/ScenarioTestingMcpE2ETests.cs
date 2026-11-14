@@ -187,11 +187,13 @@ public class ScenarioTestingMcpE2ETests(E2ETestFixture fixture, ITestOutputHelpe
     {
         const string serverName = "scenario-mcp-app";
         const string resourceUri = "ui://scenario/app";
-        await using var client = Ctx.CreateClient();
+        var environment = Ctx.GetEnvironment();
+        environment["COPILOT_MCP_APPS"] = "true";
+        environment["MCP_APPS"] = "true";
+        await using var client = Ctx.CreateClient(environment: environment);
         await using var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             EnableMcpApps = true,
-            FeatureFlags = new Dictionary<string, bool> { ["MCP_APPS"] = true },
             McpServers = new Dictionary<string, McpServerConfig>
             {
                 [serverName] = new McpStdioServerConfig
@@ -249,12 +251,14 @@ public class ScenarioTestingMcpE2ETests(E2ETestFixture fixture, ITestOutputHelpe
         ((McpStdioServerConfig)servers[serverName]).Env =
             new Dictionary<string, string> { ["SCENARIO_ORIGIN_VALUE"] = "origin-ok" };
 
-        await using var client = Ctx.CreateClient();
+        var environment = Ctx.GetEnvironment();
+        environment["COPILOT_MCP_APPS"] = "true";
+        environment["MCP_APPS"] = "true";
+        await using var client = Ctx.CreateClient(environment: environment);
         await using var session = await Ctx.CreateSessionAsync(client, new SessionConfig
         {
             ClientName = "scenario-client",
             EnableMcpApps = true,
-            FeatureFlags = new Dictionary<string, bool> { ["MCP_APPS"] = true },
             McpServers = servers,
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });

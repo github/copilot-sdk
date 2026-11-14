@@ -15,7 +15,6 @@ import (
 // launched, and route inference to the configured provider with the configured
 // wire model and headers.
 func TestMultiProviderRegistryE2E(t *testing.T) {
-	t.Parallel()
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()
 	t.Cleanup(func() { client.ForceStop() })

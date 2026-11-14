@@ -563,48 +563,13 @@ type pendingExchange struct {
 	finished bool
 }
 
-// maxFinishedRequestIDs bounds how many finished request IDs an adapter
-// remembers. A frame the runtime sent before it saw a request finish arrives
-// within about one round trip, so a small window covers it while a long-lived
-// client stays at a fixed size.
-const maxFinishedRequestIDs = 256
-
-// finishedRequestIDs remembers the most recently finished request IDs. Once
-// it holds maxFinishedRequestIDs, remembering another forgets the oldest.
-type finishedRequestIDs struct {
-	ring [maxFinishedRequestIDs]string
-	next int
-	set  map[string]struct{}
-}
-
-func (f *finishedRequestIDs) add(requestID string) {
-	if _, ok := f.set[requestID]; ok {
-		return
-	}
-	if f.set == nil {
-		f.set = make(map[string]struct{}, maxFinishedRequestIDs)
-	}
-	if len(f.set) == len(f.ring) {
-		delete(f.set, f.ring[f.next])
-	}
-	f.ring[f.next] = requestID
-	f.next = (f.next + 1) % len(f.ring)
-	f.set[requestID] = struct{}{}
-}
-
-func (f *finishedRequestIDs) contains(requestID string) bool {
-	_, ok := f.set[requestID]
-	return ok
-}
-
 type copilotRequestAdapter struct {
 	handler *CopilotRequestHandler
 	getRPC  func() *rpc.ServerLlmInferenceAPI
 
-	mu       sync.Mutex
-	pending  map[string]*pendingExchange
-	finished finishedRequestIDs
-	closed   bool
+	mu      sync.Mutex
+	pending map[string]*pendingExchange
+	closed  bool
 
 	connectionCtx    context.Context
 	connectionCancel context.CancelCauseFunc
@@ -628,19 +593,11 @@ func newCopilotRequestAdapter(handler *CopilotRequestHandler, getRPC func() *rpc
 // start frame runs. Creating the exchange (and its buffering frameQueue) on
 // first touch means those chunks are buffered rather than dropped, instead of
 // hanging the body drain forever.
-//
-// It returns nil when the request already finished. A frame can still arrive
-// then, because the runtime may send one before it sees the finish: it cancels
-// a response it rejects, such as one over its size limit, while the handler's
-// end is in flight. An exchange created for that frame would never be removed.
 func (a *copilotRequestAdapter) getOrCreateExchange(requestID string) *pendingExchange {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if exchange, ok := a.pending[requestID]; ok {
 		return exchange
-	}
-	if a.finished.contains(requestID) {
-		return nil
 	}
 	ctx, cancel := context.WithCancelCause(a.connectionCtx)
 	exchange := &pendingExchange{queue: newFrameQueue(), ctx: ctx, cancel: cancel}
@@ -656,9 +613,6 @@ func (a *copilotRequestAdapter) HttpRequestStart(params *rpc.LlmInferenceHTTPReq
 	// Adopt any exchange a racing chunk already created — with its buffered
 	// body — rather than dropping those frames.
 	exchange := a.getOrCreateExchange(params.RequestID)
-	if exchange == nil {
-		return nil, fmt.Errorf("llmInference.httpRequestStart for request %q, which already finished", params.RequestID)
-	}
 	ctx := exchange.ctx
 	bodyCh := make(chan CopilotWebSocketMessage)
 
@@ -713,10 +667,6 @@ func (a *copilotRequestAdapter) HttpRequestChunk(params *rpc.LlmInferenceHTTPReq
 	// May arrive before the matching start frame (frames are dispatched on
 	// separate goroutines); get-or-create so the body is buffered, never lost.
 	exchange := a.getOrCreateExchange(params.RequestID)
-	if exchange == nil {
-		// The request already finished, so nothing is left to deliver this to.
-		return &rpc.LlmInferenceHTTPRequestChunkResult{}, nil
-	}
 	a.routeChunk(exchange, params)
 	return &rpc.LlmInferenceHTTPRequestChunkResult{}, nil
 }
@@ -816,7 +766,6 @@ func (a *copilotRequestAdapter) finishCancelled(sink *responseSink, exchange *pe
 func (a *copilotRequestAdapter) removePending(requestID string) {
 	a.mu.Lock()
 	delete(a.pending, requestID)
-	a.finished.add(requestID)
 	a.mu.Unlock()
 }
 

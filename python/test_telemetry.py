@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import sys
 from unittest.mock import patch
 
@@ -10,7 +9,6 @@ import pytest
 
 from copilot import CopilotClient, RuntimeConnection, TelemetryConfig
 from copilot._telemetry import get_trace_context, trace_context
-from copilot.session import CopilotSession
 
 
 class TestGetTraceContext:
@@ -64,42 +62,6 @@ class TestTraceContext:
         tp = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"
         with trace_context(tp, "congo=t61rcWkgMzE"):
             pass  # should not raise
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("async_handler", [False, True])
-@pytest.mark.parametrize("fails", [False, True])
-async def test_hook_restores_runtime_trace_context(async_handler: bool, fails: bool):
-    ambient = {
-        "traceparent": "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01",
-        "tracestate": "vendor=ambient",
-    }
-    runtime = {
-        "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
-        "tracestate": "congo=t61rcWkgMzE",
-    }
-    captured = []
-    output = {"additionalContext": "hook completed"}
-
-    def handler(_input, _invocation):
-        captured.append(get_trace_context())
-        if fails:
-            raise RuntimeError("hook failed")
-        return output
-
-    async def awaited_handler(input_data, invocation):
-        captured.append(get_trace_context())
-        await asyncio.sleep(0)
-        return handler(input_data, invocation)
-
-    session = CopilotSession("hook-session", None)
-    session._register_hooks({"on_subagent_start": awaited_handler if async_handler else handler})
-    with trace_context(ambient["traceparent"], ambient["tracestate"]):
-        result = await session._handle_hooks_invoke("subagentStart", runtime)
-        assert get_trace_context() == ambient
-
-    assert captured == [runtime] * (2 if async_handler else 1)
-    assert result == (None if fails else output)
 
 
 class TestTelemetryConfig:

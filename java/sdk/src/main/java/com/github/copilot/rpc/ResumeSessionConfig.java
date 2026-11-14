@@ -18,7 +18,6 @@ import com.github.copilot.CopilotExperimental;
 import com.github.copilot.SkillProvider;
 import com.github.copilot.generated.SessionEvent;
 import com.github.copilot.generated.rpc.DiagnosticsConfiguration;
-import com.github.copilot.generated.rpc.PermissionMode;
 import com.github.copilot.generated.rpc.SandboxConfig;
 import com.github.copilot.generated.rpc.SessionLimitsConfig;
 import com.github.copilot.generated.rpc.AutopilotOptions;
@@ -52,7 +51,6 @@ public class ResumeSessionConfig {
     private List<String> availableTools;
     private List<String> excludedTools;
     private List<String> excludedBuiltInAgents;
-    private List<String> includedBuiltInAgents;
     private ProviderConfig provider;
     private CapiSessionOptions capi;
     private List<NamedProviderConfig> providers;
@@ -71,14 +69,12 @@ public class ResumeSessionConfig {
     private Boolean manageScheduleEnabled;
     private String reasoningEffort;
     private String reasoningSummary;
-    private Boolean allowMultipleToolCalls;
     private String contextTier;
     private AskUserVariant askUserVariant;
     private ModelCapabilitiesOverride modelCapabilities;
     private PermissionHandler onPermissionRequest;
     private McpAuthHandler onMcpAuthRequest;
     private UserInputHandler onUserInputRequest;
-    private ShellAuthenticationHandler onShellAuthenticationRequest;
     private SessionHooks hooks;
     private String workingDirectory;
     private List<String> additionalDirectories;
@@ -122,7 +118,6 @@ public class ResumeSessionConfig {
     private ElicitationHandler onElicitationRequest;
     private ExitPlanModeHandler onExitPlanMode;
     private AutoModeSwitchHandler onAutoModeSwitch;
-    private boolean autoModeRecovery;
     private boolean enableMcpApps;
     private GitHubMcpToolConfig githubMcpToolConfig;
     private String gitHubToken;
@@ -133,7 +128,6 @@ public class ResumeSessionConfig {
     private List<String> excludedManagedSettings;
     private Boolean enforceManagedModelDefaults;
     private Boolean interactiveUser;
-    private PermissionMode permissionMode;
     private Map<String, Boolean> featureFlags;
     private ManagedSettings managedSettings;
 
@@ -169,12 +163,7 @@ public class ResumeSessionConfig {
      * When {@code true}, pending permission requests and external tool calls wait
      * for caller-supplied results via the corresponding low-level RPC methods.
      * Resuming does not re-emit restored permission requests or re-invoke
-     * permission handlers or already-dispatched external tool callbacks. If a
-     * pending call was recorded as SDK-handler-backed and resume registers a
-     * handler for that tool, the abandoned callback is interrupted, never replayed.
-     * Handlerless calls remain pending. To supply an abandoned callback's result
-     * manually, resume without a handler for it. Older requests without recorded
-     * callback ownership also remain pending.
+     * permission handlers or already-dispatched external tool callbacks.
      *
      * @return the explicit choice, or empty to use the runtime default
      */
@@ -322,8 +311,7 @@ public class ResumeSessionConfig {
      * Sets the list of tool names that are allowed in this session.
      * <p>
      * When specified, only tools in this list will be available to the assistant.
-     * If a tool appears in both this list and the excluded list, the exclusion
-     * wins.
+     * Takes precedence over excluded tools.
      *
      * @param availableTools
      *            the list of allowed tool names
@@ -346,8 +334,8 @@ public class ResumeSessionConfig {
     /**
      * Sets the list of tool names to exclude from this session.
      * <p>
-     * Tools in this list will not be available to the assistant. Exclusions take
-     * precedence over available tools.
+     * Tools in this list will not be available to the assistant. Ignored if
+     * available tools is specified.
      *
      * @param excludedTools
      *            the list of tool names to exclude
@@ -379,27 +367,6 @@ public class ResumeSessionConfig {
      */
     public ResumeSessionConfig setExcludedBuiltInAgents(List<String> excludedBuiltInAgents) {
         this.excludedBuiltInAgents = excludedBuiltInAgents != null ? new ArrayList<>(excludedBuiltInAgents) : null;
-        return this;
-    }
-
-    /** Gets the built-in subagent allowlist. @return the allowlist, or null */
-    public List<String> getIncludedBuiltInAgents() {
-        return includedBuiltInAgents == null ? null : Collections.unmodifiableList(includedBuiltInAgents);
-    }
-
-    /**
-     * Allows only the named built-in subagents, subject to availability and
-     * exclusions. An empty list disables all built-in subagents; custom agents
-     * remain available, including same-name agents. Null uses defaults on cold
-     * resume and preserves the current allowlist on warm resume. Not persisted;
-     * re-supply on resume after restart.
-     *
-     * @param includedBuiltInAgents
-     *            the built-in subagent allowlist, or null to omit
-     * @return this config instance for method chaining
-     */
-    public ResumeSessionConfig setIncludedBuiltInAgents(List<String> includedBuiltInAgents) {
-        this.includedBuiltInAgents = includedBuiltInAgents != null ? new ArrayList<>(includedBuiltInAgents) : null;
         return this;
     }
 
@@ -931,40 +898,6 @@ public class ResumeSessionConfig {
     }
 
     /**
-     * Gets the model multiple-tool-call preference.
-     *
-     * @return the preference, or an empty optional to preserve a resident value
-     */
-    @JsonIgnore
-    public Optional<Boolean> getAllowMultipleToolCalls() {
-        return Optional.ofNullable(allowMultipleToolCalls);
-    }
-
-    /**
-     * Sets whether the model may request multiple tool calls per response. False is
-     * a provider hint, not an execution guarantee: all returned calls are handled
-     * and handlers may run concurrently. Re-supply on cold resume.
-     *
-     * @param allowMultipleToolCalls
-     *            the preference
-     * @return this config for method chaining
-     */
-    public ResumeSessionConfig setAllowMultipleToolCalls(boolean allowMultipleToolCalls) {
-        this.allowMultipleToolCalls = allowMultipleToolCalls;
-        return this;
-    }
-
-    /**
-     * Clears the preference so resume preserves a resident session's value.
-     *
-     * @return this config for method chaining
-     */
-    public ResumeSessionConfig clearAllowMultipleToolCalls() {
-        this.allowMultipleToolCalls = null;
-        return this;
-    }
-
-    /**
      * Gets the context window tier.
      *
      * @return the context window tier ("default" or "long_context")
@@ -1075,34 +1008,6 @@ public class ResumeSessionConfig {
      */
     public ResumeSessionConfig setOnUserInputRequest(UserInputHandler onUserInputRequest) {
         this.onUserInputRequest = onUserInputRequest;
-        return this;
-    }
-
-    /**
-     * Gets the shell authentication request handler.
-     *
-     * @return the shell authentication handler
-     */
-    public ShellAuthenticationHandler getOnShellAuthenticationRequest() {
-        return onShellAuthenticationRequest;
-    }
-
-    /**
-     * Sets a handler for passwords and other answers that shell commands run by the
-     * agent ask for.
-     * <p>
-     * When provided, {@code sudo -A}, {@code ssh}, and {@code git} prompts reach
-     * this handler instead of failing for lack of a terminal. Return
-     * {@link ShellAuthenticationResponse#cancel()} when nobody can answer.
-     *
-     * @param onShellAuthenticationRequest
-     *            the shell authentication handler
-     * @return this config instance for method chaining
-     * @see ShellAuthenticationHandler
-     */
-    public ResumeSessionConfig setOnShellAuthenticationRequest(
-            ShellAuthenticationHandler onShellAuthenticationRequest) {
-        this.onShellAuthenticationRequest = onShellAuthenticationRequest;
         return this;
     }
 
@@ -2175,9 +2080,6 @@ public class ResumeSessionConfig {
      * <p>
      * When the CLI has a TUI, each command appears as {@code /name} for the user to
      * invoke. The handler is called when the user executes the command.
-     * <p>
-     * An empty list replaces the commands previously registered for this session
-     * with none; {@code null} leaves them unchanged.
      *
      * @param commands
      *            the list of command definitions
@@ -2315,30 +2217,6 @@ public class ResumeSessionConfig {
     }
 
     /**
-     * Returns whether retained-request Auto recovery is explicitly enabled on
-     * resume.
-     *
-     * @return {@code false} by default
-     */
-    public boolean isAutoModeRecovery() {
-        return autoModeRecovery;
-    }
-
-    /**
-     * Re-enrolls the resumed session in runtime-owned Auto recovery. Requires an
-     * Auto-mode-switch handler and a positive runtime acknowledgment.
-     *
-     * @param autoModeRecovery
-     *            whether to opt in
-     * @return this instance for method chaining
-     * @see SessionConfig#setAutoModeRecovery(boolean)
-     */
-    public ResumeSessionConfig setAutoModeRecovery(boolean autoModeRecovery) {
-        this.autoModeRecovery = autoModeRecovery;
-        return this;
-    }
-
-    /**
      * Gets the GitHub token for per-session authentication.
      *
      * @return the GitHub token, or {@code null} if not set
@@ -2378,10 +2256,9 @@ public class ResumeSessionConfig {
      * Sets the rotating GitHub token provider for the resumed session.
      * <p>
      * The provider receives only the effective host, optional assigned session ID,
-     * and acquisition reason. It must return the remaining lifetime in seconds when
-     * its callback completes. More than 3600 seconds must still remain after token
-     * validation; validation time counts against the lifetime. Production GitHub
-     * tokens typically last eight hours. This option is mutually exclusive with
+     * and acquisition reason. It must return a positive remaining lifetime in
+     * seconds when its callback completes. Production GitHub tokens typically last
+     * eight hours. This option is mutually exclusive with
      * {@link #setGitHubToken(String)}.
      *
      * @param gitHubTokenProvider
@@ -2531,34 +2408,6 @@ public class ResumeSessionConfig {
         return this;
     }
 
-    /**
-     * Gets the initial permission mode.
-     *
-     * @return an optional containing the mode, or empty when unset
-     */
-    @JsonIgnore
-    @CopilotExperimental
-    public Optional<PermissionMode> getPermissionMode() {
-        return Optional.ofNullable(permissionMode);
-    }
-
-    /**
-     * Permission mode applied before resumed pending work continues and before the
-     * resume returns. Uses the same checks as {@code session.permissions.setMode};
-     * if it is refused (for example by managed policy), continued work runs under
-     * the mode {@code CopilotSession.getPermissionModeResult()} reports. Leave
-     * unset to keep the restored mode.
-     *
-     * @param permissionMode
-     *            the permission mode to apply
-     * @return this config for method chaining
-     */
-    @CopilotExperimental
-    public ResumeSessionConfig setPermissionMode(PermissionMode permissionMode) {
-        this.permissionMode = permissionMode;
-        return this;
-    }
-
     /** @return host-injected managed settings, or {@code null} when unset */
     public ManagedSettings getManagedSettings() {
         return managedSettings;
@@ -2600,9 +2449,6 @@ public class ResumeSessionConfig {
         copy.excludedBuiltInAgents = this.excludedBuiltInAgents != null
                 ? new ArrayList<>(this.excludedBuiltInAgents)
                 : null;
-        copy.includedBuiltInAgents = this.includedBuiltInAgents != null
-                ? new ArrayList<>(this.includedBuiltInAgents)
-                : null;
         copy.provider = this.provider;
         copy.capi = this.capi;
         copy.providers = this.providers != null ? new ArrayList<>(this.providers) : null;
@@ -2617,13 +2463,11 @@ public class ResumeSessionConfig {
         copy.allowTranscriptRecovery = this.allowTranscriptRecovery;
         copy.reasoningEffort = this.reasoningEffort;
         copy.reasoningSummary = this.reasoningSummary;
-        copy.allowMultipleToolCalls = this.allowMultipleToolCalls;
         copy.contextTier = this.contextTier;
         copy.askUserVariant = this.askUserVariant;
         copy.modelCapabilities = this.modelCapabilities;
         copy.onPermissionRequest = this.onPermissionRequest;
         copy.onUserInputRequest = this.onUserInputRequest;
-        copy.onShellAuthenticationRequest = this.onShellAuthenticationRequest;
         copy.hooks = this.hooks;
         copy.workingDirectory = this.workingDirectory;
         copy.additionalDirectories = this.additionalDirectories != null
@@ -2674,7 +2518,6 @@ public class ResumeSessionConfig {
         copy.onMcpAuthRequest = this.onMcpAuthRequest;
         copy.onExitPlanMode = this.onExitPlanMode;
         copy.onAutoModeSwitch = this.onAutoModeSwitch;
-        copy.autoModeRecovery = this.autoModeRecovery;
         copy.enableMcpApps = this.enableMcpApps;
         copy.githubMcpToolConfig = this.githubMcpToolConfig;
         copy.gitHubToken = this.gitHubToken;
@@ -2687,7 +2530,6 @@ public class ResumeSessionConfig {
                 : new ArrayList<>(this.excludedManagedSettings);
         copy.enforceManagedModelDefaults = this.enforceManagedModelDefaults;
         copy.interactiveUser = this.interactiveUser;
-        copy.permissionMode = this.permissionMode;
         copy.managedSettings = this.managedSettings;
         return copy;
     }

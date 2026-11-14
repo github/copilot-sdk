@@ -120,3 +120,16 @@ fn public_windows_lookups_match_the_os_known_folders() {
         assert_eq!(lookup(), expected);
     }
 }
+
+#[test]
+fn unknown_os_known_folder_returns_none() {
+    let folder = windows_sys::core::GUID::from_u128(0);
+    // SAFETY: the real API and its allocator are paired, even on failure.
+    let actual = unsafe {
+        known_folder_with(
+            |path| SHGetKnownFolderPath(&folder, 0, std::ptr::null_mut(), path),
+            |path| CoTaskMemFree(path.cast()),
+        )
+    };
+    assert_eq!(actual, None);
+}

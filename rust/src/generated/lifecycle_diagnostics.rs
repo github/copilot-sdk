@@ -48,7 +48,7 @@ pub(crate) enum RuntimeLifecycleDisposition {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct RuntimeLifecycleBlockerTiming {
-    /// ISO 8601 timestamp when this dependency began blocking its owner.
+    /// ISO 8601 timestamp when this dependency began blocking progress.
     pub blocking_since: String,
 }
 /// Exact lifecycle operation awaited by a real dependency wait.
@@ -62,9 +62,7 @@ pub(crate) struct RuntimeLifecycleBlockerTiming {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct RuntimeLifecycleBlocker {
-    /// Opaque blocker identifier, stable for one guard lifetime and scoped to its owner.
-    pub blocker_id: String,
-    /// System-owned capability required by the blocker owner.
+    /// System-owned capability required by the progress owner.
     pub requirement: String,
     /// System that owns the awaited operation.
     pub system: String,
@@ -126,8 +124,6 @@ pub(crate) struct RuntimeLifecycleOperation {
     pub disposition: Option<RuntimeLifecycleDisposition>,
     /// Timestamps recorded by the lifecycle service for this operation revision.
     pub timing: RuntimeLifecycleOperationTiming,
-    /// Complete dependency blocker set after this operation change.
-    pub blockers: Vec<RuntimeLifecycleBlocker>,
 }
 /// Immutable causal origin of a progress record with independent identity and settlement.
 ///
@@ -182,9 +178,6 @@ pub(crate) struct RuntimeLifecycleProgressStateData {
     pub kind: String,
     /// Opaque progress identifier, unique within the incarnation and kind.
     pub progress_id: String,
-    /// Agent that owns this progress. Absent for the primary agent and progress without an agent owner.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub agent_id: Option<String>,
     /// Orders changes to this progress record.
     pub revision: i64,
     /// Progress-owner-defined phase.

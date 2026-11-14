@@ -13,51 +13,19 @@ use serde::{Deserialize, Serialize};
 pub(crate) use super::lifecycle_diagnostics::LifecycleDiagnosticEvent;
 pub use super::session_events::{
     AbortReason, AgentModelPolicy, AssistedApprovalAssessment, AutoTier, BlockedPermissionAction,
-    ContextTier, IdeConnectedInfo, IdeSelection, IndexedSearchState, ManagedPermissionsContext,
-    ManagedSettingsResolvedSource, McpOauthHttpResponse, McpOauthWWWAuthenticateParams,
-    McpServerMetadata, McpServerSource, McpServerStatus, McpSkillOrigin, ModelChangeSource,
-    ModelProviderKind, ModelProviderRef, OmittedBinaryOmittedReason, PermissionDecisionSource,
-    PermissionMode, PermissionPromptRequest, PermissionRule, PolicyHelperCapabilities,
-    PolicyHelperFailure, ProviderQuotaState, ReasoningSummary, RemediationAction,
-    SessionLimitsConfig, SessionMode, ShutdownType, SkillSource, TaskBlocker,
-    TaskCompletionOutcome, UsageGetMetricsResult, UserToolSessionApproval, Verbosity,
+    ContextTier, IndexedSearchState, ManagedPermissionsContext, ManagedSettingsResolvedSource,
+    McpOauthHttpResponse, McpOauthWWWAuthenticateParams, McpServerMetadata, McpServerSource,
+    McpServerStatus, McpSkillOrigin, ModelChangeSource, ModelProviderKind, ModelProviderRef,
+    OmittedBinaryOmittedReason, PermissionDecisionSource, PermissionMode, PermissionPromptRequest,
+    PermissionRule, PolicyHelperCapabilities, PolicyHelperFailure, ProviderQuotaState,
+    ReasoningSummary, RemediationAction, SessionLimitsConfig, SessionMode, ShutdownType,
+    SkillSource, TaskBlocker, TaskCompletionOutcome, UsageGetMetricsResult,
+    UserToolSessionApproval, Verbosity,
 };
 use crate::types::{RequestId, SessionEvent, SessionId};
 
 /// JSON-RPC method name constants.
 pub mod rpc_methods {
-    /// `providers.config.read`
-    pub const PROVIDERS_CONFIG_READ: &str = "providers.config.read";
-    /// `providers.config.updateProvider`
-    pub const PROVIDERS_CONFIG_UPDATEPROVIDER: &str = "providers.config.updateProvider";
-    /// `providers.config.updateModel`
-    pub const PROVIDERS_CONFIG_UPDATEMODEL: &str = "providers.config.updateModel";
-    /// `providers.config.removeModel`
-    pub const PROVIDERS_CONFIG_REMOVEMODEL: &str = "providers.config.removeModel";
-    /// `providers.config.addModel`
-    pub const PROVIDERS_CONFIG_ADDMODEL: &str = "providers.config.addModel";
-    /// `localModels.configure`
-    pub const LOCALMODELS_CONFIGURE: &str = "localModels.configure";
-    /// `localModels.inspect`
-    pub const LOCALMODELS_INSPECT: &str = "localModels.inspect";
-    /// `localModels.watch`
-    pub const LOCALMODELS_WATCH: &str = "localModels.watch";
-    /// `localModels.refresh`
-    pub const LOCALMODELS_REFRESH: &str = "localModels.refresh";
-    /// `localModels.prefetch`
-    pub const LOCALMODELS_PREFETCH: &str = "localModels.prefetch";
-    /// `localModels.prepare`
-    pub const LOCALMODELS_PREPARE: &str = "localModels.prepare";
-    /// `localModels.setup`
-    pub const LOCALMODELS_SETUP: &str = "localModels.setup";
-    /// `localModels.deleteModel`
-    pub const LOCALMODELS_DELETEMODEL: &str = "localModels.deleteModel";
-    /// `localModels.cancel`
-    pub const LOCALMODELS_CANCEL: &str = "localModels.cancel";
-    /// `localModels.cancelAll`
-    pub const LOCALMODELS_CANCELALL: &str = "localModels.cancelAll";
-    /// `localModels.dismissNotice`
-    pub const LOCALMODELS_DISMISSNOTICE: &str = "localModels.dismissNotice";
     /// `sandbox.proxyCa.checkInstallationSupport`
     pub const SANDBOX_PROXYCA_CHECKINSTALLATIONSUPPORT: &str =
         "sandbox.proxyCa.checkInstallationSupport";
@@ -163,8 +131,6 @@ pub mod rpc_methods {
     pub(crate) const USER_SETTINGS_DIAGNOSEPROBLEMS: &str = "user.settings.diagnoseProblems";
     /// `user.settings.applyTopKey`
     pub(crate) const USER_SETTINGS_APPLYTOPKEY: &str = "user.settings.applyTopKey";
-    /// `user.settings.writeKey`
-    pub(crate) const USER_SETTINGS_WRITEKEY: &str = "user.settings.writeKey";
     /// `user.settings.writeAll`
     pub(crate) const USER_SETTINGS_WRITEALL: &str = "user.settings.writeAll";
     /// `user.settings.update`
@@ -279,10 +245,6 @@ pub mod rpc_methods {
     pub const MODELS_GETBUILTINCATALOG: &str = "models.getBuiltInCatalog";
     /// `models.listTokenPriceUnits`
     pub const MODELS_LISTTOKENPRICEUNITS: &str = "models.listTokenPriceUnits";
-    /// `azureMl.registration`
-    pub const AZUREML_REGISTRATION: &str = "azureMl.registration";
-    /// `azureMl.hardware`
-    pub const AZUREML_HARDWARE: &str = "azureMl.hardware";
     /// `azureMl.catalog`
     pub const AZUREML_CATALOG: &str = "azureMl.catalog";
     /// `azureMl.latest`
@@ -301,10 +263,6 @@ pub mod rpc_methods {
     pub const AZUREML_CANCEL: &str = "azureMl.cancel";
     /// `azureMl.discard`
     pub const AZUREML_DISCARD: &str = "azureMl.discard";
-    /// `decisions.ask`
-    pub const DECISIONS_ASK: &str = "decisions.ask";
-    /// `providersSource.addModel`
-    pub(crate) const PROVIDERSSOURCE_ADDMODEL: &str = "providersSource.addModel";
     /// `contentExclusion.validatePolicies`
     pub const CONTENTEXCLUSION_VALIDATEPOLICIES: &str = "contentExclusion.validatePolicies";
     /// `tools.list`
@@ -431,10 +389,6 @@ pub mod rpc_methods {
     pub const SKILLS_DISCOVER: &str = "skills.discover";
     /// `skills.getDiscoveryPaths`
     pub const SKILLS_GETDISCOVERYPATHS: &str = "skills.getDiscoveryPaths";
-    /// `skills.installSource`
-    pub const SKILLS_INSTALLSOURCE: &str = "skills.installSource";
-    /// `skills.removeSource`
-    pub const SKILLS_REMOVESOURCE: &str = "skills.removeSource";
     /// `plugins.planInstall`
     pub const PLUGINS_PLANINSTALL: &str = "plugins.planInstall";
     /// `plugins.applyInstall`
@@ -538,16 +492,8 @@ pub mod rpc_methods {
     pub const LLMINFERENCE_HTTPRESPONSESTART: &str = "llmInference.httpResponseStart";
     /// `llmInference.httpResponseChunk`
     pub const LLMINFERENCE_HTTPRESPONSECHUNK: &str = "llmInference.httpResponseChunk";
-    /// `fetch.create`
-    pub const FETCH_CREATE: &str = "fetch.create";
-    /// `fetch.send`
-    pub const FETCH_SEND: &str = "fetch.send";
-    /// `fetch.read`
-    pub const FETCH_READ: &str = "fetch.read";
-    /// `fetch.cancel`
-    pub const FETCH_CANCEL: &str = "fetch.cancel";
-    /// `network.setProvider`
-    pub const NETWORK_SETPROVIDER: &str = "network.setProvider";
+    /// `kerberosAuth.setProvider`
+    pub const KERBEROSAUTH_SETPROVIDER: &str = "kerberosAuth.setProvider";
     /// `sessions.open`
     pub const SESSIONS_OPEN: &str = "sessions.open";
     /// `sessions.fork`
@@ -570,8 +516,6 @@ pub mod rpc_methods {
     pub const SESSIONS_FINDBYPREFIX: &str = "sessions.findByPrefix";
     /// `sessions.getLastForContext`
     pub const SESSIONS_GETLASTFORCONTEXT: &str = "sessions.getLastForContext";
-    /// `sessions.hasEvents`
-    pub const SESSIONS_HASEVENTS: &str = "sessions.hasEvents";
     /// `sessions.getEventFilePath`
     pub(crate) const SESSIONS_GETEVENTFILEPATH: &str = "sessions.getEventFilePath";
     /// `sessions.getSizes`
@@ -622,8 +566,6 @@ pub mod rpc_methods {
     /// `sessions.configureSessionExtensions`
     pub(crate) const SESSIONS_CONFIGURESESSIONEXTENSIONS: &str =
         "sessions.configureSessionExtensions";
-    /// `shell.buildInteractiveEnvironment`
-    pub const SHELL_BUILDINTERACTIVEENVIRONMENT: &str = "shell.buildInteractiveEnvironment";
     /// `agentRegistry.spawn`
     pub const AGENTREGISTRY_SPAWN: &str = "agentRegistry.spawn";
     /// `agentRegistry.ensureDir`
@@ -640,10 +582,6 @@ pub mod rpc_methods {
     pub const CONNECTORS_LIST: &str = "connectors.list";
     /// `connectors.refresh`
     pub const CONNECTORS_REFRESH: &str = "connectors.refresh";
-    /// `lsp.list`
-    pub const LSP_LIST: &str = "lsp.list";
-    /// `taskAnalytics.classifyTrajectory`
-    pub const TASKANALYTICS_CLASSIFYTRAJECTORY: &str = "taskAnalytics.classifyTrajectory";
     /// `gitHubFetch.allocateRequestId`
     pub(crate) const GITHUBFETCH_ALLOCATEREQUESTID: &str = "gitHubFetch.allocateRequestId";
     /// `gitHubFetch.request`
@@ -711,8 +649,6 @@ pub mod rpc_methods {
     /// `session.providers.models.prepareConfiguration`
     pub const SESSION_PROVIDERS_MODELS_PREPARECONFIGURATION: &str =
         "session.providers.models.prepareConfiguration";
-    /// `session.providers.models.diagnose`
-    pub const SESSION_PROVIDERS_MODELS_DIAGNOSE: &str = "session.providers.models.diagnose";
     /// `session.suspend`
     pub const SESSION_SUSPEND: &str = "session.suspend";
     /// `session.send`
@@ -730,11 +666,6 @@ pub mod rpc_methods {
     pub const SESSION_SANDBOX_DISABLEFORSESSION: &str = "session.sandbox.disableForSession";
     /// `session.sandbox.grantPathForRequest`
     pub const SESSION_SANDBOX_GRANTPATHFORREQUEST: &str = "session.sandbox.grantPathForRequest";
-    /// `session.sandbox.ensureEnforcementAvailable`
-    pub const SESSION_SANDBOX_ENSUREENFORCEMENTAVAILABLE: &str =
-        "session.sandbox.ensureEnforcementAvailable";
-    /// `session.sandbox.getRemoteMcpEgress`
-    pub const SESSION_SANDBOX_GETREMOTEMCPEGRESS: &str = "session.sandbox.getRemoteMcpEgress";
     /// `session.sendSystemNotification`
     pub(crate) const SESSION_SENDSYSTEMNOTIFICATION: &str = "session.sendSystemNotification";
     /// `session.abort`
@@ -797,8 +728,6 @@ pub mod rpc_methods {
     /// `session.canvas.provider.unregister`
     pub(crate) const SESSION_CANVAS_PROVIDER_UNREGISTER: &str =
         "session.canvas.provider.unregister";
-    /// `session.canvasSource.close`
-    pub(crate) const SESSION_CANVASSOURCE_CLOSE: &str = "session.canvasSource.close";
     /// `session.workflow.run`
     pub const SESSION_WORKFLOW_RUN: &str = "session.workflow.run";
     /// `session.workflow.resume`
@@ -832,14 +761,10 @@ pub mod rpc_methods {
     pub const SESSION_WORKFLOW_JOURNAL_PUT: &str = "session.workflow.journal.put";
     /// `session.model.getCurrent`
     pub const SESSION_MODEL_GETCURRENT: &str = "session.model.getCurrent";
-    /// `session.model.startupAdmission`
-    pub const SESSION_MODEL_STARTUPADMISSION: &str = "session.model.startupAdmission";
     /// `session.model.switchTo`
     pub const SESSION_MODEL_SWITCHTO: &str = "session.model.switchTo";
     /// `session.model.switchAutoTier`
     pub const SESSION_MODEL_SWITCHAUTOTIER: &str = "session.model.switchAutoTier";
-    /// `session.model.switchFusionTier`
-    pub const SESSION_MODEL_SWITCHFUSIONTIER: &str = "session.model.switchFusionTier";
     /// `session.model.applyStartupOverlay`
     pub(crate) const SESSION_MODEL_APPLYSTARTUPOVERLAY: &str = "session.model.applyStartupOverlay";
     /// `session.model.clearStartupSeed`
@@ -852,16 +777,6 @@ pub mod rpc_methods {
     pub const SESSION_MODEL_GETREASONINGSUMMARIES: &str = "session.model.getReasoningSummaries";
     /// `session.model.list`
     pub const SESSION_MODEL_LIST: &str = "session.model.list";
-    /// `session.featureFlags.configure`
-    pub const SESSION_FEATUREFLAGS_CONFIGURE: &str = "session.featureFlags.configure";
-    /// `session.featureFlags.read`
-    pub const SESSION_FEATUREFLAGS_READ: &str = "session.featureFlags.read";
-    /// `session.featureFlags.update`
-    pub const SESSION_FEATUREFLAGS_UPDATE: &str = "session.featureFlags.update";
-    /// `session.dynamicContext.getConfig`
-    pub const SESSION_DYNAMICCONTEXT_GETCONFIG: &str = "session.dynamicContext.getConfig";
-    /// `session.dynamicContext.setConfig`
-    pub const SESSION_DYNAMICCONTEXT_SETCONFIG: &str = "session.dynamicContext.setConfig";
     /// `session.mode.get`
     pub const SESSION_MODE_GET: &str = "session.mode.get";
     /// `session.mode.set`
@@ -1001,10 +916,6 @@ pub mod rpc_methods {
     pub const SESSION_SKILLS_RELOAD: &str = "session.skills.reload";
     /// `session.skills.ensureLoaded`
     pub const SESSION_SKILLS_ENSURELOADED: &str = "session.skills.ensureLoaded";
-    /// `session.mcp.ide.state`
-    pub const SESSION_MCP_IDE_STATE: &str = "session.mcp.ide.state";
-    /// `session.mcp.callTool`
-    pub const SESSION_MCP_CALLTOOL: &str = "session.mcp.callTool";
     /// `session.mcp.setConnectedIdeInfo`
     pub(crate) const SESSION_MCP_SETCONNECTEDIDEINFO: &str = "session.mcp.setConnectedIdeInfo";
     /// `session.mcp.list`
@@ -1047,8 +958,6 @@ pub mod rpc_methods {
         "session.mcp.unregisterExternalClient";
     /// `session.mcp.isServerRunning`
     pub const SESSION_MCP_ISSERVERRUNNING: &str = "session.mcp.isServerRunning";
-    /// `session.mcp.getToolTokenBreakdown`
-    pub const SESSION_MCP_GETTOOLTOKENBREAKDOWN: &str = "session.mcp.getToolTokenBreakdown";
     /// `session.mcp.oauth.handlePendingRequest`
     pub const SESSION_MCP_OAUTH_HANDLEPENDINGREQUEST: &str =
         "session.mcp.oauth.handlePendingRequest";
@@ -1057,26 +966,6 @@ pub mod rpc_methods {
         "session.mcp.oauth.authenticationStateChanged";
     /// `session.mcp.oauth.prepareLogin`
     pub const SESSION_MCP_OAUTH_PREPARELOGIN: &str = "session.mcp.oauth.prepareLogin";
-    /// `session.mcp.oauth.prepareFlow`
-    pub(crate) const SESSION_MCP_OAUTH_PREPAREFLOW: &str = "session.mcp.oauth.prepareFlow";
-    /// `session.mcp.oauth.cancelFlow`
-    pub(crate) const SESSION_MCP_OAUTH_CANCELFLOW: &str = "session.mcp.oauth.cancelFlow";
-    /// `session.mcp.oauth.authenticate`
-    pub(crate) const SESSION_MCP_OAUTH_AUTHENTICATE: &str = "session.mcp.oauth.authenticate";
-    /// `session.mcp.oauth.hasValidTokens`
-    pub(crate) const SESSION_MCP_OAUTH_HASVALIDTOKENS: &str = "session.mcp.oauth.hasValidTokens";
-    /// `session.mcp.oauth.tryRefreshTokens`
-    pub(crate) const SESSION_MCP_OAUTH_TRYREFRESHTOKENS: &str =
-        "session.mcp.oauth.tryRefreshTokens";
-    /// `session.mcp.oauth.saveStaticClientSecret`
-    pub(crate) const SESSION_MCP_OAUTH_SAVESTATICCLIENTSECRET: &str =
-        "session.mcp.oauth.saveStaticClientSecret";
-    /// `session.mcp.oauth.disposeStore`
-    pub(crate) const SESSION_MCP_OAUTH_DISPOSESTORE: &str = "session.mcp.oauth.disposeStore";
-    /// `session.mcp.oauth.testConnection`
-    pub(crate) const SESSION_MCP_OAUTH_TESTCONNECTION: &str = "session.mcp.oauth.testConnection";
-    /// `session.mcp.oauth.storeKey`
-    pub(crate) const SESSION_MCP_OAUTH_STOREKEY: &str = "session.mcp.oauth.storeKey";
     /// `session.mcp.oauth.login`
     pub const SESSION_MCP_OAUTH_LOGIN: &str = "session.mcp.oauth.login";
     /// `session.mcp.oauth.complete`
@@ -1145,14 +1034,6 @@ pub mod rpc_methods {
     /// `session.connectors.withdrawProjection`
     pub(crate) const SESSION_CONNECTORS_WITHDRAWPROJECTION: &str =
         "session.connectors.withdrawProjection";
-    /// `session.managedSettings.getCurrentSnapshot`
-    pub const SESSION_MANAGEDSETTINGS_GETCURRENTSNAPSHOT: &str =
-        "session.managedSettings.getCurrentSnapshot";
-    /// `session.managedSettings.awaitApplied`
-    pub const SESSION_MANAGEDSETTINGS_AWAITAPPLIED: &str = "session.managedSettings.awaitApplied";
-    /// `session.managedSettings.awaitPublished`
-    pub const SESSION_MANAGEDSETTINGS_AWAITPUBLISHED: &str =
-        "session.managedSettings.awaitPublished";
     /// `session.managedSettings.get`
     pub const SESSION_MANAGEDSETTINGS_GET: &str = "session.managedSettings.get";
     /// `session.managedSettings.recheckPolicyHelper`
@@ -1180,8 +1061,6 @@ pub mod rpc_methods {
     pub const SESSION_PLUGINS_MARKETPLACES_BROWSE: &str = "session.plugins.marketplaces.browse";
     /// `session.plugins.marketplaces.refresh`
     pub const SESSION_PLUGINS_MARKETPLACES_REFRESH: &str = "session.plugins.marketplaces.refresh";
-    /// `session.plugins.getDefaults`
-    pub const SESSION_PLUGINS_GETDEFAULTS: &str = "session.plugins.getDefaults";
     /// `session.plugins.reload`
     pub const SESSION_PLUGINS_RELOAD: &str = "session.plugins.reload";
     /// `session.plugins.retryManaged`
@@ -1190,10 +1069,6 @@ pub mod rpc_methods {
     pub const SESSION_PROVIDER_GETENDPOINT: &str = "session.provider.getEndpoint";
     /// `session.provider.add`
     pub const SESSION_PROVIDER_ADD: &str = "session.provider.add";
-    /// `session.provider.updateProvider`
-    pub const SESSION_PROVIDER_UPDATEPROVIDER: &str = "session.provider.updateProvider";
-    /// `session.provider.updateModel`
-    pub const SESSION_PROVIDER_UPDATEMODEL: &str = "session.provider.updateModel";
     /// `session.provider.sync`
     pub const SESSION_PROVIDER_SYNC: &str = "session.provider.sync";
     /// `session.provider.getStatus`
@@ -1204,16 +1079,6 @@ pub mod rpc_methods {
     pub const SESSION_OPTIONS_UPDATE: &str = "session.options.update";
     /// `session.lsp.initialize`
     pub const SESSION_LSP_INITIALIZE: &str = "session.lsp.initialize";
-    /// `session.lsp.list`
-    pub const SESSION_LSP_LIST: &str = "session.lsp.list";
-    /// `session.lsp.start`
-    pub const SESSION_LSP_START: &str = "session.lsp.start";
-    /// `session.lsp.stop`
-    pub const SESSION_LSP_STOP: &str = "session.lsp.stop";
-    /// `session.lsp.diagnose`
-    pub const SESSION_LSP_DIAGNOSE: &str = "session.lsp.diagnose";
-    /// `session.lsp.set`
-    pub const SESSION_LSP_SET: &str = "session.lsp.set";
     /// `session.extensions.getPolicy`
     pub const SESSION_EXTENSIONS_GETPOLICY: &str = "session.extensions.getPolicy";
     /// `session.extensions.list`
@@ -1233,9 +1098,6 @@ pub mod rpc_methods {
     pub const SESSION_TOOLS_EXECUTE: &str = "session.tools.execute";
     /// `session.tools.getBuiltinDescriptors`
     pub const SESSION_TOOLS_GETBUILTINDESCRIPTORS: &str = "session.tools.getBuiltinDescriptors";
-    /// `session.tools.getBuiltinAgentFlagOverrides`
-    pub const SESSION_TOOLS_GETBUILTINAGENTFLAGOVERRIDES: &str =
-        "session.tools.getBuiltinAgentFlagOverrides";
     /// `session.tools.taskCompleteEventData`
     pub const SESSION_TOOLS_TASKCOMPLETEEVENTDATA: &str = "session.tools.taskCompleteEventData";
     /// `session.tools.handlePendingToolCall`
@@ -1323,13 +1185,6 @@ pub mod rpc_methods {
     pub const SESSION_PERMISSIONS_GETCAPABILITIES: &str = "session.permissions.getCapabilities";
     /// `session.permissions.modifyRules`
     pub const SESSION_PERMISSIONS_MODIFYRULES: &str = "session.permissions.modifyRules";
-    /// `session.permissions.getAllowAll`
-    pub const SESSION_PERMISSIONS_GETALLOWALL: &str = "session.permissions.getAllowAll";
-    /// `session.permissions.managedReviewRequired`
-    pub const SESSION_PERMISSIONS_MANAGEDREVIEWREQUIRED: &str =
-        "session.permissions.managedReviewRequired";
-    /// `session.permissions.getRequired`
-    pub const SESSION_PERMISSIONS_GETREQUIRED: &str = "session.permissions.getRequired";
     /// `session.permissions.setRequired`
     pub const SESSION_PERMISSIONS_SETREQUIRED: &str = "session.permissions.setRequired";
     /// `session.permissions.resetSessionApprovals`
@@ -1340,9 +1195,6 @@ pub mod rpc_methods {
         "session.permissions.clearResumeEscalation";
     /// `session.permissions.notifyPromptShown`
     pub const SESSION_PERMISSIONS_NOTIFYPROMPTSHOWN: &str = "session.permissions.notifyPromptShown";
-    /// `session.permissions.additionalDirectories.list`
-    pub const SESSION_PERMISSIONS_ADDITIONALDIRECTORIES_LIST: &str =
-        "session.permissions.additionalDirectories.list";
     /// `session.permissions.paths.list`
     pub const SESSION_PERMISSIONS_PATHS_LIST: &str = "session.permissions.paths.list";
     /// `session.permissions.paths.add`
@@ -1372,9 +1224,8 @@ pub mod rpc_methods {
     /// `session.permissions.urls.setUnrestrictedMode`
     pub const SESSION_PERMISSIONS_URLS_SETUNRESTRICTEDMODE: &str =
         "session.permissions.urls.setUnrestrictedMode";
-    /// `session.metadata.getWorkingDirectoryContext`
-    pub const SESSION_METADATA_GETWORKINGDIRECTORYCONTEXT: &str =
-        "session.metadata.getWorkingDirectoryContext";
+    /// `session.log`
+    pub const SESSION_LOG: &str = "session.log";
     /// `session.metadata.snapshot`
     pub const SESSION_METADATA_SNAPSHOT: &str = "session.metadata.snapshot";
     /// `session.metadata.getClientMetadata`
@@ -1400,8 +1251,6 @@ pub mod rpc_methods {
     /// `session.metadata.recomputeContextTokens`
     pub const SESSION_METADATA_RECOMPUTECONTEXTTOKENS: &str =
         "session.metadata.recomputeContextTokens";
-    /// `session.log`
-    pub const SESSION_LOG: &str = "session.log";
     /// `session.settings.snapshot`
     pub(crate) const SESSION_SETTINGS_SNAPSHOT: &str = "session.settings.snapshot";
     /// `session.settings.evaluatePredicate`
@@ -1430,8 +1279,6 @@ pub mod rpc_methods {
     /// `session.history.cancelBackgroundCompaction`
     pub const SESSION_HISTORY_CANCELBACKGROUNDCOMPACTION: &str =
         "session.history.cancelBackgroundCompaction";
-    /// `session.history.setCompactionConfig`
-    pub const SESSION_HISTORY_SETCOMPACTIONCONFIG: &str = "session.history.setCompactionConfig";
     /// `session.history.abortManualCompaction`
     pub const SESSION_HISTORY_ABORTMANUALCOMPACTION: &str = "session.history.abortManualCompaction";
     /// `session.history.summarizeForHandoff`
@@ -1540,8 +1387,6 @@ pub mod rpc_methods {
     pub(crate) const SKILLPROVIDER_READ: &str = "skillProvider.read";
     /// `sessionManagement.create`
     pub(crate) const SESSIONMANAGEMENT_CREATE: &str = "sessionManagement.create";
-    /// `memoryStore.store`
-    pub(crate) const MEMORYSTORE_STORE: &str = "memoryStore.store";
     /// `providerToken.getToken`
     pub const PROVIDERTOKEN_GETTOKEN: &str = "providerToken.getToken";
     /// `workflow.execute`
@@ -1594,12 +1439,11 @@ pub mod rpc_methods {
 mod sdk_api_shared;
 pub use sdk_api_shared::{
     AccountAuthInfo, AccountAuthInfoType, AccountKind, AdaptiveThinkingSupport, AgentInfo,
-    AgentInfoSource, ApiKeyAuthInfo, ApiKeyAuthInfoType, AuthIdentity, AuthIdentityMetadata,
-    AuthInfo, AuthInfoType, AuthLoginAccount, AuthLoginResultDto, AuthLoginResultStatus,
-    AuthLoginStep, AuthLoginStepAwaiting, AuthLoginStepAwaitingKind, AuthLoginStepCompleted,
-    AuthLoginStepCompletedKind, AuthLoginStepDeviceCode, AuthLoginStepDeviceCodeKind,
-    AuthLoginStepError, AuthLoginStepErrorKind, AuthLoginStepInputRequired,
-    AuthLoginStepInputRequiredKind, AuthLoginStepNeedsInteraction,
+    AgentInfoSource, ApiKeyAuthInfo, ApiKeyAuthInfoType, AuthIdentity, AuthInfo, AuthInfoType,
+    AuthLoginAccount, AuthLoginResultDto, AuthLoginResultStatus, AuthLoginStep,
+    AuthLoginStepAwaiting, AuthLoginStepAwaitingKind, AuthLoginStepCompleted,
+    AuthLoginStepCompletedKind, AuthLoginStepError, AuthLoginStepErrorKind,
+    AuthLoginStepInputRequired, AuthLoginStepInputRequiredKind, AuthLoginStepNeedsInteraction,
     AuthLoginStepNeedsInteractionKind, AuthLoginStepOpenUrl, AuthLoginStepOpenUrlKind,
     AuthValidationError, AutoTierBilling, AutoTierBillingPromo, AutoTierDescriptor,
     AutoTierMetadata, AutoTierStatus, AutopilotEvaluateIdleContinuationOutcome,
@@ -1620,11 +1464,11 @@ pub use sdk_api_shared::{
     ConnectedRemoteSessionMetadataKind, ConnectedRemoteSessionMetadataRepository,
     ConnectorAuthorizationRequirement, ConnectorAuthorizationScope, ConnectorAvailability,
     ConnectorCatalogEntry, ConnectorCatalogResult, ConnectorCatalogStatus, ConnectorMcpStatus,
-    ConnectorRuntimeStatus, ConnectorSessionAccount, ConnectorStatus, ContentExclusionPathCheck,
-    ContextHeaviestMessage, CopilotApiTokenAuthInfo, CopilotApiTokenAuthInfoHost,
-    CopilotApiTokenAuthInfoType, CopilotUserResponse, CopilotUserResponseEndpoints,
-    CopilotUserResponseEnterpriseListItem, CopilotUserResponseQuotaSnapshots,
-    CopilotUserResponseQuotaSnapshotsChat, CopilotUserResponseQuotaSnapshotsCompletions,
+    ConnectorRuntimeStatus, ConnectorStatus, ContentExclusionPathCheck, ContextHeaviestMessage,
+    CopilotApiTokenAuthInfo, CopilotApiTokenAuthInfoHost, CopilotApiTokenAuthInfoType,
+    CopilotUserResponse, CopilotUserResponseEndpoints, CopilotUserResponseEnterpriseListItem,
+    CopilotUserResponseQuotaSnapshots, CopilotUserResponseQuotaSnapshotsChat,
+    CopilotUserResponseQuotaSnapshotsCompletions,
     CopilotUserResponseQuotaSnapshotsPremiumInteractions, CurrentModel,
     DebugCollectLogsCollectedEntry, DebugCollectLogsResultKind, DebugCollectLogsSkippedEntry,
     DebugCollectLogsSource, DiagnosticCursorStatus, DiagnosticLogLevel, DiagnosticSeverity,
@@ -1633,48 +1477,40 @@ pub use sdk_api_shared::{
     EligiblePluginExtensionEntry, EnvAuthInfo, EnvAuthInfoType, EventsCursorStatus,
     EventsReadDirection, Extension, ExtensionSource, ExtensionStatus,
     ExternalToolTextResultForLlmBinaryResultsForLlm,
-    ExternalToolTextResultForLlmBinaryResultsForLlmType, FeatureFlagAssignmentsUpdate,
-    FeatureFlagConfigPatch, FeatureFlagEnabledOverride, FeatureFlagExpOverrideQuery,
-    FeatureFlagReasoningSummariesArm, FeatureFlagServiceSnapshot, FusionTier, GhCliAuthInfo,
-    GhCliAuthInfoType, GitHubRepoRef, HMACAuthInfo, HMACAuthInfoHost, HMACAuthInfoType,
-    HistoryCompactContextWindow, HistoryFileRestoreSkipReason, HistoryRewindChangeType,
-    HistoryRewindFilePreview, HistoryRewindOutcome, HistoryRewindPoint,
-    HistoryRewindUnavailableReason, HistorySkippedFileRestore, InstallationCatalogueIdentity,
-    InstalledPlugin, InstalledPluginInfo, InstalledPluginVerifiedSource, InstructionSource,
-    InstructionSourceLocation, InstructionSourceType, LoginProviderKind, LspConfigurationProblem,
-    LspProbeExitStatus, LspServerSummary, LspWarmupError, ManagedPluginAssignment,
-    ManagedSettingsResolvedData, MarketplaceInfo, MarketplacePluginInfo, MarketplaceRefreshEntry,
-    McpAllowedServer, McpAppsDiagnoseCapability, McpAppsDiagnoseServer, McpAppsHostContextDetails,
-    McpAppsHostContextDetailsAvailableDisplayMode, McpAppsHostContextDetailsDisplayMode,
-    McpAppsHostContextDetailsPlatform, McpAppsHostContextDetailsTheme, McpAppsResourceContent,
-    McpConfiguredServer, McpConfiguredServerState, McpDiagnosticDetails, McpDiagnosticDirection,
-    McpDiagnosticKind, McpDiagnosticSourceConfiguration, McpExecuteSamplingResult, McpFailedServer,
-    McpFilteredServer, McpHostState, McpOauthFlowStoreCallback, McpOauthFlowStoreCallbackKind,
-    McpOauthFlowStoreMemory, McpOauthFlowStoreMemoryKind, McpOauthFlowStorePersistent,
-    McpOauthFlowStorePersistentKind, McpOauthFlowStoreSession, McpOauthFlowStoreSessionKind,
-    McpOauthLoginGrantType, McpOwnedOauthLoginStatus, McpPlanPolicySource, McpPrompt,
-    McpPromptArgument, McpPromptIcon, McpPromptMessage, McpPromptRole, McpResource,
-    McpResourceAnnotations, McpResourceContent, McpResourceIcon, McpResourceTemplate,
-    McpSamplingExecutionAction, McpServer, McpServerCardMediaType, McpServerFailureInfo,
-    McpServerNeedsAuthInfo, McpServerOwnership, McpServerToolTokenBreakdown,
-    McpSetEnvValueModeDetails, McpToolResult, McpToolTokenCount, McpToolUi, McpToolUiVisibility,
-    McpTools, Model, ModelArtifactDetails, ModelBilling, ModelBillingPromo,
-    ModelBillingTokenPrices, ModelBillingTokenPricesLongContext, ModelCapabilities,
-    ModelCapabilitiesLimits, ModelCapabilitiesLimitsVision, ModelCapabilitiesOverride,
-    ModelCapabilitiesOverrideLimits, ModelCapabilitiesOverrideLimitsVision,
-    ModelCapabilitiesOverrideSupports, ModelCapabilitiesSupports, ModelMessage,
-    ModelPickerCategory, ModelPickerPriceCategory, ModelPickerSettingsContext, ModelPolicy,
-    ModelPolicyState, ModelProviderAdapterDescriptor, ModelProviderAdapterOperationDescriptor,
-    ModelProviderAttribution, ModelProviderAutomaticDiscoveryMode,
-    ModelProviderAutomaticDiscoveryPolicy, ModelProviderConfigurationDisposition,
-    ModelProviderDiscoveryNetworkScope, ModelProviderInstance, ModelProviderInstanceReference,
-    ModelProviderOperationOutcome, ModelProviderOperationOutcomeCode, ModelProviderProvenance,
-    ModelProviderProvenanceSource, ModelProviderSaveConfigurationRequest, ModelProviderWarning,
-    ModelSwitchAutoTierStatus, ModelSwitchConfirmation, ModelWarningText, NamedProviderConfig,
-    OpenCanvasInstance, OptionsUpdateToolFilterPrecedence, PendingExternalToolRequest,
-    PendingPermissionRequest, PermissionDecisionContext, PermissionDecisionOutcome,
-    PermissionDecisionSurface, PermissionResponseCapability, PlanSqlTodoDependency,
-    PlanSqlTodosRow, Plugin, PluginInstallPlan, PluginInstallPlanReview,
+    ExternalToolTextResultForLlmBinaryResultsForLlmType, GhCliAuthInfo, GhCliAuthInfoType,
+    GitHubRepoRef, HMACAuthInfo, HMACAuthInfoHost, HMACAuthInfoType, HistoryCompactContextWindow,
+    HistoryFileRestoreSkipReason, HistoryRewindChangeType, HistoryRewindFilePreview,
+    HistoryRewindOutcome, HistoryRewindPoint, HistoryRewindUnavailableReason,
+    HistorySkippedFileRestore, InstallationCatalogueIdentity, InstalledPlugin, InstalledPluginInfo,
+    InstalledPluginVerifiedSource, InstructionSource, InstructionSourceLocation,
+    InstructionSourceType, LoginProviderKind, MarketplaceInfo, MarketplacePluginInfo,
+    MarketplaceRefreshEntry, McpAllowedServer, McpAppsDiagnoseCapability, McpAppsDiagnoseServer,
+    McpAppsHostContextDetails, McpAppsHostContextDetailsAvailableDisplayMode,
+    McpAppsHostContextDetailsDisplayMode, McpAppsHostContextDetailsPlatform,
+    McpAppsHostContextDetailsTheme, McpAppsResourceContent, McpConfiguredServer,
+    McpConfiguredServerState, McpDiagnosticDetails, McpDiagnosticDirection, McpDiagnosticKind,
+    McpDiagnosticSourceConfiguration, McpExecuteSamplingResult, McpFailedServer, McpFilteredServer,
+    McpHostState, McpOwnedOauthLoginStatus, McpPlanPolicySource, McpPrompt, McpPromptArgument,
+    McpPromptIcon, McpPromptMessage, McpPromptRole, McpResource, McpResourceAnnotations,
+    McpResourceContent, McpResourceIcon, McpResourceTemplate, McpSamplingExecutionAction,
+    McpServer, McpServerCardMediaType, McpServerFailureInfo, McpServerNeedsAuthInfo,
+    McpServerOwnership, McpSetEnvValueModeDetails, McpToolUi, McpToolUiVisibility, McpTools, Model,
+    ModelArtifactDetails, ModelBilling, ModelBillingPromo, ModelBillingTokenPrices,
+    ModelBillingTokenPricesLongContext, ModelCapabilities, ModelCapabilitiesLimits,
+    ModelCapabilitiesLimitsVision, ModelCapabilitiesOverride, ModelCapabilitiesOverrideLimits,
+    ModelCapabilitiesOverrideLimitsVision, ModelCapabilitiesOverrideSupports,
+    ModelCapabilitiesSupports, ModelMessage, ModelPickerCategory, ModelPickerPriceCategory,
+    ModelPickerSettingsContext, ModelPolicy, ModelPolicyState, ModelProviderAdapterDescriptor,
+    ModelProviderAdapterOperationDescriptor, ModelProviderAttribution,
+    ModelProviderAutomaticDiscoveryMode, ModelProviderAutomaticDiscoveryPolicy,
+    ModelProviderConfigurationDisposition, ModelProviderDiscoveryNetworkScope,
+    ModelProviderInstance, ModelProviderInstanceReference, ModelProviderOperationOutcome,
+    ModelProviderOperationOutcomeCode, ModelProviderProvenance, ModelProviderProvenanceSource,
+    ModelProviderWarning, ModelSwitchAutoTierStatus, ModelSwitchConfirmation, ModelWarningText,
+    NamedProviderConfig, OpenCanvasInstance, OptionsUpdateToolFilterPrecedence,
+    PendingExternalToolRequest, PendingPermissionRequest, PermissionDecisionContext,
+    PermissionDecisionOutcome, PermissionDecisionSurface, PermissionResponseCapability,
+    PlanSqlTodoDependency, PlanSqlTodosRow, Plugin, PluginInstallPlan, PluginInstallPlanReview,
     PluginInstallPlanReviewAction, PluginInstallStagingMode, PluginInstallationFileReview,
     PluginInstallationLocation, PluginInstallationMcpServerReview, PluginInstallationMcpTransport,
     PluginInstallationSource, ProtocolImageGenerationOptions, ProviderConfigAzure,
@@ -1686,17 +1522,15 @@ pub use sdk_api_shared::{
     SandboxConfigUserPolicyExperimentalSeatbelt, SandboxConfigUserPolicyFilesystem,
     SandboxConfigUserPolicyNetwork, SandboxConfigUserPolicyNetworkProxy,
     SandboxConfigUserPolicySeatbelt, SandboxCredentialSuggestion, SandboxCredentialsConfig,
-    SandboxMaskedEnvVar, SavedProviderConfigurationProvider,
-    SavedProviderConfigurationProviderInput, SavedProviderConfigurationType,
-    SavedProviderCredentialStatus, ScheduleEntry, SendAgentMode, ServerSkill,
-    SessionCompletionItem, SessionVisibilityStatus, SessionWorkingDirectoryContextHostType,
-    ShellCredentials, ShellInitProfile, ShellInitScript, ShellInitScriptShell, ShellOptions, Skill,
-    SkillInstallPlan, SkillInstallationFileReview, SkillInstallationLocation,
-    SkillInstallationOwnershipState, SkillInstallationReview, SkillInstallationReviewInstall,
-    SkillInstallationReviewInstallAction, SkillInstallationReviewUninstall,
-    SkillInstallationReviewUninstallAction, SkillInstallationScope, SkillInstallationSessionState,
-    SkillInstallationSource, SkillInstallationSummary, SkillsInvokedSkill, SlashCommandInfo,
-    SlashCommandInput, SlashCommandInputChoice, SlashCommandInputCompletion, SlashCommandKind,
+    SandboxMaskedEnvVar, ScheduleEntry, SendAgentMode, ServerSkill, SessionCompletionItem,
+    SessionVisibilityStatus, SessionWorkingDirectoryContextHostType, ShellCredentials,
+    ShellInitProfile, ShellInitScript, ShellInitScriptShell, ShellOptions, Skill, SkillInstallPlan,
+    SkillInstallationFileReview, SkillInstallationLocation, SkillInstallationOwnershipState,
+    SkillInstallationReview, SkillInstallationReviewInstall, SkillInstallationReviewInstallAction,
+    SkillInstallationReviewUninstall, SkillInstallationReviewUninstallAction,
+    SkillInstallationScope, SkillInstallationSessionState, SkillInstallationSource,
+    SkillInstallationSummary, SkillsInvokedSkill, SlashCommandInfo, SlashCommandInput,
+    SlashCommandInputChoice, SlashCommandInputCompletion, SlashCommandKind,
     StandaloneExtensionAdmission, SubagentSettingsConfig, SubagentSettingsEntry,
     SubagentSettingsEntryContextTier, TokenAuthInfo, TokenAuthInfoType, TokenProviderAuthInfo,
     TokenProviderAuthInfoType, UIElicitationResponseAction, UserAuthInfo, UserAuthInfoType,
@@ -1709,10 +1543,7 @@ pub use sdk_api_shared::{
     WorkspaceDiffFileChangeType, WorkspaceDiffMode, WorkspaceSummaryHostType,
     WorkspacesCheckpoints, WorkspacesWorkspaceDetailsHostType,
 };
-pub(crate) use sdk_api_shared::{
-    McpOauthFlowStaticClientConfig, McpOauthFlowStore, McpOauthTestConnectionTransport,
-    SettingsEditOperation, SettingsEditStatus,
-};
+pub(crate) use sdk_api_shared::{SettingsEditOperation, SettingsEditStatus};
 
 #[path = "api_domain_session.rs"]
 mod sdk_api_session;
@@ -1798,17 +1629,16 @@ pub use sdk_api_session::{
     PermissionPathsConfig, PermissionPathsList, PermissionPathsUpdatePrimaryParams,
     PermissionPathsWorkspaceCheckParams, PermissionPathsWorkspaceCheckResult,
     PermissionPromptShownNotification, PermissionRequestResult, PermissionRulesSet,
-    PermissionUrlsConfig, PermissionUrlsSetUnrestrictedModeParams,
-    PermissionsAdditionalDirectoriesListResult, PermissionsAllowAllBaseline,
-    PermissionsCapabilities, PermissionsClearResumeEscalationRequest,
-    PermissionsClearResumeEscalationResult, PermissionsConfigureAdditionalContentExclusionPolicy,
+    PermissionUrlsConfig, PermissionUrlsSetUnrestrictedModeParams, PermissionsCapabilities,
+    PermissionsClearResumeEscalationRequest, PermissionsClearResumeEscalationResult,
+    PermissionsConfigureAdditionalContentExclusionPolicy,
     PermissionsConfigureAdditionalContentExclusionPolicyRule,
     PermissionsConfigureAdditionalContentExclusionPolicyRuleSource,
     PermissionsConfigureAdditionalContentExclusionPolicyScope,
     PermissionsConfigureAssistedApprovalContext, PermissionsConfigureOptions,
     PermissionsConfigureParams, PermissionsConfigureResult, PermissionsEvaluateManagedPolicyResult,
     PermissionsFolderTrustAddTrustedResult, PermissionsFolderTrustCheckTrustResult,
-    PermissionsGetAllowAllResult, PermissionsGetModeRequest, PermissionsGetModeResult,
+    PermissionsGetModeRequest, PermissionsGetModeResult,
     PermissionsLocationsAddToolApprovalDetails, PermissionsLocationsAddToolApprovalDetailsCommands,
     PermissionsLocationsAddToolApprovalDetailsCommandsKind,
     PermissionsLocationsAddToolApprovalDetailsCustomTool,
@@ -1831,18 +1661,18 @@ pub use sdk_api_session::{
     PermissionsLocationsAddToolApprovalDetailsWorkflowKind,
     PermissionsLocationsAddToolApprovalDetailsWrite,
     PermissionsLocationsAddToolApprovalDetailsWriteKind, PermissionsLocationsAddToolApprovalResult,
-    PermissionsManagedReviewRequiredRequest, PermissionsModifyRulesParams,
-    PermissionsModifyRulesResult, PermissionsModifyRulesScope, PermissionsNotifyPromptShownResult,
-    PermissionsPathsAddResult, PermissionsPathsListRequest, PermissionsPathsUpdatePrimaryResult,
-    PermissionsPendingRequestsRequest, PermissionsResetSessionApprovalsRequest,
-    PermissionsResetSessionApprovalsResult, PermissionsSetApproveAllRequest,
-    PermissionsSetApproveAllResult, PermissionsSetApproveAllSource, PermissionsSetModeRequest,
-    PermissionsSetModeResult, PermissionsSetRequiredOptions, PermissionsSetRequiredRequest,
-    PermissionsSetRequiredResult, PermissionsUrlsSetUnrestrictedModeResult,
-    ProtocolExternalToolDefer, ProtocolExternalToolDefinition, ProtocolExternalToolNamespace,
-    ProviderConfig, RemoteControlConfig, RemoteControlConfigExistingMcSession,
-    RemoteSessionHostStatus, RemoteSessionMetadataRepository, RemoteSessionMetadataTaskType,
-    RemoteSessionMetadataValue, RemoteSessionRepository, SandboxConfigSource, SessionAbortResult,
+    PermissionsModifyRulesParams, PermissionsModifyRulesResult, PermissionsModifyRulesScope,
+    PermissionsNotifyPromptShownResult, PermissionsPathsAddResult, PermissionsPathsListRequest,
+    PermissionsPathsUpdatePrimaryResult, PermissionsPendingRequestsRequest,
+    PermissionsResetSessionApprovalsRequest, PermissionsResetSessionApprovalsResult,
+    PermissionsSetApproveAllRequest, PermissionsSetApproveAllResult,
+    PermissionsSetApproveAllSource, PermissionsSetModeRequest, PermissionsSetModeResult,
+    PermissionsSetRequiredRequest, PermissionsSetRequiredResult,
+    PermissionsUrlsSetUnrestrictedModeResult, ProtocolExternalToolDefer,
+    ProtocolExternalToolDefinition, ProtocolExternalToolNamespace, ProviderConfig,
+    RemoteControlConfig, RemoteControlConfigExistingMcSession, RemoteSessionHostStatus,
+    RemoteSessionMetadataRepository, RemoteSessionMetadataTaskType, RemoteSessionMetadataValue,
+    RemoteSessionRepository, SandboxConfigSource, SessionAbortResult,
     SessionAccountsLoginBeginResult, SessionAccountsSetResult, SessionActivity,
     SessionAgentDeselectParams, SessionAgentGetCurrentParams, SessionAgentGetCurrentResult,
     SessionAgentListResult, SessionAgentReloadParams, SessionAgentReloadResult,
@@ -1859,44 +1689,35 @@ pub use sdk_api_session::{
     SessionCommandsReportQueuedCommandWaitResult, SessionCommandsRespondToQueuedCommandResult,
     SessionCompletionsGetTriggerCharactersParams, SessionCompletionsGetTriggerCharactersResult,
     SessionCompletionsRequestResult, SessionConnectedIdeInfo, SessionConnectorsDisconnectResult,
-    SessionConnectorsGetAccountParams, SessionConnectorsGetAccountResult,
-    SessionConnectorsGetCapabilitiesParams, SessionConnectorsGetCapabilitiesResult,
-    SessionConnectorsGetStatusParams, SessionConnectorsGetStatusResult,
-    SessionConnectorsListResult, SessionConnectorsReconcileForStartupResult,
-    SessionConnectorsReconcileResult, SessionConnectorsRefreshResult,
-    SessionConnectorsWithdrawProjectionParams, SessionConnectorsWithdrawProjectionResult,
-    SessionContentExclusionCheckPathsResult, SessionContext, SessionContextAttribution,
-    SessionContextAttributionCategories, SessionContextAttributionCompactions,
-    SessionContextAttributionEntriesItem, SessionContextHostType, SessionContextInfo,
-    SessionCustomizationsReloadParams, SessionDebugCollectLogsResult,
-    SessionDiagnosticsConfigureResult, SessionDiagnosticsReadResult,
+    SessionConnectorsGetAccountParams, SessionConnectorsGetCapabilitiesParams,
+    SessionConnectorsGetCapabilitiesResult, SessionConnectorsGetStatusParams,
+    SessionConnectorsGetStatusResult, SessionConnectorsListResult,
+    SessionConnectorsReconcileForStartupResult, SessionConnectorsReconcileResult,
+    SessionConnectorsRefreshResult, SessionConnectorsWithdrawProjectionParams,
+    SessionConnectorsWithdrawProjectionResult, SessionContentExclusionCheckPathsResult,
+    SessionContext, SessionContextAttribution, SessionContextAttributionCategories,
+    SessionContextAttributionCompactions, SessionContextAttributionEntriesItem,
+    SessionContextHostType, SessionContextInfo, SessionCustomizationsReloadParams,
+    SessionDebugCollectLogsResult, SessionDiagnosticsConfigureResult, SessionDiagnosticsReadResult,
     SessionDiagnosticsReadResultEntriesItem, SessionDiagnosticsReadResultEntriesItemSource,
-    SessionDynamicContextConfig, SessionDynamicContextGetConfigParams,
-    SessionDynamicContextGetConfigResponse, SessionDynamicContextGetConfigResult,
-    SessionDynamicContextSetConfigRequest, SessionEnrichMetadataResult, SessionEventLogReadResult,
-    SessionEventLogRegisterInterestResult, SessionEventLogReleaseInterestResult,
-    SessionEventLogTailParams, SessionEventLogTailResult, SessionExtensionsGetPolicyParams,
-    SessionExtensionsGetPolicyResult, SessionExtensionsListParams, SessionExtensionsListResult,
-    SessionExtensionsReconcileParams, SessionExtensionsReconcileResult,
-    SessionExtensionsReloadParams, SessionFeatureFlagsConfigureParams,
-    SessionFeatureFlagsConfigureResult, SessionFeatureFlagsReadOptions,
-    SessionFeatureFlagsReadParams, SessionFeatureFlagsReadResult, SessionFeatureFlagsUpdateParams,
-    SessionFeatureFlagsUpdateResult, SessionFleetStartResult, SessionFsAppendFileRequest,
-    SessionFsAppendFileResult, SessionFsError, SessionFsErrorCode, SessionFsExistsRequest,
-    SessionFsExistsResult, SessionFsMkdirRequest, SessionFsMkdirResult,
-    SessionFsReadFileBytesRequest, SessionFsReadFileBytesResult, SessionFsReadFileRangeRequest,
-    SessionFsReadFileRangeResult, SessionFsReadFileRequest, SessionFsReadFileResult,
-    SessionFsReaddirRequest, SessionFsReaddirResult, SessionFsReaddirWithTypesEntry,
-    SessionFsReaddirWithTypesEntryType, SessionFsReaddirWithTypesRequest,
-    SessionFsReaddirWithTypesResult, SessionFsRenameRequest, SessionFsRenameResult,
-    SessionFsRmRequest, SessionFsRmResult, SessionFsSetProviderCapabilities,
-    SessionFsSetProviderConventions, SessionFsSetProviderRequest, SessionFsSetProviderResult,
-    SessionFsSqliteExistsParams, SessionFsSqliteExistsResult, SessionFsSqliteQueryRequest,
-    SessionFsSqliteQueryResult, SessionFsSqliteQueryType, SessionFsSqliteTransactionError,
+    SessionEnrichMetadataResult, SessionEventLogReadResult, SessionEventLogRegisterInterestResult,
+    SessionEventLogReleaseInterestResult, SessionEventLogTailParams, SessionEventLogTailResult,
+    SessionExtensionsGetPolicyParams, SessionExtensionsGetPolicyResult,
+    SessionExtensionsListParams, SessionExtensionsListResult, SessionExtensionsReconcileParams,
+    SessionExtensionsReconcileResult, SessionExtensionsReloadParams, SessionFleetStartResult,
+    SessionFsAppendFileRequest, SessionFsError, SessionFsErrorCode, SessionFsExistsRequest,
+    SessionFsExistsResult, SessionFsMkdirRequest, SessionFsReadFileBytesRequest,
+    SessionFsReadFileBytesResult, SessionFsReadFileRangeRequest, SessionFsReadFileRangeResult,
+    SessionFsReadFileRequest, SessionFsReadFileResult, SessionFsReaddirRequest,
+    SessionFsReaddirResult, SessionFsReaddirWithTypesEntry, SessionFsReaddirWithTypesEntryType,
+    SessionFsReaddirWithTypesRequest, SessionFsReaddirWithTypesResult, SessionFsRenameRequest,
+    SessionFsRmRequest, SessionFsSetProviderCapabilities, SessionFsSetProviderConventions,
+    SessionFsSetProviderRequest, SessionFsSetProviderResult, SessionFsSqliteExistsParams,
+    SessionFsSqliteExistsResult, SessionFsSqliteQueryRequest, SessionFsSqliteQueryResult,
+    SessionFsSqliteQueryType, SessionFsSqliteTransactionError,
     SessionFsSqliteTransactionErrorClass, SessionFsSqliteTransactionRequest,
     SessionFsSqliteTransactionResult, SessionFsSqliteTransactionStatement, SessionFsStatRequest,
-    SessionFsStatResult, SessionFsWriteFileBytesRequest, SessionFsWriteFileBytesResult,
-    SessionFsWriteFileRequest, SessionFsWriteFileResult,
+    SessionFsStatResult, SessionFsWriteFileBytesRequest, SessionFsWriteFileRequest,
     SessionGitHubAuthGetAllAuthAvailableParams, SessionGitHubAuthGetAllAuthAvailableResult,
     SessionGitHubAuthGetCurrentAuthInfoParams, SessionGitHubAuthGetStatusParams,
     SessionGitHubAuthGetStatusResult, SessionGitHubAuthLastAuthErrorsParams,
@@ -1921,12 +1742,8 @@ pub use sdk_api_session::{
     SessionLimitPredictionResultUnavailableKind, SessionLimitPredictionSource,
     SessionLimitPredictionTier, SessionLimitPredictionTierOption,
     SessionLimitPredictionUnavailableReason, SessionList, SessionListFilter,
-    SessionLoadDeferredRepoHooksResult, SessionLogResult, SessionLspDiagnoseParams,
-    SessionLspDiagnoseResult, SessionLspListResult, SessionLspSetParams, SessionLspStartResult,
-    SessionLspStopParams, SessionManagedPermissions, SessionManagedSettings,
-    SessionManagedSettingsAwaitAppliedParams, SessionManagedSettingsAwaitPublishedParams,
-    SessionManagedSettingsGetCurrentSnapshotParams, SessionManagedSettingsGetCurrentSnapshotResult,
-    SessionManagedSettingsGetParams, SessionManagedSettingsGetResult,
+    SessionLoadDeferredRepoHooksResult, SessionLogResult, SessionManagedPermissions,
+    SessionManagedSettings, SessionManagedSettingsGetParams, SessionManagedSettingsGetResult,
     SessionManagedSettingsRecheckPolicyHelperParams, SessionManagementCloseRequest,
     SessionManagementCloseResult, SessionManagementConfigureRequest,
     SessionManagementConfigureResult, SessionManagementCreateHostRequest,
@@ -1935,22 +1752,17 @@ pub use sdk_api_session::{
     SessionManagementPolicy, SessionManagementScope, SessionManagementToolOverrides,
     SessionMcpAppsCallToolResult, SessionMcpAppsDiagnoseResult, SessionMcpAppsGetHostContextParams,
     SessionMcpAppsGetHostContextResult, SessionMcpAppsListToolsResult,
-    SessionMcpAppsReadResourceResult, SessionMcpCallToolParams, SessionMcpCallToolResult,
-    SessionMcpCancelSamplingExecutionResult, SessionMcpConfigureGitHubResult,
-    SessionMcpExecuteSamplingResult, SessionMcpGetToolTokenBreakdownParams,
-    SessionMcpGetToolTokenBreakdownResult,
-    SessionMcpHeadersHandlePendingHeadersRefreshRequestResult, SessionMcpIdeStateParams,
-    SessionMcpIdeStateResult, SessionMcpIsServerRunningResult, SessionMcpListConfiguredParams,
-    SessionMcpListConfiguredResult, SessionMcpListParams, SessionMcpListResult,
-    SessionMcpListToolsResult, SessionMcpMoveLoadingToBackgroundParams,
+    SessionMcpAppsReadResourceResult, SessionMcpCancelSamplingExecutionResult,
+    SessionMcpConfigureGitHubResult, SessionMcpExecuteSamplingResult,
+    SessionMcpHeadersHandlePendingHeadersRefreshRequestResult, SessionMcpIsServerRunningResult,
+    SessionMcpListConfiguredParams, SessionMcpListConfiguredResult, SessionMcpListParams,
+    SessionMcpListResult, SessionMcpListToolsResult, SessionMcpMoveLoadingToBackgroundParams,
     SessionMcpMoveLoadingToBackgroundResult, SessionMcpOauthCancelLoginParams,
     SessionMcpOauthCancelLoginResult, SessionMcpOauthHandlePendingRequestResult,
-    SessionMcpOauthHasValidTokensResult, SessionMcpOauthLoginResult,
-    SessionMcpOauthPrepareLoginParams, SessionMcpOauthPrepareLoginResult,
-    SessionMcpOauthRespondResult, SessionMcpOauthStoreKeyResult,
-    SessionMcpOauthTryRefreshTokensResult, SessionMcpPromptsGetResult, SessionMcpPromptsListResult,
-    SessionMcpReloadParams, SessionMcpReloadWithConfigResult, SessionMcpRemoveGitHubParams,
-    SessionMcpRemoveGitHubResult, SessionMcpResourcesListResult,
+    SessionMcpOauthLoginResult, SessionMcpOauthPrepareLoginParams,
+    SessionMcpOauthPrepareLoginResult, SessionMcpOauthRespondResult, SessionMcpPromptsGetResult,
+    SessionMcpPromptsListResult, SessionMcpReloadParams, SessionMcpReloadWithConfigResult,
+    SessionMcpRemoveGitHubParams, SessionMcpRemoveGitHubResult, SessionMcpResourcesListResult,
     SessionMcpResourcesListTemplatesResult, SessionMcpResourcesReadResult,
     SessionMcpSetConnectedIdeInfoParams, SessionMcpSetEnvValueModeResult,
     SessionMetadataActivityParams, SessionMetadataActivityResult, SessionMetadataContextInfoResult,
@@ -1961,9 +1773,7 @@ pub use sdk_api_session::{
     SessionMetadataGetContextAttributionResultContextAttributionCategories,
     SessionMetadataGetContextAttributionResultContextAttributionCompactions,
     SessionMetadataGetContextAttributionResultContextAttributionEntriesItem,
-    SessionMetadataGetContextHeaviestMessagesResult,
-    SessionMetadataGetWorkingDirectoryContextParams,
-    SessionMetadataGetWorkingDirectoryContextResult, SessionMetadataIsProcessingParams,
+    SessionMetadataGetContextHeaviestMessagesResult, SessionMetadataIsProcessingParams,
     SessionMetadataIsProcessingResult, SessionMetadataRecomputeContextTokensResult,
     SessionMetadataRecordContextChangeResult, SessionMetadataSetWorkingDirectoryResult,
     SessionMetadataSnapshot, SessionMetadataSnapshotParams, SessionMetadataSnapshotResult,
@@ -1972,8 +1782,7 @@ pub use sdk_api_session::{
     SessionModelApplyStartupOverlayResult, SessionModelGetCurrentParams,
     SessionModelGetCurrentResult, SessionModelGetReasoningSummariesResult, SessionModelList,
     SessionModelListResult, SessionModelPriceCategory, SessionModelSetAllowedModelsResult,
-    SessionModelSetReasoningEffortResult, SessionModelStartupAdmissionResult,
-    SessionModelSwitchAutoTierResult, SessionModelSwitchFusionTierResult,
+    SessionModelSetReasoningEffortResult, SessionModelSwitchAutoTierResult,
     SessionModelSwitchToResult, SessionNameGetParams, SessionNameGetResult,
     SessionNameSetAutoResult, SessionOpenOptions,
     SessionOpenOptionsAdditionalContentExclusionPolicy,
@@ -1981,17 +1790,13 @@ pub use sdk_api_session::{
     SessionOpenOptionsAdditionalContentExclusionPolicyRuleSource,
     SessionOpenOptionsAdditionalContentExclusionPolicyScope, SessionOpenOptionsEnvValueMode,
     SessionOpenOptionsReasoningSummary, SessionOpenParams, SessionOpenResult,
-    SessionOptionsUpdateResult, SessionPermissionsAdditionalDirectoriesListParams,
-    SessionPermissionsAdditionalDirectoriesListResult,
-    SessionPermissionsClearResumeEscalationResult, SessionPermissionsConfigureResult,
-    SessionPermissionsFolderTrustAddTrustedResult, SessionPermissionsFolderTrustIsTrustedResult,
-    SessionPermissionsGetAllowAllParams, SessionPermissionsGetAllowAllResult,
-    SessionPermissionsGetCapabilitiesParams, SessionPermissionsGetCapabilitiesResult,
-    SessionPermissionsGetModeResult, SessionPermissionsGetRequiredParams,
-    SessionPermissionsGetRequiredResult, SessionPermissionsHandlePendingPermissionRequestResult,
+    SessionOptionsUpdateResult, SessionPermissionsClearResumeEscalationResult,
+    SessionPermissionsConfigureResult, SessionPermissionsFolderTrustAddTrustedResult,
+    SessionPermissionsFolderTrustIsTrustedResult, SessionPermissionsGetCapabilitiesParams,
+    SessionPermissionsGetCapabilitiesResult, SessionPermissionsGetModeResult,
+    SessionPermissionsHandlePendingPermissionRequestResult,
     SessionPermissionsLocationsAddToolApprovalResult, SessionPermissionsLocationsApplyResult,
-    SessionPermissionsLocationsResolveResult, SessionPermissionsManagedReviewRequiredParams,
-    SessionPermissionsManagedReviewRequiredResult, SessionPermissionsModifyRulesResult,
+    SessionPermissionsLocationsResolveResult, SessionPermissionsModifyRulesResult,
     SessionPermissionsNotifyPromptShownResult, SessionPermissionsPathsAddResult,
     SessionPermissionsPathsIsPathWithinAllowedDirectoriesResult,
     SessionPermissionsPathsIsPathWithinWorkspaceResult, SessionPermissionsPathsListResult,
@@ -2001,20 +1806,17 @@ pub use sdk_api_session::{
     SessionPermissionsUrlsSetUnrestrictedModeResult, SessionPlanDeleteParams,
     SessionPlanReadParams, SessionPlanReadResult, SessionPlanReadSqlTodosParams,
     SessionPlanReadSqlTodosResult, SessionPlanReadSqlTodosWithDependenciesParams,
-    SessionPlanReadSqlTodosWithDependenciesResult, SessionPluginDefaults,
-    SessionPluginsDisableRequest, SessionPluginsEnableRequest, SessionPluginsGetDefaultsParams,
-    SessionPluginsGetDefaultsResult, SessionPluginsInstallRequest, SessionPluginsInstallResult,
+    SessionPlanReadSqlTodosWithDependenciesResult, SessionPluginsDisableRequest,
+    SessionPluginsEnableRequest, SessionPluginsInstallRequest, SessionPluginsInstallResult,
     SessionPluginsListParams, SessionPluginsListResult, SessionPluginsMarketplacesAddResult,
     SessionPluginsMarketplacesBrowseResult, SessionPluginsMarketplacesListParams,
     SessionPluginsMarketplacesListResult, SessionPluginsMarketplacesRefreshResult,
     SessionPluginsMarketplacesRemoveResult, SessionPluginsRetryManagedRequest,
     SessionPluginsRetryManagedResult, SessionPluginsUpdateResult, SessionProviderAddResult,
     SessionProviderGetEndpointResult, SessionProviderGetStatusParams,
-    SessionProviderGetStatusResult, SessionProviderSyncResult, SessionProviderUpdateModelParams,
-    SessionProviderUpdateProviderParams, SessionProviderWithdrawResult,
+    SessionProviderGetStatusResult, SessionProviderSyncResult, SessionProviderWithdrawResult,
     SessionProvidersDiscoverResult, SessionProvidersGetCatalogParams,
     SessionProvidersGetCatalogResult, SessionProvidersGetStatusResult,
-    SessionProvidersModelsDiagnoseParams, SessionProvidersModelsDiagnoseResult,
     SessionProvidersModelsListResult, SessionProvidersModelsPrepareConfigurationResult,
     SessionPruneResult, SessionQueueAppendSteeringResult, SessionQueueBeginDeferredIdleDrainResult,
     SessionQueueClearParams, SessionQueueConsumeSystemNotificationsResult,
@@ -2030,36 +1832,33 @@ pub use sdk_api_session::{
     SessionQuotaRefreshResult, SessionQuotaSnapshot, SessionQuotaTakeWarningsParams,
     SessionQuotaTakeWarningsResult, SessionRemoteDisableParams, SessionRemoteEnableResult,
     SessionRemoteNotifySteerableChangedResult, SessionSandboxDisableForSessionResult,
-    SessionSandboxEnsureEnforcementAvailableParams, SessionSandboxGetCredentialSuggestionsParams,
-    SessionSandboxGetCredentialSuggestionsResult, SessionSandboxGetEnforcementStatusParams,
-    SessionSandboxGetEnforcementStatusResult, SessionSandboxGetRemoteMcpEgressParams,
-    SessionSandboxGetRemoteMcpEgressResult, SessionSandboxGrantPathForRequestResult,
-    SessionScheduleAddAtResult, SessionScheduleAddCronResult, SessionScheduleAddResult,
-    SessionScheduleAddSelfPacedResult, SessionScheduleHasSelfPacedParams,
-    SessionScheduleHasSelfPacedResult, SessionScheduleHydrateParams, SessionScheduleListParams,
-    SessionScheduleListResult, SessionScheduleRearmSelfPacedResult, SessionScheduleStopResult,
-    SessionSendAndWaitResult, SessionSendMessagesResult, SessionSendResult,
-    SessionSetCredentialsParams, SessionSetCredentialsResult,
-    SessionSettingsBuiltInToolAvailabilitySnapshot, SessionSettingsEvaluatePredicateRequest,
-    SessionSettingsEvaluatePredicateResult, SessionSettingsJobSnapshot,
-    SessionSettingsModelSnapshot, SessionSettingsOnlineEvaluationSnapshot, SessionSettingsPatch,
-    SessionSettingsPredicateName, SessionSettingsRepoSnapshot, SessionSettingsSnapshot,
-    SessionSettingsSnapshotParams, SessionSettingsSnapshotResult,
-    SessionSettingsValidationSnapshot, SessionShellCancelUserRequestedResult,
-    SessionShellExecResult, SessionShellExecuteUserRequestedResult, SessionShellKillResult,
-    SessionSizes, SessionSkillsEnsureLoadedParams, SessionSkillsGetInvokedParams,
-    SessionSkillsGetInvokedResult, SessionSkillsListParams, SessionSkillsListResult,
-    SessionSkillsReloadParams, SessionSkillsReloadResult, SessionSource, SessionSuspendParams,
-    SessionTasksCancelResult, SessionTasksGetCurrentPromotableParams,
-    SessionTasksGetCurrentPromotableResult, SessionTasksGetProgressResult, SessionTasksListParams,
-    SessionTasksListResult, SessionTasksPromoteCurrentToBackgroundParams,
-    SessionTasksPromoteCurrentToBackgroundResult, SessionTasksPromoteToBackgroundResult,
-    SessionTasksReadOutputResult, SessionTasksRefreshParams, SessionTasksRefreshResult,
-    SessionTasksRegisterResult, SessionTasksRemoveResult, SessionTasksSendMessageResult,
-    SessionTasksStartAgentResult, SessionTasksUpdateResult, SessionTasksWaitForPendingParams,
-    SessionTasksWaitForPendingResult, SessionTelemetryEngagement,
+    SessionSandboxGetCredentialSuggestionsParams, SessionSandboxGetCredentialSuggestionsResult,
+    SessionSandboxGetEnforcementStatusParams, SessionSandboxGetEnforcementStatusResult,
+    SessionSandboxGrantPathForRequestResult, SessionScheduleAddAtResult,
+    SessionScheduleAddCronResult, SessionScheduleAddResult, SessionScheduleAddSelfPacedResult,
+    SessionScheduleHasSelfPacedParams, SessionScheduleHasSelfPacedResult,
+    SessionScheduleHydrateParams, SessionScheduleListParams, SessionScheduleListResult,
+    SessionScheduleRearmSelfPacedResult, SessionScheduleStopResult, SessionSendAndWaitResult,
+    SessionSendMessagesResult, SessionSendResult, SessionSetCredentialsParams,
+    SessionSetCredentialsResult, SessionSettingsBuiltInToolAvailabilitySnapshot,
+    SessionSettingsEvaluatePredicateRequest, SessionSettingsEvaluatePredicateResult,
+    SessionSettingsJobSnapshot, SessionSettingsModelSnapshot,
+    SessionSettingsOnlineEvaluationSnapshot, SessionSettingsPredicateName,
+    SessionSettingsRepoSnapshot, SessionSettingsSnapshot, SessionSettingsSnapshotParams,
+    SessionSettingsSnapshotResult, SessionSettingsValidationSnapshot,
+    SessionShellCancelUserRequestedResult, SessionShellExecResult,
+    SessionShellExecuteUserRequestedResult, SessionShellKillResult, SessionSizes,
+    SessionSkillsEnsureLoadedParams, SessionSkillsGetInvokedParams, SessionSkillsGetInvokedResult,
+    SessionSkillsListParams, SessionSkillsListResult, SessionSkillsReloadParams,
+    SessionSkillsReloadResult, SessionSource, SessionSuspendParams, SessionTasksCancelResult,
+    SessionTasksGetCurrentPromotableParams, SessionTasksGetCurrentPromotableResult,
+    SessionTasksGetProgressResult, SessionTasksListParams, SessionTasksListResult,
+    SessionTasksPromoteCurrentToBackgroundParams, SessionTasksPromoteCurrentToBackgroundResult,
+    SessionTasksPromoteToBackgroundResult, SessionTasksReadOutputResult, SessionTasksRefreshParams,
+    SessionTasksRefreshResult, SessionTasksRegisterResult, SessionTasksRemoveResult,
+    SessionTasksSendMessageResult, SessionTasksStartAgentResult, SessionTasksUpdateResult,
+    SessionTasksWaitForPendingParams, SessionTasksWaitForPendingResult, SessionTelemetryEngagement,
     SessionTelemetryGetEngagementIdParams, SessionTelemetryGetEngagementIdResult,
-    SessionToolsGetBuiltinAgentFlagOverridesParams, SessionToolsGetBuiltinAgentFlagOverridesResult,
     SessionToolsGetBuiltinDescriptorsResult, SessionToolsGetCurrentMetadataParams,
     SessionToolsGetCurrentMetadataResult, SessionToolsGetSubagentSettingsParams,
     SessionToolsGetSubagentSettingsResult, SessionToolsHandlePendingToolCallResult,
@@ -2073,11 +1872,10 @@ pub use sdk_api_session::{
     SessionUiHandlePendingSessionLimitsExhaustedResult, SessionUiHandlePendingUserInputResult,
     SessionUiRegisterDirectAutoModeSwitchHandlerParams,
     SessionUiRegisterDirectAutoModeSwitchHandlerResult,
-    SessionUiRegisterDirectAutoModeSwitchHandlerResultWithAutoModeRecovery,
     SessionUiUnregisterDirectAutoModeSwitchHandlerResult, SessionUpdateOptionsParams,
-    SessionUpdateOptionsResult, SessionUpdateOptionsWithSettings, SessionUsageGetMetricsParams,
-    SessionVisibilityGetParams, SessionVisibilityGetResult, SessionVisibilitySetResult,
-    SessionWorkflowAgentResult, SessionWorkflowCancelResult, SessionWorkflowGetRunDetailResult,
+    SessionUpdateOptionsResult, SessionUsageGetMetricsParams, SessionVisibilityGetParams,
+    SessionVisibilityGetResult, SessionVisibilitySetResult, SessionWorkflowAgentResult,
+    SessionWorkflowCancelResult, SessionWorkflowGetRunDetailResult,
     SessionWorkflowGetRunProgressResult, SessionWorkflowGetRunResult,
     SessionWorkflowJournalGetResult, SessionWorkflowJournalPutResult,
     SessionWorkflowListRunsResult, SessionWorkflowLogResult,
@@ -2101,23 +1899,23 @@ pub use sdk_api_session::{
     SessionWorkspacesUpdateMetadataResult, SessionWorkspacesUpdateMetadataResultWorkspace,
     SessionWorkspacesWriteAutopilotObjectiveResult, SessionsBulkDeleteRequest,
     SessionsBulkDeleteResult, SessionsCheckInUseRequest, SessionsCheckInUseResult,
-    SessionsCloseOptions, SessionsCloseRequest, SessionsCloseResult, SessionsConnectResult,
+    SessionsCloseRequest, SessionsCloseResult, SessionsConnectResult,
     SessionsCreateWorkspaceRequest, SessionsCreateWorkspaceResult, SessionsDeleteRequest,
-    SessionsEnrichMetadataRequest, SessionsEnrichMetadataResult, SessionsFindByPrefixOptions,
-    SessionsFindByPrefixRequest, SessionsFindByPrefixResult, SessionsFindByTaskIDRequest,
-    SessionsFindByTaskIDResult, SessionsFindByTaskIdResult, SessionsForkRequest,
-    SessionsForkResult, SessionsGetBoardEntryCountRequest, SessionsGetBoardEntryCountResult,
+    SessionsEnrichMetadataRequest, SessionsEnrichMetadataResult, SessionsFindByPrefixRequest,
+    SessionsFindByPrefixResult, SessionsFindByTaskIDRequest, SessionsFindByTaskIDResult,
+    SessionsFindByTaskIdResult, SessionsForkRequest, SessionsForkResult,
+    SessionsGetBoardEntryCountRequest, SessionsGetBoardEntryCountResult,
     SessionsGetClientMetadataRequest, SessionsGetClientMetadataResult,
     SessionsGetEventFilePathRequest, SessionsGetEventFilePathResult,
     SessionsGetLastForContextRequest, SessionsGetLastForContextResult, SessionsGetMetadataRequest,
     SessionsGetMetadataResult, SessionsGetPersistedRemoteSteerableRequest,
     SessionsGetPersistedRemoteSteerableResult, SessionsGetRemoteControlStatusResult,
-    SessionsGetSizesResult, SessionsHasEventsRequest, SessionsHasEventsResult,
-    SessionsListNonEmptySessionIdsRequest, SessionsListNonEmptySessionIdsResult,
-    SessionsListRequest, SessionsListResult, SessionsLoadDeferredRepoHooksRequest,
-    SessionsLoadDeferredRepoHooksResult, SessionsLoadWorkspaceRequest, SessionsLoadWorkspaceResult,
-    SessionsOpenAttach, SessionsOpenAttachKind, SessionsOpenCloud, SessionsOpenCloudKind,
-    SessionsOpenCreate, SessionsOpenCreateKind, SessionsOpenHandoff, SessionsOpenHandoffKind,
+    SessionsGetSizesResult, SessionsListNonEmptySessionIdsRequest,
+    SessionsListNonEmptySessionIdsResult, SessionsListRequest, SessionsListResult,
+    SessionsLoadDeferredRepoHooksRequest, SessionsLoadDeferredRepoHooksResult,
+    SessionsLoadWorkspaceRequest, SessionsLoadWorkspaceResult, SessionsOpenAttach,
+    SessionsOpenAttachKind, SessionsOpenCloud, SessionsOpenCloudKind, SessionsOpenCreate,
+    SessionsOpenCreateKind, SessionsOpenHandoff, SessionsOpenHandoffKind,
     SessionsOpenHandoffTaskType, SessionsOpenProgress, SessionsOpenProgressStatus,
     SessionsOpenProgressStep, SessionsOpenRemote, SessionsOpenRemoteKind, SessionsOpenResult,
     SessionsOpenResume, SessionsOpenResumeKind, SessionsOpenResumeLast, SessionsOpenResumeLastKind,
@@ -2132,27 +1930,23 @@ pub use sdk_api_session::{
     SessionsTransferRemoteControlRequest, SessionsTransferRemoteControlResult,
     SessionsUpdateWorkspaceFieldsRequest, SessionsUpdateWorkspaceFieldsResult, SettableAuthInfo,
     SettableTokenAuthInfo, SettableTokenAuthInfoType, TaskAgentInfo, TaskAgentInfoType,
-    TaskAgentProgress, TaskAgentProgressType, TaskAnalyticsClassifyTrajectoryRequest,
-    TaskAnalyticsClassifyTrajectoryResult, TaskAnalyticsJudge,
-    TaskAnalyticsTrajectoryClassification, TaskAnalyticsTrajectoryValidation,
-    TaskClientActiveStatus, TaskClientExecutionMode, TaskClientInfo, TaskClientOwner,
-    TaskClientOwnerKind, TaskClientOwnerPresence, TaskClientProgress, TaskClientStatus,
-    TaskClientType, TaskClientUpdate, TaskClientUpdateCancelled, TaskClientUpdateCancelledKind,
-    TaskClientUpdateCompleted, TaskClientUpdateCompletedKind, TaskClientUpdateFailed,
-    TaskClientUpdateFailedKind, TaskClientUpdateProgress, TaskClientUpdateProgressKind,
-    TaskCompleteData, TaskCompletionDecision, TaskExecutionMode, TaskList, TaskProgressLine,
-    TaskShellInfo, TaskShellInfoAttachmentMode, TaskShellInfoType, TaskShellOutputExit,
-    TaskShellProgress, TaskShellProgressType, TaskStatus, TasksCancelRequest, TasksCancelResult,
+    TaskAgentProgress, TaskAgentProgressType, TaskClientActiveStatus, TaskClientExecutionMode,
+    TaskClientInfo, TaskClientOwner, TaskClientOwnerKind, TaskClientOwnerPresence,
+    TaskClientProgress, TaskClientStatus, TaskClientType, TaskClientUpdate,
+    TaskClientUpdateCancelled, TaskClientUpdateCancelledKind, TaskClientUpdateCompleted,
+    TaskClientUpdateCompletedKind, TaskClientUpdateFailed, TaskClientUpdateFailedKind,
+    TaskClientUpdateProgress, TaskClientUpdateProgressKind, TaskCompleteData,
+    TaskCompletionDecision, TaskExecutionMode, TaskList, TaskProgressLine, TaskShellInfo,
+    TaskShellInfoAttachmentMode, TaskShellInfoType, TaskShellOutputExit, TaskShellProgress,
+    TaskShellProgressType, TaskStatus, TasksCancelRequest, TasksCancelResult,
     TasksGetCurrentPromotableResult, TasksGetProgressRequest, TasksGetProgressResult,
     TasksPromoteCurrentToBackgroundResult, TasksPromoteToBackgroundRequest,
     TasksPromoteToBackgroundResult, TasksReadOutputRequest, TasksReadOutputResult,
     TasksRefreshResult, TasksRegisterRequest, TasksRegisterResult, TasksRemoveRequest,
     TasksRemoveResult, TasksSendMessageRequest, TasksSendMessageResult, TasksStartAgentRequest,
-    TasksStartAgentResult, TasksUpdateRequest, TasksUpdateResult, TasksWaitForPendingResult,
-    TeamPluginMarketplace, TeamPluginMarketplaceSource, TeamPluginMarketplaceSourceSource, Tool,
+    TasksStartAgentResult, TasksUpdateRequest, TasksUpdateResult, TasksWaitForPendingResult, Tool,
     ToolList, ToolResult, ToolResultExpanded, ToolResultNewMessage, ToolResultType,
-    ToolsExecuteRequest, ToolsGetBuiltinAgentFlagOverridesResult,
-    ToolsGetBuiltinDescriptorsRequest, ToolsGetBuiltinDescriptorsResult,
+    ToolsExecuteRequest, ToolsGetBuiltinDescriptorsRequest, ToolsGetBuiltinDescriptorsResult,
     ToolsGetCurrentMetadataResult, ToolsGetSubagentSettingsResult,
     ToolsInitializeAndValidateResult, ToolsListPendingRequestsRequest, ToolsListRequest,
     ToolsListResult, ToolsSetRequest, ToolsSetResult, ToolsShellDescriptorConfig,
@@ -2161,13 +1955,6 @@ pub use sdk_api_session::{
 pub(crate) use sdk_api_session::{
     LifecycleDiagnosticsConfiguration, PermissionsEvaluateManagedPolicyParams,
     PermissionsLocationsCleanupOrphanedResult, SessionDiagnosticsLifecycleReadResult,
-    SessionFeatureFlagConfiguration, SessionFeatureFlagsMode,
-    SessionGitHubAuthGetCurrentAuthInfoResult, SessionGitHubAuthRefreshCopilotUserResult,
-    SessionMcpOauthAuthenticateParams, SessionMcpOauthAuthenticateResult,
-    SessionMcpOauthCancelFlowParams, SessionMcpOauthDisposeStoreParams,
-    SessionMcpOauthHasValidTokensParams, SessionMcpOauthPrepareFlowParams,
-    SessionMcpOauthSaveStaticClientSecretParams, SessionMcpOauthStoreKeyParams,
-    SessionMcpOauthTestConnectionParams, SessionMcpOauthTryRefreshTokensParams,
     SessionModelClearStartupSeedParams, SessionModelClearStartupSeedResult,
     SessionUsageSetCodeChangesParams,
 };
@@ -2206,21 +1993,18 @@ pub(crate) use sdk_api_configuration::{
     UserSettingsUnknownKeysWarningResult, UserSettingsUpdateRequest, UserSettingsUpdateResult,
 };
 pub use sdk_api_configuration::{
-    FeatureFlagServiceConfigureParams, FeatureFlagServiceReadParams, FeatureFlagServiceReadResult,
-    FeatureFlagServiceUpdateParams, FeatureFlagsResolveResult,
-    FeatureFlagsResolveStartupGatesResult, ManagedCommunicationSettings,
+    FeatureFlagsResolveResult, FeatureFlagsResolveStartupGatesResult, ManagedCommunicationSettings,
     ManagedCommunicationSupport, ManagedFusionTier, ManagedPermissionEvaluation,
     ManagedPermissionOperation, ManagedPermissionOperationKind, ManagedPermissionVerdict,
     ManagedPermissionsEvaluateRequest, ManagedPermissionsEvaluateResult, ManagedSettingMeta,
     ManagedSettingsChannel, ManagedSettingsComposeLayer, ManagedSettingsComposeRequest,
-    ManagedSettingsComposeResult, ManagedSettingsCurrentSnapshotResult, ManagedSettingsDiagnostic,
-    ManagedSettingsDiagnosticSeverity, ManagedSettingsLayer, ManagedSettingsMeta,
-    ManagedSettingsPermissionsEvaluateResult, ManagedSettingsReadResult,
-    ManagedSettingsResolveRequest, ManagedSettingsResolveResult, ManagedSettingsSchemaResult,
-    ManagedSettingsValidateRequest, ManagedSettingsValidateResult, ManagedSettingsValues,
-    StaffLogLevelMigrationStatus, StaffUpdateChannelMigrationStatus,
-    UserRequestedShellCommandResult, UserSettingMetadata, UserSettingsApplyTopKeyRequest,
-    UserSettingsApplyTopKeyResult, UserSettingsBuildRuntimeResult,
+    ManagedSettingsComposeResult, ManagedSettingsDiagnostic, ManagedSettingsDiagnosticSeverity,
+    ManagedSettingsLayer, ManagedSettingsMeta, ManagedSettingsPermissionsEvaluateResult,
+    ManagedSettingsReadResult, ManagedSettingsResolveRequest, ManagedSettingsResolveResult,
+    ManagedSettingsResolvedData, ManagedSettingsSchemaResult, ManagedSettingsValidateRequest,
+    ManagedSettingsValidateResult, ManagedSettingsValues, StaffLogLevelMigrationStatus,
+    StaffUpdateChannelMigrationStatus, UserRequestedShellCommandResult, UserSettingMetadata,
+    UserSettingsApplyTopKeyRequest, UserSettingsApplyTopKeyResult, UserSettingsBuildRuntimeResult,
     UserSettingsDiagnoseProblemsResult, UserSettingsGetPathResult, UserSettingsGetPathsRequest,
     UserSettingsGetPathsResult, UserSettingsGetResult, UserSettingsGovernanceKeysResult,
     UserSettingsHostContext, UserSettingsListGovernanceKeysResult,
@@ -2231,7 +2015,7 @@ pub use sdk_api_configuration::{
     UserSettingsProblem, UserSettingsProblemLocation, UserSettingsProblemSource,
     UserSettingsProblemsRequest, UserSettingsProblemsResult, UserSettingsSetRequest,
     UserSettingsValidateRequest, UserSettingsValidateResult, UserSettingsValidationIssue,
-    UserSettingsWriteAllRequest, UserSettingsWriteKeyRequest,
+    UserSettingsWriteAllRequest,
 };
 
 #[path = "api_domain_integrations.rs"]
@@ -2241,10 +2025,10 @@ pub use sdk_api_integrations::{
     CanvasHostContextCapabilities, CanvasList, CanvasListOpenResult, CanvasOpenRequest,
     CanvasOpenResult, CanvasProviderCloseRequest, CanvasProviderInvokeActionRequest,
     CanvasProviderOpenRequest, CanvasProviderOpenResult, CanvasProviderRegisterRequest,
-    CanvasProviderUnregisterRequest, CanvasSessionContext, CanvasSourceCloseRequest, CardDigest,
-    CardDigestAlgorithm, CatalogHandleRejectedError, CatalogHandleRejectedErrorKind,
-    CatalogHandleRejectionReason, CatalogHandleType, CatalogNotInstallableError,
-    CatalogNotInstallableErrorKind, CatalogNotInstallableReason, CatalogUnavailableTransportError,
+    CanvasProviderUnregisterRequest, CanvasSessionContext, CardDigest, CardDigestAlgorithm,
+    CatalogHandleRejectedError, CatalogHandleRejectedErrorKind, CatalogHandleRejectionReason,
+    CatalogHandleType, CatalogNotInstallableError, CatalogNotInstallableErrorKind,
+    CatalogNotInstallableReason, CatalogUnavailableTransportError,
     CatalogUnavailableTransportErrorKind, CatalogUnavailableTransportReason, DiscoveredMcpServer,
     DiscoveredMcpServerType, ExtensionContextPushInput, ExtensionContextPushInputType,
     ExtensionLaunchProfile, ExtensionLaunchProviderResolveRequest,
@@ -2261,13 +2045,13 @@ pub use sdk_api_integrations::{
     McpAppsReadResourceRequest, McpAppsReadResourceResult, McpAppsSetHostContextDetails,
     McpAppsSetHostContextDetailsAvailableDisplayMode, McpAppsSetHostContextDetailsDisplayMode,
     McpAppsSetHostContextDetailsPlatform, McpAppsSetHostContextDetailsTheme,
-    McpAppsSetHostContextRequest, McpCallToolRequest, McpCallToolResult,
-    McpCancelSamplingExecutionParams, McpCancelSamplingExecutionResult, McpConfigAddRequest,
-    McpConfigDisableRequest, McpConfigEnableRequest, McpConfigList, McpConfigListResult,
-    McpConfigRemoveRequest, McpConfigUpdateRequest, McpConfigureGitHubResult,
-    McpConfiguredServerList, McpDisableOptions, McpDisableRequest, McpDiscoverRequest,
-    McpDiscoverResult, McpEnableOptions, McpEnableRequest, McpExecuteSamplingParams,
-    McpExecuteSamplingRequest, McpHeadersHandlePendingHeadersRefreshRequest,
+    McpAppsSetHostContextRequest, McpCancelSamplingExecutionParams,
+    McpCancelSamplingExecutionResult, McpConfigAddRequest, McpConfigDisableRequest,
+    McpConfigEnableRequest, McpConfigList, McpConfigListResult, McpConfigRemoveRequest,
+    McpConfigUpdateRequest, McpConfigureGitHubResult, McpConfiguredServerList, McpDisableOptions,
+    McpDisableRequest, McpDiscoverRequest, McpDiscoverResult, McpEnableOptions, McpEnableRequest,
+    McpExecuteSamplingParams, McpExecuteSamplingRequest,
+    McpHeadersHandlePendingHeadersRefreshRequest,
     McpHeadersHandlePendingHeadersRefreshRequestError,
     McpHeadersHandlePendingHeadersRefreshRequestErrorKind,
     McpHeadersHandlePendingHeadersRefreshRequestHeaders,
@@ -2275,7 +2059,7 @@ pub use sdk_api_integrations::{
     McpHeadersHandlePendingHeadersRefreshRequestNone,
     McpHeadersHandlePendingHeadersRefreshRequestNoneKind,
     McpHeadersHandlePendingHeadersRefreshRequestRequest,
-    McpHeadersHandlePendingHeadersRefreshRequestResult, McpIdeConfig, McpInstallPlan,
+    McpHeadersHandlePendingHeadersRefreshRequestResult, McpInstallPlan,
     McpInstallationFailureReason, McpInstallationInput, McpInstallationManagementOutcome,
     McpInstallationManagementOutcomeInstallPrepared,
     McpInstallationManagementOutcomeInstallPreparedKind, McpInstallationManagementOutcomeListed,
@@ -2310,20 +2094,17 @@ pub use sdk_api_integrations::{
     McpIsServerRunningRequest, McpIsServerRunningResult, McpListToolsRequest, McpListToolsResult,
     McpOauthAuthenticationStateChangedRequest, McpOauthCancelLoginRequest,
     McpOauthCancelLoginResult, McpOauthCompleteRequest, McpOauthHandlePendingRequest,
-    McpOauthHandlePendingResult, McpOauthLoginOptions, McpOauthLoginRequest, McpOauthLoginResult,
-    McpOauthPendingRequestResponse, McpOauthPendingRequestResponseCancelled,
-    McpOauthPendingRequestResponseCancelledKind, McpOauthPendingRequestResponseRuntimeRefresh,
-    McpOauthPendingRequestResponseRuntimeRefreshKind, McpOauthPendingRequestResponseToken,
-    McpOauthPendingRequestResponseTokenKind, McpOauthPrepareLoginRequest,
-    McpOauthPrepareLoginResult, McpOauthProbeNeedsAuthReason, McpOauthProbeOptions,
-    McpOauthProbeRequest, McpOauthProbeResult, McpOauthProbeResultAuthenticated,
-    McpOauthProbeResultAuthenticatedStatus, McpOauthProbeResultFailed,
-    McpOauthProbeResultFailedStatus, McpOauthProbeResultNeedsAuth,
+    McpOauthHandlePendingResult, McpOauthLoginGrantType, McpOauthLoginOptions,
+    McpOauthLoginRequest, McpOauthLoginResult, McpOauthPendingRequestResponse,
+    McpOauthPendingRequestResponseCancelled, McpOauthPendingRequestResponseCancelledKind,
+    McpOauthPendingRequestResponseRuntimeRefresh, McpOauthPendingRequestResponseRuntimeRefreshKind,
+    McpOauthPendingRequestResponseToken, McpOauthPendingRequestResponseTokenKind,
+    McpOauthPrepareLoginRequest, McpOauthPrepareLoginResult, McpOauthProbeNeedsAuthReason,
+    McpOauthProbeOptions, McpOauthProbeRequest, McpOauthProbeResult,
+    McpOauthProbeResultAuthenticated, McpOauthProbeResultAuthenticatedStatus,
+    McpOauthProbeResultFailed, McpOauthProbeResultFailedStatus, McpOauthProbeResultNeedsAuth,
     McpOauthProbeResultNeedsAuthStatus, McpOauthProbeResultNoAuthRequired,
     McpOauthProbeResultNoAuthRequiredStatus, McpOauthRespondRequest, McpOauthRespondResult,
-    McpOauthTestConnectionResultConnected, McpOauthTestConnectionResultConnectedStatus,
-    McpOauthTestConnectionResultFailed, McpOauthTestConnectionResultFailedStatus,
-    McpOauthTestConnectionResultNeedsAuth, McpOauthTestConnectionResultNeedsAuthStatus,
     McpPlanConfigurationChange, McpPlanConfigurationOperation, McpPlanEnumValueType,
     McpPlanInstallOptions, McpPlanInstallPlanned, McpPlanInstallPlannedKind, McpPlanInstallRequest,
     McpPlanInstallResult, McpPlanInstallSource, McpPlanInstallSourceCandidate,
@@ -2343,10 +2124,9 @@ pub use sdk_api_integrations::{
     McpServerAuthConfigRedirectPort, McpServerCardEmbedded, McpServerCardEmbeddedKind,
     McpServerCardReference, McpServerCardUrl, McpServerCardUrlKind, McpServerConfigDeferTools,
     McpServerConfigHttp, McpServerConfigHttpOauthGrantType, McpServerConfigHttpType,
-    McpServerConfigLocal, McpServerConfigLocalType, McpServerConfigStdio, McpServerConfigStdioType,
-    McpServerList, McpSetEnvValueModeParams, McpSetEnvValueModeResult, McpSourceFile,
-    McpSourcePlugin, McpSourceRef, McpStartServerOptions, McpStartServerRequest,
-    McpStartServersResult, McpStopServerOptions, McpStopServerRequest, McpToolTokenBreakdownResult,
+    McpServerConfigStdio, McpServerConfigStdioType, McpServerList, McpSetEnvValueModeParams,
+    McpSetEnvValueModeResult, McpSourceFile, McpSourcePlugin, McpSourceRef, McpStartServerOptions,
+    McpStartServerRequest, McpStartServersResult, McpStopServerOptions, McpStopServerRequest,
     McpUninstallPlan, PluginApplyInstallRequest, PluginInstallResult,
     PluginInstallationFailureReason, PluginInstallationManagementOutcome,
     PluginInstallationManagementOutcomeInstallPlanned,
@@ -2369,9 +2149,8 @@ pub use sdk_api_integrations::{
     PluginsMarketplacesRemoveRequest, PluginsMarketplacesRemoveResult, PluginsReloadRequest,
     PluginsUninstallRequest, PluginsUpdateAllResult, PluginsUpdateRequest, PluginsUpdateResult,
     SkillApplyInstallRequest, SkillApplyUninstallRequest, SkillDiscoveryPath,
-    SkillDiscoveryPathList, SkillDiscoveryScope, SkillInstallSourceKind, SkillInstallSourceScope,
-    SkillInstallationFailureReason, SkillInstallationManagementOutcome,
-    SkillInstallationManagementOutcomeEnabledChanged,
+    SkillDiscoveryPathList, SkillDiscoveryScope, SkillInstallationFailureReason,
+    SkillInstallationManagementOutcome, SkillInstallationManagementOutcomeEnabledChanged,
     SkillInstallationManagementOutcomeEnabledChangedKind,
     SkillInstallationManagementOutcomeInstallPlanned,
     SkillInstallationManagementOutcomeInstallPlannedKind, SkillInstallationManagementOutcomeListed,
@@ -2403,26 +2182,18 @@ pub use sdk_api_integrations::{
     SkillInstallationOutcomeUninstalled, SkillInstallationOutcomeUninstalledKind,
     SkillInstallationResult, SkillInstallationResultOutcome, SkillInstallationResultOutcomeKind,
     SkillInstallationsRequest, SkillList, SkillPlanInstallRequest, SkillPlanUninstallRequest,
-    SkillProviderDescriptor, SkillProviderListParams, SkillRemoveSourceEntry,
-    SkillRemoveSourceKind, SkillSetEnabledRequest, SkillUninstallPlan,
+    SkillProviderDescriptor, SkillProviderListParams, SkillSetEnabledRequest, SkillUninstallPlan,
     SkillsConfigSetDisabledSkillsRequest, SkillsConfigSetSkillDisabledRequest,
     SkillsDisableRequest, SkillsDiscoverRequest, SkillsDiscoverResult, SkillsEnableRequest,
     SkillsGetDiscoveryPathsOptions, SkillsGetDiscoveryPathsRequest, SkillsGetDiscoveryPathsResult,
-    SkillsGetInvokedResult, SkillsInstallSourceRequest, SkillsInstallSourceResult,
-    SkillsLoadDiagnostics, SkillsRemoveSourceInventory, SkillsRemoveSourceOutcome,
-    SkillsRemoveSourceOutcomeNeedsInventory, SkillsRemoveSourceOutcomeNeedsInventoryKind,
-    SkillsRemoveSourceOutcomeRemoved, SkillsRemoveSourceOutcomeRemovedKind,
-    SkillsRemoveSourceRequest, SkillsRemoveSourceResult,
+    SkillsGetInvokedResult, SkillsLoadDiagnostics,
 };
 pub(crate) use sdk_api_integrations::{
-    McpConfigureGitHubRequest, McpListBuiltinServerNamesResult, McpOauthAuthenticateRequest,
-    McpOauthAuthenticateResult, McpOauthCheckDcrSupportRequest, McpOauthCheckDcrSupportResult,
-    McpOauthDisposeStoreRequest, McpOauthFetchProtectedResourceMetadataRequest,
-    McpOauthFetchProtectedResourceMetadataResult, McpOauthFlowIdentityRequest,
-    McpOauthIsMicrosoftAuthorizationServerRequest, McpOauthIsMicrosoftAuthorizationServerResult,
-    McpOauthSaveStaticClientSecretRequest, McpOauthStaticClientConfig,
-    McpOauthStaticClientConfigRequest, McpOauthStaticClientConfigResult, McpOauthStoreKeyRequest,
-    McpOauthStoredGrantRequest, McpOauthTestConnectionRequest, McpOauthTestConnectionResult,
+    McpConfigureGitHubRequest, McpListBuiltinServerNamesResult, McpOauthCheckDcrSupportRequest,
+    McpOauthCheckDcrSupportResult, McpOauthFetchProtectedResourceMetadataRequest,
+    McpOauthFetchProtectedResourceMetadataResult, McpOauthIsMicrosoftAuthorizationServerRequest,
+    McpOauthIsMicrosoftAuthorizationServerResult, McpOauthStaticClientConfig,
+    McpOauthStaticClientConfigRequest, McpOauthStaticClientConfigResult,
     McpRegisterExternalClientRequest, McpRegistryAllocateRequestIdResult, McpRegistryCancelRequest,
     McpRegistryCancelResult, McpRegistryRequestIdResult, McpRegistrySearchRequest,
     McpRegistrySearchResult, McpReloadConfig, McpReloadWithConfigRequest, McpServerConfigMemory,
@@ -2434,26 +2205,20 @@ pub(crate) use sdk_api_integrations::{
 #[path = "api_domain_models.rs"]
 mod sdk_api_models;
 pub use sdk_api_models::{
-    DecisionModelInfo, DecisionModelLimits, ImageToolModel, ImageToolModelAvailability,
-    ImageToolModelOperation, ImageToolModelPricing, ModelApplyStartupOverlayRequest,
-    ModelGetReasoningSummariesRequest, ModelGetReasoningSummariesResult, ModelList,
-    ModelListRequest, ModelPickerPersistenceRequest, ModelProviderAdapterCatalog,
-    ModelProviderAvailabilityRequest, ModelProviderAvailabilityResult,
-    ModelProviderConfigurationPlan, ModelProviderDiscoverRequest, ModelProviderDiscoverResult,
-    ModelProviderGetStatusRequest, ModelProviderModelsListRequest,
+    ImageToolModel, ImageToolModelAvailability, ImageToolModelOperation, ImageToolModelPricing,
+    ModelApplyStartupOverlayRequest, ModelGetReasoningSummariesRequest,
+    ModelGetReasoningSummariesResult, ModelList, ModelListRequest, ModelPickerPersistenceRequest,
+    ModelProviderAdapterCatalog, ModelProviderConfigurationPlan, ModelProviderDiscoverRequest,
+    ModelProviderDiscoverResult, ModelProviderGetStatusRequest, ModelProviderModelsListRequest,
     ModelProviderPrepareConfigurationRequest, ModelProviderStatus, ModelSetAllowedModelsRequest,
     ModelSetAllowedModelsResult, ModelSetReasoningEffortRequest, ModelSetReasoningEffortResult,
-    ModelStartupAdmissionRequest, ModelStartupAdmissionResult, ModelSwitchAutoTierRequest,
-    ModelSwitchAutoTierResult, ModelSwitchFusionTierRequest, ModelSwitchToOptions,
+    ModelSwitchAutoTierRequest, ModelSwitchAutoTierResult, ModelSwitchToOptions,
     ModelSwitchToRequest, ModelSwitchToResult, ModelTokenPriceUnit, ModelTokenPriceUnitList,
     ModelsGetBuiltInCatalogResult, ModelsListRequest, ModelsListResult,
     ModelsListTokenPriceUnitsResult, ProviderAddRequest, ProviderAddResult, ProviderEndpoint,
     ProviderGetEndpointRequest, ProviderStatus, ProviderSyncRequest, ProviderSyncResult,
     ProviderTokenAcquireRequest, ProviderTokenAcquireResult, ProviderTokenGetTokenResult,
-    ProviderUpdateModelRequest, ProviderUpdateProviderRequest, ProviderWithdrawRequest,
-    ProviderWithdrawResult, ProvidersConfigAddModelResult, ProvidersConfigReadResult,
-    ProvidersConfigRemoveModelResult, ProvidersConfigUpdateModelResult,
-    ProvidersConfigUpdateProviderResult, ProvidersSourceAddModelResult, TokenPriceUnit,
+    ProviderWithdrawRequest, ProviderWithdrawResult, TokenPriceUnit,
 };
 pub(crate) use sdk_api_models::{ModelClearStartupSeedRequest, ModelClearStartupSeedResult};
 
@@ -2471,9 +2236,9 @@ pub use sdk_api_host::{
     AuthEnumerateValueLoginAccountsKind, AuthEnumerateValueProviders,
     AuthEnumerateValueProvidersKind, AuthLoginAdvanceRequest, AuthLoginBeginOptions,
     AuthLoginBeginRequest, AuthLoginBegun, AuthLoginCancelRequest, AuthLoginIdentity,
-    AuthLoginMethod, AuthLoginMode, AuthReadQuery, AuthReadQueryActiveAccount,
-    AuthReadQueryActiveAccountKind, AuthReadQueryLastErrors, AuthReadQueryLastErrorsKind,
-    AuthReadQueryStatus, AuthReadQueryStatusKind, AuthReadValue, AuthReadValueActiveAccount,
+    AuthLoginMode, AuthReadQuery, AuthReadQueryActiveAccount, AuthReadQueryActiveAccountKind,
+    AuthReadQueryLastErrors, AuthReadQueryLastErrorsKind, AuthReadQueryStatus,
+    AuthReadQueryStatusKind, AuthReadValue, AuthReadValueActiveAccount,
     AuthReadValueActiveAccountKind, AuthReadValueLastErrors, AuthReadValueLastErrorsKind,
     AuthReadValueStatus, AuthReadValueStatusKind, AuthStatusDto, AuthValidationErrors, AuthWrite,
     AuthWriteLogout, AuthWriteLogoutKind, AuthWriteResult, AuthWriteSetCredentials,
@@ -2545,8 +2310,7 @@ pub use sdk_api_sandbox::{
     SandboxCheckPlatformSupportResult, SandboxCheckWindowsHostLoopbackSupportResult,
     SandboxCredentialSuggestionsResult, SandboxDisableForSessionRequest,
     SandboxDisableForSessionResult, SandboxDocsUrlResult, SandboxEnforcementStatus,
-    SandboxGetDocsUrlResult, SandboxGetHostSupportResult, SandboxGetRemoteMcpEgressRequest,
-    SandboxGetRemoteMcpEgressResult, SandboxGetUnsupportedMessageResult,
+    SandboxGetDocsUrlResult, SandboxGetHostSupportResult, SandboxGetUnsupportedMessageResult,
     SandboxGetUnsupportedSettingDisabledNoticeResult, SandboxGrantPathForRequestRequest,
     SandboxGrantPathForRequestResult, SandboxHostCapability, SandboxHostCapabilityName,
     SandboxHostSupport, SandboxProxyCaCheckInstallationSupportResult,
@@ -2603,31 +2367,30 @@ pub use sdk_api_services::{
     AgentRegistrySpawnValidationErrorReason, AgentReloadResult, AgentSelectRequest,
     AgentSelectResult, AgentSetPromptRequest, AgentsDiscoverOptions, AgentsDiscoverRequest,
     AgentsDiscoverResult, AgentsGetDiscoveryPathsOptions, AgentsGetDiscoveryPathsRequest,
-    AgentsGetDiscoveryPathsResult, AttachedProviderConfigurationAddModelRequest, AttachmentBlob,
-    AttachmentBlobType, AttachmentDirectory, AttachmentDirectoryType, AttachmentExtensionContext,
-    AttachmentExtensionContextType, AttachmentFile, AttachmentFileLineRange, AttachmentFileType,
-    AttachmentGitHubActionsJob, AttachmentGitHubActionsJobType, AttachmentGitHubCommit,
-    AttachmentGitHubCommitType, AttachmentGitHubFile, AttachmentGitHubFileDiff,
-    AttachmentGitHubFileDiffSide, AttachmentGitHubFileDiffType, AttachmentGitHubFileType,
-    AttachmentGitHubReference, AttachmentGitHubReferenceType, AttachmentGitHubRelease,
-    AttachmentGitHubReleaseType, AttachmentGitHubRepository, AttachmentGitHubRepositoryType,
-    AttachmentGitHubSnippet, AttachmentGitHubSnippetType, AttachmentGitHubTreeComparison,
+    AgentsGetDiscoveryPathsResult, AttachmentBlob, AttachmentBlobType, AttachmentDirectory,
+    AttachmentDirectoryType, AttachmentExtensionContext, AttachmentExtensionContextType,
+    AttachmentFile, AttachmentFileLineRange, AttachmentFileType, AttachmentGitHubActionsJob,
+    AttachmentGitHubActionsJobType, AttachmentGitHubCommit, AttachmentGitHubCommitType,
+    AttachmentGitHubFile, AttachmentGitHubFileDiff, AttachmentGitHubFileDiffSide,
+    AttachmentGitHubFileDiffType, AttachmentGitHubFileType, AttachmentGitHubReference,
+    AttachmentGitHubReferenceType, AttachmentGitHubRelease, AttachmentGitHubReleaseType,
+    AttachmentGitHubRepository, AttachmentGitHubRepositoryType, AttachmentGitHubSnippet,
+    AttachmentGitHubSnippetType, AttachmentGitHubTreeComparison,
     AttachmentGitHubTreeComparisonSide, AttachmentGitHubTreeComparisonType, AttachmentGitHubUrl,
     AttachmentGitHubUrlType, AttachmentSelection, AttachmentSelectionDetails,
     AttachmentSelectionDetailsEnd, AttachmentSelectionDetailsStart, AttachmentSelectionType,
-    AttachmentSessionReference, AttachmentSessionReferenceType,
+    AttachmentSessionReference, AttachmentSessionReferenceType, AuthIdentityMetadata,
     AutopilotEvaluateIdleContinuationResult, AutopilotObjectiveGetStateResult,
     AutopilotObjectiveSetStayInAutopilotRequest, AzureMlAcquireFamilyResult, AzureMlCancelResult,
     AzureMlCatalogRequest, AzureMlCatalogResult, AzureMlCatalogRetryMode, AzureMlCatalogWarning,
     AzureMlDiscardRequest, AzureMlDiscardResult, AzureMlDownloadIdRequest, AzureMlDownloadRequest,
     AzureMlDownloadResult, AzureMlDownloadStatus, AzureMlFamilyLeaseResult,
-    AzureMlFamilyReleaseRequest, AzureMlFamilyRequest, AzureMlGpuMemory, AzureMlHardwareResult,
-    AzureMlLatestRequest, AzureMlLatestResult, AzureMlLicense, AzureMlModel, AzureMlProfile,
-    AzureMlRegistrationKind, AzureMlRegistrationOperation, AzureMlRegistrationRequest,
-    AzureMlRegistrationResult, AzureMlRegistry, AzureMlReleaseFamilyResult, AzureMlResolveRequest,
-    AzureMlResolveResult, AzureMlStatusResult, BuiltInModelCatalog, BuiltinToolSafeTelemetryFields,
-    CafeMetricsResolveAdmissionRequestFailed, CafeMetricsResolveAdmissionRequestFailedKind,
-    CafeMetricsResolveAdmissionRequestSuccess, CafeMetricsResolveAdmissionRequestSuccessKind,
+    AzureMlFamilyReleaseRequest, AzureMlFamilyRequest, AzureMlLatestRequest, AzureMlLatestResult,
+    AzureMlLicense, AzureMlModel, AzureMlProfile, AzureMlRegistry, AzureMlReleaseFamilyResult,
+    AzureMlResolveRequest, AzureMlResolveResult, AzureMlStatusResult, BuiltInModelCatalog,
+    BuiltinToolSafeTelemetryFields, CafeMetricsResolveAdmissionRequestFailed,
+    CafeMetricsResolveAdmissionRequestFailedKind, CafeMetricsResolveAdmissionRequestSuccess,
+    CafeMetricsResolveAdmissionRequestSuccessKind,
     CafeMetricsResolveAdmissionResultAlreadyResolved,
     CafeMetricsResolveAdmissionResultAlreadyResolvedKind, CafeMetricsResolveAdmissionResultApplied,
     CafeMetricsResolveAdmissionResultAppliedKind, CafeMetricsResolveAdmissionResultNotStarted,
@@ -2694,62 +2457,48 @@ pub use sdk_api_services::{
     ConnectorDiscoveryAccountRequest, ConnectorDiscoveryAuthInfo, ConnectorDiscoveryAvailability,
     ConnectorDiscoveryCapabilities, ConnectorDiscoveryCatalogEntry,
     ConnectorDiscoveryCatalogResult, ConnectorReconcileOptions, ConnectorReconcileRequest,
-    ConnectorSessionAccountResult, ConnectorsGetAccountsResult, ConnectorsGetCapabilitiesResult,
-    ConnectorsListResult, ConnectorsRefreshResult, ContentExclusionCheckPathsRequest,
-    ContentExclusionCheckPathsResult, ContentExclusionValidatePoliciesRequest,
-    ContentExclusionValidatePoliciesResult, ContentFilterMode, CredentialContextErrorCode,
-    CredentialContextErrorData, CustomizationReloadOutcome, CustomizationReloadStatus,
+    ConnectorSessionAccount, ConnectorSessionAccountResult, ConnectorsGetAccountsResult,
+    ConnectorsGetCapabilitiesResult, ConnectorsListResult, ConnectorsRefreshResult,
+    ContentExclusionCheckPathsRequest, ContentExclusionCheckPathsResult,
+    ContentExclusionValidatePoliciesRequest, ContentExclusionValidatePoliciesResult,
+    ContentFilterMode, CustomizationReloadOutcome, CustomizationReloadStatus,
     CustomizationReloadSubsystem, CustomizationsReloadResult, DebugCollectLogsDestination,
     DebugCollectLogsDestinationArchive, DebugCollectLogsDestinationArchiveKind,
     DebugCollectLogsDestinationDirectory, DebugCollectLogsDestinationDirectoryKind,
     DebugCollectLogsEntry, DebugCollectLogsEntryKind, DebugCollectLogsInclude,
-    DebugCollectLogsRedaction, DebugCollectLogsRequest, DebugCollectLogsResult, DecisionAnswer,
-    DecisionAnswerBoolean, DecisionAnswerBooleanKind, DecisionAnswerChoice,
-    DecisionAnswerChoiceKind, DecisionAnswerRefused, DecisionAnswerRefusedKind,
-    DecisionAnswerScore, DecisionAnswerScoreKind, DecisionContext, DecisionContextJson,
-    DecisionContextJsonKind, DecisionContextText, DecisionContextTextKind, DecisionErrorData,
-    DecisionErrorKind, DecisionLevel, DecisionLevelProbability, DecisionOption,
-    DecisionOptionProbability, DecisionQuestion, DecisionQuestionBoolean,
-    DecisionQuestionBooleanKind, DecisionQuestionChoice, DecisionQuestionChoiceKind,
-    DecisionQuestionScore, DecisionQuestionScoreKind, DecisionUsage, DecisionViolation,
-    DecisionsAskRequest, DecisionsAskResult, DiscoveredExtensions,
-    DiscoveredExtensionsDisableRequest, DiscoveredExtensionsEnableRequest, DiscoveredHook,
-    DiscoveredModelList, EnqueueCommandParams, EnqueueCommandResult, EntraAuthConfig,
-    EntraTokenAcquireReason, EntraTokenAcquireRequest, EntraTokenAcquireRequestIdentity,
-    EntraTokenAcquireRequestIdentityKind, EntraTokenAcquireRequestToken,
-    EntraTokenAcquireRequestTokenKind, EntraTokenAcquireResult, EntraTokenAcquireResultCancelled,
-    EntraTokenAcquireResultCancelledKind, EntraTokenAcquireResultIdentity,
-    EntraTokenAcquireResultIdentityKind, EntraTokenAcquireResultToken,
-    EntraTokenAcquireResultTokenKind, EntraTokenAcquireResultUnavailable,
-    EntraTokenAcquireResultUnavailableKind, EntraTokenGetTokenRequest, EnvironmentCapabilities,
-    EnvironmentKind, EnvironmentsDeleteRequest, EnvironmentsDeleteResult, EnvironmentsGetRequest,
-    EnvironmentsGetResult, EnvironmentsListRequest, EnvironmentsListResult, EventLogReadOptions,
-    EventLogReadRequest, EventLogReleaseInterestResult, EventLogTailResult, EventsAgentScope,
-    EventsReadResult, EventsReadView, ExecuteCommandParams, ExecuteCommandResult,
-    ExternalToolTextResultForLlm, ExternalToolTextResultForLlmContentAudio,
-    ExternalToolTextResultForLlmContentAudioType, ExternalToolTextResultForLlmContentImage,
-    ExternalToolTextResultForLlmContentImageType, ExternalToolTextResultForLlmContentResource,
-    ExternalToolTextResultForLlmContentResourceLink,
+    DebugCollectLogsRedaction, DebugCollectLogsRequest, DebugCollectLogsResult,
+    DiscoveredExtensions, DiscoveredExtensionsDisableRequest, DiscoveredExtensionsEnableRequest,
+    DiscoveredHook, DiscoveredModelList, EnqueueCommandParams, EnqueueCommandResult,
+    EntraAuthConfig, EntraTokenAcquireReason, EntraTokenAcquireRequest,
+    EntraTokenAcquireRequestIdentity, EntraTokenAcquireRequestIdentityKind,
+    EntraTokenAcquireRequestToken, EntraTokenAcquireRequestTokenKind, EntraTokenAcquireResult,
+    EntraTokenAcquireResultCancelled, EntraTokenAcquireResultCancelledKind,
+    EntraTokenAcquireResultIdentity, EntraTokenAcquireResultIdentityKind,
+    EntraTokenAcquireResultToken, EntraTokenAcquireResultTokenKind,
+    EntraTokenAcquireResultUnavailable, EntraTokenAcquireResultUnavailableKind,
+    EntraTokenGetTokenRequest, EnvironmentCapabilities, EnvironmentKind, EnvironmentsDeleteRequest,
+    EnvironmentsDeleteResult, EnvironmentsGetRequest, EnvironmentsGetResult,
+    EnvironmentsListRequest, EnvironmentsListResult, EventLogReadOptions, EventLogReadRequest,
+    EventLogReleaseInterestResult, EventLogTailResult, EventsAgentScope, EventsReadResult,
+    EventsReadView, ExecuteCommandParams, ExecuteCommandResult, ExternalToolTextResultForLlm,
+    ExternalToolTextResultForLlmContentAudio, ExternalToolTextResultForLlmContentAudioType,
+    ExternalToolTextResultForLlmContentImage, ExternalToolTextResultForLlmContentImageType,
+    ExternalToolTextResultForLlmContentResource, ExternalToolTextResultForLlmContentResourceLink,
     ExternalToolTextResultForLlmContentResourceLinkIcon,
     ExternalToolTextResultForLlmContentResourceLinkIconTheme,
     ExternalToolTextResultForLlmContentResourceLinkType,
     ExternalToolTextResultForLlmContentResourceType, ExternalToolTextResultForLlmContentShellExit,
     ExternalToolTextResultForLlmContentShellExitType, ExternalToolTextResultForLlmContentTerminal,
     ExternalToolTextResultForLlmContentTerminalType, ExternalToolTextResultForLlmContentText,
-    ExternalToolTextResultForLlmContentTextType, FetchCancelResult, FetchCreateResult,
-    FetchFileErrorData, FetchFileErrorKind, FetchFileOperation, FetchHeader, FetchProxyEnv,
-    FetchReadResult, FetchRedirect, FetchRequestId, FetchResponseMode, FetchSendParams,
-    FetchSendResult, FetchSendResultFile, FetchSendResultStream, FetchSendResultText,
-    FetchTransportErrorData, FetchTransportErrorKind, FolderTrustAddParams, FolderTrustCheckParams,
+    ExternalToolTextResultForLlmContentTextType, FolderTrustAddParams, FolderTrustCheckParams,
     FolderTrustCheckResult, GitHubEnvironment, HandlePendingToolCallRequest,
     HandlePendingToolCallResult, HistoryAbortManualCompactionResult,
     HistoryCancelBackgroundCompactionResult, HistoryClearContextRequest, HistoryClearContextResult,
     HistoryCompactRequest, HistoryCompactRequestTrigger, HistoryCompactResult,
     HistoryListRewindPointsResult, HistoryPreviewRewindRequest, HistoryPreviewRewindResult,
-    HistoryRewindMode, HistoryRewindRequest, HistoryRewindResult,
-    HistorySetCompactionConfigRequest, HistorySummarizeForHandoffResult, HistoryTruncateRequest,
-    HistoryTruncateResult, HookOrigin, HookType, HooksDiscoverOptions, HooksDiscoverRequest,
-    HooksDiscoverResult, HostAuthenticateRequest, HostAuthenticateResult,
+    HistoryRewindMode, HistoryRewindRequest, HistoryRewindResult, HistorySummarizeForHandoffResult,
+    HistoryTruncateRequest, HistoryTruncateResult, HookOrigin, HookType, HooksDiscoverOptions,
+    HooksDiscoverRequest, HooksDiscoverResult, HostAuthenticateRequest, HostAuthenticateResult,
     HostAuthenticationCancelledNotification, HostAuthenticationResult,
     HostCancelAuthenticationRequest, HostCancelAuthenticationResult, HostConfiguration,
     HostCreateSessionResult, HostDiagnostics, HostDisposeRequest, HostDisposeResult,
@@ -2763,7 +2512,7 @@ pub use sdk_api_services::{
     HostSessionReleasedNotification, HostSessionSummary, HostSetSessionCreationPolicyRequest,
     HostSetSessionCreationPolicyResult, HostStartOptions, HostStartRequest, HostStartResult,
     HostUnpublishSessionRequest, HostUnpublishSessionResult, HostUnregisterSessionRequest,
-    HostValidateAuthenticationRequest, IdeConnectionState, InstalledPluginSourceGitHub,
+    HostValidateAuthenticationRequest, InstalledPluginSourceGitHub,
     InstalledPluginSourceGitHubSource, InstalledPluginSourceLocal,
     InstalledPluginSourceLocalSource, InstalledPluginSourceUrl, InstalledPluginSourceUrlSource,
     InstructionDiscoveryPath, InstructionDiscoveryPathKind, InstructionDiscoveryPathList,
@@ -2771,66 +2520,41 @@ pub use sdk_api_services::{
     InstructionsDiscoverRepoSourcesResult, InstructionsDiscoverRequest, InstructionsDiscoverResult,
     InstructionsGetDiscoveryPathsOptions, InstructionsGetDiscoveryPathsRequest,
     InstructionsGetDiscoveryPathsResult, InstructionsGetSourcesResult, InterruptMainTurnRequest,
-    InterruptMainTurnResult, JsonSchemaResponseFormat, LlmInferenceHeaders,
-    LlmInferenceHttpRequestChunkRequest, LlmInferenceHttpRequestChunkResult,
+    InterruptMainTurnResult, JsonSchemaResponseFormat, KerberosAuthAcquireRequest,
+    KerberosAuthAcquireResult, KerberosAuthMode, KerberosAuthScope, KerberosAuthSetProviderRequest,
+    LlmInferenceHeaders, LlmInferenceHttpRequestChunkRequest, LlmInferenceHttpRequestChunkResult,
     LlmInferenceHttpRequestStartRequest, LlmInferenceHttpRequestStartResult,
     LlmInferenceHttpRequestStartTransport, LlmInferenceHttpResponseChunkError,
     LlmInferenceHttpResponseChunkRequest, LlmInferenceHttpResponseChunkResult,
     LlmInferenceHttpResponseStartRequest, LlmInferenceHttpResponseStartResult,
-    LlmInferenceSetProviderResult, LocalModelAutoRegistration, LocalModelAzureMlIdentity,
-    LocalModelDescriptor, LocalModelDiskRequirement, LocalModelDiskRequirementInsufficient,
-    LocalModelDiskRequirementInsufficientKind, LocalModelDiskRequirementOk,
-    LocalModelDiskRequirementOkKind, LocalModelDiskRequirementUnknown,
-    LocalModelDiskRequirementUnknownKind, LocalModelDownloadProgress, LocalModelGpuRequirement,
-    LocalModelGpuRequirementInsufficient, LocalModelGpuRequirementInsufficientKind,
-    LocalModelGpuRequirementOk, LocalModelGpuRequirementOkKind, LocalModelGpuRequirementUnknown,
-    LocalModelGpuRequirementUnknownKind, LocalModelGpuRequirementUnspecified,
-    LocalModelGpuRequirementUnspecifiedKind, LocalModelLimits, LocalModelMachineRow,
-    LocalModelMachineView, LocalModelNotice, LocalModelOperation, LocalModelSource,
-    LocalModelStatus, LocalModelStatusDownloaded, LocalModelStatusDownloadedKind,
-    LocalModelStatusDownloading, LocalModelStatusDownloadingKind, LocalModelStatusNotDownloaded,
-    LocalModelStatusNotDownloadedKind, LocalModelTimelineMessage, LocalModelTimelineMessageType,
-    LocalModelsConfigureRequest, LocalModelsConfigureResult, LocalModelsEvent,
-    LocalModelsEventType, LocalModelsInspectResult, LocalModelsModelIdRequest,
-    LocalModelsModelRequest, LocalModelsPrepareResult, LocalModelsRefreshRequest,
-    LocalModelsSetupRequest, LocalModelsSetupRequestIntent, LocalModelsSnapshot, LocalModelsView,
-    LocalModelsWatchRequest, LocalModelsWatchResult, LogRequest, LogResult,
-    LspConfigurationSnapshot, LspGlobalConfigurationRequest, LspInitializeRequest, LspListResult,
-    LspProbeRequest, LspProbeResult, LspSetEnabledRequest, LspWarmupResult, MarketplaceAddResult,
-    MarketplaceBrowseResult, MarketplaceListResult, MarketplaceRefreshResult,
-    MarketplaceRemoveResult, McpElicitationFormMode, McpTaskMetadata, MemoryStoreRequest,
+    LlmInferenceSetProviderResult, LogRequest, LogResult, LspInitializeRequest,
+    MarketplaceAddResult, MarketplaceBrowseResult, MarketplaceListResult, MarketplaceRefreshResult,
+    MarketplaceRemoveResult, McpElicitationFormMode, McpTaskMetadata,
     MetadataContextAttributionResult, MetadataContextAttributionResultContextAttribution,
     MetadataContextAttributionResultContextAttributionCategories,
     MetadataContextAttributionResultContextAttributionCompactions,
     MetadataContextAttributionResultContextAttributionEntriesItem,
     MetadataContextHeaviestMessagesRequest, MetadataContextHeaviestMessagesResult,
-    MetadataContextInfoOptions, MetadataContextInfoRequest, MetadataContextInfoResult,
-    MetadataContextInfoResultContextInfo, MetadataGetWorkingDirectoryContextRequest,
-    MetadataGetWorkingDirectoryContextResult, MetadataIsProcessingResult,
-    MetadataRecomputeContextTokensRequest, MetadataRecomputeContextTokensResult,
-    MetadataRecordContextChangeRequest, MetadataRecordContextChangeResult,
-    MetadataSetWorkingDirectoryRequest, MetadataSetWorkingDirectoryResult,
-    MetadataUpdateClientMetadataRequest, ModeSetRequest, ModeSetResult,
-    MoveMcpLoadingToBackgroundResult, NameGetResult, NameSetAutoRequest, NameSetAutoResult,
-    NameSetRequest, NetworkAuthenticateBasicOptions, NetworkAuthenticateBasicRequest,
-    NetworkAuthenticateBasicResult, NetworkAuthenticateNegotiateOptions,
-    NetworkAuthenticateNegotiateRequest, NetworkAuthenticateNegotiateResult,
-    NetworkResolveProxyOptions, NetworkResolveProxyRequest, NetworkResolveProxyResult,
-    NetworkScope, NetworkSetProviderOptions, NetworkSetProviderRequest,
-    PendingExternalToolRequestList, PendingPermissionRequestList,
-    PersistenceWriteRawJsonLockedRequest, PersistenceWriteRawJsonLockedResult, PingRequest,
-    PingResult, PlanReadResult, PlanReadSqlTodosResult, PlanReadSqlTodosWithDependenciesResult,
-    PlanUpdateRequest, ProtocolAppendMode, ProtocolCustomizeMode, ProtocolReplaceMode,
-    ProtocolStaticSectionAction, ProtocolStaticSectionOverride, ProtocolStatusResponse,
-    ProtocolSystemMessageAppendConfig, ProtocolSystemMessageCustomizeConfig,
-    ProtocolSystemMessageReplaceConfig, PushAttachmentBlob, PushAttachmentBlobType,
-    PushAttachmentDirectory, PushAttachmentDirectoryType, PushAttachmentFile,
-    PushAttachmentFileLineRange, PushAttachmentFileType, PushAttachmentGitHubActionsJob,
-    PushAttachmentGitHubActionsJobType, PushAttachmentGitHubCommit, PushAttachmentGitHubCommitType,
-    PushAttachmentGitHubFile, PushAttachmentGitHubFileDiff, PushAttachmentGitHubFileDiffSide,
-    PushAttachmentGitHubFileDiffType, PushAttachmentGitHubFileType, PushAttachmentGitHubReference,
-    PushAttachmentGitHubReferenceType, PushAttachmentGitHubRelease,
-    PushAttachmentGitHubReleaseType, PushAttachmentGitHubRepository,
+    MetadataContextInfoRequest, MetadataContextInfoResult, MetadataContextInfoResultContextInfo,
+    MetadataIsProcessingResult, MetadataRecomputeContextTokensRequest,
+    MetadataRecomputeContextTokensResult, MetadataRecordContextChangeRequest,
+    MetadataRecordContextChangeResult, MetadataSetWorkingDirectoryRequest,
+    MetadataSetWorkingDirectoryResult, MetadataUpdateClientMetadataRequest, ModeSetRequest,
+    ModeSetResult, MoveMcpLoadingToBackgroundResult, NameGetResult, NameSetAutoRequest,
+    NameSetAutoResult, NameSetRequest, PendingExternalToolRequestList,
+    PendingPermissionRequestList, PersistenceWriteRawJsonLockedRequest,
+    PersistenceWriteRawJsonLockedResult, PingRequest, PingResult, PlanReadResult,
+    PlanReadSqlTodosResult, PlanReadSqlTodosWithDependenciesResult, PlanUpdateRequest,
+    ProtocolAppendMode, ProtocolCustomizeMode, ProtocolReplaceMode, ProtocolStaticSectionAction,
+    ProtocolStaticSectionOverride, ProtocolStatusResponse, ProtocolSystemMessageAppendConfig,
+    ProtocolSystemMessageCustomizeConfig, ProtocolSystemMessageReplaceConfig, PushAttachmentBlob,
+    PushAttachmentBlobType, PushAttachmentDirectory, PushAttachmentDirectoryType,
+    PushAttachmentFile, PushAttachmentFileLineRange, PushAttachmentFileType,
+    PushAttachmentGitHubActionsJob, PushAttachmentGitHubActionsJobType, PushAttachmentGitHubCommit,
+    PushAttachmentGitHubCommitType, PushAttachmentGitHubFile, PushAttachmentGitHubFileDiff,
+    PushAttachmentGitHubFileDiffSide, PushAttachmentGitHubFileDiffType,
+    PushAttachmentGitHubFileType, PushAttachmentGitHubReference, PushAttachmentGitHubReferenceType,
+    PushAttachmentGitHubRelease, PushAttachmentGitHubReleaseType, PushAttachmentGitHubRepository,
     PushAttachmentGitHubRepositoryType, PushAttachmentGitHubSnippet,
     PushAttachmentGitHubSnippetType, PushAttachmentGitHubTreeComparison,
     PushAttachmentGitHubTreeComparisonSide, PushAttachmentGitHubTreeComparisonType,
@@ -2850,19 +2574,14 @@ pub use sdk_api_services::{
     QueuedCommandNotHandled, QueuedCommandWaitRequirement, QuotaTakeWarningsResult,
     RegisterEventInterestParams, RegisterEventInterestResult, ReleaseEventInterestParams,
     ResponseFormat, ResponseFormatType, RuntimeOpenBrowserRequest, SandboxSessionChange,
-    SavedProviderConfigurationAddModelRequest, SavedProviderConfigurationAddModelResult,
-    SavedProviderConfigurationReadResult, SavedProviderConfigurationRemoveModelRequest,
-    SavedProviderConfigurationRemoveModelResult, SavedProviderConfigurationUpdateModelRequest,
-    SavedProviderConfigurationUpdateModelResult, SavedProviderConfigurationUpdateProviderRequest,
-    SavedProviderConfigurationUpdateProviderResult, ScheduleAddAtRequest, ScheduleAddCronRequest,
-    ScheduleAddRequest, ScheduleAddResult, ScheduleAddSelfPacedRequest, ScheduleHasSelfPacedResult,
-    ScheduleList, ScheduleRearmSelfPacedRequest, ScheduleStopRequest, ScheduleStopResult,
+    ScheduleAddAtRequest, ScheduleAddCronRequest, ScheduleAddRequest, ScheduleAddResult,
+    ScheduleAddSelfPacedRequest, ScheduleHasSelfPacedResult, ScheduleList,
+    ScheduleRearmSelfPacedRequest, ScheduleStopRequest, ScheduleStopResult,
     SecretsAddFilterValuesRequest, SecretsAddFilterValuesResult, SendAndWaitResult,
-    SendAttachmentsToMessageParams, SendMessageItem, SendMessagesOptions, SendMessagesRequest,
+    SendAttachmentsToMessageParams, SendMessageItem, SendMessagesRequest,
     SendMessagesRequestResponseFormat, SendMessagesRequestResponseFormatType, SendMessagesResult,
-    SendMode, SendOptions, SendRequest, SendRequestResponseFormat, SendRequestResponseFormatType,
-    SendResult, SendSystemNotificationRequest, SessionLogLevel, SessionWorkingDirectoryContext,
-    ShellBuildInteractiveEnvironmentRequest, ShellBuildInteractiveEnvironmentResult,
+    SendMode, SendRequest, SendRequestResponseFormat, SendRequestResponseFormatType, SendResult,
+    SendSystemNotificationRequest, SessionLogLevel, SessionWorkingDirectoryContext,
     ShellCancelUserRequestedRequest, ShellExecRequest, ShellExecResult,
     ShellExecuteUserRequestedRequest, ShellKillRequest, ShellKillResult, ShellKillSignal,
     ShutdownRequest, SlashCommandAddTimelineEntryResult, SlashCommandAddTimelineEntryResultKind,
@@ -2887,13 +2606,10 @@ pub use sdk_api_services::{
     UIElicitationStringEnumFieldType, UIElicitationStringOneOfField,
     UIElicitationStringOneOfFieldOneOf, UIElicitationStringOneOfFieldType, UIEphemeralQueryRequest,
     UIEphemeralQueryResult, UIExitPlanModeAction, UIExitPlanModeResponse,
-    UIHandlePendingAutoModeSwitchRequest, UIHandlePendingElicitationOptions,
-    UIHandlePendingElicitationRequest, UIHandlePendingExitPlanModeOptions,
+    UIHandlePendingAutoModeSwitchRequest, UIHandlePendingElicitationRequest,
     UIHandlePendingExitPlanModeRequest, UIHandlePendingResult, UIHandlePendingSamplingRequest,
     UIHandlePendingSamplingResponse, UIHandlePendingSessionLimitsExhaustedRequest,
-    UIHandlePendingUserInputOptions, UIHandlePendingUserInputRequest,
-    UIRegisterDirectAutoModeSwitchHandlerRequest, UIRegisterDirectAutoModeSwitchHandlerResult,
-    UIRegisterDirectAutoModeSwitchHandlerResultWithAutoModeRecovery,
+    UIHandlePendingUserInputRequest, UIRegisterDirectAutoModeSwitchHandlerResult,
     UISessionLimitsExhaustedResponse, UISessionLimitsExhaustedResponseAction,
     UIUnregisterDirectAutoModeSwitchHandlerRequest, UIUnregisterDirectAutoModeSwitchHandlerResult,
     UIUserInputResponse, UiThreadRunRequest, UnsupportedEnqueueCommandResult,

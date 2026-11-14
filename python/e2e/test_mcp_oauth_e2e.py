@@ -259,7 +259,6 @@ class TestMcpOAuth:
                 on_mcp_auth_request=on_mcp_auth_request,
                 mcp_servers=mcp_servers,
                 enable_mcp_apps=True,
-                feature_flags={"MCP_APPS": True},
             ) as session:
                 # Re-run startup after OAuth event interest is registered to avoid
                 # racing the initial challenge emitted during session.create.

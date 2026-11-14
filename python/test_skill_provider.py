@@ -383,63 +383,6 @@ async def test_skill_provider_cancelled_error_raised_by_provider_is_a_failure() 
     assert read_error.value.message == "Skill provider readSkill failed"
 
 
-class _HostAbort(BaseException):
-    """A host-defined BaseException that is not an Exception, like pytest's ``Failed``."""
-
-
-class _RaisingSkillProvider:
-    def __init__(self, error: type[BaseException]) -> None:
-        self._error = error
-
-    async def list_skills(self) -> list[SkillProviderDescriptor]:
-        raise self._error("list")
-
-    async def read_skill(self, name: str) -> str:
-        raise self._error("read")
-
-
-@pytest.mark.asyncio
-async def test_skill_provider_base_exception_raised_by_provider_is_a_failure() -> None:
-    session = CopilotSession("session-1", Mock())
-    session._register_skill_provider(_RaisingSkillProvider(_HostAbort))
-
-    with pytest.raises(JsonRpcError) as list_error:
-        await session._handle_skill_provider_list()
-    with pytest.raises(JsonRpcError) as read_error:
-        await session._handle_skill_provider_read("aborted")
-
-    assert list_error.value.message == "Skill provider listSkills failed"
-    assert read_error.value.message == "Skill provider readSkill failed"
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("error", [SystemExit, KeyboardInterrupt])
-async def test_skill_provider_exit_or_interrupt_propagates(error: type[BaseException]) -> None:
-    session = CopilotSession("session-1", Mock())
-    session._register_skill_provider(_RaisingSkillProvider(error))
-
-    with pytest.raises(error):
-        await session._handle_skill_provider_list()
-
-
-@pytest.mark.asyncio
-async def test_skill_provider_dispatch_closes_without_answering() -> None:
-    class PendingSkillProvider:
-        async def list_skills(self) -> list[SkillProviderDescriptor]:
-            await asyncio.get_running_loop().create_future()
-            return []
-
-        async def read_skill(self, name: str) -> str:
-            return ""
-
-    session = CopilotSession("session-1", Mock())
-    session._register_skill_provider(PendingSkillProvider())
-    dispatch = session._handle_skill_provider_list()
-    dispatch.send(None)
-
-    dispatch.close()  # GeneratorExit propagates instead of becoming a provider failure
-
-
 class _BlockingSkillProvider:
     def __init__(self) -> None:
         self.entered = asyncio.Event()
@@ -658,7 +601,7 @@ async def test_skill_provider_is_cleared_on_teardown_paths(teardown: str) -> Non
         await client.force_stop()
     elif teardown == "delete":
         client._sessions["session-1"] = session
-        client._client = session._client
+        client._client = Mock()
         client._client.request = AsyncMock(return_value={"success": True})
         await client.delete_session("session-1")
     else:

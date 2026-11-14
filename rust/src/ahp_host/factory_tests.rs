@@ -608,6 +608,16 @@ fn host_create_refresh_custom_instructions_round_trips_without_widening_resume()
 }
 
 #[test]
+fn host_create_refresh_custom_instructions_rejects_invalid_and_unknown_settings() {
+    for value in [
+        json!({"sessionId": "id", "refreshCustomInstructions": "true"}),
+        json!({"sessionId": "id", "refreshCustomInstructions": true, "unknown": true}),
+    ] {
+        assert!(config_from_host(&serde_json::from_value(value).unwrap()).is_err());
+    }
+}
+
+#[test]
 fn host_settings_round_trip_without_callbacks_or_losing_constraints() {
     let value = json!({
         "sessionId": "id", "workingDirectory": "/work", "additionalDirectories": ["/extra"],
@@ -622,15 +632,10 @@ fn host_settings_round_trip_without_callbacks_or_losing_constraints() {
         "memory": {"enabled":false}, "pluginDirectories": ["/plugins"],
         "skillDirectories": ["/skills"], "instructionDirectories": ["/instructions"],
         "agentDirectories": ["relative-agents"], "hookDirectories": [],
-        "enableMcpApps": true, "model":"model", "reasoningEffort":"high", "contextTier":"long_context",
-        "permissionMode": "allow-all"
+        "enableMcpApps": true, "model":"model", "reasoningEffort":"high", "contextTier":"long_context"
     });
     let config = config_from_host(&serde_json::from_value(value.clone()).unwrap()).unwrap();
     assert!(config.permission_handler.is_none());
-    assert_eq!(
-        config.permission_mode,
-        Some(crate::PermissionMode::AllowAll)
-    );
     assert_eq!(config.config_directory, Some(PathBuf::from("/config")));
     assert_eq!(config.enable_experimental_mode, Some(true));
     assert_eq!(
@@ -643,10 +648,6 @@ fn host_settings_round_trip_without_callbacks_or_losing_constraints() {
     let resume =
         resume_config_from_host(&serde_json::from_value(resume_value.clone()).unwrap()).unwrap();
     assert!(resume.permission_handler.is_none());
-    assert_eq!(
-        resume.permission_mode,
-        Some(crate::PermissionMode::AllowAll)
-    );
     assert_eq!(resume.config_directory, Some(PathBuf::from("/config")));
     assert_eq!(resume.enable_experimental_mode, Some(true));
     assert_eq!(

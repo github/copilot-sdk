@@ -41,17 +41,13 @@ public final class HumanResponseRecordedResponseUserInput extends HumanResponseR
     @JsonProperty("allowFreeform")
     private Boolean allowFreeform;
 
-    /** Exact selected or free-form answer submitted by the user; empty when the person dismissed the question. */
+    /** Exact selected or free-form answer submitted by the user. */
     @JsonProperty("answer")
     private String answer;
 
     /** Whether the answer was typed as free-form text rather than selected from the displayed choices. */
     @JsonProperty("wasFreeform")
     private Boolean wasFreeform;
-
-    /** True when the person dismissed the question instead of answering it. */
-    @JsonProperty("dismissed")
-    private Boolean dismissed;
 
     public String getQuestion() { return question; }
     public void setQuestion(String question) { this.question = question; }
@@ -67,115 +63,4 @@ public final class HumanResponseRecordedResponseUserInput extends HumanResponseR
 
     public Boolean getWasFreeform() { return wasFreeform; }
     public void setWasFreeform(Boolean wasFreeform) { this.wasFreeform = wasFreeform; }
-
-    public Boolean getDismissed() { return dismissed; }
-    public void setDismissed(Boolean dismissed) { this.dismissed = dismissed; }
-
-
-    /**
-     * Returns a named builder.
-     * @return a new builder
-     * @since 2.0.0
-     */
-    public static Builder builder() { return new Builder(); }
-
-    /**
-     * Named construction for this record.
-     * @since 2.0.0
-     */
-    public static final class Builder {
-        private Builder() {}
-        private String question;
-        private List<String> choices;
-        private Boolean allowFreeform;
-        private String answer;
-        private Boolean wasFreeform;
-        private Boolean dismissed;
-
-        /**
-         * Sets the {@code question} property.
-         * @param value the property value
-         * @return this builder
-         * @since 2.0.0
-         */
-        public Builder question(String value) {
-            this.question = value;
-            return this;
-        }
-
-        /**
-         * Sets the {@code choices} property.
-         * @param value the property value
-         * @return this builder
-         * @since 2.0.0
-         */
-        public Builder choices(List<String> value) {
-            this.choices = value;
-            return this;
-        }
-
-        /**
-         * Sets the {@code allowFreeform} property.
-         * @param value the property value
-         * @return this builder
-         * @since 2.0.0
-         */
-        public Builder allowFreeform(Boolean value) {
-            this.allowFreeform = value;
-            return this;
-        }
-
-        /**
-         * Sets the {@code answer} property.
-         * @param value the property value
-         * @return this builder
-         * @since 2.0.0
-         */
-        public Builder answer(String value) {
-            this.answer = value;
-            return this;
-        }
-
-        /**
-         * Sets the {@code wasFreeform} property.
-         * @param value the property value
-         * @return this builder
-         * @since 2.0.0
-         */
-        public Builder wasFreeform(Boolean value) {
-            this.wasFreeform = value;
-            return this;
-        }
-
-        /**
-         * Sets the {@code dismissed} property.
-         * @param value the property value
-         * @return this builder
-         * @since 2.0.0
-         */
-        public Builder dismissed(Boolean value) {
-            this.dismissed = value;
-            return this;
-        }
-
-        /**
-         * Builds a variant after checking required property presence.
-         * @return a new variant
-         * @throws IllegalStateException if a required property is missing
-         * @since 2.0.0
-         */
-        public HumanResponseRecordedResponseUserInput build() {
-            if (question == null) throw new IllegalStateException("Missing required property: question");
-            if (answer == null) throw new IllegalStateException("Missing required property: answer");
-            if (wasFreeform == null) throw new IllegalStateException("Missing required property: wasFreeform");
-            HumanResponseRecordedResponseUserInput instance = new HumanResponseRecordedResponseUserInput();
-            instance.setQuestion(question);
-            instance.setChoices(choices);
-            instance.setAllowFreeform(allowFreeform);
-            instance.setAnswer(answer);
-            instance.setWasFreeform(wasFreeform);
-            instance.setDismissed(dismissed);
-            return instance;
-        }
-    }
 }

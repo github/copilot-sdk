@@ -103,9 +103,7 @@ func rpcPtr[T any](value T) *T {
 	return &value
 }
 
-func waitForListedSessions(t *testing.T, client interface {
-	ListSessions(context.Context, *copilot.SessionListFilter) ([]copilot.SessionMetadata, error)
-}, ids ...string) []copilot.SessionMetadata {
+func waitForListedSessions(t *testing.T, client *copilot.Client, ids ...string) []copilot.SessionMetadata {
 	t.Helper()
 	return waitForPersistedValue(t, "persisted sessions to appear in list", func(ctx context.Context) ([]copilot.SessionMetadata, error) {
 		return client.ListSessions(ctx, nil)
